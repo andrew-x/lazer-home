@@ -1,0 +1,53 @@
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { nextCookies } from "better-auth/next-js";
+import { admin } from "better-auth/plugins";
+import { headers } from "next/headers";
+import { env } from "@/env";
+import { db } from "@/lib/db/db";
+import * as schema from "@/lib/db/schema";
+import { UserSafeActionError } from "@/lib/errors";
+
+const googleConfigured = Boolean(
+  env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET,
+);
+
+export const auth = betterAuth({
+  baseURL: env.BETTER_AUTH_URL,
+  secret: env.BETTER_AUTH_SECRET,
+  // Reuse the same Drizzle singleton; auth tables live in our schema/migrations.
+  database: drizzleAdapter(db, { provider: "pg", schema }),
+  // Google-only sign-in (see docs/decisions). Email/password is intentionally off.
+  emailAndPassword: { enabled: false },
+  socialProviders: googleConfigured
+    ? {
+        google: {
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+          prompt: "select_account",
+        },
+      }
+    : undefined,
+  // nextCookies() MUST be last so it can flush Set-Cookie from server actions.
+  plugins: [admin(), nextCookies()],
+});
+
+/** Server-side session read used everywhere. Returns the user, or null. */
+export async function getCurrentUser() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  return session?.user ?? null;
+}
+
+/**
+ * Route-level authorization for the action layer.
+ * Throws a user-safe error if unauthenticated or under-privileged.
+ * Admins satisfy any role requirement (admin override).
+ */
+export async function checkAuth(requiredRole: "user" | "admin" = "user") {
+  const user = await getCurrentUser();
+  if (!user) throw new UserSafeActionError("You must be signed in to do that.");
+  if (requiredRole === "admin" && user.role !== "admin") {
+    throw new UserSafeActionError("You don't have permission to do that.");
+  }
+  return user;
+}

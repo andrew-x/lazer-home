@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(bun run:*)",
+      "Bash(bunx biome:*)",
+      "Bash(bunx --bun biome:*)",
+      "Bash(bunx drizzle-kit:*)",
+      "Bash(bunx --bun shadcn:*)",
+      "Bash(tsc:*)",
+      "Bash(biome:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(cat:*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bunx biome check --write . 2>/dev/null || true",
+            "statusMessage": "Formatting with Biome…"
+          }
+        ]
+      }
+    ]
+  }
+}
