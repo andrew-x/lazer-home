@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import { getStaffDirectory } from "@/actions/staff/getStaffDirectory";
-import { StaffDirectory } from "@/components/staff/staff-directory";
 import {
-  employmentTypeEnum,
-  lineOfBusinessEnum,
-  roleEnum,
-} from "@/lib/db/schema";
+  getStaffDirectory,
+  staffDirectoryFilterOptions,
+} from "@/actions/staff/getStaffDirectory";
+import { StaffDirectory } from "@/components/staff/staff-directory";
 
 export const metadata: Metadata = { title: "Staff" };
 
@@ -24,9 +22,9 @@ export default async function StaffPage() {
       </header>
       <StaffDirectory
         entries={entries}
-        lineOfBusinessOptions={[...lineOfBusinessEnum.enumValues]}
-        roleOptions={[...roleEnum.enumValues]}
-        typeOptions={[...employmentTypeEnum.enumValues]}
+        lineOfBusinessOptions={staffDirectoryFilterOptions.lineOfBusiness}
+        roleOptions={staffDirectoryFilterOptions.role}
+        typeOptions={staffDirectoryFilterOptions.employmentType}
       />
     </div>
   );

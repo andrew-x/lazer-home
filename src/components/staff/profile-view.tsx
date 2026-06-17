@@ -14,21 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatDate, humanizeEnum } from "@/lib/format";
-
-/** Up to two initials from a name, falling back to the email's first letter. */
-function initialsFor(name: string, email: string): string {
-  return (
-    name
-      .split(" ")
-      .map((part) => part[0])
-      .filter(Boolean)
-      .slice(0, 2)
-      .join("") ||
-    email[0] ||
-    "?"
-  ).toUpperCase();
-}
+import { formatDate, humanizeEnum, initialsFor } from "@/lib/format";
 
 /** A profile URL row, or an em dash when absent. */
 function LinkRow({ label, url }: { label: string; url: string | null }) {

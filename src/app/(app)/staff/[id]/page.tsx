@@ -6,7 +6,15 @@ import { getStaffProfile } from "@/actions/staff/getStaffProfile";
 import { getStaffPto } from "@/actions/staff/getStaffPto";
 import { ProfileView } from "@/components/staff/profile-view";
 
-export const metadata: Metadata = { title: "Staff profile" };
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const profile = await getStaffProfile(id);
+  return { title: profile?.name ?? "Staff profile" };
+}
 
 export default async function StaffProfilePage({
   params,

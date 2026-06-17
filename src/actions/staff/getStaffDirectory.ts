@@ -3,11 +3,25 @@ import "server-only";
 import { asc, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db/db";
 import {
+  employmentTypeEnum,
+  lineOfBusinessEnum,
+  roleEnum,
   type StaffEmployment,
   staff,
   staffEmployment,
   user,
 } from "@/lib/db/schema";
+
+/**
+ * The values offered by the directory's filter dropdowns, sourced from the DB
+ * enums. Exported here so pages don't import the Drizzle schema directly (the
+ * actions layer owns all `@/lib/db` access).
+ */
+export const staffDirectoryFilterOptions = {
+  lineOfBusiness: [...lineOfBusinessEnum.enumValues],
+  role: [...roleEnum.enumValues],
+  employmentType: [...employmentTypeEnum.enumValues],
+};
 
 /**
  * One row per staff member for the directory: identity + active flag + avatar +
