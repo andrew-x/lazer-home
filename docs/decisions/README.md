@@ -21,3 +21,4 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0009](./0009-pto-import-cancel-as-delete.md) | PTO import treats cancellations as deletes; re-syncs are destructive | accepted |
 | [0010](./0010-actions-layer-owns-db-access.md) | The actions layer owns all DB access — reads are server-only `get<Thing>.ts`, not `'use server'` | accepted |
 | [0011](./0011-category-agnostic-history-feed.md) | The profile history feed is a category-agnostic, server-merged timeline | accepted |
+| [0012](./0012-open-staff-edit-pending-rbac.md) | Staff link/intro edits are open to any authenticated user until RBAC lands | accepted (temporary) |

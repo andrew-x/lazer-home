@@ -56,6 +56,16 @@ Steps: gate (host) → parse + `transformRows` (client, into upsert/delete rows 
 
 > Note the `unresolved` bucket: an upsert whose `Employee - ID` matches no staff can't be inserted (no FK target) and is surfaced for review — so **run the staff import first**. A delete for leave that was never imported is a harmless no-op (`ignoredCancellations`).
 
+## Browse-staff flow (directory → per-person profile)
+
+How a signed-in user finds and views colleagues. All reads go through the actions layer (ADR 0010); none are ownership-scoped — the `(app)` layout's session+staff gate is the only access boundary, and editing is open to any signed-in user for now ([ADR 0012](./decisions/0012-open-staff-edit-pending-rbac.md)).
+
+1. **Directory (`/staff`).** The page `await`s `getStaffDirectory()` once (server) — two queries (all staff + the whole `staff_employment` table, reduced to latest-per-staff in JS; no N+1) plus `staffDirectoryFilterOptions`. The `StaffDirectory` client component does **all** search (name) and filtering (line of business / role / employment type) over that single fetch, with an **"active only" toggle defaulting ON** that hides inactive staff (fetched but not shown until toggled off). Card grid of `staff-card.tsx`.
+2. **Open a person (`/staff/[id]`).** `Promise.all` of `getStaffProfile(id)` / `getStaffHistory(id)` / `getStaffPto(id)` / `getStaffAvatar(id)`. Unknown id → `notFound()`. `generateMetadata` titles the tab with the person's name (shares the `React.cache`d `getStaffProfile` query with the body). Renders the shared `ProfileView` — the same component that backs `/profile` — so self and other profiles look identical; the edit dialogs receive the target `staffId`.
+3. **Edit (any signed-in user, temporary).** `updateStaffLinks` / `updateStaffClientIntro` write by `staffId` and revalidate `/profile` + `/staff/${staffId}`. No row-level ownership check today — see [ADR 0012](./decisions/0012-open-staff-edit-pending-rbac.md).
+
+> The self page `/profile` is the same flow with the id resolved from the session via `getCurrentStaffId()` (the `getMy*` wrappers delegate to the `getStaff*` cores).
+
 ## The technical request flow (every mutation)
 
 This is how *any* form-driven write moves through the stack. It is the concrete realization of the stack in [architecture.md](./architecture.md). (The former `StaffProfileForm` → `updateStaffProfile` demo slice has been deleted; no domain write exists in code yet, so the steps below describe the *intended* pattern.)
