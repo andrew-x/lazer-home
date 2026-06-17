@@ -29,10 +29,10 @@ export function GoogleSignInButton() {
       variant="outline"
       size="lg"
       className="w-full gap-2"
-      disabled={loading}
+      loading={loading}
       onClick={handleSignIn}
     >
-      <GoogleIcon className="size-4" />
+      {loading ? null : <GoogleIcon className="size-4" />}
       {loading ? "Redirecting…" : "Continue with Google"}
     </Button>
   );

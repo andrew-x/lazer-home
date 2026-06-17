@@ -1,0 +1,152 @@
+import type { InferSelectModel } from "drizzle-orm";
+import {
+  boolean,
+  date,
+  integer,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
+import { user } from "./auth-schema";
+
+// ---------------------------------------------------------------------------
+// Staff profiles domain
+//
+// `staff` is the durable record of an engagement; `staffEmployment` captures
+// the time-varying employment facts (role, line of business, billability,
+// target). A new employment row is created whenever those facts change, keyed
+// by `effectiveFromDate` — the current state is the row with the latest date.
+// `staffPto` records discrete leave spans. See ADR 0007.
+// ---------------------------------------------------------------------------
+
+// --- Enums -----------------------------------------------------------------
+
+// Shared/global enum — reused beyond staff (e.g. CRM, allocations).
+export const lineOfBusinessEnum = pgEnum("line_of_business", [
+  "CORPORATE",
+  "CORE",
+  "FINTECH",
+  "COMMERCE",
+  "DESIGN",
+]);
+
+export const roleEnum = pgEnum("role", [
+  "ENGINEER",
+  "DESIGNER",
+  "LEADERSHIP",
+  "SALES",
+  "SOLUTIONS",
+  "OPERATIONS",
+  "ARCHITECT",
+  "DELIVERY",
+  "QA",
+]);
+
+export const employmentTypeEnum = pgEnum("employment_type", [
+  "FULL_TIME",
+  "HOURLY",
+]);
+
+export const billableTypeEnum = pgEnum("billable_type", ["HUB", "GLOBAL"]);
+
+export const ptoTypeEnum = pgEnum("pto_type", [
+  "VACATION",
+  "STATUTORY_HOLIDAY",
+  "SICK_LEAVE",
+  "UNPAID_LEAVE",
+  "PARENTAL_LEAVE",
+  "BEREAVEMENT_LEAVE",
+  "COMPANY_RETREAT",
+  "RELIGIOUS_HOLIDAY",
+  "JURY_DUTY",
+  "LEAVE_OF_ABSENCE",
+  "OTHER_LEAVE",
+]);
+
+// --- Tables ----------------------------------------------------------------
+
+export const staff = pgTable("staff", {
+  id: text().primaryKey(),
+  ripplingId: text().notNull().unique(),
+  // Optional link to the auth account. Null until the person signs in (staff
+  // can be synced before they ever log in); unique → at most one staff per user.
+  userId: text()
+    .unique()
+    .references(() => user.id, { onDelete: "set null" }),
+  name: text().notNull(),
+  email: text().notNull(),
+  linkedinUrl: text(),
+  githubUrl: text(),
+  portfolioUrl: text(),
+
+  clientIntro: text(),
+  clientIntroUpdatedAt: timestamp(),
+
+  joinDate: date(),
+  terminationDate: date(),
+  isActive: boolean().notNull().default(true),
+
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp()
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+export const staffEmployment = pgTable("staff_employment", {
+  id: text().primaryKey(),
+  staffId: text()
+    .notNull()
+    .references(() => staff.id, { onDelete: "cascade" }),
+  effectiveFromDate: date().notNull(),
+
+  lineOfBusiness: lineOfBusinessEnum().notNull(),
+  role: roleEnum().notNull(),
+  employmentType: employmentTypeEnum().notNull(),
+  isBillable: boolean().notNull().default(true),
+  // Percentage (0–100). Defaults to 100 for billable staff; callers should set
+  // it to 0 when `isBillable` is false.
+  utilizationTarget: integer().notNull().default(100),
+
+  billableType: billableTypeEnum().notNull().default("HUB"),
+
+  // Orthogonal to `role`: someone can work in a role (e.g. ENGINEER) and also be
+  // management for it. Set in-app (never derived from the CSV import), so import
+  // preserves it across re-syncs rather than resetting it. See ADR 0007.
+  isManagement: boolean().notNull().default(false),
+
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp()
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+export const staffPto = pgTable("staff_pto", {
+  id: text().primaryKey(),
+  ripplingId: text().notNull().unique(),
+  staffId: text()
+    .notNull()
+    .references(() => staff.id, { onDelete: "cascade" }),
+
+  startDate: date().notNull(),
+  endDate: date().notNull(),
+  type: ptoTypeEnum().notNull(),
+
+  // Awaiting approval; cleared once the request is approved (or synced as
+  // already-approved from Rippling).
+  isPending: boolean().notNull().default(true),
+
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp()
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// --- Row types -------------------------------------------------------------
+
+export type Staff = InferSelectModel<typeof staff>;
+export type StaffEmployment = InferSelectModel<typeof staffEmployment>;
+export type StaffPto = InferSelectModel<typeof staffPto>;

@@ -1,4 +1,10 @@
-import { type Icon, IconHome, IconSettings } from "@tabler/icons-react";
+import {
+  type Icon,
+  IconHome,
+  IconSettings,
+  IconUser,
+  IconUsers,
+} from "@tabler/icons-react";
 import { APP_NAME } from "@/lib/constants";
 
 export type NavItem = { title: string; href: string; icon: Icon };
@@ -6,6 +12,8 @@ export type NavItem = { title: string; href: string; icon: Icon };
 /** Primary nav shown in the sidebar (icons + labels). Extend as domains land. */
 export const NAV_ITEMS: NavItem[] = [
   { title: "Home", href: "/", icon: IconHome },
+  { title: "My profile", href: "/profile", icon: IconUser },
+  { title: "Staff", href: "/staff", icon: IconUsers },
   { title: "Settings", href: "/settings", icon: IconSettings },
 ];
 

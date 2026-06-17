@@ -5,7 +5,7 @@ How to run this app locally without rediscovering anything. Commands are the rea
 ## Prerequisites
 
 - **Bun** — runs every script and the `drizzle-kit` / `better-auth` CLIs, and auto-loads `.env` for `bun run` / `bunx`.
-- **A Postgres database.** `.env.example` ships a local-docker default (`docker compose up -d`, see `docker-compose.yml`). The project's own `.env` currently points `DATABASE_URL` at a **Neon**-hosted Postgres — the `postgres` (postgres-js) driver talks to it over the standard endpoint. Either works.
+- **A remote Postgres (e.g. Neon).** There is no local DB — dev runs against a remote Postgres; get `DATABASE_URL` from the team. `.env.example` ships a remote placeholder (`postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require`). The `postgres` (postgres-js) driver talks to Neon over the standard endpoint.
 
 ## Env setup
 
@@ -45,7 +45,7 @@ bun run format   # biome format --write  → auto-fix formatting
 
 ## Schema workflow
 
-- Change `src/lib/db/schema.ts`, then: `bun run db:generate` (emit SQL into `drizzle/`) → `bun run db:migrate` (apply). `db:push` is a quick-dev shortcut that skips migration files; `db:studio` opens the browser explorer.
+- Change the relevant schema module (e.g. `src/lib/db/staff-schema.ts`; `schema.ts` is just the barrel), then: `bun run db:generate` (emit SQL into `drizzle/`) → `bun run db:migrate` (apply). `db:push` is a quick-dev shortcut that skips migration files; `db:studio` opens the browser explorer.
 - **Better Auth tables:** `bun run auth:generate` regenerates `src/lib/db/auth-schema.ts`; they live in our own schema/migrations, so re-run `db:generate` → `db:migrate` after.
 - `drizzle.config.ts` `casing: "snake_case"` MUST stay in sync with the runtime client in `src/lib/db/db.ts`.
 

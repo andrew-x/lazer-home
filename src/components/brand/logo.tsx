@@ -23,6 +23,27 @@ export function LogoMark({
   );
 }
 
+/** The full logo lockup from /public/logo.svg (mark + wordmark as one image). */
+export function LogoWordmark({
+  className,
+  height = 24,
+}: {
+  className?: string;
+  height?: number;
+}) {
+  // logo.svg is 1895×750; preserve that aspect ratio off the requested height.
+  return (
+    <Image
+      src="/logo.svg"
+      alt={APP_NAME}
+      width={Math.round(height * (1895 / 750))}
+      height={height}
+      unoptimized
+      className={cn("select-none", className)}
+    />
+  );
+}
+
 /** Mark + wordmark, used on the login screen and 404. */
 export function Logo({
   className,

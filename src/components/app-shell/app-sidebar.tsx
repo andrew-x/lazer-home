@@ -1,9 +1,10 @@
 "use client";
 
-import { IconLayoutSidebar } from "@tabler/icons-react";
+import { IconLayoutSidebar, IconLogout, IconTool } from "@tabler/icons-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LogoMark } from "@/components/brand/logo";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
+import { LogoMark, LogoWordmark } from "@/components/brand/logo";
 import {
   Sidebar,
   SidebarContent,
@@ -16,35 +17,42 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { APP_NAME } from "@/lib/constants";
+import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { isActivePath, NAV_ITEMS } from "./nav";
-import { NavUser, type SessionUser } from "./nav-user";
 
-export type { SessionUser };
-
-export function AppSidebar({ user }: { user: SessionUser }) {
+export function AppSidebar({ isLocal = false }: { isLocal?: boolean }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { toggleSidebar, state } = useSidebar();
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    await authClient.signOut();
+    router.replace("/login");
+    router.refresh();
+  }
 
   return (
     <Sidebar variant="floating" collapsible="icon">
       <SidebarHeader>
-        <Link
-          href="/"
-          className="flex h-10 items-center gap-2 overflow-hidden px-2"
-        >
-          <LogoMark className="shrink-0" />
-          <span className="truncate font-heading text-base font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
-            {APP_NAME}
+        <Link href="/" className="flex h-10 items-center overflow-hidden px-2">
+          {/* Collapsed: square mark. Expanded: full wordmark (no separate title). */}
+          {/* Sizes come from the Image width/height props (not CSS) so Next's
+              aspect-ratio check stays happy; the box also can't flash at the
+              SVG's intrinsic size during the display swap mid-collapse. */}
+          <span className="hidden shrink-0 group-data-[collapsible=icon]:block">
+            <LogoMark size={20} />
           </span>
+          <LogoWordmark className="shrink-0 group-data-[collapsible=icon]:hidden" />
         </Link>
       </SidebarHeader>
 
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-2">
               {NAV_ITEMS.map((item) => {
                 const active = isActivePath(item.href, pathname);
                 return (
@@ -67,7 +75,20 @@ export function AppSidebar({ user }: { user: SessionUser }) {
       </SidebarContent>
 
       <SidebarFooter>
-        <SidebarMenu>
+        <SidebarMenu className="gap-2">
+          {/* Admin is a local-only tooling surface — only shown when running locally. */}
+          {isLocal && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={isActivePath("/admin", pathname)}
+                tooltip="Admin"
+                render={<Link href="/admin" />}
+              >
+                <IconTool />
+                <span>Admin</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={toggleSidebar}
@@ -79,8 +100,17 @@ export function AppSidebar({ user }: { user: SessionUser }) {
               <span>{state === "collapsed" ? "Expand" : "Collapse"}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={handleSignOut}
+              disabled={signingOut}
+              tooltip="Sign out"
+            >
+              <IconLogout />
+              <span>{signingOut ? "Signing out…" : "Sign out"}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
-        <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>
   );
