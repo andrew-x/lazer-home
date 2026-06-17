@@ -24,7 +24,10 @@ export type StaffPtoView = {
   upcoming: PtoSpan[];
   /** Already ended (endDate < today), most recent first. */
   past: PtoSpan[];
-  /** Per-category working-day totals across all spans, largest first. */
+  /**
+   * Per-category working-day totals for the CURRENT calendar year, largest
+   * first. Spans straddling a year boundary are clamped to the year.
+   */
   summary: PtoCategorySummary[];
 };
 
@@ -71,6 +74,9 @@ export async function getStaffPto(staffId: string): Promise<StaffPtoView> {
     .orderBy(asc(staffPto.startDate));
 
   const today = todayIso();
+  const currentYear = new Date().getFullYear();
+  const yearStart = `${currentYear}-01-01`;
+  const yearEnd = `${currentYear}-12-31`;
   const upcoming: PtoSpan[] = [];
   const past: PtoSpan[] = [];
   const totals = new Map<PtoType, number>();
@@ -82,8 +88,15 @@ export async function getStaffPto(staffId: string): Promise<StaffPtoView> {
     if (row.endDate >= today) upcoming.push(span);
     else past.push(span);
 
-    if (workingDays > 0) {
-      totals.set(row.type, (totals.get(row.type) ?? 0) + workingDays);
+    // Summary totals count only the portion of each span within this calendar
+    // year (clamp to the year bounds — "YYYY-MM-DD" strings compare chronologically).
+    const clampStart = row.startDate > yearStart ? row.startDate : yearStart;
+    const clampEnd = row.endDate < yearEnd ? row.endDate : yearEnd;
+    if (clampStart <= clampEnd) {
+      const yearWorkingDays = countWorkingDays(clampStart, clampEnd);
+      if (yearWorkingDays > 0) {
+        totals.set(row.type, (totals.get(row.type) ?? 0) + yearWorkingDays);
+      }
     }
   }
 

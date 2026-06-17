@@ -1,5 +1,5 @@
-import type { MyProfile } from "@/actions/staff/getMyProfile";
 import type { HistoryEntry } from "@/actions/staff/getStaffHistory";
+import type { StaffProfile } from "@/actions/staff/getStaffProfile";
 import type { StaffPtoView } from "@/actions/staff/getStaffPto";
 import { EditClientIntroDialog } from "@/components/staff/edit-client-intro-dialog";
 import { EditLinksDialog } from "@/components/staff/edit-links-dialog";
@@ -51,7 +51,7 @@ export function ProfileView({
 }: {
   staffId: string;
   imageUrl: string | null;
-  profile: MyProfile;
+  profile: StaffProfile;
   history: HistoryEntry[];
   pto: StaffPtoView;
 }) {
