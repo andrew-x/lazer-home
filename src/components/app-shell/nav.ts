@@ -3,6 +3,7 @@ import {
   IconHome,
   IconSettings,
   IconUser,
+  IconUsers,
 } from "@tabler/icons-react";
 import { APP_NAME } from "@/lib/constants";
 
@@ -11,6 +12,7 @@ export type NavItem = { title: string; href: string; icon: Icon };
 /** Primary nav shown in the sidebar (icons + labels). Extend as domains land. */
 export const NAV_ITEMS: NavItem[] = [
   { title: "Home", href: "/", icon: IconHome },
+  { title: "Staff", href: "/staff", icon: IconUsers },
   { title: "My profile", href: "/profile", icon: IconUser },
   { title: "Settings", href: "/settings", icon: IconSettings },
 ];
