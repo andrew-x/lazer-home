@@ -28,7 +28,43 @@ function FilterLabel({ children }: { children: string }) {
   );
 }
 
-/** A single-select segmented control with a leading "All" segment. */
+/** A labelled select filter with a leading "All" option. */
+function SelectFilter({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <FilterLabel>{label}</FilterLabel>
+      <Select value={value} onValueChange={(next) => onChange(next ?? ALL)}>
+        <SelectTrigger aria-label={label} className="w-44">
+          <SelectValue>
+            {(current: string) =>
+              current === ALL ? "All" : humanizeEnum(current)
+            }
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>All</SelectItem>
+          {options.map((option) => (
+            <SelectItem key={option} value={option}>
+              {humanizeEnum(option)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+/** A connected single-select button group with a leading "All" segment. */
 function SegmentedFilter({
   label,
   value,
@@ -45,6 +81,7 @@ function SegmentedFilter({
       <FilterLabel>{label}</FilterLabel>
       <ToggleGroup
         variant="outline"
+        spacing={0}
         aria-label={label}
         value={[value]}
         // Single-select: ignore the empty array Base UI emits when the active
@@ -65,8 +102,8 @@ function SegmentedFilter({
 }
 
 /**
- * Staff directory: client-side name search + line-of-business / type segmented
- * controls, a role select, and a "show inactive" switch (off by default, so only
+ * Staff directory: client-side name search + line-of-business / role selects, a
+ * type button group, and a "show inactive" switch (off by default, so only
  * active staff show). All filtering is in-memory over the list fetched once on
  * the server.
  */
@@ -82,7 +119,6 @@ export function StaffDirectory({
   typeOptions: string[];
 }) {
   const searchId = useId();
-  const roleId = useId();
   const inactiveId = useId();
   const [search, setSearch] = useState("");
   const [lineOfBusiness, setLineOfBusiness] = useState(ALL);
@@ -121,44 +157,25 @@ export function StaffDirectory({
           </div>
         </div>
 
-        <SegmentedFilter
-          label="Line of business"
-          value={lineOfBusiness}
-          options={lineOfBusinessOptions}
-          onChange={setLineOfBusiness}
-        />
-
         <div className="flex flex-wrap items-end gap-6">
+          <SelectFilter
+            label="Line of business"
+            value={lineOfBusiness}
+            options={lineOfBusinessOptions}
+            onChange={setLineOfBusiness}
+          />
+          <SelectFilter
+            label="Role"
+            value={role}
+            options={roleOptions}
+            onChange={setRole}
+          />
           <SegmentedFilter
             label="Type"
             value={type}
             options={typeOptions}
             onChange={setType}
           />
-
-          <div className="flex flex-col gap-1.5">
-            <FilterLabel>Role</FilterLabel>
-            <Select
-              value={role}
-              onValueChange={(value) => setRole(value ?? ALL)}
-            >
-              <SelectTrigger id={roleId} aria-label="Role" className="w-44">
-                <SelectValue>
-                  {(value: string) =>
-                    value === ALL ? "All" : humanizeEnum(value)
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>All</SelectItem>
-                {roleOptions.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {humanizeEnum(option)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
           <div className="flex h-9 items-center gap-2 text-sm">
             <Switch
