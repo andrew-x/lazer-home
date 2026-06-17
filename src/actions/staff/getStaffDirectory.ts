@@ -3,6 +3,7 @@ import "server-only";
 import { asc, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db/db";
 import {
+  billableTypeEnum,
   employmentTypeEnum,
   lineOfBusinessEnum,
   roleEnum,
@@ -21,6 +22,7 @@ export const staffDirectoryFilterOptions = {
   lineOfBusiness: [...lineOfBusinessEnum.enumValues],
   role: [...roleEnum.enumValues],
   employmentType: [...employmentTypeEnum.enumValues],
+  billableType: [...billableTypeEnum.enumValues],
 };
 
 /**

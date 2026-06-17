@@ -44,8 +44,18 @@ export function EditLinksDialog({
   links: Links;
 }) {
   const [open, setOpen] = useState(false);
+  // Bump on each open so the form remounts with fresh defaults. Unlike gating
+  // on `open`, this keeps the form mounted through the close animation so the
+  // popup doesn't collapse to its header before fading out.
+  const [formKey, setFormKey] = useState(0);
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setFormKey((k) => k + 1);
+        setOpen(next);
+      }}
+    >
       <DialogTrigger
         render={
           <Button variant="ghost" size="sm">
@@ -61,14 +71,12 @@ export function EditLinksDialog({
             Professional profiles. Leave a field blank to clear it.
           </DialogDescription>
         </DialogHeader>
-        {/* Remounts each time the dialog opens, so defaults track the latest data. */}
-        {open ? (
-          <LinksForm
-            staffId={staffId}
-            links={links}
-            onSaved={() => setOpen(false)}
-          />
-        ) : null}
+        <LinksForm
+          key={formKey}
+          staffId={staffId}
+          links={links}
+          onSaved={() => setOpen(false)}
+        />
       </DialogContent>
     </Dialog>
   );

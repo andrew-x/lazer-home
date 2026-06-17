@@ -23,7 +23,7 @@ bunx --bun shadcn@latest add <name>     # e.g. dialog, table, tabs, badge
 Aim for a distinctive, editorial look — not the default rounded/shadowed AI-app aesthetic. Design tokens (oklch) live in `src/app/globals.css`. The app is **light mode only** (the `.dark` block is unused).
 
 - **Sharp corners:** `--radius` is `0.25rem` (4px). Keep it tight; don't bump radii per-component.
-- **Flat surfaces:** no elevation shadows — hairline `border`s define edges. A global rule neutralizes `shadow-*` utilities, so don't rely on shadows for separation; use `border` instead.
+- **Flat surfaces:** no elevation shadows on **in-page** surfaces — hairline `border`s define edges. A global rule (`globals.css`, `@layer utilities`) neutralizes `shadow-*` utilities, so don't rely on shadows for separation between in-page surfaces; use `border` instead. **Exception — floating overlays** (Select/dropdown menus, Popover, Dialog, Tooltip) keep a soft elevation shadow as a usability cue that they sit above the page: the same global rule re-applies a `box-shadow` to their `[data-slot="*-content"]` elements. Overlays get **both** a `border` (crisp edge) and that shadow (depth). Don't flatten overlays.
 - **Indigo sparingly:** the UI is mostly monochrome (neutral grays). Indigo (`--primary`/`--ring`) appears only on primary buttons, focus rings, links, and the active nav icon. Don't tint hovers/cards/backgrounds with indigo.
 - **Cursor:** a global base rule gives buttons and ARIA-interactive elements `cursor-pointer` — don't add `cursor-pointer` per component.
 - Use **semantic classes** (`bg-primary`, `text-muted-foreground`, `border`) — never raw hex / `indigo-600`. Conditional classes via `cn()` from `@/lib/utils`.

@@ -33,4 +33,4 @@ The Drizzle client is a hot-reload-safe singleton in `src/lib/db/db.ts`. Import 
 
 - Edit schema → `bun run db:generate` (writes SQL to `./drizzle`) → `bun run db:migrate`.
 - `bun run db:push` for quick dev iteration; `bun run db:studio` to browse.
-- Local DB: `docker compose up -d` (see docker-compose.yml).
+- Dev runs against a **remote** Postgres (no local DB / Docker) — point `DATABASE_URL` at it (see `.env.example`).

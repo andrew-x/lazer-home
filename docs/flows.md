@@ -56,6 +56,15 @@ Steps: gate (host) → parse + `transformRows` (client, into upsert/delete rows 
 
 > Note the `unresolved` bucket: an upsert whose `Employee - ID` matches no staff can't be inserted (no FK target) and is surfaced for review — so **run the staff import first**. A delete for leave that was never imported is a harmless no-op (`ignoredCancellations`).
 
+## Bulk edit employment flow (localhost-only admin → employment facts)
+
+A third admin tool at `/admin/bulk-edit-roles`, same localhost gate, but it **maintains** existing `staff_employment` rather than importing. The page `await`s `getStaffEmploymentForEdit()` (latest employment row per staff) and renders the `BulkEditRoles` TanStack table; edits are tracked client-side, a floating save bar surfaces the changed count, and a confirm dialog shows per-staff field diffs. `commitBulkEditEmployment` (`publicActionClient` + `assertLocalhost()`) **recomputes against the DB**, drops no-op changes, then branches on the effective date:
+
+1. **Blank effective date → UPDATE each staff's latest row in place** (correcting a mistake — no new historical fact).
+2. **Effective date set → INSERT a new effective-dated row per staff** (a real change; the date must be strictly after each staff's latest `effectiveFromDate`).
+
+Full field/UI detail in [domains/staff-profiles.md](./domains/staff-profiles.md) → *Bulk edit roles*; the *why* behind the in-place path in [ADR 0007](./decisions/0007-staff-employment-effective-dating.md).
+
 ## Browse-staff flow (directory → per-person profile)
 
 How a signed-in user finds and views colleagues. All reads go through the actions layer (ADR 0010); none are ownership-scoped — the `(app)` layout's session+staff gate is the only access boundary, and editing is open to any signed-in user for now ([ADR 0012](./decisions/0012-open-staff-edit-pending-rbac.md)).

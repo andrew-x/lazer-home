@@ -1,10 +1,10 @@
 "use client";
 
-import { IconLayoutSidebar, IconLogout } from "@tabler/icons-react";
+import { IconLayoutSidebar, IconLogout, IconTool } from "@tabler/icons-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { LogoMark } from "@/components/brand/logo";
+import { LogoMark, LogoWordmark } from "@/components/brand/logo";
 import {
   Sidebar,
   SidebarContent,
@@ -18,11 +18,10 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
-import { APP_NAME } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { isActivePath, NAV_ITEMS } from "./nav";
 
-export function AppSidebar() {
+export function AppSidebar({ isLocal = false }: { isLocal?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const { toggleSidebar, state } = useSidebar();
@@ -38,14 +37,15 @@ export function AppSidebar() {
   return (
     <Sidebar variant="floating" collapsible="icon">
       <SidebarHeader>
-        <Link
-          href="/"
-          className="flex h-10 items-center gap-2 overflow-hidden px-2"
-        >
-          <LogoMark className="shrink-0" />
-          <span className="truncate font-heading text-base font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
-            {APP_NAME}
+        <Link href="/" className="flex h-10 items-center overflow-hidden px-2">
+          {/* Collapsed: square mark. Expanded: full wordmark (no separate title). */}
+          {/* Sizes come from the Image width/height props (not CSS) so Next's
+              aspect-ratio check stays happy; the box also can't flash at the
+              SVG's intrinsic size during the display swap mid-collapse. */}
+          <span className="hidden shrink-0 group-data-[collapsible=icon]:block">
+            <LogoMark size={20} />
           </span>
+          <LogoWordmark className="shrink-0 group-data-[collapsible=icon]:hidden" />
         </Link>
       </SidebarHeader>
 
@@ -76,6 +76,19 @@ export function AppSidebar() {
 
       <SidebarFooter>
         <SidebarMenu className="gap-2">
+          {/* Admin is a local-only tooling surface — only shown when running locally. */}
+          {isLocal && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={isActivePath("/admin", pathname)}
+                tooltip="Admin"
+                render={<Link href="/admin" />}
+              >
+                <IconTool />
+                <span>Admin</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={toggleSidebar}

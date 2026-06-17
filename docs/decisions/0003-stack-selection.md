@@ -20,11 +20,13 @@ The platform was greenfield with DB, ORM, auth, and UI all explicitly left open 
 
 ### Why plain Postgres instead of the source project's Neon
 
-The source project used Neon's serverless/HTTP driver, which suits edge/serverless deploys. This project runs a standard Node/Bun server and develops against a **local Postgres in Docker** (`docker-compose.yml`), so a normal TCP driver (postgres-js) is simpler, has no per-query HTTP overhead, and avoids a vendor lock-in we don't need. The Drizzle client is a hot-reload-safe singleton (`src/lib/db/db.ts`) — connection pooling is handled in-process rather than delegated to a serverless proxy.
+The source project used Neon's serverless/HTTP driver, which suits edge/serverless deploys. This project runs a standard Node/Bun server, so a normal TCP driver (postgres-js) is simpler, has no per-query HTTP overhead, and avoids a vendor lock-in we don't need — even when the Postgres itself is Neon-hosted, postgres-js talks to it over the standard endpoint. The Drizzle client is a hot-reload-safe singleton (`src/lib/db/db.ts`) — connection pooling is handled in-process rather than delegated to a serverless proxy.
+
+**Update 2026-06-17:** local-Docker dev was dropped. Dev now runs against a **remote Postgres** (Neon) — `docker-compose.yml` was deleted and `.env.example` ships a remote placeholder. The driver choice (postgres-js, not Neon's serverless driver) is unchanged.
 
 ## Consequences
 
-- Need a running Postgres + `bun run db:migrate` before the app can touch data (local: `docker compose up -d`). Not auto-provisioned.
+- Need a reachable Postgres + `bun run db:migrate` before the app can touch data (dev: a remote Postgres — see the 2026-06-17 update above). Not auto-provisioned.
 - `casing: "snake_case"` must stay in sync between `src/lib/db/db.ts` and `drizzle.config.ts`.
 - better-auth tables live in OUR schema/migrations (`auth-schema.ts`, regenerated via `bun run auth:generate`), not managed externally.
 - If a future deploy target is serverless/edge, the driver choice (not the ORM) would be the thing to revisit.

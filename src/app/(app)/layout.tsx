@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell/app-shell";
+import { isLocalhost } from "@/lib/admin";
 import { getCurrentUser } from "@/lib/auth";
 import { getCurrentStaff } from "@/lib/staff";
 
@@ -15,5 +16,5 @@ export default async function AppLayout({
   const staffAccess = await getCurrentStaff(user);
   if (staffAccess.status !== "ok") redirect("/profile-setup");
 
-  return <AppShell>{children}</AppShell>;
+  return <AppShell isLocal={await isLocalhost()}>{children}</AppShell>;
 }

@@ -159,4 +159,18 @@
   .shadow-2xl {
     box-shadow: none;
   }
+
+  /* Exception: floating overlays sit above the page, so they keep a soft
+     elevation shadow as a usability cue (in-page surfaces stay flat). Declared
+     after the reset above so it wins for overlays that still carry a shadow-*
+     class (e.g. the dialog). */
+  [data-slot="select-content"],
+  [data-slot="popover-content"],
+  [data-slot="dropdown-menu-content"],
+  [data-slot="dialog-content"],
+  [data-slot="tooltip-content"] {
+    box-shadow:
+      0 12px 28px -12px rgb(0 0 0 / 0.16),
+      0 4px 12px -6px rgb(0 0 0 / 0.1);
+  }
 }

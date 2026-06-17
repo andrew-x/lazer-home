@@ -5,7 +5,7 @@ How to run this app locally without rediscovering anything. Commands are the rea
 ## Prerequisites
 
 - **Bun** — runs every script and the `drizzle-kit` / `better-auth` CLIs, and auto-loads `.env` for `bun run` / `bunx`.
-- **A Postgres database.** `.env.example` ships a local-docker default (`docker compose up -d`, see `docker-compose.yml`). The project's own `.env` currently points `DATABASE_URL` at a **Neon**-hosted Postgres — the `postgres` (postgres-js) driver talks to it over the standard endpoint. Either works.
+- **A remote Postgres (e.g. Neon).** There is no local DB — dev runs against a remote Postgres; get `DATABASE_URL` from the team. `.env.example` ships a remote placeholder (`postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require`). The `postgres` (postgres-js) driver talks to Neon over the standard endpoint.
 
 ## Env setup
 

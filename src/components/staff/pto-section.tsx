@@ -29,6 +29,7 @@ export function PtoSection({ pto }: { pto: StaffPtoView }) {
           <Button
             variant="ghost"
             size="sm"
+            nativeButton={false}
             render={
               <a href={RIPPLING_TIME_OFF_URL} target="_blank" rel="noreferrer">
                 Manage

@@ -15,7 +15,7 @@ A professional services automation (PSA) platform for a software consultancy —
 | UI runtime | **React 19** (React Compiler enabled) | |
 | Language | **TypeScript** | |
 | Lint/format | **Biome** | `bun run lint` / `bun run format` |
-| Database | **Postgres** via **postgres-js** driver (`postgres` pkg) | driver choice is postgres-js, not Neon's serverless driver — but `.env` currently points `DATABASE_URL` at a **Neon**-hosted Postgres (works over the standard endpoint); `db:migrate` against it is still pending. `.env.example` ships a local-docker default. See [decisions/0003](./decisions/0003-stack-selection.md) |
+| Database | **Postgres** via **postgres-js** driver (`postgres` pkg) | driver choice is postgres-js, not Neon's serverless driver — but `.env` currently points `DATABASE_URL` at a **Neon**-hosted Postgres (works over the standard endpoint); `db:migrate` against it is still pending. Dev runs against a remote Postgres (no local DB / Docker); `.env.example` ships a remote placeholder. See [decisions/0003](./decisions/0003-stack-selection.md) |
 | ORM | **Drizzle** (`drizzle-orm` + `drizzle-kit`), `casing: "snake_case"` | singleton in `src/lib/db/db.ts` |
 | Auth | **better-auth** — admin plugin; **Google-only** (email/password disabled) | `src/lib/auth.ts`, [0006](./decisions/0006-google-only-auth-and-layout-gating.md) |
 | UI | **shadcn on Base UI** (`base-nova`), **Tabler icons** (`@tabler/icons-react`), Geist; light mode only, flat + mostly-monochrome (indigo used sparingly) | `src/components/ui/**`, `components.json` — see [ui.md](./ui.md), [0005](./decisions/0005-ui-stack.md) |
@@ -39,18 +39,19 @@ src/
       profile-setup/page.tsx
     (auth)/login/page.tsx    PUBLIC route group (Google sign-in)
     admin/                   LOCALHOST-ONLY tooling — OUTSIDE (app) on purpose; layout 404s non-loopback requests
-      layout.tsx page.tsx upload-staff/page.tsx upload-pto/page.tsx
+      layout.tsx page.tsx upload-staff/page.tsx upload-pto/page.tsx bulk-edit-roles/page.tsx
     error.tsx not-found.tsx global-error.tsx   error/404 conventions (Next 16 unstable_retry — see ui.md)
     api/auth/[...all]/route.ts  better-auth catch-all (mounts the whole auth API)
   actions/<domain>/          the single entry point for ALL DB access (ADR 0010)
     staff/getStaffProfile.ts staff/getStaffHistory.ts staff/getStaffPto.ts staff/getStaffAvatar.ts  per-person reads by id (server-only get<Thing>.ts), NOT ownership-scoped
     staff/getStaffDirectory.ts  directory read: latest-employment-per-staff (two queries, no N+1) + filter options
     staff/getCurrentStaffId.ts  session→staff id (React.cache); getMy* wrappers delegate to the getStaff* cores
+    staff/getStaffEmploymentForEdit.ts  latest employment row per staff for the bulk-edit table (server-only)
     staff/updateStaffLinks.ts staff/updateStaffClientIntro.ts  edit-by-staffId mutations (+ .schema.ts); open to any signed-in user for now (ADR 0012)
     <domain>/<verb><Thing>.ts  mutations → next-safe-action, one per file (+ .schema.ts)
-    admin/                   {preview,commit}StaffImport + {preview,commit}PtoImport (publicActionClient + assertLocalhost)
+    admin/                   {preview,commit}StaffImport + {preview,commit}PtoImport + commitBulkEditEmployment (publicActionClient + assertLocalhost)
   components/                React components; ui/ = vendored shadcn primitives,
-                             app-shell/ + auth/ + brand/ = the UI shell, admin/ = staff-import + pto-import UI,
+                             app-shell/ + auth/ + brand/ = the UI shell, admin/ = staff-import + pto-import + bulk-edit-roles UI,
                              staff/ = shared ProfileView (backs /profile + /staff/[id]) + directory/cards + edit dialogs + history sheet
   hooks/useZodForm.tsx       RHF + zodResolver wrapper
   lib/
@@ -72,7 +73,6 @@ src/
       ids.ts                 generateId(prefix)
 drizzle/                     generated SQL migrations
 drizzle.config.ts            casing MUST match db.ts
-docker-compose.yml           local Postgres
 ```
 
 Path-scoped working rules live in `.claude/rules/{server-actions,database,forms,nextjs,ui}.md` and load when the matching files are touched. Read them before writing in those areas.
@@ -93,7 +93,7 @@ The authenticated UI is **built**: shadcn on Base UI (`base-nova`), an icon-side
 
 ## Admin area (localhost-only)
 
-`src/app/admin/**` is a **local-only tooling surface** for data seeding/maintenance: two CSV importers so far — staff (`upload-staff`) and PTO (`upload-pto`), both into the staff-profiles domain (see [staff-profiles.md](./domains/staff-profiles.md)). Two deliberate choices:
+`src/app/admin/**` is a **local-only tooling surface** for data seeding/maintenance, all into the staff-profiles domain (see [staff-profiles.md](./domains/staff-profiles.md)): two CSV importers — staff (`upload-staff`) and PTO (`upload-pto`) — plus a **bulk employment editor** (`bulk-edit-roles`) that maintains existing `staff_employment` rows (in-place correction or new effective-dated rows; the only in-app way to edit employment facts — see [ADR 0007](./decisions/0007-staff-employment-effective-dating.md)). Two deliberate choices:
 
 - **Outside the `(app)` route group, on purpose.** The `(app)` layout redirects users without an active staff record to `/profile-setup`; the staff-upload tool is exactly what *creates* those records (chicken-and-egg). So admin must NOT require auth/staff — it requires only that the request is local.
 - **The security boundary is the host, not auth.** `src/lib/admin.ts` exports `isLocalhost()` / `assertLocalhost()`, which check the request `host` header against loopback hosts (`localhost`, `127.0.0.1`, `::1`). `admin/layout.tsx` calls `isLocalhost()` and `notFound()`s the whole segment for non-local requests; every admin action is `publicActionClient` + `assertLocalhost()` (NOT `secureActionClient`). Enforced server-side only — never trusted from the client. Reachable by direct URL; there's no sidebar nav entry. See [ADR 0008](./decisions/0008-localhost-only-admin-area.md).
@@ -137,7 +137,7 @@ Do both wherever data is owned.
 
 ## Running the DB
 
-The DB is not auto-provisioned. To use it: `docker compose up -d` (local Postgres, see `docker-compose.yml`), set `DATABASE_URL`, then `bun run db:migrate` to apply migrations. Iterate with `db:generate` → `db:migrate` (or `db:push` for quick dev), browse with `db:studio`. See `.claude/rules/database.md`.
+The DB is not auto-provisioned. Dev uses a **remote Postgres** (e.g. Neon) — there is no local DB. Set `DATABASE_URL` (get it from the team), then `bun run db:migrate` to apply migrations. Iterate with `db:generate` → `db:migrate` (or `db:push` for quick dev), browse with `db:studio`. See `.claude/rules/database.md`.
 
 ## Cross-cutting concerns
 
