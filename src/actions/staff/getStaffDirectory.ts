@@ -54,6 +54,9 @@ export async function getStaffDirectory(): Promise<StaffDirectoryEntry[]> {
     .leftJoin(user, eq(staff.userId, user.id))
     .orderBy(asc(staff.name));
 
+  // Reads every employment row, then keeps the latest per staff member in JS —
+  // two queries, no N+1. Fine at company scale; if the effective-dating history
+  // grows large, switch to a `DISTINCT ON (staff_id)` / lateral join instead.
   const employmentRows = await db
     .select({
       staffId: staffEmployment.staffId,

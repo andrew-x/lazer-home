@@ -1,6 +1,7 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
+import { cache } from "react";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db/db";
 import { staff } from "@/lib/db/schema";
@@ -9,8 +10,11 @@ import { staff } from "@/lib/db/schema";
  * The signed-in user's linked staff id, or null when unauthenticated or no staff
  * record is linked to the account. Reused by the `getMy*` reads and the `/profile`
  * page (which needs the id to pass into the now-parameterized edit dialogs).
+ *
+ * Wrapped in `React.cache` so the several callers within a single `/profile`
+ * render (the page plus each `getMy*` read) share one lookup per request.
  */
-export async function getCurrentStaffId(): Promise<string | null> {
+export const getCurrentStaffId = cache(async (): Promise<string | null> => {
   const user = await getCurrentUser();
   if (!user) return null;
 
@@ -21,4 +25,4 @@ export async function getCurrentStaffId(): Promise<string | null> {
     .limit(1);
 
   return row?.id ?? null;
-}
+});

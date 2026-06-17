@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
 import { getMyHistory } from "@/actions/staff/getMyHistory";
 import { getMyProfile } from "@/actions/staff/getMyProfile";
@@ -18,7 +19,10 @@ export default async function ProfilePage() {
     getMyHistory(),
     getMyPto(),
   ]);
-  if (!user || !staffId || !profile) return null;
+  // The (app) layout already admits only linked, active staff, so this is
+  // near-unreachable — but surface a 404 (like /staff/[id]) rather than a blank
+  // page if the record vanished mid-request.
+  if (!user || !staffId || !profile) notFound();
 
   return (
     <ProfileView
