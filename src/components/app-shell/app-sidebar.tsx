@@ -1,8 +1,9 @@
 "use client";
 
-import { IconLayoutSidebar } from "@tabler/icons-react";
+import { IconLayoutSidebar, IconLogout } from "@tabler/icons-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import { LogoMark } from "@/components/brand/logo";
 import {
   Sidebar,
@@ -16,16 +17,23 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { authClient } from "@/lib/auth-client";
 import { APP_NAME } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { isActivePath, NAV_ITEMS } from "./nav";
-import { NavUser, type SessionUser } from "./nav-user";
 
-export type { SessionUser };
-
-export function AppSidebar({ user }: { user: SessionUser }) {
+export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { toggleSidebar, state } = useSidebar();
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    await authClient.signOut();
+    router.replace("/login");
+    router.refresh();
+  }
 
   return (
     <Sidebar variant="floating" collapsible="icon">
@@ -44,7 +52,7 @@ export function AppSidebar({ user }: { user: SessionUser }) {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-2">
               {NAV_ITEMS.map((item) => {
                 const active = isActivePath(item.href, pathname);
                 return (
@@ -67,7 +75,7 @@ export function AppSidebar({ user }: { user: SessionUser }) {
       </SidebarContent>
 
       <SidebarFooter>
-        <SidebarMenu>
+        <SidebarMenu className="gap-2">
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={toggleSidebar}
@@ -79,8 +87,17 @@ export function AppSidebar({ user }: { user: SessionUser }) {
               <span>{state === "collapsed" ? "Expand" : "Collapse"}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={handleSignOut}
+              disabled={signingOut}
+              tooltip="Sign out"
+            >
+              <IconLogout />
+              <span>{signingOut ? "Signing out…" : "Sign out"}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
-        <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>
   );

@@ -18,9 +18,29 @@
       "Bash(grep:*)",
       "Bash(rg:*)",
       "Bash(cat:*)"
+    ],
+    "ask": [
+      "Bash(cat:/*)",
+      "Bash(cat:~/*)",
+      "Bash(ls:/*)",
+      "Bash(ls:~/*)",
+      "Bash(find:/*)",
+      "Bash(find:~/*)"
     ]
   },
+  "plansDirectory": "docs/plans",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "find \"$CLAUDE_PROJECT_DIR/docs/plans\" -type f -mtime +14 ! -name '.gitkeep' -delete 2>/dev/null || true",
+            "statusMessage": "Pruning plans older than 2 weeks…"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

@@ -69,3 +69,11 @@ Runtime and package manager are **Bun**. Linter/formatter is **Biome** (not ESLi
 - **Before claiming done:** run `bun run check`, plus `bun run build` for anything non-trivial.
 
 Area-specific conventions live in `.claude/rules/` and load when you touch the matching files.
+
+## Plans and specs
+
+Write implementation plans and Superpowers-generated specs to **`docs/plans/`** (configured as the plan directory in `.claude/settings.json`). This folder is scratch space, not durable docs — a SessionStart hook prunes anything older than two weeks on startup. Durable knowledge belongs in the rest of `/docs` (see _Keeping docs alive_), not here.
+
+## Stay inside the project root
+
+Treat `/Users/andrew/Documents/Lazer/projects/home` as your boundary. If a task ever requires reading, listing, or running commands against paths **outside** this project root (other folders on the machine, `~`, absolute system paths), **ask for permission first** and explain why — don't reach outside silently.

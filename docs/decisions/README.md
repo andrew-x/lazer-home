@@ -16,3 +16,8 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0004](./0004-action-layer.md) | Action layer: two-client composition + UserSafeActionError | accepted |
 | [0005](./0005-ui-stack.md) | UI stack: shadcn on Base UI (base-nova), indigo light theme | accepted |
 | [0006](./0006-google-only-auth-and-layout-gating.md) | Google-only auth + route-group/server-layout gating (not middleware) | accepted |
+| [0007](./0007-staff-employment-effective-dating.md) | Split staff into durable identity + effective-dated employment | accepted |
+| [0008](./0008-localhost-only-admin-area.md) | Localhost-only admin area, gated by host (not auth), outside `(app)` | accepted |
+| [0009](./0009-pto-import-cancel-as-delete.md) | PTO import treats cancellations as deletes; re-syncs are destructive | accepted |
+| [0010](./0010-actions-layer-owns-db-access.md) | The actions layer owns all DB access — reads are server-only `get<Thing>.ts`, not `'use server'` | accepted |
+| [0011](./0011-category-agnostic-history-feed.md) | The profile history feed is a category-agnostic, server-merged timeline | accepted |

@@ -45,7 +45,7 @@ bun run format   # biome format --write  → auto-fix formatting
 
 ## Schema workflow
 
-- Change `src/lib/db/schema.ts`, then: `bun run db:generate` (emit SQL into `drizzle/`) → `bun run db:migrate` (apply). `db:push` is a quick-dev shortcut that skips migration files; `db:studio` opens the browser explorer.
+- Change the relevant schema module (e.g. `src/lib/db/staff-schema.ts`; `schema.ts` is just the barrel), then: `bun run db:generate` (emit SQL into `drizzle/`) → `bun run db:migrate` (apply). `db:push` is a quick-dev shortcut that skips migration files; `db:studio` opens the browser explorer.
 - **Better Auth tables:** `bun run auth:generate` regenerates `src/lib/db/auth-schema.ts`; they live in our own schema/migrations, so re-run `db:generate` → `db:migrate` after.
 - `drizzle.config.ts` `casing: "snake_case"` MUST stay in sync with the runtime client in `src/lib/db/db.ts`.
 

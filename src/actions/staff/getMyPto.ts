@@ -16,6 +16,7 @@ export type MyPto = StaffPtoView;
 /** The signed-in user's own time off. Delegates by staff id. */
 export async function getMyPto(): Promise<MyPto> {
   const staffId = await getCurrentStaffId();
-  if (!staffId) return { upcoming: [], past: [], summary: [] };
-  return getStaffPto(staffId);
+  return staffId
+    ? getStaffPto(staffId)
+    : { upcoming: [], past: [], summary: [] };
 }

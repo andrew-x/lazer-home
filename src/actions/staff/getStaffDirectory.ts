@@ -67,7 +67,7 @@ export async function getStaffDirectory(): Promise<StaffDirectoryEntry[]> {
       name: s.name,
       email: s.email,
       isActive: s.isActive,
-      imageUrl: s.imageUrl ?? null,
+      imageUrl: s.imageUrl,
       lineOfBusiness: employment?.lineOfBusiness ?? null,
       role: employment?.role ?? null,
       employmentType: employment?.employmentType ?? null,

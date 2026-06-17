@@ -22,10 +22,10 @@ export function SignOutButton() {
       type="button"
       variant="outline"
       className="gap-2"
-      disabled={loading}
+      loading={loading}
       onClick={handleSignOut}
     >
-      <IconLogout className="size-4" />
+      {loading ? null : <IconLogout className="size-4" />}
       {loading ? "Signing out…" : "Sign out"}
     </Button>
   );
