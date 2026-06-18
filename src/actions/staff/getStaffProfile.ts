@@ -16,6 +16,8 @@ export type StaffProfile = {
   githubUrl: string | null;
   portfolioUrl: string | null;
   clientIntro: string | null;
+  resume: string | null;
+  resumeUpdatedAt: Date | null;
   joinDate: string | null;
   employment: Pick<
     StaffEmployment,
@@ -41,6 +43,8 @@ export const getStaffProfile = cache(
         githubUrl: staff.githubUrl,
         portfolioUrl: staff.portfolioUrl,
         clientIntro: staff.clientIntro,
+        resume: staff.resume,
+        resumeUpdatedAt: staff.resumeUpdatedAt,
         joinDate: staff.joinDate,
       })
       .from(staff)

@@ -83,6 +83,13 @@ export const staff = pgTable("staff", {
   clientIntro: text(),
   clientIntroUpdatedAt: timestamp(),
 
+  // Free-text resume. Typed in or extracted from an uploaded PDF (we store text
+  // only, never the file). `resumeUpdatedAt` is stamped explicitly by the update
+  // action when the text changes — NOT $onUpdate, which would fire on every row
+  // write (e.g. an import re-sync).
+  resume: text(),
+  resumeUpdatedAt: timestamp(),
+
   joinDate: date(),
   terminationDate: date(),
   isActive: boolean().notNull().default(true),
