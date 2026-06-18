@@ -3,6 +3,7 @@ import type { StaffProfile } from "@/actions/staff/getStaffProfile";
 import type { StaffPtoView } from "@/actions/staff/getStaffPto";
 import { EditClientIntroDialog } from "@/components/staff/edit-client-intro-dialog";
 import { EditLinksDialog } from "@/components/staff/edit-links-dialog";
+import { EditResumeDialog } from "@/components/staff/edit-resume-dialog";
 import { HistorySheet } from "@/components/staff/history-sheet";
 import { PtoSection } from "@/components/staff/pto-section";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,7 +15,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatDate, humanizeEnum, initialsFor } from "@/lib/format";
+import {
+  formatDate,
+  formatTimestamp,
+  humanizeEnum,
+  initialsFor,
+} from "@/lib/format";
 
 /** A profile URL row, or an em dash when absent. */
 function LinkRow({ label, url }: { label: string; url: string | null }) {
@@ -139,6 +145,29 @@ export function ProfileView({
             <p className="text-sm text-muted-foreground">
               No client intro yet.
             </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Resume</CardTitle>
+          <CardAction>
+            <EditResumeDialog staffId={staffId} resume={profile.resume} />
+          </CardAction>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          {profile.resume ? (
+            <>
+              <p className="text-sm whitespace-pre-wrap">{profile.resume}</p>
+              {profile.resumeUpdatedAt ? (
+                <p className="text-xs text-muted-foreground">
+                  Updated {formatTimestamp(profile.resumeUpdatedAt)}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">No resume yet.</p>
           )}
         </CardContent>
       </Card>

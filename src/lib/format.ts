@@ -31,3 +31,12 @@ export function formatDate(value: string): string {
     day: "numeric",
   }).format(new Date(year, month - 1, day));
 }
+
+/** Format a timestamp (e.g. `resumeUpdatedAt`) as a long date, e.g. "June 18, 2026". */
+export function formatTimestamp(value: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(value);
+}
