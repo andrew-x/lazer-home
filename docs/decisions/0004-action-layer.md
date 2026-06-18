@@ -16,7 +16,7 @@ Build two action clients by composition in `src/lib/action.ts`, and make every a
 
 **`UserSafeActionError`** (`src/lib/errors.ts`) is the deliberate seam: its message is the *only* thing `handleServerError` passes through to `result.serverError`. Every other throw collapses to a generic message. So "expected, user-facing failure" vs. "bug the user must not see" is expressed by *which error type you throw*, not by remembering to sanitize at each call site.
 
-Authz is intentionally two-layered (route-level via `metadata.role`; row-level via an ownership check in the body) because the route check can't know about per-row ownership — see [architecture.md](../architecture.md) and `.claude/rules/server-actions.md`.
+Authz is declared in action metadata, never in the body: `metadata.role` (coarse), `metadata.permission` (static capability), and `metadata.authorize` (a generic `ActionAuthorize` hook for input-dependent / ownership checks) — all enforced by `secureActionClient` before the body, because a route check can't know about per-row ownership — see [architecture.md](../architecture.md) and `.claude/rules/server-actions.md`.
 
 ## Consequences
 
