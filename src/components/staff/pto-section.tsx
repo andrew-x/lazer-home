@@ -31,7 +31,14 @@ export function PtoSection({ pto }: { pto: StaffPtoView }) {
             size="sm"
             nativeButton={false}
             render={
-              <a href={RIPPLING_TIME_OFF_URL} target="_blank" rel="noreferrer">
+              // Browser extensions (password managers, translators) mutate this
+              // interactive link before hydration; suppress the resulting mismatch.
+              <a
+                href={RIPPLING_TIME_OFF_URL}
+                target="_blank"
+                rel="noreferrer"
+                suppressHydrationWarning
+              >
                 Manage
                 <IconExternalLink />
               </a>
