@@ -1,8 +1,11 @@
 import "server-only";
 
 import { asc, eq } from "drizzle-orm";
+import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db/db";
 import { type StaffPto, staffPto } from "@/lib/db/schema";
+import { userHasPermission } from "@/lib/permissions";
+import { getCurrentStaffId } from "./getCurrentStaffId";
 
 export type PtoType = StaffPto["type"];
 
@@ -56,11 +59,22 @@ function countWorkingDays(startDate: string, endDate: string): number {
 }
 
 /**
- * Any staff member's time off: upcoming and past spans plus a per-category
- * working-day summary. NOT ownership-scoped (see getStaffProfile). Counts include
- * pending requests — the list flags those.
+ * A staff member's time off: upcoming and past spans plus a per-category
+ * working-day summary. Counts include pending requests — the list flags those.
+ *
+ * Authorization: a user always sees their OWN PTO; viewing another person's
+ * aggregated PTO requires the `pto.review` permission (manager/admin). Returns
+ * `null` when not permitted, so callers hide the section rather than error.
  */
-export async function getStaffPto(staffId: string): Promise<StaffPtoView> {
+export async function getStaffPto(
+  staffId: string,
+): Promise<StaffPtoView | null> {
+  const ownStaffId = await getCurrentStaffId();
+  if (staffId !== ownStaffId) {
+    const user = await getCurrentUser();
+    if (!user || !userHasPermission(user, { pto: ["review"] })) return null;
+  }
+
   const rows = await db
     .select({
       id: staffPto.id,

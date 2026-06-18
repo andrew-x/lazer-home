@@ -7,6 +7,7 @@ import { env } from "@/env";
 import { db } from "@/lib/db/db";
 import * as schema from "@/lib/db/schema";
 import { UserSafeActionError } from "@/lib/errors";
+import { ac, isAdmin, roles } from "@/lib/permissions";
 
 const googleConfigured = Boolean(
   env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET,
@@ -29,7 +30,12 @@ export const auth = betterAuth({
       }
     : undefined,
   // nextCookies() MUST be last so it can flush Set-Cookie from server actions.
-  plugins: [admin(), nextCookies()],
+  // RBAC: roles/permissions are defined in src/lib/permissions.ts (single source
+  // of truth). `adminRoles` lists roles allowed to use admin-plugin endpoints.
+  plugins: [
+    admin({ ac, roles, adminRoles: ["admin"], defaultRole: "user" }),
+    nextCookies(),
+  ],
 });
 
 /** Server-side session read used everywhere. Returns the user, or null. */
@@ -46,7 +52,7 @@ export async function getCurrentUser() {
 export async function checkAuth(requiredRole: "user" | "admin" = "user") {
   const user = await getCurrentUser();
   if (!user) throw new UserSafeActionError("You must be signed in to do that.");
-  if (requiredRole === "admin" && user.role !== "admin") {
+  if (requiredRole === "admin" && !isAdmin(user)) {
     throw new UserSafeActionError("You don't have permission to do that.");
   }
   return user;

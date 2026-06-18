@@ -30,6 +30,10 @@ export type StaffEmploymentEditRow = {
 export async function getStaffEmploymentForEdit(): Promise<
   StaffEmploymentEditRow[]
 > {
+  // Reachable only from the localhost-gated admin bulk-edit page (ADR 0008,
+  // orthogonal to RBAC). Note: a self-contained `assertLocalhost()` here would
+  // throw during `next build` static prerender (NODE_ENV=production), so the
+  // boundary stays the admin layout's host gate + production hard-deny.
   const staffRows = await db
     .select({
       id: staff.id,

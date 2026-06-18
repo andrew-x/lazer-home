@@ -6,17 +6,15 @@ import { secureActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
 import { staff } from "@/lib/db/schema";
 import { UserSafeActionError } from "@/lib/errors";
+import { authorizeStaffEdit } from "./canEditStaff";
 import { updateStaffLinksSchema } from "./updateStaffLinks.schema";
 
 /**
- * Update a staff member's profile links by id.
- *
- * TODO: lock down to owner/admin. Any authenticated user can currently edit any
- * staff member's links — intentional for now (see the 2026-06-17 browse-staff
- * spec); `secureActionClient` still requires a valid session.
+ * Update a staff member's profile links by id. Authorization (own profile OR
+ * `staff.edit`) is enforced by the `authorizeStaffEdit` hook before this body runs.
  */
 export const updateStaffLinks = secureActionClient
-  .metadata({ action: "update-staff-links" })
+  .metadata({ action: "update-staff-links", authorize: authorizeStaffEdit })
   .inputSchema(updateStaffLinksSchema)
   .action(async ({ parsedInput }) => {
     const [updated] = await db

@@ -54,12 +54,16 @@ export function ProfileView({
   profile,
   history,
   pto,
+  canEdit,
 }: {
   staffId: string;
   imageUrl: string | null;
   profile: StaffProfile;
   history: HistoryEntry[];
-  pto: StaffPtoView;
+  /** Null when the viewer isn't allowed to see this person's PTO (pto.review). */
+  pto: StaffPtoView | null;
+  /** Whether the viewer may edit this profile (own profile, or `staff.edit`). */
+  canEdit: boolean;
 }) {
   const { employment } = profile;
   const initials = initialsFor(profile.name, profile.email);
@@ -110,16 +114,18 @@ export function ProfileView({
       <Card>
         <CardHeader>
           <CardTitle>Links</CardTitle>
-          <CardAction>
-            <EditLinksDialog
-              staffId={staffId}
-              links={{
-                linkedinUrl: profile.linkedinUrl,
-                githubUrl: profile.githubUrl,
-                portfolioUrl: profile.portfolioUrl,
-              }}
-            />
-          </CardAction>
+          {canEdit ? (
+            <CardAction>
+              <EditLinksDialog
+                staffId={staffId}
+                links={{
+                  linkedinUrl: profile.linkedinUrl,
+                  githubUrl: profile.githubUrl,
+                  portfolioUrl: profile.portfolioUrl,
+                }}
+              />
+            </CardAction>
+          ) : null}
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           <LinkRow label="LinkedIn" url={profile.linkedinUrl} />
@@ -131,12 +137,14 @@ export function ProfileView({
       <Card>
         <CardHeader>
           <CardTitle>Client intro</CardTitle>
-          <CardAction>
-            <EditClientIntroDialog
-              staffId={staffId}
-              clientIntro={profile.clientIntro}
-            />
-          </CardAction>
+          {canEdit ? (
+            <CardAction>
+              <EditClientIntroDialog
+                staffId={staffId}
+                clientIntro={profile.clientIntro}
+              />
+            </CardAction>
+          ) : null}
         </CardHeader>
         <CardContent>
           {profile.clientIntro ? (
@@ -172,7 +180,7 @@ export function ProfileView({
         </CardContent>
       </Card>
 
-      <PtoSection pto={pto} />
+      {pto ? <PtoSection pto={pto} /> : null}
     </div>
   );
 }
