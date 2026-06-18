@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks";
-import { IconPencil, IconUpload } from "@tabler/icons-react";
+import { IconFileUpload, IconPencil } from "@tabler/icons-react";
 import { useAction } from "next-safe-action/hooks";
 import { useId, useRef, useState } from "react";
 import { parseResumePdf } from "@/actions/staff/parseResumePdf";
@@ -68,12 +68,12 @@ export function EditResumeDialog({
           </Button>
         }
       />
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Edit resume</DialogTitle>
           <DialogDescription>
-            Type your resume or upload a PDF to extract its text. Review the
-            text before saving. Leave blank to clear it.
+            Upload a PDF to pull its text in automatically, or write your resume
+            directly below. Review before saving; leave blank to clear it.
           </DialogDescription>
         </DialogHeader>
         <ResumeForm
@@ -146,43 +146,57 @@ function ResumeForm({
   return (
     <form onSubmit={handleSubmitWithAction} className="flex flex-col gap-4">
       <input type="hidden" {...register("staffId")} />
+      <input
+        ref={fileInputRef}
+        id={fileInputId}
+        type="file"
+        accept="application/pdf"
+        hidden
+        onChange={onFileChange}
+      />
 
-      <div className="flex items-center justify-between gap-4">
-        <Label htmlFor="resume">Resume</Label>
-        <input
-          ref={fileInputRef}
-          id={fileInputId}
-          type="file"
-          accept="application/pdf"
-          hidden
-          onChange={onFileChange}
-        />
+      {/* Recommended path, emphasized as the first step — most people upload. */}
+      <div className="flex flex-col items-center gap-3 border bg-muted/30 p-6 text-center">
+        <IconFileUpload className="size-7 text-muted-foreground" />
+        <div className="flex flex-col gap-0.5">
+          <p className="font-medium">Upload your resume</p>
+          <p className="text-sm text-muted-foreground">
+            Drop in a PDF and we'll pull the text out for you to review.
+          </p>
+        </div>
         <Button
           type="button"
-          variant="outline"
-          size="sm"
           loading={parse.isPending}
           onClick={() => fileInputRef.current?.click()}
         >
-          <IconUpload />
-          Upload PDF
+          <IconFileUpload />
+          Choose PDF
         </Button>
+        {uploadError ? (
+          <p className="text-sm text-destructive">{uploadError}</p>
+        ) : null}
       </div>
 
-      <Textarea
-        id="resume"
-        rows={16}
-        className="min-h-80"
-        placeholder="Paste or type your resume here, or upload a PDF to extract its text…"
-        aria-invalid={Boolean(errors.resume)}
-        {...register("resume")}
-      />
-      {errors.resume ? (
-        <p className="text-sm text-destructive">{errors.resume.message}</p>
-      ) : null}
-      {uploadError ? (
-        <p className="text-sm text-destructive">{uploadError}</p>
-      ) : null}
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <div className="h-px flex-1 bg-border" />
+        or write it yourself
+        <div className="h-px flex-1 bg-border" />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="resume">Resume text</Label>
+        <Textarea
+          id="resume"
+          rows={18}
+          className="min-h-96"
+          placeholder="Paste or type your resume here…"
+          aria-invalid={Boolean(errors.resume)}
+          {...register("resume")}
+        />
+        {errors.resume ? (
+          <p className="text-sm text-destructive">{errors.resume.message}</p>
+        ) : null}
+      </div>
 
       {action.result.serverError ? (
         <p className="text-sm text-destructive">{action.result.serverError}</p>
