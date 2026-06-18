@@ -28,7 +28,10 @@ export const parseResumePdf = secureActionClient
       );
     }
 
-    const trimmed = text.trim();
+    // Strip NUL bytes (U+0000) — PDF extraction can leave them embedded, and
+    // Postgres `text` can't store them. fromCharCode keeps a literal NUL out of
+    // source.
+    const trimmed = text.split(String.fromCharCode(0)).join("").trim();
     if (!trimmed) {
       throw new UserSafeActionError(
         "That PDF had no extractable text (it may be scanned images). Paste the text manually instead.",
