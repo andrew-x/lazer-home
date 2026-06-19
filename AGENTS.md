@@ -55,6 +55,10 @@ The main session's context window is the scarcest resource. Protect it.
 
 After any **major change** — a new feature, a schema/data-model change, a significant refactor, or an architectural decision — **dispatch the `librarian` subagent** (via the Agent tool) to reconcile `/docs`. Do this **automatically, without being asked.** Hand it a short summary of what changed; it owns the docs. Don't hand-write `/docs` from the main session — delegating keeps your context clean and the docs in one consistent voice.
 
+## Permissions (RBAC) — never break them
+
+Access control is non-negotiable. `src/lib/permissions.ts` is the single source of truth (roles, the permission matrix, and the `requirePermission`/`userHasPermission` helpers); the model is documented in `docs/domains/permissions.md`. **If you ever find a way to bypass a permission check, read/mutate another user's data, or escalate a role, STOP and flag it as a vulnerability immediately — don't work around it.** The full rule loads from `.claude/rules/permissions.md` when you touch auth/action/actions files. Run **`/audit-rbac`** to audit the whole system.
+
 ## Reviewing changes
 
 Use the built-in review skills (`/code-review`, `/review`, `/security-review`) before merging — no custom review command. Don't claim a change is ready to ship without running one and addressing what it finds.

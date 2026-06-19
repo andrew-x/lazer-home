@@ -6,16 +6,17 @@ import { secureActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
 import { staff } from "@/lib/db/schema";
 import { UserSafeActionError } from "@/lib/errors";
+import { authorizeStaffEdit } from "./canEditStaff";
 import { updateStaffResumeSchema } from "./updateStaffResume.schema";
 
 /**
  * Update a staff member's resume by id. Stamps `resumeUpdatedAt`.
  *
- * TODO: lock down to owner/admin (see the 2026-06-17 browse-staff spec).
- * `secureActionClient` still requires a valid session.
+ * Authorization (owner always; others need `staff.edit`) is enforced by the
+ * `authorizeStaffEdit` hook before this body runs.
  */
 export const updateStaffResume = secureActionClient
-  .metadata({ action: "update-staff-resume" })
+  .metadata({ action: "update-staff-resume", authorize: authorizeStaffEdit })
   .inputSchema(updateStaffResumeSchema)
   .action(async ({ parsedInput }) => {
     const [updated] = await db

@@ -1,6 +1,15 @@
 # 0012 — Staff link/intro edits are open to any authenticated user until RBAC lands
 
-**Status:** accepted (temporary) · 2026-06-17
+**Status:** superseded by [ADR 0014](./0014-rbac-better-auth-access-control.md) · 2026-06-17
+
+> **Resolved 2026-06-18.** RBAC landed ([ADR 0014](./0014-rbac-better-auth-access-control.md),
+> [domains/permissions.md](../domains/permissions.md)). The temporary gap described
+> below is **closed**: `updateStaffLinks` and `updateStaffClientIntro` now declare
+> `metadata({ authorize: authorizeStaffEdit })` — the `authorizeStaffEdit` hook
+> (`src/actions/staff/canEditStaff.ts`) gates them via `canEditStaff` (own → always;
+> other → `staff.edit`), and `getStaffPto` requires `pto.review` to read another
+> person's PTO. The `// TODO: lock down` markers are gone. Kept for history; the
+> Context/Decision below describe the superseded interim state.
 
 ## Context
 
@@ -16,11 +25,11 @@ Rename the two mutations to `updateStaffLinks` / `updateStaffClientIntro`, have 
 
 `secureActionClient` still applies, so a **valid session is required** — this is "any logged-in employee," not "the public." Both actions are flagged `// TODO: lock down to owner/admin later`. The reads (`getStaffProfile`, `getStaffHistory`, `getStaffPto`, `getStaffAvatar`) are likewise **not** ownership-scoped by design — the directory must show other people; the `(app)` layout's session+staff gate is the only access boundary today.
 
-This is consistent with the app's current **internal-only, trusted-employee** posture (cf. the localhost-only admin importers, [ADR 0008](./0008-localhost-only-admin-area.md)): the data here (name, role, links, client intro) is not the sensitive tier (rates/salaries/reviews) that motivated the two-layer authz model.
+This is consistent with the app's current **internal-only, trusted-employee** posture (cf. the localhost-only admin importers, [ADR 0008](./0008-localhost-only-admin-area.md)): the data here (name, role, links, client intro) is not the sensitive tier (rates/salaries/reviews) that motivated the metadata-driven authz model.
 
 ## Consequences
 
-- **Row-level authz is temporarily absent** on these two mutations — a regression against the [architecture two-layer model](../architecture.md#authorization--two-layers), accepted knowingly to unblock the directory. Anyone signed in can rewrite anyone's links/intro. This is why it's logged here rather than left implicit in a TODO.
+- **Row-level authz is temporarily absent** on these two mutations — a regression against the [architecture authz model](../architecture.md#authorization--rbac-declared-in-action-metadata), accepted knowingly to unblock the directory. Anyone signed in can rewrite anyone's links/intro. This is why it's logged here rather than left implicit in a TODO.
 - **Inactive staff profiles are readable by direct `/staff/[id]` URL** (the directory hides them behind the "active only" toggle, but the read isn't gated). Same open, internal-only rationale.
 - When the role model lands, the lock-down is mechanical: re-add a row-level check in both actions (owner OR admin/manager via `ctx.user`), gate the edit affordances in `ProfileView` on the same, and revisit whether inactive/other-person reads need scoping. Search the `// TODO: lock down to owner/admin later` markers.
 - This ADR **softens, for these two writes, the "inherently self-scoped" property** ADR 0010 described. ADR 0010's pattern still holds for genuinely personal reads; it was never an authz guarantee for cross-person data, which this feature is the first to introduce.

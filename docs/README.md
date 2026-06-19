@@ -16,6 +16,7 @@ The durable knowledge base for the PSA platform — maintained by the `librarian
 | [domains/timesheets.md](./domains/timesheets.md) | Time capture, approval, billing basis |
 | [domains/staff-profiles.md](./domains/staff-profiles.md) | People, roles, skills, availability |
 | [domains/performance.md](./domains/performance.md) | Reviews, goals, growth |
+| [domains/permissions.md](./domains/permissions.md) | RBAC: permission model, role→permission matrix, enforcement layers, helpers |
 | [decisions/](./decisions/) | Architecture Decision Records — the *why* |
 
 ## How these docs stay current

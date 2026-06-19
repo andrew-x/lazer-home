@@ -36,6 +36,7 @@ export default async function ProfilePage() {
       profile={profile}
       history={history}
       pto={pto}
+      canEdit={true}
     />
   );
 }

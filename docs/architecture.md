@@ -1,6 +1,6 @@
 # Architecture
 
-**Status: scaffolded.** The core technical stack and architectural patterns are committed and in code. Domain features are not built yet — what exists is the foundation (env, db, auth, action layer), the **authenticated UI shell + auth screens** (see [ui.md](./ui.md)), and the **staff schema + post-login staff-record gate** (the first real data-model slice; the earlier `StaffProfileForm`/`updateStaffProfile` demo has been deleted). The first real data-backed authenticated pages are **`/profile`** ("My profile") and the **browse-staff** feature — a directory (`/staff`) and per-person profiles (`/staff/[id]`) that show *other* people via the same shared `ProfileView` (see [ui.md](./ui.md)) — the first place all three call-site patterns from ADR 0010 appear together (server-only read, next-safe-action mutation, presentational client UI). Browse-staff is also the first **cross-person** data access: its reads aren't ownership-scoped and its link/intro edits are temporarily open to any signed-in user (see Authorization and [ADR 0012](./decisions/0012-open-staff-edit-pending-rbac.md)).
+**Status: scaffolded.** The core technical stack and architectural patterns are committed and in code. Domain features are not built yet — what exists is the foundation (env, db, auth, action layer), the **authenticated UI shell + auth screens** (see [ui.md](./ui.md)), and the **staff schema + post-login staff-record gate** (the first real data-model slice; the earlier `StaffProfileForm`/`updateStaffProfile` demo has been deleted). The first real data-backed authenticated pages are **`/profile`** ("My profile") and the **browse-staff** feature — a directory (`/staff`) and per-person profiles (`/staff/[id]`) that show *other* people via the same shared `ProfileView` (see [ui.md](./ui.md)) — the first place all three call-site patterns from ADR 0010 appear together (server-only read, next-safe-action mutation, presentational client UI). Browse-staff is also the first **cross-person** data access: its reads aren't ownership-scoped, and its link/intro edits are now gated by RBAC (own → always; other → the `staff.edit` permission) — see Authorization, [domains/permissions.md](./domains/permissions.md), and [ADR 0014](./decisions/0014-rbac-better-auth-access-control.md).
 
 ## What we're building
 
@@ -47,7 +47,8 @@ src/
     staff/getStaffDirectory.ts  directory read: latest-employment-per-staff (two queries, no N+1) + filter options
     staff/getCurrentStaffId.ts  session→staff id (React.cache); getMy* wrappers delegate to the getStaff* cores
     staff/getStaffEmploymentForEdit.ts  latest employment row per staff for the bulk-edit table (server-only)
-    staff/updateStaffLinks.ts staff/updateStaffClientIntro.ts  edit-by-staffId mutations (+ .schema.ts); open to any signed-in user for now (ADR 0012)
+    staff/updateStaffLinks.ts staff/updateStaffClientIntro.ts  edit-by-staffId mutations (+ .schema.ts); use metadata({ authorize: authorizeStaffEdit }) — authz runs in the client, not the body
+    staff/canEditStaff.ts  staff-edit authz (ADR 0014): canEditStaff(user, staffId) → boolean (UI affordance) + authorizeStaffEdit (ActionAuthorize hook reading clientInput.staffId; own → always, other → staff.edit)
     <domain>/<verb><Thing>.ts  mutations → next-safe-action, one per file (+ .schema.ts)
     admin/                   {preview,commit}StaffImport + {preview,commit}PtoImport + commitBulkEditEmployment (publicActionClient + assertLocalhost)
   components/                React components; ui/ = vendored shadcn primitives,
@@ -55,8 +56,9 @@ src/
                              staff/ = shared ProfileView (backs /profile + /staff/[id]) + directory/cards + edit dialogs + history sheet
   hooks/useZodForm.tsx       RHF + zodResolver wrapper
   lib/
-    action.ts                publicActionClient + secureActionClient (the core)
-    auth.ts auth-client.ts   better-auth server + client; getCurrentUser/checkAuth
+    action.ts                publicActionClient + secureActionClient (the core); metadata-driven gates: role + permission + authorize (ActionAuthorize hook), all enforced before the body
+    auth.ts auth-client.ts   better-auth server + client (admin plugin wired with ac/roles); getCurrentUser/checkAuth
+    permissions.ts           RBAC single source of truth: statement, roles, matrix, userHasPermission/requirePermission (+ .test.ts asserts the matrix)
     staff.ts                 getCurrentStaff(user) — resolves user→staff, email auto-link, StaffAccessStatus gate
     errors.ts                UserSafeActionError (user-safe error channel)
     logger.ts                structured logging used by the action layer
@@ -104,7 +106,7 @@ The authenticated UI is **built**: shadcn on Base UI (`base-nova`), an icon-side
 
 ## Auth
 
-better-auth with the **admin** plugin; **Google-only sign-in** — `emailAndPassword` is disabled and Google is the sole social provider (see [decisions/0006](./decisions/0006-google-only-auth-and-layout-gating.md)). Server instance (`src/lib/auth.ts`) uses the Drizzle adapter over our singleton `db`; **the better-auth tables (`user`, `session`, `account`, `verification`) live in our own schema/migrations** (`auth-schema.ts`), regenerated via `bun run auth:generate`. Two helpers gate the app:
+better-auth with the **admin** plugin — wired with the RBAC access controller and roles from `src/lib/permissions.ts` (`admin({ ac, roles, adminRoles: ["admin"], defaultRole: "user" })`; see [domains/permissions.md](./domains/permissions.md), [ADR 0014](./decisions/0014-rbac-better-auth-access-control.md)); **Google-only sign-in** — `emailAndPassword` is disabled and Google is the sole social provider (see [decisions/0006](./decisions/0006-google-only-auth-and-layout-gating.md)). Server instance (`src/lib/auth.ts`) uses the Drizzle adapter over our singleton `db`; **the better-auth tables (`user`, `session`, `account`, `verification`) live in our own schema/migrations** (`auth-schema.ts`), regenerated via `bun run auth:generate`. Two helpers gate the app:
 
 - `getCurrentUser()` — reads the session, returns the user or `null`.
 - `checkAuth(role)` — throws a `UserSafeActionError` if unauthenticated or under-privileged; **admins satisfy any role requirement** (admin override). Used by the secure action middleware.
@@ -120,20 +122,47 @@ better-auth with the **admin** plugin; **Google-only sign-in** — `emailAndPass
 `db` is imported **only from `src/actions/**`**. Pages, layouts, and components — **including SSR Server Components** — never import `db` or query Drizzle directly; they call into the actions layer. This keeps every read and write in one place to authorize, project columns, and apply domain rules. See [ADR 0010](./decisions/0010-actions-layer-owns-db-access.md), `.claude/rules/server-actions.md`, `.claude/rules/database.md`.
 
 - **Mutations** → next-safe-action actions (the action layer below / [ADR 0004](./decisions/0004-action-layer.md)).
-- **Reads (incl. SSR)** → a plain **server-only** async function in the domain folder: `import "server-only"`, named `get<Thing>.ts` (e.g. `src/actions/staff/getStaffProfile.ts`, which `/staff/[id]` `await`s). **Not** a `'use server'` action — that would force the `{ data, serverError }` envelope and re-run session checks, awkward for SSR. It exports its return type. Personal reads resolve the user inside and filter by ownership (inherently scoped); **cross-person reads** (the staff directory and `/staff/[id]`) take an id and are **not** scoped — the `(app)` layout gate is their boundary (see Authorization, [ADR 0012](./decisions/0012-open-staff-edit-pending-rbac.md)).
+- **Reads (incl. SSR)** → a plain **server-only** async function in the domain folder: `import "server-only"`, named `get<Thing>.ts` (e.g. `src/actions/staff/getStaffProfile.ts`, which `/staff/[id]` `await`s). **Not** a `'use server'` action — that would force the `{ data, serverError }` envelope and re-run session checks, awkward for SSR. It exports its return type. Personal reads resolve the user inside and filter by ownership (inherently scoped); **cross-person reads** (the staff directory and `/staff/[id]`) take an id and are **not** ownership-scoped — the `(app)` layout gate is their boundary, with capability checks layered where data is sensitive (e.g. `getStaffPto` requires `pto.review` for non-owners — see Authorization, [domains/permissions.md](./domains/permissions.md)).
 
 **Legitimate `db` importers outside `actions/`:** framework wiring (the Better Auth Drizzle adapter in `src/lib/auth.ts`) and pure compute helpers an action delegates to (`src/lib/*-import/plan.ts`, reached only through an action). **One known straggler:** `getCurrentStaff` (`src/lib/staff.ts`) is called straight from the `(app)` layout — fold it into the actions layer when next touched.
 
-## Authorization — two layers
+## Authorization — RBAC declared in action metadata
 
-Most data is sensitive (rates, salaries, reviews), so authz is first-class and applied at two levels (see the example action and `.claude/rules/server-actions.md`):
+Most data is sensitive (rates, salaries, reviews), so authz is first-class. There's
+a full **role-based access-control model** ([ADR 0014](./decisions/0014-rbac-better-auth-access-control.md),
+[domains/permissions.md](./domains/permissions.md)) on Better Auth's native access
+control, with `src/lib/permissions.ts` as the single source of truth (the statement,
+the roles, the role→permission matrix, and the `userHasPermission` / `requirePermission`
+helpers). Authorization is **declared in action metadata, never hand-written in
+action bodies**. There is **one** `secureActionClient`; its middleware runs all three
+declarative forms, in order, *before* the body (see `.claude/rules/server-actions.md`
+and `.claude/rules/permissions.md`):
 
-1. **Route-level** — `metadata.role` on the action → the `secureActionClient` middleware calls `checkAuth(role)`.
-2. **Row-level** — ownership check inside the action body (`if (row.userId !== user.id && user.role !== "admin") throw …`).
+1. **Coarse role** — `metadata.role` → `checkAuth(role)` (admin-override).
+2. **Static capability** — `metadata.permission` (a `PermissionCheck`) →
+   `requirePermission`. Use for capabilities that don't depend on the input.
+3. **Input-dependent / ownership** — `metadata.authorize`, an **`ActionAuthorize`**
+   hook (`{ user, clientInput } => void | Promise<void>`) that reads the raw
+   `clientInput` (the target id, cross-field rules) and throws `UserSafeActionError`
+   to deny. This is a **generic, reusable mechanism**, not staff-specific — any
+   domain supplies its own hook. Mandatory wherever a target id could be acted on
+   across users; a route-level gate alone is not enough.
 
-Do both wherever data is owned.
+`metadata.authorize` replaced the earlier "compose a bespoke client" approach — the
+hook lives on the single `secureActionClient`, so there's no per-feature client to
+build. (Reads are plain server-only functions, not actions — they call the helpers
+inline, e.g. `getStaffPto` requiring `pto.review` for non-owners.)
 
-> **Known temporary gap:** the browse-staff link/intro edits (`updateStaffLinks`/`updateStaffClientIntro`) **drop the row-level layer** — any signed-in user can edit any staff member's links/intro, and the directory/profile reads aren't scoped either. Accepted knowingly to ship the directory before the role model exists; lock down when RBAC lands (search `// TODO: lock down to owner/admin later`). See [ADR 0012](./decisions/0012-open-staff-edit-pending-rbac.md).
+Helpers **fail closed** (unknown/null role → least privilege). The matrix is the
+contract — asserted by `src/lib/permissions.test.ts` (runs in `bun run check`) and
+audited by `/audit-rbac`. **Never weaken or bypass a permission check; flag any gap
+as a vulnerability** (`.claude/rules/permissions.md`).
+
+The earlier open-staff-edit gap ([ADR 0012](./decisions/0012-open-staff-edit-pending-rbac.md))
+is **now closed**: staff link/intro edits declare `metadata({ authorize: authorizeStaffEdit })`
+(`src/actions/staff/canEditStaff.ts`), which gates via `canEditStaff` (own → always;
+other → `staff.edit`), and `getStaffPto` requires `pto.review` to read another
+person's PTO.
 
 ## Running the DB
 
@@ -141,7 +170,7 @@ The DB is not auto-provisioned. Dev uses a **remote Postgres** (e.g. Neon) — t
 
 ## Cross-cutting concerns
 
-- **Authorization** — see the two-layer model above. Role-based, not an afterthought.
+- **Authorization** — see the metadata-driven RBAC model above and [domains/permissions.md](./domains/permissions.md). Role-based, capability-gated, not an afterthought.
 - **Time** — allocations and timesheets are inherently time-ranged; date/timezone handling needs a deliberate approach.
 - **Auditing** — financial and performance data likely need change history.
 
