@@ -20,6 +20,7 @@ The area is reachable by **direct URL only** (no sidebar nav entry), since it is
 - The importer works on a developer's machine against the configured DB with zero auth setup — the intended "seed the system" path.
 - **The gate is only as strong as the `host` header in this deployment topology.** It assumes a real deployment is never served over a loopback host and that the host header reaching the server is trustworthy (no proxy rewriting it to `localhost`). For a single-tenant internal app run locally for seeding, that's acceptable; if admin ever needs to run somewhere remote, this must be revisited (add real authz, don't loosen the host check).
 - Admin actions bypass the route-level authz layer entirely — every admin action **must** call `assertLocalhost()` itself. There's no middleware doing it for them.
+- **Update (manage-users):** `assertLocalhost()` remains the universal boundary, but the "`publicActionClient`, never `secureActionClient`" claim above is now only true for the seeding tools (importers + bulk-editor). `commitUserChanges` *adds* `secureActionClient` + `role: "admin"` on top of `assertLocalhost()` because it mutates through the Better Auth admin API, which requires the caller to be an admin (and lets a ban revoke sessions). So that one tool isn't bootstrapping-free — it needs a pre-existing admin. See [permissions.md](../domains/permissions.md).
 - Splitting from `(app)` means the admin area has its own minimal chrome (`admin/layout.tsx`), separate from `AppShell`.
 
 ## Alternatives considered

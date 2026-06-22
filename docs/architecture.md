@@ -40,7 +40,7 @@ src/
       profile-setup/page.tsx
     (auth)/login/page.tsx    PUBLIC route group (Google sign-in)
     admin/                   LOCALHOST-ONLY tooling — OUTSIDE (app) on purpose; layout 404s non-loopback requests
-      layout.tsx page.tsx upload-staff/page.tsx upload-pto/page.tsx bulk-edit-roles/page.tsx
+      layout.tsx page.tsx upload-staff/page.tsx upload-pto/page.tsx bulk-edit-roles/page.tsx manage-users/page.tsx
     error.tsx not-found.tsx global-error.tsx   error/404 conventions (Next 16 unstable_retry — see ui.md)
     api/auth/[...all]/route.ts  better-auth catch-all (mounts the whole auth API)
   actions/<domain>/          the single entry point for ALL DB access (ADR 0010)
@@ -51,10 +51,10 @@ src/
     staff/updateStaffLinks.ts staff/updateStaffClientIntro.ts  edit-by-staffId mutations (+ .schema.ts); use metadata({ authorize: authorizeStaffEdit }) — authz runs in the client, not the body
     staff/canEditStaff.ts  staff-edit authz (ADR 0014): canEditStaff(user, staffId) → boolean (UI affordance) + authorizeStaffEdit (ActionAuthorize hook reading clientInput.staffId; own → always, other → staff.edit)
     <domain>/<verb><Thing>.ts  mutations → next-safe-action, one per file (+ .schema.ts)
-    admin/                   {preview,commit}StaffImport + {preview,commit}PtoImport + commitBulkEditEmployment (publicActionClient + assertLocalhost)
+    admin/                   {preview,commit}StaffImport + {preview,commit}PtoImport + commitBulkEditEmployment (publicActionClient + assertLocalhost); getUsers + commitUserChanges (manage-users: secureActionClient role:admin + assertLocalhost, mutates via Better Auth admin API)
     crm/                     get{Companies,Contacts}Page (server-only, server-side paginated) + searchCompanies (auth-only type-ahead) + create{Company,Contact} (gated companies/contacts.create; +.schema.ts)
   components/                React components; ui/ = vendored shadcn primitives,
-                             app-shell/ + auth/ + brand/ = the UI shell, admin/ = staff-import + pto-import + bulk-edit-roles UI,
+                             app-shell/ + auth/ + brand/ = the UI shell, admin/ = staff-import + pto-import + bulk-edit-roles + manage-users UI,
                              staff/ = shared ProfileView (backs /profile + /staff/[id]) + directory/cards + edit dialogs + history sheet,
                              crm/ = add-{company,contact}-dialog + company-combobox + {companies,contacts}-table + pagination-controls
   hooks/                     useZodForm (RHF + zodResolver wrapper), useDebouncedValue (debounce, used by company-combobox), use-mobile
@@ -99,10 +99,10 @@ The authenticated UI is **built**: shadcn on Base UI (`base-nova`), an icon-side
 
 ## Admin area (localhost-only)
 
-`src/app/admin/**` is a **local-only tooling surface** for data seeding/maintenance, all into the staff-profiles domain (see [staff-profiles.md](./domains/staff-profiles.md)): two CSV importers — staff (`upload-staff`) and PTO (`upload-pto`) — plus a **bulk employment editor** (`bulk-edit-roles`) that maintains existing `staff_employment` rows (in-place correction or new effective-dated rows; the only in-app way to edit employment facts — see [ADR 0007](./decisions/0007-staff-employment-effective-dating.md)). Two deliberate choices:
+`src/app/admin/**` is a **local-only tooling surface** for data seeding/maintenance: two CSV importers — staff (`upload-staff`) and PTO (`upload-pto`) — plus a **bulk employment editor** (`bulk-edit-roles`) that maintains existing `staff_employment` rows (in-place correction or new effective-dated rows; the only in-app way to edit employment facts — see [ADR 0007](./decisions/0007-staff-employment-effective-dating.md)). Those three are staff-profiles tooling (see [staff-profiles.md](./domains/staff-profiles.md)). A fourth, **Manage Users** (`manage-users`), edits application users' RBAC role + ban status — see [permissions.md](./domains/permissions.md). Two deliberate choices:
 
 - **Outside the `(app)` route group, on purpose.** The `(app)` layout redirects users without an active staff record to `/profile-setup`; the staff-upload tool is exactly what *creates* those records (chicken-and-egg). So admin must NOT require auth/staff — it requires only that the request is local.
-- **The security boundary is the host, not auth.** `src/lib/admin.ts` exports `isLocalhost()` / `assertLocalhost()`, which check the request `host` header against loopback hosts (`localhost`, `127.0.0.1`, `::1`). `admin/layout.tsx` calls `isLocalhost()` and `notFound()`s the whole segment for non-local requests; every admin action is `publicActionClient` + `assertLocalhost()` (NOT `secureActionClient`). Enforced server-side only — never trusted from the client. Reachable by direct URL; there's no sidebar nav entry. See [ADR 0008](./decisions/0008-localhost-only-admin-area.md).
+- **The security boundary is the host, not auth.** `src/lib/admin.ts` exports `isLocalhost()` / `assertLocalhost()`, which check the request `host` header against loopback hosts (`localhost`, `127.0.0.1`, `::1`). `admin/layout.tsx` calls `isLocalhost()` and `notFound()`s the whole segment for non-local requests; **every admin action calls `assertLocalhost()` itself** (no middleware does it for them). The importers + bulk-editor use `publicActionClient` (local seeding must run before any staff/admin exists). The one exception is `commitUserChanges` (manage-users): it adds `secureActionClient` + `metadata({ role: "admin" })` because it mutates through the Better Auth admin API, whose endpoints require the *caller* to be an admin — so that tool also needs a signed-in admin (bootstrapping caveat in [permissions.md](./domains/permissions.md)). Enforced server-side only — never trusted from the client. Reachable by direct URL; there's no sidebar nav entry. See [ADR 0008](./decisions/0008-localhost-only-admin-area.md).
 
 ## Env
 

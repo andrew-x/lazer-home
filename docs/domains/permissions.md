@@ -152,12 +152,36 @@ set. The metadata schema in `src/lib/action.ts` carries `role`, `permission`, an
   the next generate. Validity is enforced at the app layer by `roleSchema`. (Optional
   later hardening: a DB `CHECK` constraint in a hand-written migration.)
 
-## Assigning roles (deferred)
+## Assigning roles — the local-only Manage Users tool
 
-There is **no role-assignment UI** in this iteration. Roles are set via Better
-Auth's `setRole` API (e.g. `authClient.admin.setRole` / `auth.api.setRole`) or
-directly in the DB. New users get `DEFAULT_ROLE` (`user`). A role value must
-validate against `roleSchema`.
+There is a **local-only** role/ban admin: `/admin/manage-users` (in the
+host-gated admin area, [ADR 0008](../decisions/0008-localhost-only-admin-area.md)).
+A TanStack table lists every application user with inline-editable **role** (Select)
+and **banned** (Switch) cells, client-side search + role/banned filters, a floating
+save bar, and a confirm dialog showing per-user old→new diffs before committing
+(mirrors the bulk-edit-roles UX). New users still get `DEFAULT_ROLE` (`user`); roles
+can also be set directly in the DB or via `auth.api.setRole`.
+
+Two things make this tool different from the other admin tools (which are
+`publicActionClient` + `assertLocalhost()`):
+
+- **Mutations go through the Better Auth admin API**, not direct column writes:
+  `commitUserChanges` (`src/actions/admin/commitUserChanges.ts`) calls
+  `auth.api.setRole` / `banUser` / `unbanUser`. Reason: a ban must **revoke the
+  user's sessions**, which the admin API does and a raw `user.banned` write would
+  not. (Deliberate contrast with `commitBulkEditEmployment`, which writes Drizzle
+  directly because employment facts are plain domain data with no session side
+  effect.) It re-reads current role/banned, drops no-ops, and never trusts the
+  client payload; every role validates against `roleSchema` first.
+- **Gated with `secureActionClient` + `metadata({ role: "admin" })`** (not
+  `publicActionClient`) *plus* `assertLocalhost()`. The admin API endpoints require
+  the **caller** to be an admin, so the action both forwards the caller's session
+  headers and asserts the admin role. **Bootstrapping caveat:** the signed-in local
+  developer must already hold `admin` to use the tool — the *first* admin must be set
+  directly in the DB or via `auth.api.setRole` (chicken-and-egg). Read side:
+  `getUsers` (`src/actions/admin/getUsers.ts`, server-only) returns
+  `UserAdminRow[]`, narrowing role via `isAppRole` and normalizing `banned` to a
+  boolean.
 
 ## Governance & guardrails
 
@@ -176,6 +200,8 @@ validate against `roleSchema`.
 
 ## Out of scope (deferred)
 
-- Role-assignment UI · multiple roles per user · DB-level role enum / CHECK
-  constraint · the aggregated-PTO-summary UI (only the permission + read guard are
-  built). See [ADR 0014](../decisions/0014-rbac-better-auth-access-control.md).
+- A *production* (non-localhost) role-management UI · multiple roles per user ·
+  DB-level role enum / CHECK constraint · the aggregated-PTO-summary UI (only the
+  permission + read guard are built). See
+  [ADR 0014](../decisions/0014-rbac-better-auth-access-control.md). (Local
+  role/ban management exists — see _Assigning roles_ above.)
