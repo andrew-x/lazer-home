@@ -24,7 +24,7 @@ function errorMessage(error: unknown): string {
 }
 
 /**
- * Apply inline user edits (RBAC role + ban status) in one pass.
+ * Apply inline user edits (RBAC role + ban status).
  *
  * Mutations go through the Better Auth admin API — `setRole` / `banUser` /
  * `unbanUser` — rather than direct column writes, so a ban also revokes the
@@ -35,6 +35,13 @@ function errorMessage(error: unknown): string {
  *
  * The client payload is never trusted: current role/banned are re-read and
  * no-op changes are dropped before any endpoint is called.
+ *
+ * Each user is updated concurrently (`Promise.allSettled`) — the per-user calls
+ * are independent, and there's no cross-user transaction to preserve anyway
+ * (the admin API isn't transactional). Within a single user, role-then-ban stay
+ * sequential to avoid racing two writes on the same row. Every user is attempted
+ * even if some fail; failures are aggregated into one error afterward (a partial
+ * apply is possible, same as the sequential version would leave on first throw).
  */
 export const commitUserChanges = secureActionClient
   .metadata({ action: "commit-user-changes", role: "admin" })
@@ -58,9 +65,12 @@ export const commitUserChanges = secureActionClient
       const labelFor = (id: string) => currentById.get(id)?.name ?? id;
 
       const requestHeaders = await headers();
-      let usersAffected = 0;
 
-      for (const change of changes) {
+      // One async task per changed user. Resolves `true` when it applied a
+      // change, `false` for a no-op; throws a user-safe error on failure.
+      const applyChange = async (
+        change: (typeof changes)[number],
+      ): Promise<boolean> => {
         const current = currentById.get(change.userId);
         if (!current) {
           throw new UserSafeActionError(
@@ -70,7 +80,7 @@ export const commitUserChanges = secureActionClient
 
         const roleChanged = (current.role ?? null) !== change.role;
         const bannedChanged = (current.banned ?? false) !== change.banned;
-        if (!roleChanged && !bannedChanged) continue;
+        if (!roleChanged && !bannedChanged) return false;
 
         try {
           if (roleChanged && change.role != null) {
@@ -98,7 +108,28 @@ export const commitUserChanges = secureActionClient
           );
         }
 
-        usersAffected += 1;
+        return true;
+      };
+
+      const results = await Promise.allSettled(changes.map(applyChange));
+
+      let usersAffected = 0;
+      const failures: string[] = [];
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          if (result.value) usersAffected += 1;
+        } else {
+          const { reason } = result;
+          failures.push(
+            reason instanceof UserSafeActionError
+              ? reason.message
+              : errorMessage(reason),
+          );
+        }
+      }
+
+      if (failures.length > 0) {
+        throw new UserSafeActionError(failures.join(" "));
       }
 
       revalidatePath("/admin/manage-users");
