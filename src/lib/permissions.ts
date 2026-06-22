@@ -26,6 +26,8 @@ export const statement = {
   ...defaultStatements,
   staff: ["edit"], // edit another staff member's profile
   pto: ["review"], // view aggregated PTO summaries of other staff
+  companies: ["create"], // create companies
+  contacts: ["create"], // create contacts
 } as const;
 
 export const ac = createAccessControl(statement);
@@ -38,12 +40,19 @@ export const roles = {
   user: ac.newRole({}),
   "delivery-manager": ac.newRole({}),
   finance: ac.newRole({}),
-  sales: ac.newRole({}),
-  manager: ac.newRole({ staff: ["edit"], pto: ["review"] }),
+  sales: ac.newRole({ companies: ["create"], contacts: ["create"] }),
+  manager: ac.newRole({
+    staff: ["edit"],
+    pto: ["review"],
+    companies: ["create"],
+    contacts: ["create"],
+  }),
   // Admin keeps the business perms AND the Better Auth admin-plugin perms.
   admin: ac.newRole({
     staff: ["edit"],
     pto: ["review"],
+    companies: ["create"],
+    contacts: ["create"],
     ...adminAc.statements,
   }),
 } as const;
@@ -60,12 +69,13 @@ export const roleSchema = z.enum(ROLE_SLUGS);
 export const DEFAULT_ROLE: AppRole = "user";
 
 /**
- * A permission request: a subset of `statement`. Used by `metadata.permission`
- * on actions and by the imperative helpers below.
+ * A permission request: a subset of `statement`. Derived directly from
+ * `statement` so adding a resource/action there immediately makes it gateable
+ * here — no parallel list to keep in sync. Used by `metadata.permission` on
+ * actions and by the imperative helpers below.
  */
 export type PermissionCheck = {
-  staff?: "edit"[];
-  pto?: "review"[];
+  [Resource in keyof typeof statement]?: (typeof statement)[Resource][number][];
 };
 
 /** The minimal user shape these helpers need — just the role. */

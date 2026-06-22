@@ -13,13 +13,51 @@ import {
  * Changing a role's permissions requires changing this table too — that is the
  * point: the matrix can't drift silently.
  */
-const MATRIX: Record<AppRole, { staffEdit: boolean; ptoReview: boolean }> = {
-  user: { staffEdit: false, ptoReview: false },
-  "delivery-manager": { staffEdit: false, ptoReview: false },
-  finance: { staffEdit: false, ptoReview: false },
-  sales: { staffEdit: false, ptoReview: false },
-  manager: { staffEdit: true, ptoReview: true },
-  admin: { staffEdit: true, ptoReview: true },
+const MATRIX: Record<
+  AppRole,
+  {
+    staffEdit: boolean;
+    ptoReview: boolean;
+    companiesCreate: boolean;
+    contactsCreate: boolean;
+  }
+> = {
+  user: {
+    staffEdit: false,
+    ptoReview: false,
+    companiesCreate: false,
+    contactsCreate: false,
+  },
+  "delivery-manager": {
+    staffEdit: false,
+    ptoReview: false,
+    companiesCreate: false,
+    contactsCreate: false,
+  },
+  finance: {
+    staffEdit: false,
+    ptoReview: false,
+    companiesCreate: false,
+    contactsCreate: false,
+  },
+  sales: {
+    staffEdit: false,
+    ptoReview: false,
+    companiesCreate: true,
+    contactsCreate: true,
+  },
+  manager: {
+    staffEdit: true,
+    ptoReview: true,
+    companiesCreate: true,
+    contactsCreate: true,
+  },
+  admin: {
+    staffEdit: true,
+    ptoReview: true,
+    companiesCreate: true,
+    contactsCreate: true,
+  },
 };
 
 describe("permission matrix", () => {
@@ -35,6 +73,18 @@ describe("permission matrix", () => {
     test(`${role}: pto.review === ${expected.ptoReview}`, () => {
       expect(userHasPermission({ role }, { pto: ["review"] })).toBe(
         expected.ptoReview,
+      );
+    });
+
+    test(`${role}: companies.create === ${expected.companiesCreate}`, () => {
+      expect(userHasPermission({ role }, { companies: ["create"] })).toBe(
+        expected.companiesCreate,
+      );
+    });
+
+    test(`${role}: contacts.create === ${expected.contactsCreate}`, () => {
+      expect(userHasPermission({ role }, { contacts: ["create"] })).toBe(
+        expected.contactsCreate,
       );
     });
   }

@@ -166,6 +166,7 @@
      class (e.g. the dialog). */
   [data-slot="select-content"],
   [data-slot="popover-content"],
+  [data-slot="combobox-content"],
   [data-slot="dropdown-menu-content"],
   [data-slot="dialog-content"],
   [data-slot="tooltip-content"] {
