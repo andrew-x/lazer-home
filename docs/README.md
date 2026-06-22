@@ -11,7 +11,7 @@ The durable knowledge base for the PSA platform — maintained by the `librarian
 | [ui.md](./ui.md) | Frontend: component library, theming/tokens, route-group auth gating, app shell, error/404/loading conventions |
 | [data-model.md](./data-model.md) | Core entities, how the five domains connect, and what's realized in code |
 | [flows.md](./flows.md) | Cross-domain flows, the auth flow, + the technical request flow every mutation follows |
-| [domains/crm.md](./domains/crm.md) | Clients, contacts, sales pipeline |
+| [domains/crm.md](./domains/crm.md) | Companies (clients + partners), contacts, sales pipeline |
 | [domains/allocations.md](./domains/allocations.md) | Staffing people onto projects over time |
 | [domains/timesheets.md](./domains/timesheets.md) | Time capture, approval, billing basis |
 | [domains/staff-profiles.md](./domains/staff-profiles.md) | People, roles, skills, availability |

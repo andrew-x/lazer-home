@@ -1,6 +1,6 @@
 # Architecture
 
-**Status: scaffolded.** The core technical stack and architectural patterns are committed and in code. Domain features are not built yet — what exists is the foundation (env, db, auth, action layer), the **authenticated UI shell + auth screens** (see [ui.md](./ui.md)), and the **staff schema + post-login staff-record gate** (the first real data-model slice; the earlier `StaffProfileForm`/`updateStaffProfile` demo has been deleted). The first real data-backed authenticated pages are **`/profile`** ("My profile") and the **browse-staff** feature — a directory (`/staff`) and per-person profiles (`/staff/[id]`) that show *other* people via the same shared `ProfileView` (see [ui.md](./ui.md)) — the first place all three call-site patterns from ADR 0010 appear together (server-only read, next-safe-action mutation, presentational client UI). Browse-staff is also the first **cross-person** data access: its reads aren't ownership-scoped, and its link/intro edits are now gated by RBAC (own → always; other → the `staff.edit` permission) — see Authorization, [domains/permissions.md](./domains/permissions.md), and [ADR 0014](./decisions/0014-rbac-better-auth-access-control.md).
+**Status: scaffolded, first domain slices landing.** The core technical stack and architectural patterns are committed and in code. What exists is the foundation (env, db, auth, action layer), the **authenticated UI shell + auth screens** (see [ui.md](./ui.md)), the **staff schema + post-login staff-record gate** (the first real data-model slice; the earlier `StaffProfileForm`/`updateStaffProfile` demo has been deleted), and a first **CRM slice** (`companies`/`contacts` data, reads, create actions, and a `/companies` page — see [domains/crm.md](./domains/crm.md)). The first real data-backed authenticated pages are **`/profile`** ("My profile") and the **browse-staff** feature — a directory (`/staff`) and per-person profiles (`/staff/[id]`) that show *other* people via the same shared `ProfileView` (see [ui.md](./ui.md)) — the first place all three call-site patterns from ADR 0010 appear together (server-only read, next-safe-action mutation, presentational client UI). Browse-staff is also the first **cross-person** data access: its reads aren't ownership-scoped, and its link/intro edits are now gated by RBAC (own → always; other → the `staff.edit` permission) — see Authorization, [domains/permissions.md](./domains/permissions.md), and [ADR 0014](./decisions/0014-rbac-better-auth-access-control.md). The CRM slice adds the first **server-side-paginated** reads and the first flat (non-ownership) create gates (`companies.create`/`contacts.create`).
 
 ## What we're building
 
@@ -35,6 +35,7 @@ src/
     layout.tsx               root layout (fonts, metadata, TooltipProvider, Toaster)
     (app)/                   AUTHENTICATED route group — layout.tsx gates via getCurrentUser() + getCurrentStaff()→redirect, renders AppShell
       layout.tsx page.tsx profile/page.tsx settings/page.tsx loading.tsx
+      staff/page.tsx staff/[id]/page.tsx  companies/page.tsx ("Companies & Contacts")
     (onboarding)/            POST-LOGIN block screen — authed users without a usable staff record (no group layout; page self-gates)
       profile-setup/page.tsx
     (auth)/login/page.tsx    PUBLIC route group (Google sign-in)
@@ -51,10 +52,12 @@ src/
     staff/canEditStaff.ts  staff-edit authz (ADR 0014): canEditStaff(user, staffId) → boolean (UI affordance) + authorizeStaffEdit (ActionAuthorize hook reading clientInput.staffId; own → always, other → staff.edit)
     <domain>/<verb><Thing>.ts  mutations → next-safe-action, one per file (+ .schema.ts)
     admin/                   {preview,commit}StaffImport + {preview,commit}PtoImport + commitBulkEditEmployment (publicActionClient + assertLocalhost)
+    crm/                     get{Companies,Contacts}Page (server-only, server-side paginated) + searchCompanies (auth-only type-ahead) + create{Company,Contact} (gated companies/contacts.create; +.schema.ts)
   components/                React components; ui/ = vendored shadcn primitives,
                              app-shell/ + auth/ + brand/ = the UI shell, admin/ = staff-import + pto-import + bulk-edit-roles UI,
-                             staff/ = shared ProfileView (backs /profile + /staff/[id]) + directory/cards + edit dialogs + history sheet
-  hooks/useZodForm.tsx       RHF + zodResolver wrapper
+                             staff/ = shared ProfileView (backs /profile + /staff/[id]) + directory/cards + edit dialogs + history sheet,
+                             crm/ = add-{company,contact}-dialog + company-combobox + {companies,contacts}-table + pagination-controls
+  hooks/                     useZodForm (RHF + zodResolver wrapper), useDebouncedValue (debounce, used by company-combobox), use-mobile
   lib/
     action.ts                publicActionClient + secureActionClient (the core); metadata-driven gates: role + permission + authorize (ActionAuthorize hook), all enforced before the body
     auth.ts auth-client.ts   better-auth server + client (admin plugin wired with ac/roles); getCurrentUser/checkAuth
@@ -69,8 +72,9 @@ src/
     pto-import/              CSV PTO import (same shape as staff-import): transform.ts / plan.ts / types.ts
     db/
       db.ts                  hot-reload-safe Drizzle singleton
-      schema.ts              barrel: re-exports auth-schema + staff-schema (one import for the whole schema)
+      schema.ts              barrel: re-exports auth-schema + staff-schema + crm-schema (one import for the whole schema)
       staff-schema.ts        staff / staff_employment / staff_pto + domain enums
+      crm-schema.ts          companies / contacts (CRM slice)
       auth-schema.ts         better-auth tables (generated; in OUR migrations)
       ids.ts                 generateId(prefix)
 drizzle/                     generated SQL migrations

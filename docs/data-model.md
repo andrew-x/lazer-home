@@ -2,7 +2,7 @@
 
 The five domains share one model. This is the most important doc for understanding the system: changes here ripple everywhere.
 
-**Status: mostly proposed.** Entities and relationships below are the intended design. Only the **Person** anchor (auth `user`) and the **Staff profiles** tables (`staff`, `staff_employment`, `staff_pto`) exist in code so far (see "What's realized in code").
+**Status: mostly proposed.** Entities and relationships below are the intended design. Realized so far: the **Person** anchor (auth `user`), the **Staff profiles** tables (`staff`, `staff_employment`, `staff_pto`), and the first **CRM** slice (`companies`, `contacts`) — see "What's realized in code".
 
 ## What's realized in code
 
@@ -12,18 +12,22 @@ The five domains share one model. This is the most important doc for understandi
   - **`staff_employment`** — time-varying employment facts (line of business, role, employment type, billability, `utilizationTarget`, `billableType` (NOT NULL, default `HUB`), and a boolean `isManagement`), as **one effective-dated row per change**; current state = latest `effectiveFromDate`. FK → `staff.id` cascade. `isManagement` and `billableType` are **orthogonal to `role`** (someone can hold a working role *and* be management for it) and set in-app only. See [ADR 0007](./decisions/0007-staff-employment-effective-dating.md) and [domains/staff-profiles.md](./domains/staff-profiles.md).
   - **`staff_pto`** — leave spans (`startDate`/`endDate`, `type`, `isPending`, **notNull/unique `ripplingId`** = Rippling "Leave request ID"). FK → `staff.id` cascade. Discrete rows, **not** effective-dated; reduces a person's available capacity for allocations. Populated by a second local-only importer (`/admin/upload-pto`) — see [domains/staff-profiles.md](./domains/staff-profiles.md).
 - **`lineOfBusinessEnum`** (`line_of_business`: `CORPORATE`, `CORE`, `FINTECH`, `COMMERCE`, `DESIGN`) is a **shared/global enum**, exported top-level and intended for reuse beyond staff (CRM/allocations), not a staff-specific type.
-- **Local-only CSV import tools** are the only things that write this domain so far: `/admin/upload-staff` (Rippling export → `staff` + effective-dated `staff_employment`) and `/admin/upload-pto` (Rippling leave export → `staff_pto`). See [domains/staff-profiles.md](./domains/staff-profiles.md).
-- Nothing else (Client, Project, Allocation, TimeEntry, reviews) exists yet. (The legacy `staff_profile` example table was deleted — `drizzle/0003_tranquil_miek.sql` drops it.)
+- **Local-only CSV import tools** are the only things that write the staff domain so far: `/admin/upload-staff` (Rippling export → `staff` + effective-dated `staff_employment`) and `/admin/upload-pto` (Rippling leave export → `staff_pto`). See [domains/staff-profiles.md](./domains/staff-profiles.md).
+- **CRM slice** (`src/lib/db/crm-schema.ts`, barrelled by `schema.ts`; migration `drizzle/0012_spotty_mysterio.sql`):
+  - **`companies`** — organisations we deal with. `isPartner` is a **standalone boolean** flag (default false) marking partners — not a client/partner split; a company need be neither. `name` notNull, optional `websiteUrl`. We chose *Company* over the narrower *Client* the spine originally named — see [ADR 0015](./decisions/0015-crm-company-over-client.md).
+  - **`contacts`** — people, optionally employed by a company (`companyId` FK → `companies`, `onDelete: set null`; null when unknown or once the company is removed). `firstName`/`lastName`/`email` notNull, **`email` unique**, optional `phone` and optional free-text `role`.
+  - Reads + `companies.create`/`contacts.create` mutations + a `/companies` page exist; **Opportunity/pipeline and any link to Project are still proposed.** See [domains/crm.md](./domains/crm.md).
+- Nothing else (Project, Allocation, TimeEntry, reviews) exists yet. (The legacy `staff_profile` example table was deleted — `drizzle/0003_tranquil_miek.sql` drops it.)
 
 ## Core entities
 
 - **Person** — an employee/contractor. Anchors most of the system. Realized as **`staff`** (durable identity) + **`staff_employment`** (effective-dated role/billability facts); login identity is the auth `user`, linked via the optional `staff.userId` (1:1, null until first sign-in).
   - **Skill** (many:many with Person) — capability + proficiency; used to match people to allocations. _(Proposed — not built.)_
   - Rates (cost/charge) are expected to follow the same effective-dated, history-as-rows pattern as `staff_employment`.
-- **Client** — a customer organisation (CRM).
-  - **Contact** (many per Client) — a person at the client.
-  - **Opportunity** — a pipeline deal for a Client; when _won_, becomes/links to a Project.
-- **Project** (a.k.a. engagement) — billable work for a Client. The hub linking CRM ↔ delivery.
+- **Company** — an organisation we deal with (CRM); an `isPartner` flag marks partners (standalone, not a client/partner split). _(Realized — `companies`.)_ Chosen over the narrower *Client* the spine first named; see [ADR 0015](./decisions/0015-crm-company-over-client.md).
+  - **Contact** (optional company per contact) — a person, optionally at a Company. _(Realized — `contacts`; `companyId` nullable, `onDelete: set null`.)_
+  - **Opportunity** — a pipeline deal for a Company; when _won_, becomes/links to a Project. _(Proposed — not built.)_
+- **Project** (a.k.a. engagement) — billable work for a Company. The hub linking CRM ↔ delivery. _(Proposed.)_
 - **Allocation** — a _time-ranged_ assignment of a Person to a Project (start/end, % or hours, project role). The heart of capacity planning.
 - **TimeEntry** — hours a Person logged against a Project (and optionally a task) on a date; billable or not. Aggregated into **Timesheets** for approval.
 - **ReviewCycle / PerformanceReview / Goal** — periodic assessment of a Person, often informed by their project work and utilization.
@@ -31,8 +35,9 @@ The five domains share one model. This is the most important doc for understandi
 ## How the domains connect
 
 ```
-Client ──< Opportunity ──(won)──> Project
-Client ──< Project
+Company ──< Contact                        (optional company; FK set-null)
+Company ──< Opportunity ──(won)──> Project
+Company ──< Project
 Project >──< Person      via Allocation   (the plan, time-ranged)
 Person  ──< TimeEntry >── Project          (the actuals)
 user (auth)    ──0:1── Person (staff)      via staff.userId (nullable, unique)

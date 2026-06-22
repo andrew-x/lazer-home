@@ -4,7 +4,7 @@
 
 ## The core lifecycle: sell → staff → deliver → bill → review
 
-1. **Sell (CRM).** An Opportunity progresses through the pipeline for a Client. When *won*, it produces a Project.
+1. **Sell (CRM).** An Opportunity progresses through the pipeline for a Company (clients + partners; see [domains/crm.md](./domains/crm.md)). When *won*, it produces a Project. _(Companies/contacts are built; Opportunity + Project links are still proposed.)_
 2. **Staff (Allocations).** Managers allocate People to the Project over a date range, using StaffProfile skills and current availability/utilization to choose who.
 3. **Deliver + log (Timesheets).** Allocated People log TimeEntries against the Project. Entries roll into Timesheets for approval.
 4. **Bill (Timesheets → finance).** Approved billable hours × charge rate become the billing basis. Margin = (charge − cost) × hours.

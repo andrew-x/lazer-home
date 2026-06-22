@@ -21,7 +21,7 @@ Record what People actually worked on so we can bill clients, measure utilizatio
 
 - **Allocations** — actuals (TimeEntries) reconcile against the plan (Allocations).
 - **Performance** — billable vs. available hours = utilization.
-- **CRM/Project** — entries roll up to the Project (and its Client) for billing.
+- **CRM/Project** — entries roll up to the Project (and its CRM Company) for billing.
 
 ## Open questions
 

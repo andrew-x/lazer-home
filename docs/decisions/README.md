@@ -24,3 +24,4 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0012](./0012-open-staff-edit-pending-rbac.md) | Staff link/intro edits are open to any authenticated user until RBAC lands | superseded by 0014 |
 | [0013](./0013-resume-pdf-parse-not-store.md) | Résumé stored as text only; PDFs parsed server-side (unpdf), never persisted | accepted |
 | [0014](./0014-rbac-better-auth-access-control.md) | RBAC on Better Auth native access control (single role, matrix-as-contract) | accepted |
+| [0015](./0015-crm-company-over-client.md) | CRM org entity is "Company" (with `isPartner`), not "Client" | accepted |
