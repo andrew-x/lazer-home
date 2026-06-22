@@ -2,6 +2,7 @@ import {
   IconCalendarEvent,
   IconChevronRight,
   IconUpload,
+  IconUserShield,
   IconUsersGroup,
 } from "@tabler/icons-react";
 import type { Metadata } from "next";
@@ -36,6 +37,13 @@ const ADMIN_TOOLS = [
       "Edit staff employment facts (role, line of business, billability, management) across the team in one pass.",
     href: "/admin/bulk-edit-roles",
     icon: IconUsersGroup,
+  },
+  {
+    title: "Manage users",
+    description:
+      "Edit application users' RBAC role and ban status inline, then save all changes at once.",
+    href: "/admin/manage-users",
+    icon: IconUserShield,
   },
 ];
 
