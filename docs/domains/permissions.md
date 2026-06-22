@@ -33,10 +33,11 @@ so the admin role retains its built-in capabilities) with two business resources
 Both semantics are about acting on **other** people; the owner path is always
 allowed without a permission.
 
-Two CRM capabilities gate data entry (no ownership dimension — a flat create gate):
+One CRM capability gates all data entry (no ownership dimension — a flat write gate).
+Reads are open: any signed-in user can browse companies and contacts.
 
-- **`companies.create`** — create a CRM company.
-- **`contacts.create`** — create a CRM contact.
+- **`contacts.edit`** — add/edit CRM companies *and* contacts (including creating a
+  company inline from the contact form).
 
 ## Roles → permissions (the canonical matrix — THIS IS THE CONTRACT)
 
@@ -46,14 +47,14 @@ via `bun test`) and audited by `/audit-rbac`. **Changing it requires changing th
 `roles` map in `permissions.ts`, the test, and this table in lockstep** — that
 friction is deliberate.
 
-| Role               | `staff.edit` | `pto.review` | `companies.create` | `contacts.create` | Notes                                |
-| ------------------ | :----------: | :----------: | :----------------: | :---------------: | ------------------------------------ |
-| `user`             |      –       |      –       |         –          |         –         | default role for new users           |
-| `delivery-manager` |      –       |      –       |         –          |         –         | no business perms yet                |
-| `finance`          |      –       |      –       |         –          |         –         | no business perms yet                |
-| `sales`            |      –       |      –       |         ✓          |         ✓         | CRM data entry                       |
-| `manager`          |      ✓       |      ✓       |         ✓          |         ✓         | all defined business perms           |
-| `admin`            |      ✓       |      ✓       |         ✓          |         ✓         | + Better Auth admin-plugin user/session perms (`...adminAc.statements`) |
+| Role               | `staff.edit` | `pto.review` | `contacts.edit` | Notes                                |
+| ------------------ | :----------: | :----------: | :-------------: | ------------------------------------ |
+| `user`             |      –       |      –       |        –        | default role for new users           |
+| `delivery-manager` |      –       |      –       |        –        | no business perms yet                |
+| `finance`          |      –       |      –       |        –        | no business perms yet                |
+| `sales`            |      –       |      –       |        ✓        | CRM data entry                       |
+| `manager`          |      ✓       |      ✓       |        ✓        | all defined business perms           |
+| `admin`            |      ✓       |      ✓       |        ✓        | + Better Auth admin-plugin user/session perms (`...adminAc.statements`) |
 
 `DEFAULT_ROLE = "user"`, mirrored by `admin({ defaultRole: "user" })` in `auth.ts`.
 `adminRoles: ["admin"]` lists which roles may call the admin-plugin endpoints.

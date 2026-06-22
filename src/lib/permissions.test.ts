@@ -18,46 +18,19 @@ const MATRIX: Record<
   {
     staffEdit: boolean;
     ptoReview: boolean;
-    companiesCreate: boolean;
-    contactsCreate: boolean;
+    contactsEdit: boolean;
   }
 > = {
-  user: {
-    staffEdit: false,
-    ptoReview: false,
-    companiesCreate: false,
-    contactsCreate: false,
-  },
+  user: { staffEdit: false, ptoReview: false, contactsEdit: false },
   "delivery-manager": {
     staffEdit: false,
     ptoReview: false,
-    companiesCreate: false,
-    contactsCreate: false,
+    contactsEdit: false,
   },
-  finance: {
-    staffEdit: false,
-    ptoReview: false,
-    companiesCreate: false,
-    contactsCreate: false,
-  },
-  sales: {
-    staffEdit: false,
-    ptoReview: false,
-    companiesCreate: true,
-    contactsCreate: true,
-  },
-  manager: {
-    staffEdit: true,
-    ptoReview: true,
-    companiesCreate: true,
-    contactsCreate: true,
-  },
-  admin: {
-    staffEdit: true,
-    ptoReview: true,
-    companiesCreate: true,
-    contactsCreate: true,
-  },
+  finance: { staffEdit: false, ptoReview: false, contactsEdit: false },
+  sales: { staffEdit: false, ptoReview: false, contactsEdit: true },
+  manager: { staffEdit: true, ptoReview: true, contactsEdit: true },
+  admin: { staffEdit: true, ptoReview: true, contactsEdit: true },
 };
 
 describe("permission matrix", () => {
@@ -76,15 +49,9 @@ describe("permission matrix", () => {
       );
     });
 
-    test(`${role}: companies.create === ${expected.companiesCreate}`, () => {
-      expect(userHasPermission({ role }, { companies: ["create"] })).toBe(
-        expected.companiesCreate,
-      );
-    });
-
-    test(`${role}: contacts.create === ${expected.contactsCreate}`, () => {
-      expect(userHasPermission({ role }, { contacts: ["create"] })).toBe(
-        expected.contactsCreate,
+    test(`${role}: contacts.edit === ${expected.contactsEdit}`, () => {
+      expect(userHasPermission({ role }, { contacts: ["edit"] })).toBe(
+        expected.contactsEdit,
       );
     });
   }

@@ -17,14 +17,14 @@ Track who we sell to and work with, and (eventually) what we're trying to win, s
 - **Schema** — `src/lib/db/crm-schema.ts` (`companies`, `contacts`), barrelled by `src/lib/db/schema.ts`. Migrations `drizzle/0012_spotty_mysterio.sql` (initial) and `drizzle/0013_clean_firelord.sql` (adds `contacts.phone`).
 - **Server layer** — `src/actions/crm/`:
   - `getCompaniesPage.ts` / `getContactsPage.ts` — server-only reads (per ADR 0010), **server-side offset/limit pagination** with a `count` and a page clamped into range (out-of-bounds query params can't return an empty page). Contacts left-join companies to resolve `companyName` (company is optional). `PAGE_SIZE` is 20.
-  - `searchCompanies.ts` — `secureActionClient`, auth-only read (no capability gate — it's the type-ahead behind contact entry). Debounced; returns up to 10 `{ id, name }` by `ilike` name match (empty query → first 10 alphabetically).
-  - `createCompany.ts` — gated `companies.create`.
-  - `createContact.ts` — gated `contacts.create`; maps the Postgres unique-violation (SQLSTATE `23505`) on `email` to a user-safe "A contact with that email already exists." Both mutations `revalidatePath("/companies")`. Input schemas live in sibling `.schema.ts` files.
+  - `searchCompanies.ts` — `secureActionClient`, gated `contacts.edit` (it's the type-ahead behind contact entry, which is itself a write). Debounced; returns up to 10 `{ id, name }` by `ilike` name match (empty query → first 10 alphabetically).
+  - `createCompany.ts` — gated `contacts.edit`.
+  - `createContact.ts` — gated `contacts.edit`; maps the Postgres unique-violation (SQLSTATE `23505`) on `email` to a user-safe "A contact with that email already exists." Both mutations `revalidatePath("/companies")`. Input schemas live in sibling `.schema.ts` files.
 - **UI** — `/companies` ("Companies & Contacts", `src/app/(app)/companies/page.tsx`) and `src/components/crm/**` — see [../ui.md](../ui.md).
 
 ## Authorization
 
-Two flat create gates (no ownership dimension): **`companies.create`** and **`contacts.create`**, granted to `sales`, `manager`, `admin`. Declared in action metadata; the page hides the "Add" dialogs for users without the capability. See [domains/permissions.md](./permissions.md).
+**Reads are open** — any signed-in user can browse all companies and contacts (the `(app)` gate is the boundary). **All CRM writes** are gated by a single flat capability (no ownership dimension): **`contacts.edit`**, granted to `sales`, `manager`, `admin`. It covers creating/editing both companies and contacts — including creating a company inline from the contact form, and the `searchCompanies` type-ahead that backs contact entry. Declared in action metadata; the page hides both "Add" dialogs (via one `canEdit` flag) for users without the capability. See [domains/permissions.md](./permissions.md).
 
 ## Key flows _(proposed)_
 

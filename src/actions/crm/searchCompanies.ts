@@ -9,7 +9,7 @@ import { companies } from "@/lib/db/schema";
 /**
  * Type-ahead search for the contact form's company picker. Returns up to 10
  * name matches for a non-blank query; a blank query returns nothing (search only
- * runs once the user types). Gated on `contacts.create` — the same capability
+ * runs once the user types). Gated on `contacts.edit` — the same capability
  * the contact picker is behind — so it can't be used to enumerate the company
  * roster past the page-level gate.
  */
@@ -23,7 +23,7 @@ function escapeLike(value: string): string {
 export const searchCompanies = secureActionClient
   .metadata({
     action: "search-companies",
-    permission: { contacts: ["create"] },
+    permission: { contacts: ["edit"] },
   })
   .inputSchema(searchCompaniesSchema)
   .action(async ({ parsedInput: { query } }) => {

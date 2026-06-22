@@ -1,12 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { type ActionAuthorize, secureActionClient } from "@/lib/action";
+import { secureActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import { companies, contacts } from "@/lib/db/schema";
 import { UserSafeActionError } from "@/lib/errors";
-import { requirePermission } from "@/lib/permissions";
 import { createContactSchema } from "./createContact.schema";
 
 /** True for a Postgres unique violation (SQLSTATE 23505) on a specific named
@@ -18,23 +17,14 @@ function isUniqueViolation(error: unknown, constraint: string): boolean {
 }
 
 /**
- * Creating a contact requires `contacts.create` (static gate below). Creating a
- * company inline at the same time additionally requires `companies.create` —
- * input-dependent, so it's enforced here off the raw client input.
+ * Create a contact, optionally creating its company inline (one transaction).
+ * Gated on `contacts.edit` — the single CRM-write capability, which also covers
+ * the inline company creation.
  */
-const authorizeInlineCompany: ActionAuthorize = ({ user, clientInput }) => {
-  const input = clientInput as { newCompany?: unknown } | undefined;
-  if (input?.newCompany) {
-    requirePermission(user, { companies: ["create"] });
-  }
-};
-
-/** Create a contact, optionally creating its company inline (one transaction). */
 export const createContact = secureActionClient
   .metadata({
     action: "create-contact",
-    permission: { contacts: ["create"] },
-    authorize: authorizeInlineCompany,
+    permission: { contacts: ["edit"] },
   })
   .inputSchema(createContactSchema)
   .action(async ({ parsedInput }) => {

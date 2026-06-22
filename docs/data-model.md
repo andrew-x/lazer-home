@@ -16,7 +16,7 @@ The five domains share one model. This is the most important doc for understandi
 - **CRM slice** (`src/lib/db/crm-schema.ts`, barrelled by `schema.ts`; migration `drizzle/0012_spotty_mysterio.sql`):
   - **`companies`** — organisations we deal with. `isPartner` is a **standalone boolean** flag (default false) marking partners — not a client/partner split; a company need be neither. `name` notNull, optional `websiteUrl`. We chose *Company* over the narrower *Client* the spine originally named — see [ADR 0015](./decisions/0015-crm-company-over-client.md).
   - **`contacts`** — people, optionally employed by a company (`companyId` FK → `companies`, `onDelete: set null`; null when unknown or once the company is removed). `firstName`/`lastName`/`email` notNull, **`email` unique**, optional `phone` and optional free-text `role`.
-  - Reads + `companies.create`/`contacts.create` mutations + a `/companies` page exist; **Opportunity/pipeline and any link to Project are still proposed.** See [domains/crm.md](./domains/crm.md).
+  - Open reads + `contacts.edit`-gated create mutations (one capability gates all CRM writes — both companies and contacts) + a `/companies` page exist; **Opportunity/pipeline and any link to Project are still proposed.** See [domains/crm.md](./domains/crm.md).
 - Nothing else (Project, Allocation, TimeEntry, reviews) exists yet. (The legacy `staff_profile` example table was deleted — `drizzle/0003_tranquil_miek.sql` drops it.)
 
 ## Core entities

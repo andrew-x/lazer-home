@@ -32,11 +32,8 @@ export default async function CompaniesPage({
     getCurrentUser(),
   ]);
 
-  const canCreateCompanies = user
-    ? userHasPermission(user, { companies: ["create"] })
-    : false;
-  const canCreateContacts = user
-    ? userHasPermission(user, { contacts: ["create"] })
+  const canEdit = user
+    ? userHasPermission(user, { contacts: ["edit"] })
     : false;
 
   return (
@@ -55,7 +52,7 @@ export default async function CompaniesPage({
           <h3 className="font-heading text-base font-semibold tracking-tight">
             Companies
           </h3>
-          {canCreateCompanies ? <AddCompanyDialog /> : null}
+          {canEdit ? <AddCompanyDialog /> : null}
         </div>
         <div className="rounded-md border">
           <CompaniesTable rows={companies.rows} />
@@ -73,7 +70,7 @@ export default async function CompaniesPage({
           <h3 className="font-heading text-base font-semibold tracking-tight">
             Contacts
           </h3>
-          {canCreateContacts ? <AddContactDialog /> : null}
+          {canEdit ? <AddContactDialog /> : null}
         </div>
         <div className="rounded-md border">
           <ContactsTable rows={contacts.rows} />
