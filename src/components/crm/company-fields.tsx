@@ -36,6 +36,7 @@ export function CompanyFields({
   onPartnerChange: (value: boolean) => void;
   errors?: { name?: string; websiteUrl?: string };
 }) {
+  console.log("isPartner", isPartner);
   return (
     <>
       <div className="flex flex-col gap-1.5">
@@ -70,7 +71,10 @@ export function CompanyFields({
         <Switch
           id={`${idPrefix}-partner`}
           checked={isPartner}
-          onCheckedChange={onPartnerChange}
+          onCheckedChange={(v) => {
+            console.log("v", v);
+            onPartnerChange(v ?? false);
+          }}
         />
       </div>
     </>

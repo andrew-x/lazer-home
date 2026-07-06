@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks";
 import { IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
+import { Controller } from "react-hook-form";
 import { createCompany } from "@/actions/crm/createCompany";
 import { createCompanySchema } from "@/actions/crm/createCompany.schema";
 import { Button } from "@/components/ui/button";
@@ -63,23 +64,28 @@ function CompanyForm({ onSaved }: { onSaved: () => void }) {
 
   const {
     register,
-    watch,
-    setValue,
+    control,
     formState: { errors },
   } = form;
 
   return (
     <form onSubmit={handleSubmitWithAction} className="flex flex-col gap-4">
-      <CompanyFields
-        idPrefix="company"
-        nameField={register("name")}
-        websiteField={register("websiteUrl")}
-        isPartner={watch("isPartner") ?? false}
-        onPartnerChange={(v) => setValue("isPartner", v, { shouldDirty: true })}
-        errors={{
-          name: errors.name?.message,
-          websiteUrl: errors.websiteUrl?.message,
-        }}
+      <Controller
+        control={control}
+        name="isPartner"
+        render={({ field }) => (
+          <CompanyFields
+            idPrefix="company"
+            nameField={register("name")}
+            websiteField={register("websiteUrl")}
+            isPartner={field.value ?? false}
+            onPartnerChange={field.onChange}
+            errors={{
+              name: errors.name?.message,
+              websiteUrl: errors.websiteUrl?.message,
+            }}
+          />
+        )}
       />
 
       {action.result.serverError ? (

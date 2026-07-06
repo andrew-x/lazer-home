@@ -94,7 +94,6 @@ function ContactForm({ onSaved }: { onSaved: () => void }) {
     control,
     setValue,
     clearErrors,
-    watch,
     formState: { errors },
   } = form;
 
@@ -110,8 +109,6 @@ function ContactForm({ onSaved }: { onSaved: () => void }) {
     clearErrors("newCompany");
     setCreatingCompany(false);
   };
-
-  const newCompany = watch("newCompany");
 
   return (
     <form onSubmit={handleSubmitWithAction} className="flex flex-col gap-4">
@@ -201,18 +198,22 @@ function ContactForm({ onSaved }: { onSaved: () => void }) {
 
         {creatingCompany ? (
           <div className="flex flex-col gap-4 rounded-md border p-3">
-            <CompanyFields
-              idPrefix="new-company"
-              nameField={register("newCompany.name")}
-              websiteField={register("newCompany.websiteUrl")}
-              isPartner={newCompany?.isPartner ?? false}
-              onPartnerChange={(v) =>
-                setValue("newCompany.isPartner", v, { shouldDirty: true })
-              }
-              errors={{
-                name: errors.newCompany?.name?.message,
-                websiteUrl: errors.newCompany?.websiteUrl?.message,
-              }}
+            <Controller
+              control={control}
+              name="newCompany.isPartner"
+              render={({ field }) => (
+                <CompanyFields
+                  idPrefix="new-company"
+                  nameField={register("newCompany.name")}
+                  websiteField={register("newCompany.websiteUrl")}
+                  isPartner={field.value ?? false}
+                  onPartnerChange={field.onChange}
+                  errors={{
+                    name: errors.newCompany?.name?.message,
+                    websiteUrl: errors.newCompany?.websiteUrl?.message,
+                  }}
+                />
+              )}
             />
           </div>
         ) : (

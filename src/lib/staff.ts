@@ -54,7 +54,7 @@ export async function getCurrentStaff(user: {
 
   // 3. No active staff record → not set up. (Terminated staff have
   //    isActive = false and are correctly blocked here; a rehire is a new row.)
-  if (!matched || !matched.isActive) {
+  if (!matched?.isActive) {
     return { status: "not_setup" };
   }
 
