@@ -85,6 +85,20 @@
       "when": 1781791467772,
       "tag": "0011_boring_big_bertha",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1782128327283,
+      "tag": "0012_spotty_mysterio",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1782135199293,
+      "tag": "0013_clean_firelord",
+      "breakpoints": true
     }
   ]
 }

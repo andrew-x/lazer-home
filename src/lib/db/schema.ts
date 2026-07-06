@@ -3,6 +3,7 @@
 
 // Better Auth tables (user, session, account, verification).
 export * from "./auth-schema";
-
+// CRM domain (companies, contacts).
+export * from "./crm-schema";
 // Staff profiles domain (staff, staff_employment, staff_pto + enums).
 export * from "./staff-schema";

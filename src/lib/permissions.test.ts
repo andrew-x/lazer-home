@@ -13,13 +13,24 @@ import {
  * Changing a role's permissions requires changing this table too — that is the
  * point: the matrix can't drift silently.
  */
-const MATRIX: Record<AppRole, { staffEdit: boolean; ptoReview: boolean }> = {
-  user: { staffEdit: false, ptoReview: false },
-  "delivery-manager": { staffEdit: false, ptoReview: false },
-  finance: { staffEdit: false, ptoReview: false },
-  sales: { staffEdit: false, ptoReview: false },
-  manager: { staffEdit: true, ptoReview: true },
-  admin: { staffEdit: true, ptoReview: true },
+const MATRIX: Record<
+  AppRole,
+  {
+    staffEdit: boolean;
+    ptoReview: boolean;
+    contactsEdit: boolean;
+  }
+> = {
+  user: { staffEdit: false, ptoReview: false, contactsEdit: false },
+  "delivery-manager": {
+    staffEdit: false,
+    ptoReview: false,
+    contactsEdit: false,
+  },
+  finance: { staffEdit: false, ptoReview: false, contactsEdit: false },
+  sales: { staffEdit: false, ptoReview: false, contactsEdit: true },
+  manager: { staffEdit: true, ptoReview: true, contactsEdit: true },
+  admin: { staffEdit: true, ptoReview: true, contactsEdit: true },
 };
 
 describe("permission matrix", () => {
@@ -35,6 +46,12 @@ describe("permission matrix", () => {
     test(`${role}: pto.review === ${expected.ptoReview}`, () => {
       expect(userHasPermission({ role }, { pto: ["review"] })).toBe(
         expected.ptoReview,
+      );
+    });
+
+    test(`${role}: contacts.edit === ${expected.contactsEdit}`, () => {
+      expect(userHasPermission({ role }, { contacts: ["edit"] })).toBe(
+        expected.contactsEdit,
       );
     });
   }

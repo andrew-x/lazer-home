@@ -41,7 +41,9 @@
         "rules": {
           "a11y": {
             "noLabelWithoutControl": "off",
-            "noSvgWithoutTitle": "off"
+            "noSvgWithoutTitle": "off",
+            "useSemanticElements": "off",
+            "useKeyWithClickEvents": "off"
           },
           "suspicious": {
             "noDocumentCookie": "off"

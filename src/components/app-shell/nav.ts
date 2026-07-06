@@ -1,5 +1,6 @@
 import {
   type Icon,
+  IconBuildingSkyscraper,
   IconHome,
   IconSettings,
   IconUser,
@@ -14,6 +15,11 @@ export const NAV_ITEMS: NavItem[] = [
   { title: "Home", href: "/", icon: IconHome },
   { title: "My profile", href: "/profile", icon: IconUser },
   { title: "Staff", href: "/staff", icon: IconUsers },
+  {
+    title: "Companies & Contacts",
+    href: "/companies",
+    icon: IconBuildingSkyscraper,
+  },
   { title: "Settings", href: "/settings", icon: IconSettings },
 ];
 
