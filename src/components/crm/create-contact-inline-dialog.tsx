@@ -94,6 +94,7 @@ function InlineContactForm({
       // opened it, so its submit would bubble and validate the parent form.
       // Stop it at the boundary.
       onSubmit={(e) => {
+        e.preventDefault();
         e.stopPropagation();
         handleSubmitWithAction(e);
       }}
