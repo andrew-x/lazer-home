@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { createCompanySchema } from "./createCompany.schema";
 
 /** Empty/whitespace optional text → null; otherwise trimmed. Accepts null on
  * input too, so re-parsing the transformed value (client → server) is stable. */
@@ -24,11 +23,9 @@ export const createContactSchema = z.object({
     .pipe(z.email("Enter a valid email."))
     .transform((value) => value.toLowerCase()),
   phone: optionalText(30),
-  // Optional employer, set one of two ways: link an existing company by id...
+  // Optional employer — link an existing company by id (a new company is created
+  // separately via `createCompany` first, then passed here as `companyId`).
   companyId: z.string().min(1).nullable().default(null),
-  // ...or create a new company inline; the action persists both at once. When
-  // `newCompany` is present the action ignores `companyId`.
-  newCompany: createCompanySchema.nullish(),
   // Optional free-text job title.
   role: optionalText(100),
 });

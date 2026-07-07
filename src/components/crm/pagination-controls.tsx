@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 type SearchParams = Record<string, string | string[] | undefined>;
 
 /**
- * Builds a `/companies` href that changes only `paramKey` to `page`, preserving
- * every other current query param (so the two tables paginate independently).
+ * Builds a `basePath` href that changes only `paramKey` to `page`, preserving
+ * every other current query param (so multiple tables paginate independently).
  */
 function buildHref(
+  basePath: string,
   params: SearchParams,
   paramKey: string,
   page: number,
@@ -24,15 +25,17 @@ function buildHref(
   }
   sp.set(paramKey, String(page));
   const qs = sp.toString();
-  return qs ? `/companies?${qs}` : "/companies";
+  return qs ? `${basePath}?${qs}` : basePath;
 }
 
 export function PaginationControls({
+  basePath,
   params,
   paramKey,
   page,
   pageCount,
 }: {
+  basePath: string;
   params: SearchParams;
   paramKey: string;
   page: number;
@@ -51,7 +54,9 @@ export function PaginationControls({
           <Button
             variant="outline"
             size="sm"
-            render={<Link href={buildHref(params, paramKey, page - 1)} />}
+            render={
+              <Link href={buildHref(basePath, params, paramKey, page - 1)} />
+            }
           >
             <IconChevronLeft />
             Previous
@@ -66,7 +71,9 @@ export function PaginationControls({
           <Button
             variant="outline"
             size="sm"
-            render={<Link href={buildHref(params, paramKey, page + 1)} />}
+            render={
+              <Link href={buildHref(basePath, params, paramKey, page + 1)} />
+            }
           >
             Next
             <IconChevronRight />

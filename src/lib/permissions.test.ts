@@ -18,19 +18,19 @@ const MATRIX: Record<
   {
     staffEdit: boolean;
     ptoReview: boolean;
-    contactsEdit: boolean;
+    crmEdit: boolean;
   }
 > = {
-  user: { staffEdit: false, ptoReview: false, contactsEdit: false },
+  user: { staffEdit: false, ptoReview: false, crmEdit: false },
   "delivery-manager": {
     staffEdit: false,
     ptoReview: false,
-    contactsEdit: false,
+    crmEdit: false,
   },
-  finance: { staffEdit: false, ptoReview: false, contactsEdit: false },
-  sales: { staffEdit: false, ptoReview: false, contactsEdit: true },
-  manager: { staffEdit: true, ptoReview: true, contactsEdit: true },
-  admin: { staffEdit: true, ptoReview: true, contactsEdit: true },
+  finance: { staffEdit: false, ptoReview: false, crmEdit: false },
+  sales: { staffEdit: false, ptoReview: false, crmEdit: true },
+  manager: { staffEdit: true, ptoReview: true, crmEdit: true },
+  admin: { staffEdit: true, ptoReview: true, crmEdit: true },
 };
 
 describe("permission matrix", () => {
@@ -49,9 +49,9 @@ describe("permission matrix", () => {
       );
     });
 
-    test(`${role}: contacts.edit === ${expected.contactsEdit}`, () => {
-      expect(userHasPermission({ role }, { contacts: ["edit"] })).toBe(
-        expected.contactsEdit,
+    test(`${role}: crm.edit === ${expected.crmEdit}`, () => {
+      expect(userHasPermission({ role }, { crm: ["edit"] })).toBe(
+        expected.crmEdit,
       );
     });
   }

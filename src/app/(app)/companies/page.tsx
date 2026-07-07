@@ -32,9 +32,7 @@ export default async function CompaniesPage({
     getCurrentUser(),
   ]);
 
-  const canEdit = user
-    ? userHasPermission(user, { contacts: ["edit"] })
-    : false;
+  const canEdit = user ? userHasPermission(user, { crm: ["edit"] }) : false;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-10">
@@ -57,6 +55,7 @@ export default async function CompaniesPage({
         <div className="rounded-md border">
           <CompaniesTable rows={companies.rows} />
           <PaginationControls
+            basePath="/companies"
             params={params}
             paramKey="companiesPage"
             page={companies.page}
@@ -75,6 +74,7 @@ export default async function CompaniesPage({
         <div className="rounded-md border">
           <ContactsTable rows={contacts.rows} />
           <PaginationControls
+            basePath="/companies"
             params={params}
             paramKey="contactsPage"
             page={contacts.page}
