@@ -47,5 +47,3 @@ Track who we sell to and work with, and (eventually) what we're trying to win, s
 
 - Probability/weighting per status and pipeline revenue forecasting (value × probability) — not modelled; opportunities carry no monetary value field yet.
 - **Edit/delete** — only create + read exist for all three entities (companies, contacts, opportunities). Note the `onDelete: restrict` on `opportunities.companyId` means a company-delete flow must handle live opportunities.
-</content>
-</invoke>

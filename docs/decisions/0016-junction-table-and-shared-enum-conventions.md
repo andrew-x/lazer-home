@@ -65,5 +65,3 @@ meaningless whereas a contact without one is fine.
 - **`onDelete: set null` / `cascade` on `opportunities.companyId`** — rejected: an
   opportunity must belong to a company, so `restrict` (block the delete) is correct;
   cascading would silently destroy pipeline data on a company delete.
-</content>
-</invoke>
