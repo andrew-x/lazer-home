@@ -1,6 +1,6 @@
 import "server-only";
 
-import { asc, count, eq, inArray } from "drizzle-orm";
+import { asc, count, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/db";
 import {
   companies,
@@ -60,7 +60,7 @@ export async function getOpportunitiesPage(
     })
     .from(opportunities)
     .innerJoin(companies, eq(opportunities.companyId, companies.id))
-    .orderBy(asc(opportunities.createdAt))
+    .orderBy(desc(opportunities.createdAt))
     .limit(pageSize)
     .offset((safePage - 1) * pageSize);
 
