@@ -1,39 +1,28 @@
 import { z } from "zod";
+import {
+  type billableTypeEnum,
+  employmentTypeEnum,
+  lineOfBusinessEnum,
+  roleEnum,
+} from "@/lib/db/staff-schema";
 
 /**
  * Shapes for the admin staff CSV import. These are shared between the client
  * (CSV parse + transform, preview tables) and the server (diff + persist), so
- * this module must stay free of server-only imports.
+ * this module must stay free of server-only imports. (`staff-schema.ts` only
+ * declares pgTable/pgEnum shapes — no DB connection — so it is client-safe.)
  *
- * The enum tuples below mirror the Postgres enums in `staff-schema.ts`; the
- * Drizzle insert in the commit action type-checks against the real enums, so a
- * drift here surfaces at compile time.
+ * The enum tuples are derived directly from the Postgres enums in
+ * `staff-schema.ts` (the single source of truth), so they can never drift.
  */
-export const LINE_OF_BUSINESS = [
-  "CORPORATE",
-  "CORE",
-  "FINTECH",
-  "COMMERCE",
-  "DESIGN",
-] as const;
-
-export const ROLE = [
-  "ENGINEER",
-  "DESIGNER",
-  "LEADERSHIP",
-  "SALES",
-  "SOLUTIONS",
-  "OPERATIONS",
-  "ARCHITECT",
-  "DELIVERY",
-  "QA",
-] as const;
-
-export const EMPLOYMENT_TYPE = ["FULL_TIME", "HOURLY"] as const;
+export const LINE_OF_BUSINESS = lineOfBusinessEnum.enumValues;
+export const ROLE = roleEnum.enumValues;
+export const EMPLOYMENT_TYPE = employmentTypeEnum.enumValues;
 
 export type LineOfBusiness = (typeof LINE_OF_BUSINESS)[number];
 export type Role = (typeof ROLE)[number];
 export type EmploymentType = (typeof EMPLOYMENT_TYPE)[number];
+export type BillableType = (typeof billableTypeEnum.enumValues)[number];
 
 /**
  * A single CSV row after column mapping + derivation. The refinements re-assert
@@ -65,13 +54,7 @@ export const normalizedStaffSchema = z
 
 export type NormalizedStaff = z.infer<typeof normalizedStaffSchema>;
 
-/** A CSV row we couldn't import, surfaced for review (never persisted). */
-export type SkippedRow = {
-  rowNumber: number;
-  name: string;
-  ripplingId: string;
-  reason: string;
-};
+export type { SkippedRow } from "@/lib/csv-import";
 
 /** Fields compared between an incoming row and the existing record. */
 export const IDENTITY_FIELDS = [
@@ -110,7 +93,7 @@ export type ComparableSnapshot = {
   // Set in-app, never from the CSV; carried forward when import spawns a new
   // employment row so a re-sync never resets them.
   isManagement: boolean | null;
-  billableType: "HUB" | "GLOBAL" | null;
+  billableType: BillableType | null;
 };
 
 export type ImportUpdate = {

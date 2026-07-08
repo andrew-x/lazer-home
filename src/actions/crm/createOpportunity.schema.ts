@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalText } from "@/lib/text-schema";
 
 /**
  * The opportunity pipeline enums. Declared here (a pure, client-importable
@@ -41,14 +42,7 @@ export const createOpportunitySchema = z
     sourceContactIds: idList,
     sourceStaffIds: idList,
     // Empty/whitespace → null; otherwise trimmed.
-    nextSteps: z
-      .string()
-      .max(2000)
-      .nullish()
-      .transform((value) => {
-        const trimmed = value?.trim();
-        return trimmed ? trimmed : null;
-      }),
+    nextSteps: optionalText(2000),
     status: z.enum(OPPORTUNITY_STATUSES),
   })
   .superRefine((val, ctx) => {

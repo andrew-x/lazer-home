@@ -1,6 +1,7 @@
 "use client";
 
 import type { UseFormRegisterReturn } from "react-hook-form";
+import { FormField } from "@/components/form/form-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -38,21 +39,20 @@ export function CompanyFields({
 }) {
   return (
     <>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`${idPrefix}-name`}>Name</Label>
+      <FormField label="Name" htmlFor={`${idPrefix}-name`} error={errors?.name}>
         <Input
           id={`${idPrefix}-name`}
           placeholder="Acme Inc."
           aria-invalid={Boolean(errors?.name)}
           {...nameField}
         />
-        {errors?.name ? (
-          <p className="text-sm text-destructive">{errors.name}</p>
-        ) : null}
-      </div>
+      </FormField>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`${idPrefix}-website`}>Website (optional)</Label>
+      <FormField
+        label="Website (optional)"
+        htmlFor={`${idPrefix}-website`}
+        error={errors?.websiteUrl}
+      >
         <Input
           id={`${idPrefix}-website`}
           inputMode="url"
@@ -60,10 +60,7 @@ export function CompanyFields({
           aria-invalid={Boolean(errors?.websiteUrl)}
           {...websiteField}
         />
-        {errors?.websiteUrl ? (
-          <p className="text-sm text-destructive">{errors.websiteUrl}</p>
-        ) : null}
-      </div>
+      </FormField>
 
       <div className="flex items-center justify-between gap-4">
         <Label htmlFor={`${idPrefix}-partner`}>Partner</Label>

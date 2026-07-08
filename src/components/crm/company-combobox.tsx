@@ -87,7 +87,9 @@ export function CompanyCombobox({
             ? "Type to search companies…"
             : isPending
               ? "Searching…"
-              : "No companies found."}
+              : result.serverError
+                ? "Search failed — try again."
+                : "No companies found."}
         </ComboboxEmpty>
         <ComboboxList>
           {(item: CompanyOption) => (

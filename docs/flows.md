@@ -1,6 +1,6 @@
 # Key flows (cross-domain)
 
-**Status: proposed.** The end-to-end paths the platform must support. Each crosses multiple domains, which is why they live here rather than in a single domain doc.
+**Status: mixed.** The end-to-end paths the platform must support. Each crosses multiple domains, which is why they live here rather than in a single domain doc. The auth, CRM create, staff browse/edit (incl. resume), and localhost-only admin flows are **built** and described as realized; the core sell → staff → deliver → bill → review lifecycle (allocations, timesheets, performance) remains **proposed** until those domains exist.
 
 ## The core lifecycle: sell → staff → deliver → bill → review
 
@@ -65,26 +65,48 @@ A third admin tool at `/admin/bulk-edit-roles`, same localhost gate, but it **ma
 
 Full field/UI detail in [domains/staff-profiles.md](./domains/staff-profiles.md) → *Bulk edit roles*; the *why* behind the in-place path in [ADR 0007](./decisions/0007-staff-employment-effective-dating.md).
 
+## Manage users flow (localhost-only admin → RBAC role + ban)
+
+A fourth admin tool at `/admin/manage-users` (`src/app/admin/manage-users/page.tsx`), same localhost gate as the importers, for setting each user's RBAC `role` and ban status. Introduced in PR #4. This is the only admin tool that touches the `user`/auth tables rather than staff data.
+
+1. **Load.** The page `await`s `getUsers()` (all users + role/banned) and renders `ManageUsers` — an inline-editable table where role and ban are edited per-row and saved together via a floating save bar.
+2. **Commit.** `commitUserChanges` (`secureActionClient`, `role: "admin"`, `assertLocalhost()` re-asserted) re-reads current role/banned from the DB (client payload never trusted), drops no-ops, then routes each change through the **Better Auth admin API** (`auth.api.setRole` / `banUser` / `unbanUser`) rather than direct column writes — so a ban also revokes the user's sessions. Users are applied concurrently (`Promise.allSettled`); failures aggregate into one error; `revalidatePath("/admin/manage-users")`.
+3. **Escape hatch.** `auth.api.setRole` requires the caller to already be an admin — a chicken-and-egg for the first admin. `promoteSelfToAdmin` breaks it: local-only (`assertLocalhost`) + session-gated, it's the **one** place a role is set by a direct column write (still validated against `roleSchema`). The page renders its `PromoteSelfButton` only when local and the current user isn't already admin.
+
 ## Browse-staff flow (directory → per-person profile)
 
 How a signed-in user finds and views colleagues. All reads go through the actions layer (ADR 0010); most aren't ownership-scoped — the `(app)` layout's session+staff gate is the boundary — with RBAC capability checks layered where data is sensitive (PTO needs `pto.review` for non-owners; edits need `staff.edit` for non-owners). See [domains/permissions.md](./domains/permissions.md).
 
 1. **Directory (`/staff`).** The page `await`s `getStaffDirectory()` once (server) — two queries (all staff + the whole `staff_employment` table, reduced to latest-per-staff in JS; no N+1) plus `staffDirectoryFilterOptions`. The `StaffDirectory` client component does **all** search (name) and filtering (line of business / role / employment type) over that single fetch, with an **"active only" toggle defaulting ON** that hides inactive staff (fetched but not shown until toggled off). Card grid of `staff-card.tsx`.
 2. **Open a person (`/staff/[id]`).** `Promise.all` of `getStaffProfile(id)` / `getStaffHistory(id)` / `getStaffPto(id)` / `getStaffAvatar(id)`. Unknown id → `notFound()`. `generateMetadata` titles the tab with the person's name (shares the `React.cache`d `getStaffProfile` query with the body). Renders the shared `ProfileView` — the same component that backs `/profile` — so self and other profiles look identical; the edit dialogs receive the target `staffId`.
-3. **Edit (owner, or `staff.edit` holder).** `updateStaffLinks` / `updateStaffClientIntro` write by `staffId` and revalidate `/profile` + `/staff/${staffId}`. Both declare `metadata({ authorize: authorizeStaffEdit })`, so `secureActionClient` runs the `authorizeStaffEdit` hook (own → always; other → `staff.edit`) before the body — the authz isn't inside the action body. PTO on a non-owner's profile only renders when the viewer has `pto.review`. See [domains/permissions.md](./domains/permissions.md), [ADR 0014](./decisions/0014-rbac-better-auth-access-control.md).
+3. **Edit (owner, or `staff.edit` holder).** `updateStaffLinks` / `updateStaffClientIntro` / `updateStaffResume` write by `staffId` and revalidate `/profile` + `/staff/${staffId}`. All declare `metadata({ authorize: authorizeStaffEdit })`, so `secureActionClient` runs the `authorizeStaffEdit` hook (own → always; other → `staff.edit`) before the body — the authz isn't inside the action body. PTO on a non-owner's profile only renders when the viewer has `pto.review`. See [domains/permissions.md](./domains/permissions.md), [ADR 0014](./decisions/0014-rbac-better-auth-access-control.md).
+   - **Resume is a two-step flow** (`edit-resume-dialog.tsx`), because we parse the PDF but never store it (ADR 0013): (a) the user picks a PDF, the client base64-encodes it (≤6 MB, enforced both client- and server-side) and calls `parseResumePdf` — which extracts text via `unpdf`, strips NUL bytes, and returns it **without any DB write** (session-gated only, no `staffId`); (b) the extracted text lands in an editable textarea the user reviews/edits, then submits via `updateStaffResume`, which stores the text and stamps `resumeUpdatedAt`. A user can also skip the upload and type directly. See [ADR 0013](./decisions/0013-resume-pdf-parse-not-store.md).
 
 > The self page `/profile` is the same flow with the id resolved from the session via `getCurrentStaffId()` (the `getMy*` wrappers delegate to the `getStaff*` cores).
 
+## CRM create flow (gated dialogs → domain writes)
+
+How companies, contacts, and opportunities are created (read side is in [domains/crm.md](./domains/crm.md)). All three follow one gated-create pattern with **defense in depth**: the write is gated by action metadata *and* the dialog is hidden from users who can't write.
+
+1. **Page-level gate (UI affordance).** `/companies` and `/opportunities` (Server Components) compute `canEdit = userHasPermission(user, { crm: ["edit"] })` and render `AddCompanyDialog` / `AddContactDialog` / `AddOpportunityDialog` **only when `canEdit`**. This just hides the affordance — it is *not* the security boundary.
+2. **Action-level gate (the real boundary).** `createCompany` / `createContact` / `createOpportunity` each declare `metadata({ permission: { crm: ["edit"] } })`, enforced by `secureActionClient` before the body (see the technical request flow below). A user without `crm.edit` is rejected even if they reach the action directly.
+3. **Write.** `createCompany` inserts one row; `createOpportunity` writes the opportunity plus its people-link junctions in one `db.transaction` (deduping id lists). Related entities are created via their own actions first, so opportunity/contact creation only consumes existing ids (inline "create company/contact" dialogs cover that from within the forms). Each revalidates its list path (`/companies` or `/opportunities`).
+
+> **Contacts have no route of their own** — they render in a second section on the `/companies` page (it's titled "Companies & Contacts"), so `AddContactDialog` and the contacts table live there.
+
 ## The technical request flow (every mutation)
 
-This is how *any* form-driven write moves through the stack. It is the concrete realization of the stack in [architecture.md](./architecture.md). (The former `StaffProfileForm` → `updateStaffProfile` demo slice has been deleted; no domain write exists in code yet, so the steps below describe the *intended* pattern.)
+This is how *any* form-driven write moves through the stack. It is the concrete realization of the stack in [architecture.md](./architecture.md). Real domain writes now exercise it — `createCompany`/`createContact`/`createOpportunity` (CRM) and `updateStaffLinks`/`updateStaffClientIntro`/`updateStaffResume` (staff) — so the steps below describe the *realized* pattern.
 
 1. **Form (client).** A react-hook-form form bound to a server action — either via `useHookFormAction` (tight binding, form shape == action input) or `useAction` + `useForm`/`useZodForm` (loose). The Zod schema lives in a `*.schema.ts` file so both the form resolver and the action can import it without crossing the `'use server'` boundary. See `.claude/rules/forms.md`.
 2. **Submit → action middleware** (`src/lib/action.ts`), in order:
    - **logging** — `publicActionClient` logs `action_start` with a requestId + clientInput, times the call, logs `action_end`.
-   - **auth** — `secureActionClient` calls `checkAuth(metadata.role ?? "user")`, injecting `ctx.user` (admins override role checks).
+   - **auth + authorization** — `secureActionClient` runs three tiers in this order, all *before* the body (`src/lib/action.ts:92-94`), and this is the [ADR 0014](./decisions/0014-rbac-better-auth-access-control.md) RBAC enforcement boundary:
+     1. `checkAuth(metadata.role ?? "user")` — coarse gate: requires a session and (for `role: "admin"`) the admin role; injects `ctx.user`. Admins override role checks.
+     2. `if (metadata.permission) requirePermission(user, metadata.permission)` — static capability gate (e.g. `permission: { crm: ["edit"] }`), checked against the `permissions.ts` matrix.
+     3. `if (metadata.authorize) await metadata.authorize({ user, clientInput })` — the input-dependent `ActionAuthorize` hook for ownership / cross-field rules (e.g. `authorizeStaffEdit` reads `clientInput.staffId`). Throws `UserSafeActionError` to deny.
    - **inputSchema validation** — `.inputSchema(zod)` parses `parsedInput`; failures return field errors, not a serverError.
-3. **Action body.** Row-level authz (ownership check), then Drizzle reads/writes via the singleton `db`.
+3. **Action body.** No hand-written authz here — it already ran in the middleware. Just Drizzle reads/writes via the singleton `db` (often one `db.transaction` for multi-table writes, e.g. `createOpportunity`).
 4. **revalidatePath / revalidateTag** after the mutation so server-rendered data refreshes.
 5. **Result → client.** Success → `action.hasSucceeded` / `onSuccess`. Failure → a thrown `UserSafeActionError` surfaces its message as **`action.result.serverError`** (and `error.serverError` in `onError`); any other throw is collapsed to a generic message so internals never leak (see [decisions/0004](./decisions/0004-action-layer.md)).
 

@@ -3,22 +3,13 @@ import "server-only";
 import { asc, count } from "drizzle-orm";
 import { db } from "@/lib/db/db";
 import { companies } from "@/lib/db/schema";
-
-export const COMPANIES_PAGE_SIZE = 20;
+import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/pagination";
 
 export type CompanyRow = {
   id: string;
   name: string;
   websiteUrl: string | null;
   isPartner: boolean;
-};
-
-export type CompaniesPage = {
-  rows: CompanyRow[];
-  total: number;
-  page: number;
-  pageSize: number;
-  pageCount: number;
 };
 
 /**
@@ -28,11 +19,10 @@ export type CompaniesPage = {
  */
 export async function getCompaniesPage(
   page = 1,
-  pageSize = COMPANIES_PAGE_SIZE,
-): Promise<CompaniesPage> {
+  pageSize = CRM_PAGE_SIZE,
+): Promise<Page<CompanyRow>> {
   const [{ total }] = await db.select({ total: count() }).from(companies);
-  const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  const safePage = Math.min(Math.max(1, page), pageCount);
+  const { pageCount, safePage } = clampPage(total, page, pageSize);
 
   const rows = await db
     .select({

@@ -3,8 +3,7 @@ import "server-only";
 import { asc, count, eq } from "drizzle-orm";
 import { db } from "@/lib/db/db";
 import { companies, contacts } from "@/lib/db/schema";
-
-export const CONTACTS_PAGE_SIZE = 20;
+import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/pagination";
 
 export type ContactRow = {
   id: string;
@@ -17,14 +16,6 @@ export type ContactRow = {
   companyName: string | null;
 };
 
-export type ContactsPage = {
-  rows: ContactRow[];
-  total: number;
-  page: number;
-  pageSize: number;
-  pageCount: number;
-};
-
 /**
  * One page of contacts, ordered by last then first name, with the contact's
  * company name resolved via a left join (company is optional). Server-side
@@ -32,11 +23,10 @@ export type ContactsPage = {
  */
 export async function getContactsPage(
   page = 1,
-  pageSize = CONTACTS_PAGE_SIZE,
-): Promise<ContactsPage> {
+  pageSize = CRM_PAGE_SIZE,
+): Promise<Page<ContactRow>> {
   const [{ total }] = await db.select({ total: count() }).from(contacts);
-  const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  const safePage = Math.min(Math.max(1, page), pageCount);
+  const { pageCount, safePage } = clampPage(total, page, pageSize);
 
   const rows = await db
     .select({

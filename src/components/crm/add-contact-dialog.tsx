@@ -7,50 +7,26 @@ import { useState } from "react";
 import { Controller } from "react-hook-form";
 import { createContact } from "@/actions/crm/createContact";
 import { createContactSchema } from "@/actions/crm/createContact.schema";
+import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
+import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { CompanyComboboxField } from "./company-combobox-field";
 
 export function AddContactDialog() {
-  const [open, setOpen] = useState(false);
-  const [formKey, setFormKey] = useState(0);
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) setFormKey((k) => k + 1);
-        setOpen(next);
-      }}
+    <FormDialog
+      trigger={
+        <Button size="sm">
+          <IconPlus />
+          Add contact
+        </Button>
+      }
+      title="Add contact"
+      description="Create a new contact, optionally linked to a company."
     >
-      <DialogTrigger
-        render={
-          <Button size="sm">
-            <IconPlus />
-            Add contact
-          </Button>
-        }
-      />
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add contact</DialogTitle>
-          <DialogDescription>
-            Create a new contact, optionally linked to a company.
-          </DialogDescription>
-        </DialogHeader>
-        <ContactForm key={formKey} onSaved={() => setOpen(false)} />
-      </DialogContent>
-    </Dialog>
+      {({ close }) => <ContactForm onSaved={close} />}
+    </FormDialog>
   );
 }
 
@@ -86,36 +62,35 @@ function ContactForm({ onSaved }: { onSaved: () => void }) {
   return (
     <form onSubmit={handleSubmitWithAction} className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="contact-first">First name</Label>
+        <FormField
+          label="First name"
+          htmlFor="contact-first"
+          error={errors.firstName?.message}
+        >
           <Input
             id="contact-first"
             aria-invalid={Boolean(errors.firstName)}
             {...register("firstName")}
           />
-          {errors.firstName ? (
-            <p className="text-sm text-destructive">
-              {errors.firstName.message}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="contact-last">Last name</Label>
+        </FormField>
+        <FormField
+          label="Last name"
+          htmlFor="contact-last"
+          error={errors.lastName?.message}
+        >
           <Input
             id="contact-last"
             aria-invalid={Boolean(errors.lastName)}
             {...register("lastName")}
           />
-          {errors.lastName ? (
-            <p className="text-sm text-destructive">
-              {errors.lastName.message}
-            </p>
-          ) : null}
-        </div>
+        </FormField>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="contact-email">Email</Label>
+      <FormField
+        label="Email"
+        htmlFor="contact-email"
+        error={errors.email?.message}
+      >
         <Input
           id="contact-email"
           type="email"
@@ -123,13 +98,13 @@ function ContactForm({ onSaved }: { onSaved: () => void }) {
           aria-invalid={Boolean(errors.email)}
           {...register("email")}
         />
-        {errors.email ? (
-          <p className="text-sm text-destructive">{errors.email.message}</p>
-        ) : null}
-      </div>
+      </FormField>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="contact-phone">Phone (optional)</Label>
+      <FormField
+        label="Phone (optional)"
+        htmlFor="contact-phone"
+        error={errors.phone?.message}
+      >
         <Input
           id="contact-phone"
           type="tel"
@@ -138,23 +113,20 @@ function ContactForm({ onSaved }: { onSaved: () => void }) {
           aria-invalid={Boolean(errors.phone)}
           {...register("phone")}
         />
-        {errors.phone ? (
-          <p className="text-sm text-destructive">{errors.phone.message}</p>
-        ) : null}
-      </div>
+      </FormField>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="contact-role">Role</Label>
+      <FormField
+        label="Role"
+        htmlFor="contact-role"
+        error={errors.role?.message}
+      >
         <Input
           id="contact-role"
           placeholder="CTO"
           aria-invalid={Boolean(errors.role)}
           {...register("role")}
         />
-        {errors.role ? (
-          <p className="text-sm text-destructive">{errors.role.message}</p>
-        ) : null}
-      </div>
+      </FormField>
 
       <Controller
         control={control}
@@ -171,22 +143,11 @@ function ContactForm({ onSaved }: { onSaved: () => void }) {
         )}
       />
 
-      {action.result.serverError ? (
-        <p className="text-sm text-destructive">{action.result.serverError}</p>
-      ) : null}
-
-      <DialogFooter>
-        <DialogClose
-          render={
-            <Button type="button" variant="outline">
-              Cancel
-            </Button>
-          }
-        />
-        <Button type="submit" loading={action.isPending}>
-          Save
-        </Button>
-      </DialogFooter>
+      <FormDialogFooter
+        serverError={action.result.serverError}
+        submitLabel="Save"
+        loading={action.isPending}
+      />
     </form>
   );
 }

@@ -18,6 +18,13 @@ export function initialsFor(name: string, email: string): string {
   ).toUpperCase();
 }
 
+/** Long-form date options ("June 18, 2026"), shared by the formatters below. */
+const LONG_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+};
+
 /**
  * Format a timezone-agnostic "YYYY-MM-DD" date string for display, without the
  * UTC-offset drift you'd get from `new Date("2024-03-15")`. See the database
@@ -25,18 +32,12 @@ export function initialsFor(name: string, email: string): string {
  */
 export function formatDate(value: string): string {
   const [year, month, day] = value.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(new Date(year, month - 1, day));
+  return new Intl.DateTimeFormat("en-US", LONG_DATE_OPTIONS).format(
+    new Date(year, month - 1, day),
+  );
 }
 
 /** Format a timestamp (e.g. `resumeUpdatedAt`) as a long date, e.g. "June 18, 2026". */
 export function formatTimestamp(value: Date): string {
-  return new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(value);
+  return new Intl.DateTimeFormat("en-US", LONG_DATE_OPTIONS).format(value);
 }

@@ -4,13 +4,14 @@ import { desc, eq, type InferInsertModel, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { publicActionClient } from "@/lib/action";
 import { assertLocalhost } from "@/lib/admin";
+import { firstPerKey } from "@/lib/collections";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import { staff, staffEmployment } from "@/lib/db/schema";
 import { UserSafeActionError } from "@/lib/errors";
 import {
   bulkEditEmploymentSchema,
-  type EmploymentChange,
+  FACT_FIELDS,
 } from "./bulkEditEmployment.schema";
 
 type StaffEmploymentInsert = InferInsertModel<typeof staffEmployment>;
@@ -19,17 +20,6 @@ export type BulkEditEmploymentResult = {
   staffAffected: number;
   mode: "update" | "insert";
 };
-
-/** The editable employment facts, used to skip no-op changes server-side. */
-const FACT_FIELDS = [
-  "lineOfBusiness",
-  "role",
-  "employmentType",
-  "isBillable",
-  "utilizationTarget",
-  "billableType",
-  "isManagement",
-] as const satisfies readonly (keyof EmploymentChange)[];
 
 /**
  * Apply a bulk edit of staff employment facts in one transaction.
@@ -84,11 +74,7 @@ export const commitBulkEditEmployment = publicActionClient
           .where(inArray(staff.id, staffIds)),
       ]);
 
-      const latestByStaff = new Map<string, (typeof employmentRows)[number]>();
-      for (const row of employmentRows) {
-        if (!latestByStaff.has(row.staffId))
-          latestByStaff.set(row.staffId, row);
-      }
+      const latestByStaff = firstPerKey(employmentRows, (row) => row.staffId);
       const nameById = new Map(nameRows.map((s) => [s.id, s.name]));
       const labelFor = (staffId: string) => nameById.get(staffId) ?? staffId;
 

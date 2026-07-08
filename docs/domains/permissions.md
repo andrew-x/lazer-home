@@ -2,8 +2,9 @@
 
 **Status: built.** Role-based access control over the PSA platform, on Better Auth's
 native access-control system (the already-enabled `admin` plugin). This is the
-authorization model the other domains gate against; it closes the [ADR 0012](../decisions/0012-open-staff-edit-pending-rbac.md)
-open-staff-edit gap and adds capability-based gating to the action layer.
+authorization model the other domains gate against; it closes the earlier
+open-staff-edit gap (see [ADR 0014](../decisions/0014-rbac-better-auth-access-control.md))
+and adds capability-based gating to the action layer.
 
 > **Inviolable rule:** permissioning must never be weakened, bypassed, or worked
 > around. If you find a gap, escalation path, or leak, **STOP and flag it as a
@@ -121,8 +122,8 @@ set. The metadata schema in `src/lib/action.ts` carries `role`, `permission`, an
 
 ### Where it's applied today
 
-- **`src/actions/staff/canEditStaff.ts`** — the staff-edit decision point, closing
-  ADR 0012. Exports two things:
+- **`src/actions/staff/canEditStaff.ts`** — the staff-edit decision point
+  (ADR 0014). Exports two things:
   - **`canEditStaff(user, targetStaffId): Promise<boolean>`** — the decision: a user
     may **always** edit their **own** linked staff record; editing anyone else's
     requires `staff.edit`. (Short-circuits on the permission before touching the DB;

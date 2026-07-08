@@ -6,16 +6,7 @@ import { Controller } from "react-hook-form";
 import { createCompany } from "@/actions/crm/createCompany";
 import { createCompanySchema } from "@/actions/crm/createCompany.schema";
 import type { EntityOption } from "@/components/crm/entity-multi-combobox";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
 import { CompanyFields } from "./company-fields";
 
 /**
@@ -33,24 +24,23 @@ export function CreateCompanyInlineDialog({
   onCreated: (option: EntityOption) => void;
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm" forceMountOverlay>
-        <DialogHeader>
-          <DialogTitle>New company</DialogTitle>
-          <DialogDescription>
-            Create a company for this opportunity.
-          </DialogDescription>
-        </DialogHeader>
-        {open ? (
-          <InlineCompanyForm
-            onCreated={(option) => {
-              onCreated(option);
-              onOpenChange(false);
-            }}
-          />
-        ) : null}
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="New company"
+      description="Create a company for this opportunity."
+      contentClassName="sm:max-w-sm"
+      forceMountOverlay
+    >
+      {({ close }) => (
+        <InlineCompanyForm
+          onCreated={(option) => {
+            onCreated(option);
+            close();
+          }}
+        />
+      )}
+    </FormDialog>
   );
 }
 
@@ -111,22 +101,11 @@ function InlineCompanyForm({
         )}
       />
 
-      {action.result.serverError ? (
-        <p className="text-sm text-destructive">{action.result.serverError}</p>
-      ) : null}
-
-      <DialogFooter>
-        <DialogClose
-          render={
-            <Button type="button" variant="outline">
-              Cancel
-            </Button>
-          }
-        />
-        <Button type="submit" loading={action.isPending}>
-          Create company
-        </Button>
-      </DialogFooter>
+      <FormDialogFooter
+        serverError={action.result.serverError}
+        submitLabel="Create company"
+        loading={action.isPending}
+      />
     </form>
   );
 }

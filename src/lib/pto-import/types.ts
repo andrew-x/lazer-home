@@ -1,27 +1,16 @@
 import { z } from "zod";
+import { ptoTypeEnum } from "@/lib/db/staff-schema";
 
 /**
  * Shapes for the admin PTO CSV import. Shared between the client (CSV parse +
  * transform, preview tables) and the server (diff + persist), so this module
- * must stay free of server-only imports.
+ * must stay free of server-only imports. (`staff-schema.ts` only declares
+ * pgTable/pgEnum shapes — no DB connection — so it is client-safe to import.)
  *
- * The enum tuple below mirrors the Postgres `pto_type` enum in `staff-schema.ts`;
- * the Drizzle insert in the commit action type-checks against the real enum, so
- * drift surfaces at compile time.
+ * The PTO-type enum is derived directly from the Postgres `pto_type` enum in
+ * `staff-schema.ts` (the single source of truth), so it can never drift.
  */
-export const PTO_TYPE = [
-  "VACATION",
-  "STATUTORY_HOLIDAY",
-  "SICK_LEAVE",
-  "UNPAID_LEAVE",
-  "PARENTAL_LEAVE",
-  "BEREAVEMENT_LEAVE",
-  "COMPANY_RETREAT",
-  "RELIGIOUS_HOLIDAY",
-  "JURY_DUTY",
-  "LEAVE_OF_ABSENCE",
-  "OTHER_LEAVE",
-] as const;
+export const PTO_TYPE = ptoTypeEnum.enumValues;
 
 export type PtoType = (typeof PTO_TYPE)[number];
 
@@ -58,13 +47,7 @@ export const normalizedPtoSchema = z
 
 export type NormalizedPto = z.infer<typeof normalizedPtoSchema>;
 
-/** A CSV row we couldn't import, surfaced for review (never persisted). */
-export type SkippedRow = {
-  rowNumber: number;
-  name: string;
-  ripplingId: string;
-  reason: string;
-};
+export type { SkippedRow } from "@/lib/csv-import";
 
 /** Fields compared between an incoming PTO row and the existing record. */
 export const PTO_FIELDS = [

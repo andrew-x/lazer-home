@@ -8,12 +8,11 @@ import {
   opportunityOwners,
   staff,
 } from "@/lib/db/schema";
+import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/pagination";
 import type {
   OpportunitySource,
   OpportunityStatus,
 } from "./createOpportunity.schema";
-
-export const OPPORTUNITIES_PAGE_SIZE = 20;
 
 export type OpportunityRow = {
   id: string;
@@ -26,14 +25,6 @@ export type OpportunityRow = {
   ownerNames: string[];
 };
 
-export type OpportunitiesPage = {
-  rows: OpportunityRow[];
-  total: number;
-  page: number;
-  pageSize: number;
-  pageCount: number;
-};
-
 /**
  * One page of opportunities, ordered by creation (newest first), with the
  * company name resolved via a join and owner names resolved via a single
@@ -42,11 +33,10 @@ export type OpportunitiesPage = {
  */
 export async function getOpportunitiesPage(
   page = 1,
-  pageSize = OPPORTUNITIES_PAGE_SIZE,
-): Promise<OpportunitiesPage> {
+  pageSize = CRM_PAGE_SIZE,
+): Promise<Page<OpportunityRow>> {
   const [{ total }] = await db.select({ total: count() }).from(opportunities);
-  const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  const safePage = Math.min(Math.max(1, page), pageCount);
+  const { pageCount, safePage } = clampPage(total, page, pageSize);
 
   const baseRows = await db
     .select({

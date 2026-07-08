@@ -36,12 +36,12 @@ bun run dev          # next dev → http://localhost:3000
 Run before considering a change done:
 
 ```bash
-bun run check    # biome check && tsc --noEmit
+bun run check    # biome check && tsc --noEmit && bun test  → lint + types + tests
 bun run build    # next build
 bun run format   # biome format --write  → auto-fix formatting
 ```
 
-(`bun run lint` = Biome only; `bun run typecheck` = tsc only.)
+(`bun run lint` = Biome only; `bun run typecheck` = tsc only; `bun run test` = `bun test` only.)
 
 ## Schema workflow
 

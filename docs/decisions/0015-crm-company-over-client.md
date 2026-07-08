@@ -24,4 +24,3 @@ Model a single **`companies`** table for every organisation we deal with, with a
 - **Keep "Client" and ignore partners for now** — rejected: partners are a real, known entity we'd have to retrofit, and renaming a shipped table/route is costlier than choosing the broader noun up front.
 - **Separate `clients` and `partners` tables** — rejected: identical shape, and contacts would need a polymorphic or dual FK. The flag keeps reads and the contact relationship simple.
 - **An enum `kind` (client | partner | …)** instead of a boolean — reasonable, but a boolean is enough for the one attribute we track today (is-a-partner); promote to an enum if a real client/prospect/partner classification is needed.
-</content>

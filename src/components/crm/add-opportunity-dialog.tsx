@@ -2,10 +2,10 @@
 
 import { IconPlus } from "@tabler/icons-react";
 import { useAction } from "next-safe-action/hooks";
-import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { createOpportunity } from "@/actions/crm/createOpportunity";
 import {
+  type CreateOpportunityInput,
   createOpportunitySchema,
   OPPORTUNITY_SOURCES,
   OPPORTUNITY_STATUSES,
@@ -13,19 +13,10 @@ import {
   type OpportunityStatus,
 } from "@/actions/crm/createOpportunity.schema";
 import { searchStaff } from "@/actions/crm/searchStaff";
+import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
+import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -68,8 +59,13 @@ const DEFAULT_VALUES: OpportunityFormValues = {
   status: "",
 };
 
-// Maps a server-schema issue path to the corresponding form field.
-const FIELD_FOR_ISSUE: Record<string, keyof OpportunityFormValues> = {
+// Maps a server-schema issue path to the corresponding form field. Typed by
+// `keyof CreateOpportunityInput` so tsc forces an entry for every schema field —
+// a new field can't silently drop its server errors.
+const FIELD_FOR_ISSUE: Record<
+  keyof CreateOpportunityInput,
+  keyof OpportunityFormValues
+> = {
   name: "name",
   companyId: "companyId",
   contactIds: "contacts",
@@ -81,35 +77,74 @@ const FIELD_FOR_ISSUE: Record<string, keyof OpportunityFormValues> = {
   status: "status",
 };
 
-export function AddOpportunityDialog() {
-  const [open, setOpen] = useState(false);
-  const [formKey, setFormKey] = useState(0);
+/** Narrow the Select's raw string to a known enum member (or `""`). */
+function toEnumValue<T extends string>(
+  options: readonly T[],
+  raw: string | null,
+): T | "" {
+  return raw && (options as readonly string[]).includes(raw) ? (raw as T) : "";
+}
+
+/** A `Select` over a string enum with human labels and a muted placeholder. */
+function EnumSelect<T extends string>({
+  options,
+  labels,
+  placeholder,
+  value,
+  onValueChange,
+  invalid,
+}: {
+  options: readonly T[];
+  labels: Record<T, string>;
+  placeholder: string;
+  value: T | "";
+  onValueChange: (value: T | "") => void;
+  invalid?: boolean;
+}) {
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) setFormKey((k) => k + 1);
-        setOpen(next);
-      }}
+    <Select
+      value={value || null}
+      onValueChange={(next: string | null) =>
+        onValueChange(toEnumValue(options, next))
+      }
     >
-      <DialogTrigger
-        render={
-          <Button size="sm">
-            <IconPlus />
-            Add opportunity
-          </Button>
-        }
-      />
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Add opportunity</DialogTitle>
-          <DialogDescription>
-            Create a pipeline deal for a company.
-          </DialogDescription>
-        </DialogHeader>
-        <OpportunityForm key={formKey} onSaved={() => setOpen(false)} />
-      </DialogContent>
-    </Dialog>
+      <SelectTrigger className="w-full" aria-invalid={invalid}>
+        <SelectValue>
+          {(v: string | null) =>
+            v ? (
+              labels[v as T]
+            ) : (
+              <span className="text-muted-foreground">{placeholder}</span>
+            )
+          }
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option} value={option}>
+            {labels[option]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+export function AddOpportunityDialog() {
+  return (
+    <FormDialog
+      trigger={
+        <Button size="sm">
+          <IconPlus />
+          Add opportunity
+        </Button>
+      }
+      title="Add opportunity"
+      description="Create a pipeline deal for a company."
+      contentClassName="max-h-[85vh] overflow-y-auto sm:max-w-2xl"
+    >
+      {({ close }) => <OpportunityForm onSaved={close} />}
+    </FormDialog>
   );
 }
 
@@ -151,7 +186,9 @@ function OpportunityForm({ onSaved }: { onSaved: () => void }) {
       for (const issue of parsed.error.issues) {
         const key = issue.path[0];
         const field =
-          typeof key === "string" ? FIELD_FOR_ISSUE[key] : undefined;
+          typeof key === "string" && key in FIELD_FOR_ISSUE
+            ? FIELD_FOR_ISSUE[key as keyof CreateOpportunityInput]
+            : undefined;
         if (field) setError(field, { message: issue.message });
       }
       return;
@@ -162,18 +199,14 @@ function OpportunityForm({ onSaved }: { onSaved: () => void }) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="opp-name">Name</Label>
+      <FormField label="Name" htmlFor="opp-name" error={errors.name?.message}>
         <Input
           id="opp-name"
           placeholder="Acme platform rebuild"
           aria-invalid={Boolean(errors.name)}
           {...register("name")}
         />
-        {errors.name ? (
-          <p className="text-sm text-destructive">{errors.name.message}</p>
-        ) : null}
-      </div>
+      </FormField>
 
       <Controller
         control={control}
@@ -205,8 +238,7 @@ function OpportunityForm({ onSaved }: { onSaved: () => void }) {
         )}
       />
 
-      <div className="flex flex-col gap-1.5">
-        <Label>Owners</Label>
+      <FormField label="Owners">
         <Controller
           control={control}
           name="owners"
@@ -220,58 +252,33 @@ function OpportunityForm({ onSaved }: { onSaved: () => void }) {
             />
           )}
         />
-      </div>
+      </FormField>
 
-      <div className="flex flex-col gap-1.5">
-        <Label>Source</Label>
+      <FormField label="Source" error={errors.source?.message}>
         <Controller
           control={control}
           name="source"
           render={({ field, fieldState }) => (
-            <Select
-              value={field.value || null}
+            <EnumSelect
+              options={OPPORTUNITY_SOURCES}
+              labels={SOURCE_LABELS}
+              placeholder="Select a source"
+              value={field.value}
+              invalid={Boolean(fieldState.error)}
               onValueChange={(next) => {
-                field.onChange(next ?? "");
+                field.onChange(next);
                 // Referral entities only apply to their matching source.
                 setValue("sourceStaff", []);
                 setValue("sourceContacts", []);
                 clearErrors(["sourceStaff", "sourceContacts"]);
               }}
-            >
-              <SelectTrigger
-                className="w-full"
-                aria-invalid={Boolean(fieldState.error)}
-              >
-                <SelectValue>
-                  {(v: string | null) =>
-                    v ? (
-                      SOURCE_LABELS[v as OpportunitySource]
-                    ) : (
-                      <span className="text-muted-foreground">
-                        Select a source
-                      </span>
-                    )
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {OPPORTUNITY_SOURCES.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {SOURCE_LABELS[s]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           )}
         />
-        {errors.source ? (
-          <p className="text-sm text-destructive">{errors.source.message}</p>
-        ) : null}
-      </div>
+      </FormField>
 
       {source === "staff_referral" ? (
-        <div className="flex flex-col gap-1.5">
-          <Label>Referring staff</Label>
+        <FormField label="Referring staff" error={errors.sourceStaff?.message}>
           <Controller
             control={control}
             name="sourceStaff"
@@ -285,12 +292,7 @@ function OpportunityForm({ onSaved }: { onSaved: () => void }) {
               />
             )}
           />
-          {errors.sourceStaff ? (
-            <p className="text-sm text-destructive">
-              {errors.sourceStaff.message}
-            </p>
-          ) : null}
-        </div>
+        </FormField>
       ) : null}
 
       {source === "contact_referral" ? (
@@ -308,72 +310,36 @@ function OpportunityForm({ onSaved }: { onSaved: () => void }) {
         />
       ) : null}
 
-      <div className="flex flex-col gap-1.5">
-        <Label>Status</Label>
+      <FormField label="Status" error={errors.status?.message}>
         <Controller
           control={control}
           name="status"
           render={({ field, fieldState }) => (
-            <Select
-              value={field.value || null}
-              onValueChange={(next) => field.onChange(next ?? "")}
-            >
-              <SelectTrigger
-                className="w-full"
-                aria-invalid={Boolean(fieldState.error)}
-              >
-                <SelectValue>
-                  {(v: string | null) =>
-                    v ? (
-                      STATUS_LABELS[v as OpportunityStatus]
-                    ) : (
-                      <span className="text-muted-foreground">
-                        Select a status
-                      </span>
-                    )
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {OPPORTUNITY_STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {STATUS_LABELS[s]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <EnumSelect
+              options={OPPORTUNITY_STATUSES}
+              labels={STATUS_LABELS}
+              placeholder="Select a status"
+              value={field.value}
+              invalid={Boolean(fieldState.error)}
+              onValueChange={field.onChange}
+            />
           )}
         />
-        {errors.status ? (
-          <p className="text-sm text-destructive">{errors.status.message}</p>
-        ) : null}
-      </div>
+      </FormField>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="opp-next-steps">Next steps</Label>
+      <FormField label="Next steps" htmlFor="opp-next-steps">
         <Textarea
           id="opp-next-steps"
           placeholder="What happens next?"
           {...register("nextSteps")}
         />
-      </div>
+      </FormField>
 
-      {result.serverError ? (
-        <p className="text-sm text-destructive">{result.serverError}</p>
-      ) : null}
-
-      <DialogFooter>
-        <DialogClose
-          render={
-            <Button type="button" variant="outline">
-              Cancel
-            </Button>
-          }
-        />
-        <Button type="submit" loading={isPending}>
-          Save
-        </Button>
-      </DialogFooter>
+      <FormDialogFooter
+        serverError={result.serverError}
+        submitLabel="Save"
+        loading={isPending}
+      />
     </form>
   );
 }

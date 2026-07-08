@@ -1,5 +1,6 @@
 import "server-only";
 import { desc, inArray } from "drizzle-orm";
+import { firstPerKey } from "@/lib/collections";
 import { db } from "@/lib/db/db";
 import { staff, staffEmployment } from "@/lib/db/schema";
 import {
@@ -64,15 +65,7 @@ export async function computeImportPlan(
         )
     : [];
 
-  const latestEmploymentByStaff = new Map<
-    string,
-    (typeof employments)[number]
-  >();
-  for (const e of employments) {
-    if (!latestEmploymentByStaff.has(e.staffId)) {
-      latestEmploymentByStaff.set(e.staffId, e);
-    }
-  }
+  const latestEmploymentByStaff = firstPerKey(employments, (e) => e.staffId);
 
   const creates: NormalizedStaff[] = [];
   const updates: ImportUpdate[] = [];

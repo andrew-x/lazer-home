@@ -1,6 +1,6 @@
 # Architecture
 
-**Status: scaffolded, first domain slices landing.** The core technical stack and architectural patterns are committed and in code. What exists is the foundation (env, db, auth, action layer), the **authenticated UI shell + auth screens** (see [ui.md](./ui.md)), the **staff schema + post-login staff-record gate** (the first real data-model slice; the earlier `StaffProfileForm`/`updateStaffProfile` demo has been deleted), and a growing **CRM slice** (`companies`/`contacts`/`opportunities` data, reads, create actions, and `/companies` + `/opportunities` pages — see [domains/crm.md](./domains/crm.md)). The first real data-backed authenticated pages are **`/profile`** ("My profile") and the **browse-staff** feature — a directory (`/staff`) and per-person profiles (`/staff/[id]`) that show *other* people via the same shared `ProfileView` (see [ui.md](./ui.md)) — the first place all three call-site patterns from ADR 0010 appear together (server-only read, next-safe-action mutation, presentational client UI). Browse-staff is also the first **cross-person** data access: its reads aren't ownership-scoped, and its link/intro edits are now gated by RBAC (own → always; other → the `staff.edit` permission) — see Authorization, [domains/permissions.md](./domains/permissions.md), and [ADR 0014](./decisions/0014-rbac-better-auth-access-control.md). The CRM slice adds the first **server-side-paginated** reads and the first flat (non-ownership) write gate: a single `crm.edit` capability gates all CRM writes (companies, contacts *and* opportunities), while reads stay open to any signed-in user. Opportunities also bring the repo's first **many-to-many junction tables** (see [data-model.md](./data-model.md#junction-tables--the-first-many-to-many-pattern)) and the first CRM ↔ staff link.
+**Status: scaffolded, first domain slices landing.** The core technical stack and architectural patterns are committed and in code. What exists is the foundation (env, db, auth, action layer), the **authenticated UI shell + auth screens** (see [ui.md](./ui.md)), the **staff schema + post-login staff-record gate** (the first real data-model slice; the earlier `StaffProfileForm`/`updateStaffProfile` demo has been deleted), and a growing **CRM slice** (`companies`/`contacts`/`opportunities` data, reads, create actions, and `/companies` + `/opportunities` pages — see [domains/crm.md](./domains/crm.md)). The first real data-backed authenticated pages are **`/profile`** ("My profile") and the **browse-staff** feature — a directory (`/staff`) and per-person profiles (`/staff/[id]`) that show *other* people via the same shared `ProfileView` (see [ui.md](./ui.md)) — the first place all three call-site patterns from ADR 0010 appear together (server-only read, next-safe-action mutation, presentational client UI). Browse-staff is also the first **cross-person** data access: its reads aren't ownership-scoped, and its link/intro/resume edits are now gated by RBAC (own → always; other → the `staff.edit` permission) — see Authorization, [domains/permissions.md](./domains/permissions.md), and [ADR 0014](./decisions/0014-rbac-better-auth-access-control.md). The resume edit is a **two-step parse-then-store** flow (upload a PDF → server extracts text for review → user saves), which never persists the file — see [ADR 0013](./decisions/0013-resume-pdf-parse-not-store.md). The CRM slice adds the first **server-side-paginated** reads (`src/lib/pagination.ts`) and the first type-ahead search (`src/lib/search.ts`), plus the first flat (non-ownership) write gate: a single `crm.edit` capability gates all CRM writes (companies, contacts *and* opportunities), while reads stay open to any signed-in user. Opportunities also bring the repo's first **many-to-many junction tables** (see [data-model.md](./data-model.md#junction-tables--the-first-many-to-many-pattern)) and the first CRM ↔ staff link.
 
 ## What we're building
 
@@ -24,7 +24,7 @@ A professional services automation (PSA) platform for a software consultancy —
 | Validation | **zod v4** + **drizzle-zod** (schemas from tables) | |
 | Styling | **Tailwind v4** + `clsx` + `tailwind-merge` (`cn` helper) | `src/lib/utils.ts` |
 | IDs | app-minted CUID2 with prefix (`@paralleldrive/cuid2`) | `src/lib/db/ids.ts` |
-| Tables / CSV | **@tanstack/react-table** (+ shadcn `table`/`badge`), **papaparse** | added for the admin staff import; `src/components/admin/data-table.tsx` is the reusable wrapper |
+| Tables / CSV | **@tanstack/react-table** (+ shadcn `table`/`badge`), **papaparse**, **unpdf** (PDF text extraction, `parseResumePdf`) | tables added for the admin importers; `src/components/admin/data-table.tsx` (read-only) + `editable-table.tsx` + shared `csv-import.tsx` are the reusable wrappers |
 
 ## `src/` layout
 
@@ -48,16 +48,18 @@ src/
     staff/getStaffDirectory.ts  directory read: latest-employment-per-staff (two queries, no N+1) + filter options
     staff/getCurrentStaffId.ts  session→staff id (React.cache); getMy* wrappers delegate to the getStaff* cores
     staff/getStaffEmploymentForEdit.ts  latest employment row per staff for the bulk-edit table (server-only)
-    staff/updateStaffLinks.ts staff/updateStaffClientIntro.ts  edit-by-staffId mutations (+ .schema.ts); use metadata({ authorize: authorizeStaffEdit }) — authz runs in the client, not the body
+    staff/updateStaffLinks.ts staff/updateStaffClientIntro.ts staff/updateStaffResume.ts  edit-by-staffId mutations (+ .schema.ts); use metadata({ authorize: authorizeStaffEdit }) — authz runs in the client, not the body
+    staff/parseResumePdf.ts  (+ .schema.ts) PDF→text extraction (unpdf) for the resume dialog; DOES NOT touch the DB — two-step parse-then-store (ADR 0013)
     staff/canEditStaff.ts  staff-edit authz (ADR 0014): canEditStaff(user, staffId) → boolean (UI affordance) + authorizeStaffEdit (ActionAuthorize hook reading clientInput.staffId; own → always, other → staff.edit)
     <domain>/<verb><Thing>.ts  mutations → next-safe-action, one per file (+ .schema.ts)
-    admin/                   {preview,commit}StaffImport + {preview,commit}PtoImport + commitBulkEditEmployment (publicActionClient + assertLocalhost); getUsers + commitUserChanges (manage-users: secureActionClient role:admin + assertLocalhost, mutates via Better Auth admin API)
+    admin/                   {preview,commit}StaffImport + {preview,commit}PtoImport + commitBulkEditEmployment (publicActionClient + assertLocalhost); getUsers + commitUserChanges (manage-users: secureActionClient role:admin + assertLocalhost, mutates via Better Auth admin API); promoteSelfToAdmin (secureActionClient + assertLocalhost — the ONE deliberate direct-column role write, first-admin bootstrap escape hatch)
     crm/                     get{Companies,Contacts,Opportunities}Page (server-only, server-side paginated, open reads) + search{Companies,Contacts,Staff} (type-ahead) + create{Company,Contact,Opportunity} — all writes gated crm.edit (+.schema.ts; createOpportunity.schema.ts is the single source for the source/status enum tuples, shared with the pgEnum)
   components/                React components; ui/ = vendored shadcn primitives,
-                             app-shell/ + auth/ + brand/ = the UI shell, admin/ = staff-import + pto-import + bulk-edit-roles + manage-users UI,
-                             staff/ = shared ProfileView (backs /profile + /staff/[id]) + directory/cards + edit dialogs + history sheet,
+                             form/ = shared form-dialog + form-field (RHF form extraction reused by edit/create dialogs),
+                             app-shell/ + auth/ + brand/ = the UI shell, admin/ = shared csv-import + editable-table + table-filters + data-table + staff-import + pto-import + bulk-edit-roles + manage-users + promote-self-button UI,
+                             staff/ = shared ProfileView (backs /profile + /staff/[id]) + directory/cards + edit dialogs (links, client-intro, resume) + history sheet,
                              crm/ = add-{company,contact,opportunity}-dialog + company-combobox + entity-multi-combobox + create-{company,contact}-inline-dialog + {companies,contacts,opportunities}-table + opportunity-display + pagination-controls
-  hooks/                     useZodForm (RHF + zodResolver wrapper), useDebouncedValue (debounce, used by company-combobox), use-mobile
+  hooks/                     useZodForm (RHF + zodResolver wrapper), useDebouncedValue (debounce, used by company-combobox), useMobile
   lib/
     action.ts                publicActionClient + secureActionClient (the core); metadata-driven gates: role + permission + authorize (ActionAuthorize hook), all enforced before the body
     auth.ts auth-client.ts   better-auth server + client (admin plugin wired with ac/roles); getCurrentUser/checkAuth
@@ -66,10 +68,18 @@ src/
     errors.ts                UserSafeActionError (user-safe error channel)
     logger.ts                structured logging used by the action layer
     utils.ts                 cn()
-    format.ts                humanizeEnum() + formatDate() — display helpers (timezone-safe date formatting)
+    constants.ts             APP_NAME / APP_DESCRIPTION (shared app strings)
+    format.ts                humanizeEnum() + formatDate() + initialsFor() + formatTimestamp() — display helpers (timezone-safe date/time formatting)
+    like.ts                  escapeLike() — escape LIKE/ILIKE metacharacters so user input matches literally
+    pagination.ts            shared server-side pagination primitives (page size, offset/limit + count, {rows,total,page,pageSize,pageCount} envelope) — used by all CRM list reads
+    search.ts                shared type-ahead search primitives (query-limit schema etc.) — used by search{Companies,Contacts,Staff}
+    url-schema.ts            shared optional-URL zod field (blank→null; bare host → https:// normalised)
+    text-schema.ts           shared optional free-text zod field (blank/whitespace→null, else trimmed)
+    collections.ts           fold pre-sorted rows into a Map keeping the FIRST per key (staff picks latest-employment-per-staff)
     admin.ts                 isLocalhost()/assertLocalhost() — the admin-area security boundary (host header)
-    staff-import/            CSV staff import: transform.ts (pure), plan.ts (server diff), types.ts (shared zod)
-    pto-import/              CSV PTO import (same shape as staff-import): transform.ts / plan.ts / types.ts
+    csv-import/              shared CSV plumbing: parse.ts (key normalise, date parse, duplicate tracking), types.ts, index.ts — consumed by staff-import/ + pto-import/ + the import UIs
+    staff-import/            CSV staff import: transform.ts (pure), plan.ts (server diff), types.ts (shared zod) — builds on csv-import/
+    pto-import/              CSV PTO import (same shape as staff-import): transform.ts / plan.ts / types.ts — builds on csv-import/
     db/
       db.ts                  hot-reload-safe Drizzle singleton
       schema.ts              barrel: re-exports auth-schema + staff-schema + crm-schema (one import for the whole schema)
@@ -99,7 +109,7 @@ The authenticated UI is **built**: shadcn on Base UI (`base-nova`), an icon-side
 
 ## Admin area (localhost-only)
 
-`src/app/admin/**` is a **local-only tooling surface** for data seeding/maintenance: two CSV importers — staff (`upload-staff`) and PTO (`upload-pto`) — plus a **bulk employment editor** (`bulk-edit-roles`) that maintains existing `staff_employment` rows (in-place correction or new effective-dated rows; the only in-app way to edit employment facts — see [ADR 0007](./decisions/0007-staff-employment-effective-dating.md)). Those three are staff-profiles tooling (see [staff-profiles.md](./domains/staff-profiles.md)). A fourth, **Manage Users** (`manage-users`), edits application users' RBAC role + ban status — see [permissions.md](./domains/permissions.md). Two deliberate choices:
+`src/app/admin/**` is a **local-only tooling surface** for data seeding/maintenance: two CSV importers — staff (`upload-staff`) and PTO (`upload-pto`) — plus a **bulk employment editor** (`bulk-edit-roles`) that maintains existing `staff_employment` rows (in-place correction or new effective-dated rows; the only in-app way to edit employment facts — see [ADR 0007](./decisions/0007-staff-employment-effective-dating.md)). Those three are staff-profiles tooling (see [staff-profiles.md](./domains/staff-profiles.md)). A fourth, **Manage Users** (`manage-users`), edits application users' RBAC role + ban status — see [permissions.md](./domains/permissions.md). A **Promote self to admin** button (`promote-self-button.tsx` → `promoteSelfToAdmin`) breaks the chicken-and-egg of that tool: it's the **one** place a role is set by a direct column write rather than the Better Auth admin API (whose `setRole` requires the caller to already be an admin), gated by `secureActionClient` + `assertLocalhost` so it can only ever promote the current user, locally. Two deliberate choices:
 
 - **Outside the `(app)` route group, on purpose.** The `(app)` layout redirects users without an active staff record to `/profile-setup`; the staff-upload tool is exactly what *creates* those records (chicken-and-egg). So admin must NOT require auth/staff — it requires only that the request is local.
 - **The security boundary is the host, not auth.** `src/lib/admin.ts` exports `isLocalhost()` / `assertLocalhost()`, which check the request `host` header against loopback hosts (`localhost`, `127.0.0.1`, `::1`). `admin/layout.tsx` calls `isLocalhost()` and `notFound()`s the whole segment for non-local requests; **every admin action calls `assertLocalhost()` itself** (no middleware does it for them). The importers + bulk-editor use `publicActionClient` (local seeding must run before any staff/admin exists). The one exception is `commitUserChanges` (manage-users): it adds `secureActionClient` + `metadata({ role: "admin" })` because it mutates through the Better Auth admin API, whose endpoints require the *caller* to be an admin — so that tool also needs a signed-in admin (bootstrapping caveat in [permissions.md](./domains/permissions.md)). Enforced server-side only — never trusted from the client. Reachable by direct URL; there's no sidebar nav entry. See [ADR 0008](./decisions/0008-localhost-only-admin-area.md).
@@ -162,8 +172,8 @@ contract — asserted by `src/lib/permissions.test.ts` (runs in `bun run check`)
 audited by `/audit-rbac`. **Never weaken or bypass a permission check; flag any gap
 as a vulnerability** (`.claude/rules/permissions.md`).
 
-The earlier open-staff-edit gap ([ADR 0012](./decisions/0012-open-staff-edit-pending-rbac.md))
-is **now closed**: staff link/intro edits declare `metadata({ authorize: authorizeStaffEdit })`
+The earlier open-staff-edit gap is **now closed** ([ADR 0014](./decisions/0014-rbac-better-auth-access-control.md)):
+staff link/intro edits declare `metadata({ authorize: authorizeStaffEdit })`
 (`src/actions/staff/canEditStaff.ts`), which gates via `canEditStaff` (own → always;
 other → `staff.edit`), and `getStaffPto` requires `pto.review` to read another
 person's PTO.

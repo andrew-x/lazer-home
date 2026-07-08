@@ -17,7 +17,7 @@ We also had to fit the PDF through a Next.js server action. base64 encoding infl
 
 ## Consequences
 
-- **No file artifacts to secure, back up, or garbage-collect** — the résumé is just text alongside the rest of the profile, inheriting its (currently open — ADR 0012) authz and its revalidation. This is the main win.
+- **No file artifacts to secure, back up, or garbage-collect** — the résumé is just text alongside the rest of the profile, inheriting its authz (the `updateStaffResume` write is gated like other staff edits — see [ADR 0014](./0014-rbac-better-auth-access-control.md)) and its revalidation. This is the main win.
 - **Extraction quality is `unpdf`'s.** Scanned/image PDFs yield nothing (no OCR); layout-heavy PDFs may extract messily. The review-before-save step is the mitigation — the user fixes it in the textarea.
 - **The 8 MB limit is global to all server actions**, not just this one — a larger attack/cost surface for any action. Acceptable under the internal-only posture; revisit if untrusted input ever reaches actions.
 - **PDF parsing runs in the server-action (Node) runtime.** `unpdf` is bundled there; keep an eye on cold-start/bundle cost if more actions pull it in.

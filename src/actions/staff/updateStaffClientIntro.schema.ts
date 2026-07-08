@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalTrimmedText } from "@/lib/text-schema";
 
 /**
  * Client intro edit input. Empty (cleared) maps to null. Lives in its own file so
@@ -7,11 +8,10 @@ import { z } from "zod";
  */
 export const updateStaffClientIntroSchema = z.object({
   staffId: z.string().min(1),
-  clientIntro: z
-    .string()
-    .trim()
-    .max(2000, "Keep the intro under 2000 characters.")
-    .transform((value) => (value === "" ? null : value)),
+  clientIntro: optionalTrimmedText(
+    2000,
+    "Keep the intro under 2000 characters.",
+  ),
 });
 
 export type UpdateStaffClientIntroInput = z.input<

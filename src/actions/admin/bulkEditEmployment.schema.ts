@@ -40,3 +40,21 @@ export const bulkEditEmploymentSchema = z.object({
 
 export type EmploymentChange = z.infer<typeof employmentChangeSchema>;
 export type BulkEditEmploymentInput = z.infer<typeof bulkEditEmploymentSchema>;
+
+/**
+ * The editable employment facts — every field of an {@link EmploymentChange}
+ * except its `staffId` key. The single source of truth for the fact list: the
+ * bulk-edit UI diffs against it and the commit action uses it to skip no-ops.
+ * Adding a fact means adding it to `employmentChangeSchema` and this list.
+ */
+export const FACT_FIELDS = [
+  "lineOfBusiness",
+  "role",
+  "employmentType",
+  "isBillable",
+  "utilizationTarget",
+  "billableType",
+  "isManagement",
+] as const satisfies readonly (keyof EmploymentChange)[];
+
+export type FactField = (typeof FACT_FIELDS)[number];

@@ -23,7 +23,7 @@ Be the source of truth about who works here — their identity, role, line of bu
 - `role`: `ENGINEER`, `DESIGNER`, `LEADERSHIP`, `SALES`, `SOLUTIONS`, `OPERATIONS`, `ARCHITECT`, `DELIVERY`, `QA` — the value formerly named `MANAGEMENT` was **renamed in place to `LEADERSHIP`** via `ALTER TYPE ... RENAME VALUE` (`drizzle/0009_purple_exodus.sql`; no data migration, existing rows kept their label). drizzle-kit can't detect an enum-value rename, so the generated destructive drop/recreate was replaced by hand — keep that in mind for future enum renames.
 - `employmentType`: `FULL_TIME`, `HOURLY`
 - `billableType`: `HUB`, `GLOBAL` (NOT NULL, default `HUB` — every employment row has one)
-- `pto_type`: `VACATION`, `STATUTORY_HOLIDAY`, `SICK_LEAVE`, `UNPAID_LEAVE`, `PARENTAL_LEAVE`, `BEREAVEMENT_LEAVE`, `COMPANY_RETREAT`, `RELIGIOUS_HOLIDAY`, `OTHER_LEAVE` — **enum order matters** (it's the on-disk order). `COMPANY_RETREAT`/`RELIGIOUS_HOLIDAY` were added before `OTHER_LEAVE` via `ALTER TYPE ... ADD VALUE` (`drizzle/0007_orange_thundra.sql`); the tuple in `src/lib/pto-import/types.ts` mirrors it so a Drizzle insert type-checks drift at compile time.
+- `pto_type`: `VACATION`, `STATUTORY_HOLIDAY`, `SICK_LEAVE`, `UNPAID_LEAVE`, `PARENTAL_LEAVE`, `BEREAVEMENT_LEAVE`, `COMPANY_RETREAT`, `RELIGIOUS_HOLIDAY`, `JURY_DUTY`, `LEAVE_OF_ABSENCE`, `OTHER_LEAVE` — **enum order matters** (it's the on-disk order). New values (`COMPANY_RETREAT`/`RELIGIOUS_HOLIDAY`, later `JURY_DUTY`/`LEAVE_OF_ABSENCE`) were inserted **before** `OTHER_LEAVE` via `ALTER TYPE ... ADD VALUE`. The `PTO_TYPE` tuple in `src/lib/pto-import/types.ts` is **derived directly** from this pgEnum (`ptoTypeEnum.enumValues`) rather than hand-mirrored, so it can never drift from the schema.
 
 ## Nuances / gotchas
 
@@ -45,7 +45,7 @@ This domain is populated and maintained by **local-only** tools in the `admin` a
 
 ### Staff import (`/admin/upload-staff`)
 
-Ingests a [Rippling](https://rippling.com) employee export into `staff` + `staff_employment`.
+Ingests a [Rippling](https://rippling.com) employee export into `staff` + `staff_employment`. The enum tuples the transform validates against (`LINE_OF_BUSINESS`/`ROLE`/`EMPLOYMENT_TYPE`) are **derived directly** from the pgEnums in `staff-schema.ts` (`*.enumValues`) in `src/lib/staff-import/types.ts`, not hand-copied, so they can never drift from the schema.
 
 Code: client `src/components/admin/staff-import.tsx` (PapaParse + preview tables); pure transform `src/lib/staff-import/transform.ts`; server diff `src/lib/staff-import/plan.ts`; shared types/zod `src/lib/staff-import/types.ts`; actions `src/actions/admin/{previewStaffImport,commitStaffImport}.ts` (both `publicActionClient` + `assertLocalhost()` — local seeding must not require auth/staff).
 
@@ -82,7 +82,7 @@ The defining difference from the staff importer: rows can **delete** as well as 
 #### Derivation rules (keep in sync with `transform.ts`)
 
 - **`Leave request status` → action + `isPending`:** `APPROVED` → upsert, `isPending=false`; `Pending` → upsert, `isPending=true`; `REJECTED`/`CANCELED`/`CANCELLED` → **delete** action (remove the record if it exists). Anything else → row **skipped** (unrecognized status).
-- **`Leave policy custom name` → `type`** (case-insensitive substring, first match): "unlimited vacation"→`VACATION`; "family medical leave"/"sick leave"→`SICK_LEAVE`; "statutory holiday"→`STATUTORY_HOLIDAY`; "company retreat"→`COMPANY_RETREAT`; "religious holiday"→`RELIGIOUS_HOLIDAY`; "bereavement leave"→`BEREAVEMENT_LEAVE`. **No match → row skipped** ("Unrecognized leave type").
+- **`Leave policy custom name` → `type`** (case-insensitive substring, first match): "unlimited vacation"→`VACATION`; "family medical leave"/"sick leave"→`SICK_LEAVE`; "statutory holiday"→`STATUTORY_HOLIDAY`; "company retreat"→`COMPANY_RETREAT`; "religious holiday"→`RELIGIOUS_HOLIDAY`; "bereavement leave"→`BEREAVEMENT_LEAVE`; "parental leave"/"pregnancy leave"/"paternity leave"→`PARENTAL_LEAVE`; "jury duty"→`JURY_DUTY`; "leave of absence"→`LEAVE_OF_ABSENCE`. **No match → row skipped** ("Unrecognized leave type").
 - For `upsert` rows, a missing/unparseable `Start date` or `Leave end date` **skips** the row. `delete` rows skip date/type derivation entirely (a cancelled request may have neither) — they carry only the leave-request id.
 
 #### Persistence (`computePtoImportPlan` → `commitPtoImport`)

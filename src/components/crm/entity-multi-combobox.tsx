@@ -101,7 +101,9 @@ export function EntityMultiCombobox({
             ? "Type to search…"
             : isPending
               ? "Searching…"
-              : "No matches."}
+              : result.serverError
+                ? "Search failed — try again."
+                : "No matches."}
         </ComboboxEmpty>
         <ComboboxList>
           {(item: EntityOption) => (

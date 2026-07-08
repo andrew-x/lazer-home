@@ -8,18 +8,9 @@ import { useId, useRef, useState } from "react";
 import { parseResumePdf } from "@/actions/staff/parseResumePdf";
 import { updateStaffResume } from "@/actions/staff/updateStaffResume";
 import { updateStaffResumeSchema } from "@/actions/staff/updateStaffResume.schema";
+import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
+import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 // Client-side guard so we never POST a payload over the server-action body
@@ -47,43 +38,22 @@ export function EditResumeDialog({
   staffId: string;
   resume: string | null;
 }) {
-  const [open, setOpen] = useState(false);
-  // Bump on each open so the form remounts with fresh defaults (matches
-  // edit-client-intro-dialog.tsx — keeps the form mounted through the close
-  // animation).
-  const [formKey, setFormKey] = useState(0);
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) setFormKey((k) => k + 1);
-        setOpen(next);
-      }}
+    <FormDialog
+      trigger={
+        <Button variant="ghost" size="sm">
+          <IconPencil />
+          Edit
+        </Button>
+      }
+      title="Edit resume"
+      description="Upload a PDF to pull its text in automatically, or write your resume directly below. Review before saving; leave blank to clear it."
+      contentClassName="sm:max-w-2xl"
     >
-      <DialogTrigger
-        render={
-          <Button variant="ghost" size="sm">
-            <IconPencil />
-            Edit
-          </Button>
-        }
-      />
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Edit resume</DialogTitle>
-          <DialogDescription>
-            Upload a PDF to pull its text in automatically, or write your resume
-            directly below. Review before saving; leave blank to clear it.
-          </DialogDescription>
-        </DialogHeader>
-        <ResumeForm
-          key={formKey}
-          staffId={staffId}
-          resume={resume}
-          onSaved={() => setOpen(false)}
-        />
-      </DialogContent>
-    </Dialog>
+      {({ close }) => (
+        <ResumeForm staffId={staffId} resume={resume} onSaved={close} />
+      )}
+    </FormDialog>
   );
 }
 
@@ -183,8 +153,11 @@ function ResumeForm({
         <div className="h-px flex-1 bg-border" />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="resume">Resume text</Label>
+      <FormField
+        label="Resume text"
+        htmlFor="resume"
+        error={errors.resume?.message}
+      >
         <Textarea
           id="resume"
           rows={18}
@@ -193,27 +166,13 @@ function ResumeForm({
           aria-invalid={Boolean(errors.resume)}
           {...register("resume")}
         />
-        {errors.resume ? (
-          <p className="text-sm text-destructive">{errors.resume.message}</p>
-        ) : null}
-      </div>
+      </FormField>
 
-      {action.result.serverError ? (
-        <p className="text-sm text-destructive">{action.result.serverError}</p>
-      ) : null}
-
-      <DialogFooter>
-        <DialogClose
-          render={
-            <Button type="button" variant="outline">
-              Cancel
-            </Button>
-          }
-        />
-        <Button type="submit" loading={action.isPending}>
-          Save
-        </Button>
-      </DialogFooter>
+      <FormDialogFooter
+        serverError={action.result.serverError}
+        submitLabel="Save"
+        loading={action.isPending}
+      />
     </form>
   );
 }

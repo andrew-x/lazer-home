@@ -1,6 +1,7 @@
 import "server-only";
 
 import { asc, desc, eq } from "drizzle-orm";
+import { firstPerKey } from "@/lib/collections";
 import { db } from "@/lib/db/db";
 import {
   billableTypeEnum,
@@ -74,10 +75,7 @@ export async function getStaffDirectory(): Promise<StaffDirectoryEntry[]> {
     );
 
   // Rows are newest-first, so the first one seen per staffId is the latest.
-  const latestByStaff = new Map<string, (typeof employmentRows)[number]>();
-  for (const row of employmentRows) {
-    if (!latestByStaff.has(row.staffId)) latestByStaff.set(row.staffId, row);
-  }
+  const latestByStaff = firstPerKey(employmentRows, (row) => row.staffId);
 
   return staffRows.map((s) => {
     const employment = latestByStaff.get(s.id);

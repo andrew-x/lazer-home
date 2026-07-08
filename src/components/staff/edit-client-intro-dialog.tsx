@@ -3,21 +3,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks";
 import { IconPencil } from "@tabler/icons-react";
-import { useState } from "react";
 import { updateStaffClientIntro } from "@/actions/staff/updateStaffClientIntro";
 import { updateStaffClientIntroSchema } from "@/actions/staff/updateStaffClientIntro.schema";
+import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
+import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 export function EditClientIntroDialog({
@@ -27,42 +17,25 @@ export function EditClientIntroDialog({
   staffId: string;
   clientIntro: string | null;
 }) {
-  const [open, setOpen] = useState(false);
-  // Bump on each open so the form remounts with fresh defaults. Unlike gating
-  // on `open`, this keeps the form mounted through the close animation so the
-  // popup doesn't collapse to its header before fading out.
-  const [formKey, setFormKey] = useState(0);
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) setFormKey((k) => k + 1);
-        setOpen(next);
-      }}
+    <FormDialog
+      trigger={
+        <Button variant="ghost" size="sm">
+          <IconPencil />
+          Edit
+        </Button>
+      }
+      title="Edit client intro"
+      description="How this person is introduced to clients. Leave blank to clear it."
     >
-      <DialogTrigger
-        render={
-          <Button variant="ghost" size="sm">
-            <IconPencil />
-            Edit
-          </Button>
-        }
-      />
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit client intro</DialogTitle>
-          <DialogDescription>
-            How this person is introduced to clients. Leave blank to clear it.
-          </DialogDescription>
-        </DialogHeader>
+      {({ close }) => (
         <ClientIntroForm
-          key={formKey}
           staffId={staffId}
           clientIntro={clientIntro}
-          onSaved={() => setOpen(false)}
+          onSaved={close}
         />
-      </DialogContent>
-    </Dialog>
+      )}
+    </FormDialog>
   );
 }
 
@@ -92,8 +65,11 @@ function ClientIntroForm({
   return (
     <form onSubmit={handleSubmitWithAction} className="flex flex-col gap-4">
       <input type="hidden" {...register("staffId")} />
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="clientIntro">Client intro</Label>
+      <FormField
+        label="Client intro"
+        htmlFor="clientIntro"
+        error={errors.clientIntro?.message}
+      >
         <Textarea
           id="clientIntro"
           rows={12}
@@ -102,29 +78,13 @@ function ClientIntroForm({
           aria-invalid={Boolean(errors.clientIntro)}
           {...register("clientIntro")}
         />
-        {errors.clientIntro ? (
-          <p className="text-sm text-destructive">
-            {errors.clientIntro.message}
-          </p>
-        ) : null}
-      </div>
+      </FormField>
 
-      {action.result.serverError ? (
-        <p className="text-sm text-destructive">{action.result.serverError}</p>
-      ) : null}
-
-      <DialogFooter>
-        <DialogClose
-          render={
-            <Button type="button" variant="outline">
-              Cancel
-            </Button>
-          }
-        />
-        <Button type="submit" loading={action.isPending}>
-          Save
-        </Button>
-      </DialogFooter>
+      <FormDialogFooter
+        serverError={action.result.serverError}
+        submitLabel="Save"
+        loading={action.isPending}
+      />
     </form>
   );
 }

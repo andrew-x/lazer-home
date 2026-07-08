@@ -6,9 +6,9 @@
 
 Authorization was two coarse layers: a `metadata.role` route gate (`user`/`admin`)
 and ad-hoc row-level ownership checks. There was no capability model and no notion
-of roles beyond the `admin` flag. [ADR 0012](./0012-open-staff-edit-pending-rbac.md)
-shipped the browse-staff directory with staff link/intro edits **open to any
-signed-in user**, knowingly deferring the lock-down until a role model existed. We
+of roles beyond the `admin` flag. The browse-staff directory had shipped with
+staff link/intro edits **open to any signed-in user**, knowingly deferring the
+lock-down until a role model existed. We
 also needed a capability (`pto.review`) to gate viewing other people's aggregated
 PTO. Time to build the role model.
 
@@ -51,7 +51,7 @@ Key choices:
    unknown/null roles fall back to `DEFAULT_ROLE` (least privilege).
 6. **Ownership-or-permission as one decision point.** `canEditStaff`
    (`src/actions/staff/canEditStaff.ts`) is the single place staff-edit authz is
-   decided (own → always; other → `staff.edit`), closing ADR 0012's gap. It backs
+   decided (own → always; other → `staff.edit`), closing the earlier open-staff-edit gap. It backs
    both forms: directly as the **UI affordance** (whether to show edit controls,
    called from `staff/[id]/page.tsx`), and via the `authorizeStaffEdit`
    `ActionAuthorize` hook wired with `metadata({ authorize })` on the edit actions
@@ -63,9 +63,8 @@ Key choices:
 
 ## Consequences
 
-- **ADR 0012 is resolved/closed by this work** — the `// TODO: lock down` markers
-  are gone; staff edits and other-person PTO reads are now properly gated. See that
-  ADR's updated status.
+- **The earlier open-staff-edit gap is resolved by this work** — the `// TODO: lock down`
+  markers are gone; staff edits and other-person PTO reads are now properly gated.
 - Adding a capability or changing a role is a three-file change (matrix, test, doc)
   by design — friction is the point.
 - Server-side authorization uses the **pure synchronous helpers**, not Better Auth's
@@ -86,5 +85,5 @@ Key choices:
 - **`pgEnum` for `user.role`** — rejected: clobbered by `auth:generate`. App-layer
   `roleSchema` validation instead, DB `CHECK` as optional later hardening.
 - **Gate everything on the existing `admin` flag** — rejected (same reasoning as
-  ADR 0012): too coarse; a person couldn't edit their own profile, and it's not the
-  real role model.
+  the interim open-edit state): too coarse; a person couldn't edit their own profile,
+  and it's not the real role model.

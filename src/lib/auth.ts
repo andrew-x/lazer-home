@@ -9,9 +9,9 @@ import * as schema from "@/lib/db/schema";
 import { UserSafeActionError } from "@/lib/errors";
 import { ac, isAdmin, roles } from "@/lib/permissions";
 
-const googleConfigured = Boolean(
-  env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET,
-);
+// Destructure so the presence check below genuinely narrows both to `string`
+// inside the truthy branch — no `as string` casts on `string | undefined`.
+const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } = env;
 
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
@@ -20,15 +20,16 @@ export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg", schema }),
   // Google-only sign-in (see docs/decisions). Email/password is intentionally off.
   emailAndPassword: { enabled: false },
-  socialProviders: googleConfigured
-    ? {
-        google: {
-          clientId: env.GOOGLE_CLIENT_ID as string,
-          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-          prompt: "select_account",
-        },
-      }
-    : undefined,
+  socialProviders:
+    GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET
+      ? {
+          google: {
+            clientId: GOOGLE_CLIENT_ID,
+            clientSecret: GOOGLE_CLIENT_SECRET,
+            prompt: "select_account",
+          },
+        }
+      : undefined,
   // nextCookies() MUST be last so it can flush Set-Cookie from server actions.
   // RBAC: roles/permissions are defined in src/lib/permissions.ts (single source
   // of truth). `adminRoles` lists roles allowed to use admin-plugin endpoints.

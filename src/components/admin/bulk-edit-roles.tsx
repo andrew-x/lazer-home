@@ -1,40 +1,24 @@
 "use client";
 
-import {
-  IconChevronDown,
-  IconChevronUp,
-  IconSearch,
-  IconSelector,
-} from "@tabler/icons-react";
-import {
-  type Column,
-  type ColumnDef,
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  type SortingState,
-  type Table as TanstackTable,
-  useReactTable,
+import { IconSearch } from "@tabler/icons-react";
+import type {
+  ColumnDef,
+  SortingState,
+  Table as TanstackTable,
 } from "@tanstack/react-table";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
 import { useId, useMemo, useState } from "react";
 import { toast } from "sonner";
+import {
+  FACT_FIELDS,
+  type FactField,
+} from "@/actions/admin/bulkEditEmployment.schema";
 import { commitBulkEditEmployment } from "@/actions/admin/commitBulkEditEmployment";
 import type { StaffEmploymentEditRow } from "@/actions/staff/getStaffEmploymentForEdit";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -45,41 +29,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { humanizeEnum } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import {
+  EditableTable,
+  type EditableTableMeta,
+  useEditableRows,
+} from "./editable-table";
+import { ALL, SelectFilter, SortHeader, TriStateFilter } from "./table-filters";
 
-const ALL = "ALL";
-
-/** The editable employment facts, kept aligned with the read row's types. */
-type EditableValues = Pick<
-  StaffEmploymentEditRow,
-  | "lineOfBusiness"
-  | "role"
-  | "employmentType"
-  | "isBillable"
-  | "utilizationTarget"
-  | "billableType"
-  | "isManagement"
->;
-
-const FACT_FIELDS = [
-  "lineOfBusiness",
-  "role",
-  "employmentType",
-  "isBillable",
-  "utilizationTarget",
-  "billableType",
-  "isManagement",
-] as const satisfies readonly (keyof EditableValues)[];
+/**
+ * The editable employment facts, kept aligned with the read row's types. Keyed
+ * by {@link FactField} so the field list stays in lockstep with the schema.
+ */
+type EditableValues = Pick<StaffEmploymentEditRow, FactField>;
 
 const FIELD_LABELS: Record<keyof EditableValues, string> = {
   lineOfBusiness: "Line of business",
@@ -91,10 +55,23 @@ const FIELD_LABELS: Record<keyof EditableValues, string> = {
   isManagement: "Management",
 };
 
-type TableMeta = {
-  valuesFor: (staffId: string) => EditableValues;
-  update: (staffId: string, patch: Partial<EditableValues>) => void;
-};
+type TableMeta = EditableTableMeta<EditableValues>;
+
+const getStaffId = (row: StaffEmploymentEditRow) => row.staffId;
+
+/** Merge a patch, enforcing the billable/management/utilization invariants. */
+function applyEmploymentPatch(
+  base: EditableValues,
+  patch: Partial<EditableValues>,
+): EditableValues {
+  const next: EditableValues = { ...base, ...patch };
+  // Turning on management makes someone non-billable by default (they can still
+  // be flipped back to billable afterward).
+  if (patch.isManagement === true) next.isBillable = false;
+  // Non-billable rows carry a 0% target (mirrors the import invariant).
+  if (!next.isBillable) next.utilizationTarget = 0;
+  return next;
+}
 
 function pickEditable(row: StaffEmploymentEditRow): EditableValues {
   return {
@@ -271,116 +248,6 @@ function BillableTypeCell({
   );
 }
 
-// --- Header ----------------------------------------------------------------
-
-function SortHeader({
-  column,
-  children,
-}: {
-  column: Column<StaffEmploymentEditRow, unknown>;
-  children: string;
-}) {
-  const sorted = column.getIsSorted();
-  return (
-    <button
-      type="button"
-      onClick={() => column.toggleSorting(sorted === "asc")}
-      className="-mx-1 flex items-center gap-1 rounded-sm px-1 hover:text-foreground"
-    >
-      {children}
-      {sorted === "asc" ? (
-        <IconChevronUp className="size-3.5" />
-      ) : sorted === "desc" ? (
-        <IconChevronDown className="size-3.5" />
-      ) : (
-        <IconSelector className="size-3.5 text-muted-foreground" />
-      )}
-    </button>
-  );
-}
-
-// --- Filters ---------------------------------------------------------------
-
-function FilterLabel({ children }: { children: string }) {
-  return (
-    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-      {children}
-    </span>
-  );
-}
-
-function SelectFilter({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <FilterLabel>{label}</FilterLabel>
-      <Select value={value} onValueChange={(next) => onChange(next ?? ALL)}>
-        <SelectTrigger aria-label={label} className="w-44">
-          <SelectValue>
-            {(current: string | null) =>
-              !current || current === ALL ? "All" : humanizeEnum(current)
-            }
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL}>All</SelectItem>
-          {options.map((option) => (
-            <SelectItem key={option} value={option}>
-              {humanizeEnum(option)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
-
-const TRISTATE = [
-  { value: ALL, label: "All" },
-  { value: "true", label: "Yes" },
-  { value: "false", label: "No" },
-];
-
-function TriStateFilter({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <FilterLabel>{label}</FilterLabel>
-      <ToggleGroup
-        variant="outline"
-        spacing={0}
-        aria-label={label}
-        value={[value]}
-        onValueChange={(values) => {
-          if (values.length > 0) onChange(values[0]);
-        }}
-      >
-        {TRISTATE.map((option) => (
-          <ToggleGroupItem key={option.value} value={option.value}>
-            {option.label}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-    </div>
-  );
-}
-
 // --- Main component --------------------------------------------------------
 
 /**
@@ -405,9 +272,7 @@ export function BulkEditRoles({
   const router = useRouter();
   const searchId = useId();
 
-  const [edited, setEdited] = useState<Record<string, EditableValues>>({});
   const [effectiveDate, setEffectiveDate] = useState<string | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([
     { id: "name", desc: false },
   ]);
@@ -420,46 +285,21 @@ export function BulkEditRoles({
   const [management, setManagement] = useState(ALL);
   const [active, setActive] = useState("true");
 
-  const originalByStaff = useMemo(
-    () => new Map(rows.map((r) => [r.staffId, pickEditable(r)])),
-    [rows],
-  );
-
-  const valuesFor = (staffId: string): EditableValues =>
-    edited[staffId] ?? (originalByStaff.get(staffId) as EditableValues);
-
-  const update = (staffId: string, patch: Partial<EditableValues>) => {
-    setEdited((prev) => {
-      const base =
-        prev[staffId] ?? (originalByStaff.get(staffId) as EditableValues);
-      const next: EditableValues = { ...base, ...patch };
-      // Turning on management makes someone non-billable by default (they can
-      // still be flipped back to billable afterward).
-      if (patch.isManagement === true) next.isBillable = false;
-      // Non-billable rows carry a 0% target (mirrors the import invariant).
-      if (!next.isBillable) next.utilizationTarget = 0;
-      return { ...prev, [staffId]: next };
-    });
-  };
-
-  const isChanged = (staffId: string) => {
-    const draft = edited[staffId];
-    if (!draft) return false;
-    const original = originalByStaff.get(staffId);
-    if (!original) return false;
-    return FACT_FIELDS.some((field) => draft[field] !== original[field]);
-  };
-
-  const changedRows = rows.filter((r) => isChanged(r.staffId));
+  const editable = useEditableRows<StaffEmploymentEditRow, EditableValues>({
+    rows,
+    getRowId: getStaffId,
+    getEditableValues: pickEditable,
+    fields: FACT_FIELDS,
+    applyPatch: applyEmploymentPatch,
+  });
 
   const commit = useAction(commitBulkEditEmployment, {
     onSuccess: ({ data }) => {
       if (!data) return;
       const verb = data.mode === "insert" ? "Added records for" : "Updated";
       toast.success(`${verb} ${data.staffAffected} staff.`);
-      setEdited({});
+      editable.reset();
       setEffectiveDate(null);
-      setConfirmOpen(false);
       router.refresh();
     },
     onError: ({ error }) =>
@@ -597,19 +437,9 @@ export function BulkEditRoles({
     ],
   );
 
-  const table = useReactTable({
-    data: filtered,
-    columns,
-    state: { sorting },
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    meta: { valuesFor, update } satisfies TableMeta,
-  });
-
-  const changes = changedRows.map((r) => ({
+  const changes = editable.changedRows.map((r) => ({
     staffId: r.staffId,
-    ...valuesFor(r.staffId),
+    ...editable.valuesFor(r.staffId),
   }));
 
   return (
@@ -658,155 +488,40 @@ export function BulkEditRoles({
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="whitespace-nowrap">
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className={cn(
-                    isChanged(row.original.staffId) && "bg-primary/5",
-                  )}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="whitespace-nowrap">
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-20 text-center text-muted-foreground"
-                >
-                  No staff match these filters.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Floating save bar */}
-      {changedRows.length > 0 ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-3">
-            <span className="text-sm font-medium">
-              {changedRows.length} staff changed
+      <EditableTable
+        editable={editable}
+        rows={filtered}
+        columns={columns}
+        sorting={sorting}
+        onSortingChange={setSorting}
+        getRowId={getStaffId}
+        getRowLabel={(row) => row.name}
+        emptyMessage="No staff match these filters."
+        fields={FACT_FIELDS}
+        fieldLabels={FIELD_LABELS}
+        formatValue={formatValue}
+        itemNoun="staff"
+        dialogDescription={(count) =>
+          effectiveDate
+            ? `Add a new employment record effective ${effectiveDate} for ${count} staff.`
+            : `Update the current employment record in place for ${count} staff.`
+        }
+        saveBarExtras={
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              Effective date
             </span>
-            <div className="ml-auto flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  Effective date
-                </span>
-                <DatePicker
-                  value={effectiveDate}
-                  onChange={setEffectiveDate}
-                  placeholder="Update in place"
-                />
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setEdited({});
-                  setEffectiveDate(null);
-                }}
-              >
-                Discard
-              </Button>
-              <Button onClick={() => setConfirmOpen(true)}>Save changes</Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Confirmation dialog */}
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Confirm changes</DialogTitle>
-            <DialogDescription>
-              {effectiveDate
-                ? `Add a new employment record effective ${effectiveDate} for ${changedRows.length} staff.`
-                : `Update the current employment record in place for ${changedRows.length} staff.`}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1">
-            {changedRows.map((row) => {
-              const original = originalByStaff.get(row.staffId);
-              const next = valuesFor(row.staffId);
-              if (!original) return null;
-              const diffs = FACT_FIELDS.filter(
-                (field) => next[field] !== original[field],
-              );
-              return (
-                <div key={row.staffId} className="flex flex-col gap-1">
-                  <span className="text-sm font-medium">{row.name}</span>
-                  <ul className="flex flex-col gap-0.5 text-sm">
-                    {diffs.map((field) => (
-                      <li
-                        key={field}
-                        className="flex items-center gap-1 text-muted-foreground"
-                      >
-                        <span className="w-32 shrink-0">
-                          {FIELD_LABELS[field]}
-                        </span>
-                        <span className="line-through">
-                          {formatValue(field, original[field])}
-                        </span>
-                        <span aria-hidden>→</span>
-                        <span className="font-medium text-foreground">
-                          {formatValue(field, next[field])}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-          </div>
-
-          <DialogFooter>
-            <DialogClose
-              render={
-                <Button type="button" variant="outline">
-                  Cancel
-                </Button>
-              }
+            <DatePicker
+              value={effectiveDate}
+              onChange={setEffectiveDate}
+              placeholder="Update in place"
             />
-            <Button
-              onClick={() => commit.execute({ effectiveDate, changes })}
-              loading={commit.isExecuting}
-            >
-              Confirm &amp; save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        }
+        onDiscard={() => setEffectiveDate(null)}
+        onSave={() => commit.execute({ effectiveDate, changes })}
+        isSaving={commit.isExecuting}
+      />
     </div>
   );
 }

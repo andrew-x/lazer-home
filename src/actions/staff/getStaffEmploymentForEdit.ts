@@ -1,6 +1,7 @@
 import "server-only";
 
 import { asc, desc } from "drizzle-orm";
+import { firstPerKey } from "@/lib/collections";
 import { db } from "@/lib/db/db";
 import { type StaffEmployment, staff, staffEmployment } from "@/lib/db/schema";
 
@@ -64,10 +65,7 @@ export async function getStaffEmploymentForEdit(): Promise<
       desc(staffEmployment.createdAt),
     );
 
-  const latestByStaff = new Map<string, (typeof employmentRows)[number]>();
-  for (const row of employmentRows) {
-    if (!latestByStaff.has(row.staffId)) latestByStaff.set(row.staffId, row);
-  }
+  const latestByStaff = firstPerKey(employmentRows, (row) => row.staffId);
 
   const rows: StaffEmploymentEditRow[] = [];
   for (const s of staffRows) {

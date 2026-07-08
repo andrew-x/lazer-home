@@ -12,7 +12,7 @@ import { userHasPermission } from "@/lib/permissions";
  * for staff edits.
  *
  * Rule: a user may always edit their OWN linked profile; editing anyone else's
- * requires the `staff.edit` permission (manager/admin). This closes ADR 0012.
+ * requires the `staff.edit` permission (manager/admin). See ADR 0014.
  *
  * Used as a UI affordance (pages render edit controls only when true) and as the
  * basis for the server-side `authorizeStaffEdit` gate below. The server gate is

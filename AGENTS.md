@@ -68,7 +68,7 @@ Use the built-in review skills (`/code-review`, `/review`, `/security-review`) b
 Runtime and package manager are **Bun**. Linter/formatter is **Biome** (not ESLint/Prettier).
 
 - `bun run dev` — dev server · `bun run build` — production build (also type-checks)
-- `bun run check` — Biome lint + `tsc --noEmit` (fast pre-flight) · `bun run format` — Biome auto-fix
+- `bun run check` — Biome lint + `tsc --noEmit` + `bun test` (pre-flight) · `bun run format` — Biome auto-fix
 - After schema changes: `bun run db:generate` → `bun run db:migrate` (`db:push`/`db:studio` for dev; `auth:generate` for Better Auth tables)
 - **Before claiming done:** run `bun run check`, plus `bun run build` for anything non-trivial.
 
