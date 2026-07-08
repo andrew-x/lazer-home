@@ -1,3 +1,5 @@
+import { IconPencil } from "@tabler/icons-react";
+import Link from "next/link";
 import type { HistoryEntry } from "@/actions/staff/getStaffHistory";
 import type { StaffProfile } from "@/actions/staff/getStaffProfile";
 import type { StaffPtoView } from "@/actions/staff/getStaffPto";
@@ -6,8 +8,10 @@ import { EditLinksDialog } from "@/components/staff/edit-links-dialog";
 import { EditResumeDialog } from "@/components/staff/edit-resume-dialog";
 import { HistorySheet } from "@/components/staff/history-sheet";
 import { PtoSection } from "@/components/staff/pto-section";
+import { SkillsSection } from "@/components/staff/skills-section";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -177,6 +181,27 @@ export function ProfileView({
           ) : (
             <p className="text-sm text-muted-foreground">No resume yet.</p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Skills</CardTitle>
+          {canEdit ? (
+            <CardAction>
+              <Button
+                variant="ghost"
+                size="sm"
+                render={<Link href={`/staff/${staffId}/skills`} />}
+              >
+                <IconPencil />
+                Edit
+              </Button>
+            </CardAction>
+          ) : null}
+        </CardHeader>
+        <CardContent>
+          <SkillsSection skills={profile.skills} />
         </CardContent>
       </Card>
 
