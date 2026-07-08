@@ -4,6 +4,7 @@ import { desc, eq } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/lib/db/db";
 import { type StaffEmployment, staff, staffEmployment } from "@/lib/db/schema";
+import type { StaffSkill } from "@/lib/skills";
 
 /**
  * A staff member's profile plus their latest employment facts. `employment` is
@@ -18,6 +19,7 @@ export type StaffProfile = {
   clientIntro: string | null;
   resume: string | null;
   resumeUpdatedAt: Date | null;
+  skills: StaffSkill[];
   joinDate: string | null;
   employment: Pick<
     StaffEmployment,
@@ -45,6 +47,7 @@ export const getStaffProfile = cache(
         clientIntro: staff.clientIntro,
         resume: staff.resume,
         resumeUpdatedAt: staff.resumeUpdatedAt,
+        skills: staff.skills,
         joinDate: staff.joinDate,
       })
       .from(staff)
