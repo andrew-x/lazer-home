@@ -7,11 +7,11 @@ import { generateId } from "@/lib/db/ids";
 import { companies } from "@/lib/db/schema";
 import { createCompanySchema } from "./createCompany.schema";
 
-/** Create a company. Gated on `contacts.edit` (the single CRM-write capability). */
+/** Create a company. Gated on `crm.edit` (the single CRM-write capability). */
 export const createCompany = secureActionClient
   .metadata({
     action: "create-company",
-    permission: { contacts: ["edit"] },
+    permission: { crm: ["edit"] },
   })
   .inputSchema(createCompanySchema)
   .action(async ({ parsedInput }) => {

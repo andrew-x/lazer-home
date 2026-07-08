@@ -2,7 +2,7 @@
 
 The five domains share one model. This is the most important doc for understanding the system: changes here ripple everywhere.
 
-**Status: mostly proposed.** Entities and relationships below are the intended design. Realized so far: the **Person** anchor (auth `user`), the **Staff profiles** tables (`staff`, `staff_employment`, `staff_pto`), and the first **CRM** slice (`companies`, `contacts`) — see "What's realized in code".
+**Status: mostly proposed.** Entities and relationships below are the intended design. Realized so far: the **Person** anchor (auth `user`), the **Staff profiles** tables (`staff`, `staff_employment`, `staff_pto`), and the **CRM** slice (`companies`, `contacts`, `opportunities` + four opportunity junction tables) — see "What's realized in code".
 
 ## What's realized in code
 
@@ -13,10 +13,11 @@ The five domains share one model. This is the most important doc for understandi
   - **`staff_pto`** — leave spans (`startDate`/`endDate`, `type`, `isPending`, **notNull/unique `ripplingId`** = Rippling "Leave request ID"). FK → `staff.id` cascade. Discrete rows, **not** effective-dated; reduces a person's available capacity for allocations. Populated by a second local-only importer (`/admin/upload-pto`) — see [domains/staff-profiles.md](./domains/staff-profiles.md).
 - **`lineOfBusinessEnum`** (`line_of_business`: `CORPORATE`, `CORE`, `FINTECH`, `COMMERCE`, `DESIGN`) is a **shared/global enum**, exported top-level and intended for reuse beyond staff (CRM/allocations), not a staff-specific type.
 - **Local-only CSV import tools** are the only things that write the staff domain so far: `/admin/upload-staff` (Rippling export → `staff` + effective-dated `staff_employment`) and `/admin/upload-pto` (Rippling leave export → `staff_pto`). See [domains/staff-profiles.md](./domains/staff-profiles.md).
-- **CRM slice** (`src/lib/db/crm-schema.ts`, barrelled by `schema.ts`; migration `drizzle/0012_spotty_mysterio.sql`):
+- **CRM slice** (`src/lib/db/crm-schema.ts`, barrelled by `schema.ts`; migrations `drizzle/0012_spotty_mysterio.sql` + `drizzle/0014_nostalgic_crusher_hogan.sql`):
   - **`companies`** — organisations we deal with. `isPartner` is a **standalone boolean** flag (default false) marking partners — not a client/partner split; a company need be neither. `name` notNull, optional `websiteUrl`. We chose *Company* over the narrower *Client* the spine originally named — see [ADR 0015](./decisions/0015-crm-company-over-client.md).
   - **`contacts`** — people, optionally employed by a company (`companyId` FK → `companies`, `onDelete: set null`; null when unknown or once the company is removed). `firstName`/`lastName`/`email` notNull, **`email` unique**, optional `phone` and optional free-text `role`.
-  - Open reads + `contacts.edit`-gated create mutations (one capability gates all CRM writes — both companies and contacts) + a `/companies` page exist; **Opportunity/pipeline and any link to Project are still proposed.** See [domains/crm.md](./domains/crm.md).
+  - **`opportunities`** — pipeline deals, each **required** to belong to a company (`companyId` FK → `companies`, **`onDelete: restrict`** — contrast the contacts' set-null; a company with live opportunities can't be deleted). `source` + `status` pgEnums, optional `nextSteps`. Their related people (contacts, owners, referral sources) live in **four junction tables** — the repo's first many-to-many pattern (see [below](#junction-tables--the-first-many-to-many-pattern)). `owners` and `source_staff` link to **`staff`**, the first CRM ↔ staff FK.
+  - Open reads + `crm.edit`-gated create mutations (one capability gates all CRM writes — companies, contacts *and* opportunities) + `/companies` and `/opportunities` pages exist; **the link from a won Opportunity to a Project is still proposed** (Project isn't built). See [domains/crm.md](./domains/crm.md).
 - Nothing else (Project, Allocation, TimeEntry, reviews) exists yet. (The legacy `staff_profile` example table was deleted — `drizzle/0003_tranquil_miek.sql` drops it.)
 
 ## Core entities
@@ -26,7 +27,7 @@ The five domains share one model. This is the most important doc for understandi
   - Rates (cost/charge) are expected to follow the same effective-dated, history-as-rows pattern as `staff_employment`.
 - **Company** — an organisation we deal with (CRM); an `isPartner` flag marks partners (standalone, not a client/partner split). _(Realized — `companies`.)_ Chosen over the narrower *Client* the spine first named; see [ADR 0015](./decisions/0015-crm-company-over-client.md).
   - **Contact** (optional company per contact) — a person, optionally at a Company. _(Realized — `contacts`; `companyId` nullable, `onDelete: set null`.)_
-  - **Opportunity** — a pipeline deal for a Company; when _won_, becomes/links to a Project. _(Proposed — not built.)_
+  - **Opportunity** — a pipeline deal that always belongs to a Company; when _won_, will become/link to a Project. _(Realized — `opportunities` + junction tables; `companyId` required, `onDelete: restrict`. The Project link is proposed.)_
 - **Project** (a.k.a. engagement) — billable work for a Company. The hub linking CRM ↔ delivery. _(Proposed.)_
 - **Allocation** — a _time-ranged_ assignment of a Person to a Project (start/end, % or hours, project role). The heart of capacity planning.
 - **TimeEntry** — hours a Person logged against a Project (and optionally a task) on a date; billable or not. Aggregated into **Timesheets** for approval.
@@ -36,7 +37,9 @@ The five domains share one model. This is the most important doc for understandi
 
 ```
 Company ──< Contact                        (optional company; FK set-null)
-Company ──< Opportunity ──(won)──> Project
+Company ──< Opportunity ──(won)──> Project  (required company; FK restrict)
+Opportunity >──< Contact                   (related + referral-source, via junction tables)
+Opportunity >──< Person (staff)            (owners + referral-source, via junction tables)
 Company ──< Project
 Project >──< Person      via Allocation   (the plan, time-ranged)
 Person  ──< TimeEntry >── Project          (the actuals)
@@ -58,3 +61,14 @@ Person  ──< PerformanceReview              (within a ReviewCycle)
 - Everything time-bound (allocations, rates, reviews, **employment**) needs effective-dated handling — a person's role, rate, or skills change over time. The realized pattern is **history-as-rows** (`staff_employment`): a new row per change, current state = latest `effectiveFromDate`. See [ADR 0007](./decisions/0007-staff-employment-effective-dating.md).
 - Rates and salaries are highly sensitive — see authorization in [architecture.md](./architecture.md) and the RBAC model in [domains/permissions.md](./domains/permissions.md).
 - **Dates and times are timezone-agnostic.** Calendar dates (effective-from, PTO spans, join/termination) are `date()` strings (`"YYYY-MM-DD"`, no zone); instants are plain `timestamp` _without_ time zone — treat all stored datetimes as wall-clock and convert zones only at the UI edge. See [`.claude/rules/database.md`](../.claude/rules/database.md).
+
+### Junction tables — the first many-to-many pattern
+
+The four `opportunity_*` join tables (`src/lib/db/crm-schema.ts`) are the repo's **first** many-to-many relations and set the convention future join tables should copy:
+
+- **Surrogate `text` PK** via `generateId(prefix)` (e.g. `opp-contact`), not a composite PK — consistent with the app-minted-CUID2 ID convention everywhere else ([`.claude/rules/database.md`](../.claude/rules/database.md)).
+- **`unique(...)` on the FK pair** — gives set-semantics (a row can't be linked twice). Writers still dedupe input id arrays before insert so a repeat can't trip this index (see `createOpportunity`).
+- **`index(...)` on the *non-owning* FK** (e.g. the `contactId`/`staffId` side) for efficient reverse lookups ("which opportunities is this contact on?").
+- **Both FKs `onDelete: "cascade"`** — a link row is meaningless without both endpoints.
+
+Reading the "other side" cheaply: resolve the linked names with a **single grouped follow-up query** over just the current page's ids, not a per-row query (see `getOpportunitiesPage`'s owner-name resolution) — avoid N+1.

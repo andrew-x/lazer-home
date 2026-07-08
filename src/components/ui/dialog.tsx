@@ -42,13 +42,21 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  forceMountOverlay = false,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean;
+  /**
+   * Render this dialog's own backdrop even when it is nested inside another
+   * open dialog. Base UI suppresses a nested dialog's backdrop by default, which
+   * leaves the parent dialog's content unblurred behind a stacked (modal-on-
+   * modal) dialog. Set this on inline dialogs opened from within another dialog.
+   */
+  forceMountOverlay?: boolean;
 }) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay forceRender={forceMountOverlay} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { secureActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
-import { companies, contacts } from "@/lib/db/schema";
+import { contacts } from "@/lib/db/schema";
 import { UserSafeActionError } from "@/lib/errors";
 import { createContactSchema } from "./createContact.schema";
 
@@ -17,43 +17,29 @@ function isUniqueViolation(error: unknown, constraint: string): boolean {
 }
 
 /**
- * Create a contact, optionally creating its company inline (one transaction).
- * Gated on `contacts.edit` — the single CRM-write capability, which also covers
- * the inline company creation.
+ * Create a contact, optionally linked to an existing company. Gated on
+ * `crm.edit` — the single CRM-write capability. (A brand-new company is created
+ * separately via `createCompany` before this runs — see `CompanyComboboxField`.)
  */
 export const createContact = secureActionClient
   .metadata({
     action: "create-contact",
-    permission: { contacts: ["edit"] },
+    permission: { crm: ["edit"] },
   })
   .inputSchema(createContactSchema)
   .action(async ({ parsedInput }) => {
+    // Minted up front so the created id can be returned to callers (e.g. the
+    // opportunity form's inline-create flow appends it to its selection).
+    const contactId = generateId("contact");
     try {
-      await db.transaction(async (tx) => {
-        let companyId = parsedInput.companyId;
-
-        if (parsedInput.newCompany) {
-          const [company] = await tx
-            .insert(companies)
-            .values({
-              id: generateId("company"),
-              name: parsedInput.newCompany.name,
-              websiteUrl: parsedInput.newCompany.websiteUrl,
-              isPartner: parsedInput.newCompany.isPartner,
-            })
-            .returning({ id: companies.id });
-          companyId = company.id;
-        }
-
-        await tx.insert(contacts).values({
-          id: generateId("contact"),
-          firstName: parsedInput.firstName,
-          lastName: parsedInput.lastName,
-          email: parsedInput.email,
-          phone: parsedInput.phone,
-          companyId,
-          role: parsedInput.role,
-        });
+      await db.insert(contacts).values({
+        id: contactId,
+        firstName: parsedInput.firstName,
+        lastName: parsedInput.lastName,
+        email: parsedInput.email,
+        phone: parsedInput.phone,
+        companyId: parsedInput.companyId,
+        role: parsedInput.role,
       });
     } catch (error) {
       if (isUniqueViolation(error, "contacts_email_unique")) {
@@ -65,5 +51,5 @@ export const createContact = secureActionClient
     }
 
     revalidatePath("/companies");
-    return { ok: true };
+    return { id: contactId };
   });

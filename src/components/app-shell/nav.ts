@@ -3,6 +3,7 @@ import {
   IconBuildingSkyscraper,
   IconHome,
   IconSettings,
+  IconTargetArrow,
   IconUser,
   IconUsers,
 } from "@tabler/icons-react";
@@ -20,6 +21,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/companies",
     icon: IconBuildingSkyscraper,
   },
+  { title: "Opportunities", href: "/opportunities", icon: IconTargetArrow },
   { title: "Settings", href: "/settings", icon: IconSettings },
 ];
 

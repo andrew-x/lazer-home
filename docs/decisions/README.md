@@ -25,3 +25,4 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0013](./0013-resume-pdf-parse-not-store.md) | Résumé stored as text only; PDFs parsed server-side (unpdf), never persisted | accepted |
 | [0014](./0014-rbac-better-auth-access-control.md) | RBAC on Better Auth native access control (single role, matrix-as-contract) | accepted |
 | [0015](./0015-crm-company-over-client.md) | CRM org entity is "Company" (with `isPartner`), not "Client" | accepted |
+| [0016](./0016-junction-table-and-shared-enum-conventions.md) | Junction-table + shared-enum conventions (first many-to-many) | accepted |
