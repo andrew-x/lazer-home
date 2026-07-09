@@ -168,7 +168,7 @@ const FRAMEWORKS = {
     ".NET",
     "Flask",
     "Spring Boot",
-    "Pheonix",
+    "Phoenix",
     "Hono",
     "TanStack Start",
     "Bun",
@@ -271,7 +271,7 @@ const TESTING = {
   Mobile: ["Detox"],
   Security: ["Snyk", "SonarQube", "OWASP ZAP", "Slither", "Mythril"],
   Performance: ["k6", "Artillery", "Gatling"],
-  Accessibility: ["WAVF", "Pa11y"],
+  Accessibility: ["WAVE", "Pa11y"],
 } as const;
 
 const TOOLS = {
