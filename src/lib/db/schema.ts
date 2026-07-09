@@ -5,6 +5,8 @@
 export * from "./auth-schema";
 // CRM domain (companies, contacts).
 export * from "./crm-schema";
+// Performance domain (peer feedback + rating enum).
+export * from "./performance-schema";
 // Projects domain (projects, delivery managers, roles).
 export * from "./projects-schema";
 // Staff profiles domain (staff, staff_employment, staff_pto + enums).
