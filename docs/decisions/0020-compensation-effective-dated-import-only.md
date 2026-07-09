@@ -1,4 +1,4 @@
-# 0019 — Compensation as effective-dated facts on `staff_employment`; import-only, required, view-gated
+# 0020 — Compensation as effective-dated facts on `staff_employment`; import-only, required, view-gated
 
 **Status:** accepted · 2026-07-09
 

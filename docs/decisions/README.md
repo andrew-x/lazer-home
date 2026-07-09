@@ -27,4 +27,5 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0016](./0016-junction-table-and-shared-enum-conventions.md) | Junction-table + shared-enum conventions (first many-to-many) | accepted |
 | [0017](./0017-project-roles-as-first-allocation-cut.md) | `project_roles` as the first cut of Allocation (simple rows, not effective-dated) | accepted |
 | [0018](./0018-skills-inline-jsonb-catalogue.md) | Skills stored inline (jsonb) from a hardcoded catalogue, not a normalized table | accepted |
-| [0019](./0019-compensation-effective-dated-import-only.md) | Compensation as effective-dated facts on `staff_employment`; import-only, carry-forward-on-blank, view-gated | accepted |
+| [0019](./0019-project-opportunity-link.md) | Project ↔ Opportunity link: optional 1:N FK on `projects`, `restrict` | accepted |
+| [0020](./0020-compensation-effective-dated-import-only.md) | Compensation as effective-dated facts on `staff_employment`; import-only, carry-forward-on-blank, view-gated | accepted |

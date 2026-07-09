@@ -1,6 +1,6 @@
 # Domain: CRM
 
-**Status: growing.** Companies, contacts, and opportunities (data, reads, create, and `/companies` + `/opportunities` UIs) all exist. Projects now exist too ([projects.md](./projects.md)), but the link from a *won* opportunity to a Project is still **proposed** — opportunities and projects are created independently, with no back-reference. Manages the companies and people we deal with (clients, partners, prospects) and the pipeline deals we're trying to win, all of which feed delivery.
+**Status: growing.** Companies, contacts, and opportunities (data, reads, create, and `/companies` + `/opportunities` UIs) all exist. Projects now exist too ([projects.md](./projects.md)), and a Project can now carry an optional back-reference to an opportunity (`projects.opportunityId`, [ADR 0019](../decisions/0019-project-opportunity-link.md)) — but the *won*-opportunity → Project **flow** is still **proposed**: nothing populates that column, so opportunities and projects are created independently. Manages the companies and people we deal with (clients, partners, prospects) and the pipeline deals we're trying to win, all of which feed delivery.
 
 ## Purpose
 
@@ -10,7 +10,7 @@ Track who we sell to and work with, and (eventually) what we're trying to win, s
 
 - **Company** (built) — an organisation we deal with. **`isPartner` is a standalone flag** marking whether the company is a partner (default `false`); it is **not** a client-vs-partner dichotomy — a company may be neither a client nor a partner, and nothing requires it to be either. We deliberately modelled this as *Company* rather than the narrower *Client* the early design assumed — see [ADR 0015](../decisions/0015-crm-company-over-client.md). Fields: `name` (required), `websiteUrl` (optional), `isPartner`. Table `companies`, id prefix `company`.
 - **Contact** (built) — a person, optionally attached to a Company. Fields: `firstName`/`lastName` (required), `email` (required, **unique**), `phone` (optional; shown as a `tel:` link in the contacts table), `companyId` (optional FK → `companies`, `onDelete: set null`), `role` (optional free-text job title, e.g. "CTO"). Table `contacts`, id prefix `contact`. Schema in `src/lib/db/crm-schema.ts`; see [../data-model.md](../data-model.md).
-- **Opportunity** (built) — a pipeline deal that always belongs to a Company. Fields: `name` (required), required `companyId` (FK → `companies`, **`onDelete: restrict`** — a company with live opportunities can't be deleted, unlike its optional/set-null contacts), `source` + `status` (pgEnums), optional free-text `nextSteps`. Table `opportunities`, id prefix `opp`. Its people are modelled with **four junction tables** (see below): related `contacts`, `owners` (→ `staff`), and referral sources split into `source_contacts` and `source_staff`. A *won* Opportunity will (proposed) produce a Project.
+- **Opportunity** (built) — a pipeline deal that always belongs to a Company. Fields: `name` (required), required `companyId` (FK → `companies`, **`onDelete: restrict`** — a company with live opportunities can't be deleted, unlike its optional/set-null contacts), `source` + `status` (pgEnums), optional free-text `nextSteps`. Table `opportunities`, id prefix `opp`. Its people are modelled with **four junction tables** (see below): related `contacts`, `owners` (→ `staff`), and referral sources split into `source_contacts` and `source_staff`. A *won* Opportunity will (proposed flow) produce a Project; the link column already lives on the **project** side (`projects.opportunityId`, nullable FK → `opportunities`, `onDelete: restrict`, **1:N** — one opportunity → many projects), so a delete of an opportunity with live projects is blocked. See [ADR 0019](../decisions/0019-project-opportunity-link.md).
   - **`source`** (`opportunity_source`): `inbound`, `farming`, `extension`, `change_request`, `staff_referral`, `contact_referral`.
   - **`status`** (`opportunity_status`): `maturing`, `lead`, `qualifying`, `scoping`, `closing`, `closed_lost`, `closed_won`.
   - Both enum value tuples are declared **once** in `src/actions/crm/createOpportunity.schema.ts` (a pure, client-importable module — no `db`/drizzle) and imported by *both* the `pgEnum` in `crm-schema.ts` and the zod schema, so there's one source of truth. Display labels live in `src/components/crm/opportunity-display.ts`.
@@ -35,16 +35,16 @@ Track who we sell to and work with, and (eventually) what we're trying to win, s
 ## Key flows
 
 - **Pipeline management** (built) — create Opportunities and set their `status` through the pipeline (`maturing` → `lead` → … → `closed_won`/`closed_lost`). Create only today; status changes are set at creation (edit/progression UI is a follow-up).
-- **Won → Project handoff** _(proposed)_ — winning an Opportunity (`status = closed_won`) will create/link the Project that delivery staffs and bills against. This is the seam between CRM and the rest of the system; keep the link explicit. The Project entity now exists ([projects.md](./projects.md)), but nothing wires a won opportunity to one yet — projects are created standalone.
+- **Won → Project handoff** _(flow proposed; link column built)_ — winning an Opportunity (`status = closed_won`) will create/link the Project that delivery staffs and bills against. This is the seam between CRM and the rest of the system; keep the link explicit. The Project entity and the `projects.opportunityId` FK now exist ([projects.md](./projects.md), [ADR 0019](../decisions/0019-project-opportunity-link.md)), but nothing wires a won opportunity to a project yet — projects are created standalone and the column stays null.
 
 ## Connects to
 
 - **Staff** — an opportunity's `owners` and referral `source_staff` are `staff` rows (FK, cascade). This is the first CRM ↔ staff link.
-- **Projects** — a project belongs to a `companies` row (required FK, `restrict`); the won-Opportunity → Project link is the proposed seam. See [projects.md](./projects.md).
+- **Projects** — a project belongs to a `companies` row (required FK, `restrict`) and may optionally link back to an `opportunities` row (`projects.opportunityId`, nullable FK, `restrict`, 1:N). The column is built but unpopulated; the won-Opportunity → Project *flow* is the proposed seam. See [projects.md](./projects.md), [ADR 0019](../decisions/0019-project-opportunity-link.md).
 - **Allocations / Timesheets** via the Project a won Opportunity will create (proposed).
 - See [../data-model.md](../data-model.md) and [../flows.md](../flows.md).
 
 ## Open questions
 
 - Probability/weighting per status and pipeline revenue forecasting (value × probability) — not modelled; opportunities carry no monetary value field yet.
-- **Edit/delete** — only create + read exist for all three entities (companies, contacts, opportunities). Note the `onDelete: restrict` on `opportunities.companyId` means a company-delete flow must handle live opportunities.
+- **Edit/delete** — only create + read exist for all three entities (companies, contacts, opportunities). Note the `onDelete: restrict` on `opportunities.companyId` means a company-delete flow must handle live opportunities, and the `restrict` on `projects.opportunityId` means an **opportunity**-delete flow must handle live projects linked to it.
