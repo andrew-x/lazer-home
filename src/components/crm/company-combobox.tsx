@@ -17,22 +17,28 @@ type CompanyOption = { id: string; name: string };
 
 /**
  * Searchable, debounced company picker built on the Base UI Combobox. Built-in
- * filtering is disabled (`filter={null}`); results come from the `searchCompanies`
+ * filtering is disabled (`filter={null}`); results come from a `searchCompanies`
  * action keyed off the debounced input. Reports the chosen `{ id, name }` and is
  * clearable, since a contact's company is optional.
+ *
+ * `searchAction` defaults to the CRM (`crm.edit`) company search; the projects
+ * form passes its own `projects.edit`-gated search so a delivery manager can pick
+ * a company without CRM write access.
  */
 export function CompanyCombobox({
   value,
   selectedName,
   onChange,
+  searchAction = searchCompanies,
 }: {
   value: string | null;
   selectedName: string | null;
   onChange: (next: CompanyOption | null) => void;
+  searchAction?: typeof searchCompanies;
 }) {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 250);
-  const { execute, reset, result, isPending } = useAction(searchCompanies);
+  const { execute, reset, result, isPending } = useAction(searchAction);
 
   // Only search once there's something to search on; a blank query clears any
   // prior results rather than listing everything.
