@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks";
 import { IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
-import { Controller } from "react-hook-form";
+import { Controller, useWatch } from "react-hook-form";
 import { createContact } from "@/actions/crm/createContact";
 import { createContactSchema } from "@/actions/crm/createContact.schema";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
@@ -12,6 +12,7 @@ import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CompanyComboboxField } from "./company-combobox-field";
+import { ManagerComboboxField } from "./manager-combobox-field";
 
 export function AddContactDialog() {
   return (
@@ -31,9 +32,10 @@ export function AddContactDialog() {
 }
 
 function ContactForm({ onSaved }: { onSaved: () => void }) {
-  // The combobox needs the company's name to display; the form only stores the
-  // id, so we track the chosen name alongside it here.
+  // The comboboxes need the chosen entity's name to display; the form only stores
+  // ids, so we track the selected company/manager names alongside them here.
   const [companyName, setCompanyName] = useState<string | null>(null);
+  const [managerName, setManagerName] = useState<string | null>(null);
 
   const { form, action, handleSubmitWithAction } = useHookFormAction(
     createContact,
@@ -48,6 +50,8 @@ function ContactForm({ onSaved }: { onSaved: () => void }) {
           phone: "",
           companyId: null,
           role: "",
+          linkedinUrl: "",
+          managerId: null,
         },
       },
     },
@@ -56,8 +60,13 @@ function ContactForm({ onSaved }: { onSaved: () => void }) {
   const {
     register,
     control,
+    setValue,
     formState: { errors },
   } = form;
+
+  // `useWatch` (rather than `form.watch`) so the manager field reliably re-renders
+  // when the company changes — it appears only once a company is chosen.
+  const companyId = useWatch({ control, name: "companyId" });
 
   return (
     <form onSubmit={handleSubmitWithAction} className="flex flex-col gap-4">
@@ -128,6 +137,20 @@ function ContactForm({ onSaved }: { onSaved: () => void }) {
         />
       </FormField>
 
+      <FormField
+        label="LinkedIn (optional)"
+        htmlFor="contact-linkedin"
+        error={errors.linkedinUrl?.message}
+      >
+        <Input
+          id="contact-linkedin"
+          inputMode="url"
+          placeholder="linkedin.com/in/username"
+          aria-invalid={Boolean(errors.linkedinUrl)}
+          {...register("linkedinUrl")}
+        />
+      </FormField>
+
       <Controller
         control={control}
         name="companyId"
@@ -138,10 +161,36 @@ function ContactForm({ onSaved }: { onSaved: () => void }) {
             onChange={(next) => {
               field.onChange(next?.id ?? null);
               setCompanyName(next?.name ?? null);
+              // A manager is a colleague at the chosen company, so a company
+              // change invalidates any prior manager selection.
+              setValue("managerId", null);
+              setManagerName(null);
             }}
           />
         )}
       />
+
+      {companyId ? (
+        <Controller
+          control={control}
+          name="managerId"
+          render={({ field }) => (
+            <ManagerComboboxField
+              // Remount when the company changes so the picker's search state
+              // can't linger with the previous company's contacts (managerId is
+              // cleared alongside, so there's nothing to preserve across a switch).
+              key={companyId}
+              companyId={companyId}
+              value={field.value ?? null}
+              selectedName={managerName}
+              onChange={(next) => {
+                field.onChange(next?.id ?? null);
+                setManagerName(next?.name ?? null);
+              }}
+            />
+          )}
+        />
+      ) : null}
 
       <FormDialogFooter
         serverError={action.result.serverError}

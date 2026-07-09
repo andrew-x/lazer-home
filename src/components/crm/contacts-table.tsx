@@ -1,3 +1,4 @@
+import { IconBrandLinkedin } from "@tabler/icons-react";
 import type { ContactRow } from "@/actions/crm/getContactsPage";
 import {
   Table,
@@ -26,6 +27,8 @@ export function ContactsTable({ rows }: { rows: ContactRow[] }) {
           <TableHead>Phone</TableHead>
           <TableHead>Role</TableHead>
           <TableHead>Company</TableHead>
+          <TableHead>Manager</TableHead>
+          <TableHead>LinkedIn</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -59,6 +62,26 @@ export function ContactsTable({ rows }: { rows: ContactRow[] }) {
             </TableCell>
             <TableCell>
               {contact.companyName ?? (
+                <span className="text-muted-foreground">—</span>
+              )}
+            </TableCell>
+            <TableCell>
+              {contact.managerName ?? (
+                <span className="text-muted-foreground">—</span>
+              )}
+            </TableCell>
+            <TableCell>
+              {contact.linkedinUrl ? (
+                <a
+                  href={contact.linkedinUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+                >
+                  <IconBrandLinkedin className="size-4" />
+                  Profile
+                </a>
+              ) : (
                 <span className="text-muted-foreground">—</span>
               )}
             </TableCell>
