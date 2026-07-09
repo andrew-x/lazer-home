@@ -1,5 +1,5 @@
 {
-  "id": "26b2d483-0dda-4873-95ed-d0ac716ed9c9",
+  "id": "3b82ab21-7b80-4a98-8580-0585a646ef31",
   "prevId": "ad2e61d5-5e2e-473a-85b4-fee42d940ee2",
   "version": "7",
   "dialect": "postgresql",
@@ -859,144 +859,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.feedback": {
-      "name": "feedback",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "from_staff_id": {
-          "name": "from_staff_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "to_staff_id": {
-          "name": "to_staff_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rating": {
-          "name": "rating",
-          "type": "feedback_rating",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "context": {
-          "name": "context",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "keep_doing": {
-          "name": "keep_doing",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "stop_doing": {
-          "name": "stop_doing",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "start_doing": {
-          "name": "start_doing",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "other": {
-          "name": "other",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "message_to_recipient": {
-          "name": "message_to_recipient",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "feedback_to_staff_idx": {
-          "name": "feedback_to_staff_idx",
-          "columns": [
-            {
-              "expression": "to_staff_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "feedback_from_staff_idx": {
-          "name": "feedback_from_staff_idx",
-          "columns": [
-            {
-              "expression": "from_staff_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "feedback_from_staff_id_staff_id_fk": {
-          "name": "feedback_from_staff_id_staff_id_fk",
-          "tableFrom": "feedback",
-          "tableTo": "staff",
-          "columnsFrom": ["from_staff_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "feedback_to_staff_id_staff_id_fk": {
-          "name": "feedback_to_staff_id_staff_id_fk",
-          "tableFrom": "feedback",
-          "tableTo": "staff",
-          "columnsFrom": ["to_staff_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.project_delivery_managers": {
       "name": "project_delivery_managers",
       "schema": "",
@@ -1212,12 +1074,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "opportunity_id": {
-          "name": "opportunity_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -1231,6 +1087,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "opportunity_id": {
+          "name": "opportunity_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -1494,6 +1356,37 @@
           "notNull": true,
           "default": false
         },
+        "base": {
+          "name": "base",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hourly_rate": {
+          "name": "hourly_rate",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "guaranteed_bonus": {
+          "name": "guaranteed_bonus",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "discretionary_bonus": {
+          "name": "discretionary_bonus",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "currency",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -1641,21 +1534,15 @@
         "closed_won"
       ]
     },
-    "public.feedback_rating": {
-      "name": "feedback_rating",
-      "schema": "public",
-      "values": [
-        "ABOVE_AND_BEYOND",
-        "TOP_PERFORMER",
-        "SOLID_CONTRIBUTOR",
-        "MINOR_MISSES",
-        "NEEDS_IMPROVEMENT"
-      ]
-    },
     "public.billable_type": {
       "name": "billable_type",
       "schema": "public",
       "values": ["HUB", "GLOBAL"]
+    },
+    "public.currency": {
+      "name": "currency",
+      "schema": "public",
+      "values": ["CAD", "USD", "GBP", "EUR"]
     },
     "public.employment_type": {
       "name": "employment_type",

@@ -71,7 +71,7 @@ never leave the server for unauthorized callers. Three tiers:
 reviewer as recipient). This is a **known,
 accepted limitation for the first slice**, not an oversight — locking down
 managers reading their own feedback (e.g. routing it through the limited recipient
-view) is flagged **future work**. See [ADR 0020](../decisions/0020-feedback-privacy-tiers.md).
+view) is flagged **future work**. See [ADR 0023](../decisions/0023-feedback-privacy-tiers.md).
 
 ### Actions & UI
 

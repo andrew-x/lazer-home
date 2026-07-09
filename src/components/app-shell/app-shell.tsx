@@ -20,13 +20,13 @@ export function AppShell({
   return (
     <SidebarProvider defaultOpen={false}>
       <AppSidebar isLocal={isLocal} />
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <header className="flex h-14 shrink-0 items-center border-b px-4 md:px-6">
           <h1 className="font-heading text-sm font-medium">
             {titleForPath(pathname)}
           </h1>
         </header>
-        <div className="flex-1 p-4 md:p-6">{children}</div>
+        <div className="min-w-0 flex-1 p-4 md:p-6">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );

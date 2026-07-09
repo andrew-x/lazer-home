@@ -1,15 +1,12 @@
 import type { Metadata } from "next";
 import { getCompaniesPage } from "@/actions/crm/getCompaniesPage";
-import { getContactsPage } from "@/actions/crm/getContactsPage";
 import { AddCompanyDialog } from "@/components/crm/add-company-dialog";
-import { AddContactDialog } from "@/components/crm/add-contact-dialog";
 import { CompaniesTable } from "@/components/crm/companies-table";
-import { ContactsTable } from "@/components/crm/contacts-table";
 import { PaginationControls } from "@/components/crm/pagination-controls";
 import { getCurrentUser } from "@/lib/auth";
 import { userHasPermission } from "@/lib/permissions";
 
-export const metadata: Metadata = { title: "Companies & Contacts" };
+export const metadata: Metadata = { title: "Companies" };
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -26,9 +23,8 @@ export default async function CompaniesPage({
 }) {
   const params = await searchParams;
 
-  const [companies, contacts, user] = await Promise.all([
+  const [companies, user] = await Promise.all([
     getCompaniesPage(parsePage(params.companiesPage)),
-    getContactsPage(parsePage(params.contactsPage)),
     getCurrentUser(),
   ]);
 
@@ -38,17 +34,17 @@ export default async function CompaniesPage({
     <div className="mx-auto flex max-w-5xl flex-col gap-10">
       <header>
         <h2 className="font-heading text-xl font-semibold tracking-tight">
-          Companies &amp; Contacts
+          Companies
         </h2>
         <p className="text-sm text-muted-foreground">
-          The clients and partners we work with, and the people at them.
+          The clients and partners we work with.
         </p>
       </header>
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-4">
           <h3 className="font-heading text-base font-semibold tracking-tight">
-            Companies
+            All companies
           </h3>
           {canEdit ? <AddCompanyDialog /> : null}
         </div>
@@ -60,25 +56,6 @@ export default async function CompaniesPage({
             paramKey="companiesPage"
             page={companies.page}
             pageCount={companies.pageCount}
-          />
-        </div>
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-4">
-          <h3 className="font-heading text-base font-semibold tracking-tight">
-            Contacts
-          </h3>
-          {canEdit ? <AddContactDialog /> : null}
-        </div>
-        <div className="rounded-md border">
-          <ContactsTable rows={contacts.rows} />
-          <PaginationControls
-            basePath="/companies"
-            params={params}
-            paramKey="contactsPage"
-            page={contacts.page}
-            pageCount={contacts.pageCount}
           />
         </div>
       </section>

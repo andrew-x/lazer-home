@@ -1,4 +1,4 @@
-# 0020 — Peer feedback: privacy tiers as read-projections; giving open, review gated
+# 0023 — Peer feedback: privacy tiers as read-projections; giving open, review gated
 
 **Status:** accepted · 2026-07-09
 

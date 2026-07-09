@@ -4,11 +4,13 @@ import {
   date,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
+import { CURRENCY } from "@/lib/currency";
 import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
 import type { StaffSkill } from "@/lib/skills";
 import { user } from "./auth-schema";
@@ -50,6 +52,10 @@ export const employmentTypeEnum = pgEnum("employment_type", [
 ]);
 
 export const billableTypeEnum = pgEnum("billable_type", ["HUB", "GLOBAL"]);
+
+// Compensation currency. Values live in `@/lib/currency` (a pure module) so this
+// pgEnum, the import's zod enum, and display formatting share one source of truth.
+export const currencyEnum = pgEnum("currency", [...CURRENCY]);
 
 export const ptoTypeEnum = pgEnum("pto_type", [
   "VACATION",
@@ -127,6 +133,22 @@ export const staffEmployment = pgTable("staff_employment", {
   // management for it. Set in-app (never derived from the CSV import), so import
   // preserves it across re-syncs rather than resetting it. See ADR 0007.
   isManagement: boolean().notNull().default(false),
+
+  // Compensation facts. Required for staff going forward. Effective-dated like the
+  // rest of this table: a comp change spawns a new row. Populated by the CSV import
+  // only; carried forward (never wiped) whenever a non-comp change spawns a new row.
+  // `discretionaryBonus` isn't imported yet, so it defaults to 0.
+  base: numeric({ precision: 12, scale: 2, mode: "number" }).notNull(),
+  hourlyRate: numeric({ precision: 12, scale: 2, mode: "number" }).notNull(),
+  guaranteedBonus: numeric({
+    precision: 12,
+    scale: 2,
+    mode: "number",
+  }).notNull(),
+  discretionaryBonus: numeric({ precision: 12, scale: 2, mode: "number" })
+    .notNull()
+    .default(0),
+  currency: currencyEnum().notNull(),
 
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp()

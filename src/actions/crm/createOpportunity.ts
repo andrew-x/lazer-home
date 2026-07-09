@@ -1,5 +1,6 @@
 "use server";
 
+import { max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { secureActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
@@ -35,6 +36,12 @@ export const createOpportunity = secureActionClient
     const sourceStaffIds = [...new Set(parsedInput.sourceStaffIds)];
 
     await db.transaction(async (tx) => {
+      // `position` is a single global ordering; a new opportunity goes after
+      // everything, so it lands at the end of whichever board column it's in.
+      const [{ maxPosition }] = await tx
+        .select({ maxPosition: max(opportunities.position) })
+        .from(opportunities);
+
       await tx.insert(opportunities).values({
         id: opportunityId,
         name: parsedInput.name,
@@ -42,6 +49,7 @@ export const createOpportunity = secureActionClient
         source: parsedInput.source,
         status: parsedInput.status,
         nextSteps: parsedInput.nextSteps,
+        position: (maxPosition ?? 0) + 1,
       });
 
       if (contactIds.length > 0) {

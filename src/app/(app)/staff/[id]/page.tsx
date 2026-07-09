@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { canEditStaff } from "@/actions/staff/canEditStaff";
+import { canViewCompensation } from "@/actions/staff/canViewCompensation";
 import { getStaffAvatar } from "@/actions/staff/getStaffAvatar";
 import { getStaffHistory } from "@/actions/staff/getStaffHistory";
 import { getStaffProfile } from "@/actions/staff/getStaffProfile";
@@ -25,9 +26,8 @@ export default async function StaffProfilePage({
 }) {
   const { id } = await params;
 
-  const [profile, history, pto, imageUrl, user] = await Promise.all([
+  const [profile, pto, imageUrl, user] = await Promise.all([
     getStaffProfile(id),
-    getStaffHistory(id),
     getStaffPto(id),
     getStaffAvatar(id),
     getCurrentUser(),
@@ -35,8 +35,13 @@ export default async function StaffProfilePage({
 
   if (!profile) notFound();
 
-  // UI affordance only — the edit actions still enforce server-side.
-  const canEdit = user ? await canEditStaff(user, id) : false;
+  // UI affordances only — the actions/reads still enforce server-side.
+  const [canEdit, canViewComp] = user
+    ? await Promise.all([canEditStaff(user, id), canViewCompensation(user, id)])
+    : [false, false];
+
+  // Comp entries are gated at the read (HistorySheet is a client component).
+  const history = await getStaffHistory(id, canViewComp);
 
   return (
     <ProfileView
@@ -46,6 +51,7 @@ export default async function StaffProfilePage({
       history={history}
       pto={pto}
       canEdit={canEdit}
+      canViewCompensation={canViewComp}
     />
   );
 }

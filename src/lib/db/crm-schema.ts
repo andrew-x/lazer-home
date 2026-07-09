@@ -1,6 +1,8 @@
 import type { InferSelectModel } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
+  doublePrecision,
   index,
   pgEnum,
   pgTable,
@@ -47,6 +49,15 @@ export const contacts = pgTable("contacts", {
   companyId: text().references(() => companies.id, { onDelete: "set null" }),
   // Optional free-text job title, e.g. "CTO".
   role: text(),
+  // Optional LinkedIn profile URL.
+  linkedinUrl: text(),
+  // Optional "managed by" link to another contact. Self-referential; set-null on
+  // delete so removing a manager just clears their reports' pointer (mirrors the
+  // optional-FK convention on `companyId`). By our rules a manager is always a
+  // contact at the same company (enforced in `createContact`).
+  managerId: text().references((): AnyPgColumn => contacts.id, {
+    onDelete: "set null",
+  }),
 
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp()
@@ -64,26 +75,34 @@ export const opportunityStatusEnum = pgEnum("opportunity_status", [
   ...OPPORTUNITY_STATUSES,
 ]);
 
-export const opportunities = pgTable("opportunities", {
-  id: text().primaryKey(),
-  name: text().notNull(),
-  // A deal always belongs to a company. `restrict`: a company with live
-  // opportunities can't be deleted (unlike contacts, whose company is optional
-  // and set-null). See docs/domains/crm.md.
-  companyId: text()
-    .notNull()
-    .references(() => companies.id, { onDelete: "restrict" }),
-  source: opportunitySourceEnum().notNull(),
-  status: opportunityStatusEnum().notNull(),
-  // Free-text "what happens next" note.
-  nextSteps: text(),
+export const opportunities = pgTable(
+  "opportunities",
+  {
+    id: text().primaryKey(),
+    name: text().notNull(),
+    // A deal always belongs to a company. `restrict`: a company with live
+    // opportunities can't be deleted (unlike contacts, whose company is optional
+    // and set-null). See docs/domains/crm.md.
+    companyId: text()
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    source: opportunitySourceEnum().notNull(),
+    status: opportunityStatusEnum().notNull(),
+    // Free-text "what happens next" note.
+    nextSteps: text(),
+    // Manual kanban ordering: a global fractional index. Cards in a column
+    // (a status or a collapsed group) sort by `position` asc; a drag writes the
+    // midpoint between its new neighbors, so a move updates just this one row.
+    position: doublePrecision().notNull().default(0),
 
-  createdAt: timestamp().defaultNow().notNull(),
-  updatedAt: timestamp()
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
-});
+    createdAt: timestamp().defaultNow().notNull(),
+    updatedAt: timestamp()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [index("opportunities_status_position_idx").on(t.status, t.position)],
+);
 
 // Junction tables link an opportunity to its people. Surrogate `text` PK (repo
 // convention — no composite PKs), a unique on the FK pair for set-semantics, and

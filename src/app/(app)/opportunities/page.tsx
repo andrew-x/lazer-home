@@ -1,37 +1,22 @@
 import type { Metadata } from "next";
-import { getOpportunitiesPage } from "@/actions/crm/getOpportunitiesPage";
+import { getOpportunitiesBoard } from "@/actions/crm/getOpportunitiesBoard";
 import { AddOpportunityDialog } from "@/components/crm/add-opportunity-dialog";
-import { OpportunitiesTable } from "@/components/crm/opportunities-table";
-import { PaginationControls } from "@/components/crm/pagination-controls";
+import { OpportunityBoard } from "@/components/crm/opportunity-board";
 import { getCurrentUser } from "@/lib/auth";
 import { userHasPermission } from "@/lib/permissions";
 
 export const metadata: Metadata = { title: "Opportunities" };
 
-type SearchParams = Record<string, string | string[] | undefined>;
-
-/** Parse a 1-based page query param; anything invalid falls back to page 1. */
-function parsePage(value: string | string[] | undefined): number {
-  const parsed = Number(Array.isArray(value) ? value[0] : value);
-  return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1;
-}
-
-export default async function OpportunitiesPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>;
-}) {
-  const params = await searchParams;
-
-  const [opportunities, user] = await Promise.all([
-    getOpportunitiesPage(parsePage(params.opportunitiesPage)),
+export default async function OpportunitiesPage() {
+  const [cards, user] = await Promise.all([
+    getOpportunitiesBoard(),
     getCurrentUser(),
   ]);
 
   const canEdit = user ? userHasPermission(user, { crm: ["edit"] }) : false;
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-10">
+    <div className="flex flex-col gap-10">
       <header>
         <h2 className="font-heading text-xl font-semibold tracking-tight">
           Opportunities
@@ -48,16 +33,7 @@ export default async function OpportunitiesPage({
           </h3>
           {canEdit ? <AddOpportunityDialog /> : null}
         </div>
-        <div className="rounded-md border">
-          <OpportunitiesTable rows={opportunities.rows} />
-          <PaginationControls
-            basePath="/opportunities"
-            params={params}
-            paramKey="opportunitiesPage"
-            page={opportunities.page}
-            pageCount={opportunities.pageCount}
-          />
-        </div>
+        <OpportunityBoard cards={cards} canEdit={canEdit} />
       </section>
     </div>
   );

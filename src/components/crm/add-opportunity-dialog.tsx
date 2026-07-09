@@ -19,6 +19,7 @@ import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { OPPORTUNITY_GROUPS } from "@/lib/opportunity-pipeline";
 import { CompanyComboboxField } from "./company-combobox-field";
 import { ContactsComboboxField } from "./contacts-combobox-field";
 import {
@@ -26,6 +27,20 @@ import {
   type EntityOption,
 } from "./entity-multi-combobox";
 import { SOURCE_LABELS, STATUS_LABELS } from "./opportunity-display";
+
+// The status dropdown lists every leaf status; qualify substatuses with their
+// group (e.g. "Scoping – Awaiting info") since there's no column context here.
+const STATUS_SELECT_LABELS: Record<OpportunityStatus, string> =
+  Object.fromEntries(
+    OPPORTUNITY_GROUPS.flatMap((group) =>
+      group.statuses.map((status) => [
+        status,
+        group.statuses.length > 1
+          ? `${group.label} – ${STATUS_LABELS[status]}`
+          : STATUS_LABELS[status],
+      ]),
+    ),
+  ) as Record<OpportunityStatus, string>;
 
 type OpportunityFormValues = {
   name: string;
@@ -258,7 +273,7 @@ function OpportunityForm({ onSaved }: { onSaved: () => void }) {
           render={({ field, fieldState }) => (
             <EnumSelect
               options={OPPORTUNITY_STATUSES}
-              labels={STATUS_LABELS}
+              labels={STATUS_SELECT_LABELS}
               placeholder="Select a status"
               value={field.value}
               invalid={Boolean(fieldState.error)}
