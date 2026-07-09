@@ -29,3 +29,4 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0018](./0018-skills-inline-jsonb-catalogue.md) | Skills stored inline (jsonb) from a hardcoded catalogue, not a normalized table | accepted |
 | [0019](./0019-project-opportunity-link.md) | Project ↔ Opportunity link: optional 1:N FK on `projects`, `restrict` | accepted |
 | [0020](./0020-compensation-effective-dated-import-only.md) | Compensation as effective-dated facts on `staff_employment`; import-only, carry-forward-on-blank, view-gated | accepted |
+| [0021](./0021-opportunity-pipeline-groups-and-fractional-ordering.md) | Opportunity pipeline: status groups in code + single global fractional ordering | accepted |

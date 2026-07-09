@@ -29,8 +29,8 @@ will copy. Two sub-questions arose:
   the index.
 - **`index(...)` on the non-owning FK** (the contact/staff side) for reverse lookups.
 - **Both FKs `onDelete: "cascade"`** — a link row is meaningless without both endpoints.
-- Read the "other side" with a **single grouped follow-up query** over the current
-  page's ids (see `getOpportunitiesPage`), never per-row — avoid N+1.
+- Read the "other side" with a **single grouped follow-up query** over the relevant
+  ids (see `getOpportunitiesBoard`), never per-row — avoid N+1.
 
 **Shared enums:** declare each value tuple **once** in a pure, client-importable module
 (`src/actions/crm/createOpportunity.schema.ts` — no `db`/drizzle import) and import it
