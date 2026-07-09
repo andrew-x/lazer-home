@@ -36,25 +36,29 @@ export function DatePicker({
   value,
   onChange,
   placeholder = "Pick a date",
+  className,
 }: {
   id?: string;
   value: string | null;
   onChange: (value: string | null) => void;
   placeholder?: string;
+  /** Applied to the root; pass `w-full` to fill the field slot. The trigger
+   * grows to fill, so it stretches when the root is full-width and stays
+   * content-sized otherwise. */
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="flex items-center gap-1">
+    <div className={cn("flex items-center gap-1", className)}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           render={
             <Button
               id={id}
               variant="outline"
-              size="sm"
               className={cn(
-                "justify-start gap-2 font-normal",
+                "flex-1 justify-start gap-2 font-normal",
                 !value && "text-muted-foreground",
               )}
             >

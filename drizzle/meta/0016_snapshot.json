@@ -1,6 +1,6 @@
 {
-  "id": "77025535-4ef5-4654-ad3d-c8bb41938962",
-  "prevId": "8a941820-e661-4a41-8ed8-5e7f36009d79",
+  "id": "347f7003-acc0-4bb3-b943-874c180d1815",
+  "prevId": "77025535-4ef5-4654-ad3d-c8bb41938962",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1182,6 +1182,13 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
+        },
+        "skills": {
+          "name": "skills",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
         },
         "join_date": {
           "name": "join_date",

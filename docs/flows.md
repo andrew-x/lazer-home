@@ -4,8 +4,8 @@
 
 ## The core lifecycle: sell → staff → deliver → bill → review
 
-1. **Sell (CRM).** An Opportunity progresses through the pipeline for a Company (clients + partners; see [domains/crm.md](./domains/crm.md)). When *won*, it produces a Project. _(Companies/contacts/opportunities are built — create + read; the won-Opportunity → Project link is still proposed, as Project isn't built.)_
-2. **Staff (Allocations).** Managers allocate People to the Project over a date range, using StaffProfile skills and current availability/utilization to choose who.
+1. **Sell (CRM).** An Opportunity progresses through the pipeline for a Company (clients + partners; see [domains/crm.md](./domains/crm.md)). When *won*, it produces a Project. _(Companies/contacts/opportunities are built — create + read. Projects are built too (create + read; see [domains/projects.md](./domains/projects.md)), but the won-Opportunity → Project link is still proposed — projects are created standalone.)_
+2. **Staff (Allocations).** Managers allocate People to the Project over a date range, using StaffProfile skills and current availability/utilization to choose who. _(First cut built: a Project carries delivery managers + `project_roles` staffing lines — see [domains/projects.md](./domains/projects.md), [domains/allocations.md](./domains/allocations.md). Capacity planning / conflict handling is still proposed.)_
 3. **Deliver + log (Timesheets).** Allocated People log TimeEntries against the Project. Entries roll into Timesheets for approval.
 4. **Bill (Timesheets → finance).** Approved billable hours × charge rate become the billing basis. Margin = (charge − cost) × hours.
 5. **Review (Performance).** During a ReviewCycle, a Person's project work and utilization inform their PerformanceReview and Goals.
@@ -93,6 +93,8 @@ How companies, contacts, and opportunities are created (read side is in [domains
 3. **Write.** `createCompany` inserts one row; `createOpportunity` writes the opportunity plus its people-link junctions in one `db.transaction` (deduping id lists). Related entities are created via their own actions first, so opportunity/contact creation only consumes existing ids (inline "create company/contact" dialogs cover that from within the forms). Each revalidates its list path (`/companies` or `/opportunities`).
 
 > **Contacts have no route of their own** — they render in a second section on the `/companies` page (it's titled "Companies & Contacts"), so `AddContactDialog` and the contacts table live there.
+
+> **Projects** (`/projects`) follow the same gated-create pattern, gated on **`projects.edit`** instead of `crm.edit`: the page hides `AddProjectDialog` unless `userHasPermission(user, { projects: ["edit"] })`, and `createProject` declares `metadata({ permission: { projects: ["edit"] } })`. Its form is a `useFieldArray` roles repeater; `createProject` writes the project + delivery-manager junction rows + role rows in one transaction. Its staff/company pickers use `projects.edit`-gated search actions sharing the query bodies in `src/actions/shared/entitySearch.ts`. See [domains/projects.md](./domains/projects.md).
 
 ## The technical request flow (every mutation)
 

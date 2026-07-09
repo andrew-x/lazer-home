@@ -27,6 +27,7 @@ export const statement = {
   staff: ["edit"], // edit another staff member's profile
   pto: ["review"], // view aggregated PTO summaries of other staff
   crm: ["edit"], // add/edit CRM companies, contacts & opportunities (reads are open)
+  projects: ["edit"], // add/edit projects & their staffing (reads are open)
 } as const;
 
 export const ac = createAccessControl(statement);
@@ -37,19 +38,21 @@ export const ac = createAccessControl(statement);
  */
 export const roles = {
   user: ac.newRole({}),
-  "delivery-manager": ac.newRole({}),
+  "delivery-manager": ac.newRole({ projects: ["edit"] }),
   finance: ac.newRole({}),
   sales: ac.newRole({ crm: ["edit"] }),
   manager: ac.newRole({
     staff: ["edit"],
     pto: ["review"],
     crm: ["edit"],
+    projects: ["edit"],
   }),
   // Admin keeps the business perms AND the Better Auth admin-plugin perms.
   admin: ac.newRole({
     staff: ["edit"],
     pto: ["review"],
     crm: ["edit"],
+    projects: ["edit"],
     ...adminAc.statements,
   }),
 } as const;

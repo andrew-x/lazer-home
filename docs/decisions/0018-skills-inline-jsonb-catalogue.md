@@ -21,7 +21,7 @@ speculative need.
 
 Store skills **inline on the `staff` row** as a single `jsonb` column
 `skills` (`StaffSkill[]` = `{ name, level }[]`, **NOT NULL default `[]`**) —
-the schema's **first jsonb/array column** (`drizzle/0015_big_venus.sql`).
+the schema's **first jsonb/array column** (`drizzle/0016_demonic_rick_jones.sql`).
 
 - **Catalogue lives in code**, not the DB: `src/lib/skills.ts` is the single source
   of truth for the pickable skills — a curated catalogue of ~307 skills across 9

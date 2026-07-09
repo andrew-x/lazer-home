@@ -13,17 +13,11 @@ import {
   type OpportunityStatus,
 } from "@/actions/crm/createOpportunity.schema";
 import { searchStaff } from "@/actions/crm/searchStaff";
+import { EnumSelect } from "@/components/form/enum-select";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
 import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { CompanyComboboxField } from "./company-combobox-field";
 import { ContactsComboboxField } from "./contacts-combobox-field";
@@ -76,59 +70,6 @@ const FIELD_FOR_ISSUE: Record<
   nextSteps: "nextSteps",
   status: "status",
 };
-
-/** Narrow the Select's raw string to a known enum member (or `""`). */
-function toEnumValue<T extends string>(
-  options: readonly T[],
-  raw: string | null,
-): T | "" {
-  return raw && (options as readonly string[]).includes(raw) ? (raw as T) : "";
-}
-
-/** A `Select` over a string enum with human labels and a muted placeholder. */
-function EnumSelect<T extends string>({
-  options,
-  labels,
-  placeholder,
-  value,
-  onValueChange,
-  invalid,
-}: {
-  options: readonly T[];
-  labels: Record<T, string>;
-  placeholder: string;
-  value: T | "";
-  onValueChange: (value: T | "") => void;
-  invalid?: boolean;
-}) {
-  return (
-    <Select
-      value={value || null}
-      onValueChange={(next: string | null) =>
-        onValueChange(toEnumValue(options, next))
-      }
-    >
-      <SelectTrigger className="w-full" aria-invalid={invalid}>
-        <SelectValue>
-          {(v: string | null) =>
-            v ? (
-              labels[v as T]
-            ) : (
-              <span className="text-muted-foreground">{placeholder}</span>
-            )
-          }
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((option) => (
-          <SelectItem key={option} value={option}>
-            {labels[option]}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
 
 export function AddOpportunityDialog() {
   return (

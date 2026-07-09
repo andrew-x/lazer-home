@@ -19,18 +19,45 @@ const MATRIX: Record<
     staffEdit: boolean;
     ptoReview: boolean;
     crmEdit: boolean;
+    projectsEdit: boolean;
   }
 > = {
-  user: { staffEdit: false, ptoReview: false, crmEdit: false },
+  user: {
+    staffEdit: false,
+    ptoReview: false,
+    crmEdit: false,
+    projectsEdit: false,
+  },
   "delivery-manager": {
     staffEdit: false,
     ptoReview: false,
     crmEdit: false,
+    projectsEdit: true,
   },
-  finance: { staffEdit: false, ptoReview: false, crmEdit: false },
-  sales: { staffEdit: false, ptoReview: false, crmEdit: true },
-  manager: { staffEdit: true, ptoReview: true, crmEdit: true },
-  admin: { staffEdit: true, ptoReview: true, crmEdit: true },
+  finance: {
+    staffEdit: false,
+    ptoReview: false,
+    crmEdit: false,
+    projectsEdit: false,
+  },
+  sales: {
+    staffEdit: false,
+    ptoReview: false,
+    crmEdit: true,
+    projectsEdit: false,
+  },
+  manager: {
+    staffEdit: true,
+    ptoReview: true,
+    crmEdit: true,
+    projectsEdit: true,
+  },
+  admin: {
+    staffEdit: true,
+    ptoReview: true,
+    crmEdit: true,
+    projectsEdit: true,
+  },
 };
 
 describe("permission matrix", () => {
@@ -52,6 +79,12 @@ describe("permission matrix", () => {
     test(`${role}: crm.edit === ${expected.crmEdit}`, () => {
       expect(userHasPermission({ role }, { crm: ["edit"] })).toBe(
         expected.crmEdit,
+      );
+    });
+
+    test(`${role}: projects.edit === ${expected.projectsEdit}`, () => {
+      expect(userHasPermission({ role }, { projects: ["edit"] })).toBe(
+        expected.projectsEdit,
       );
     });
   }
