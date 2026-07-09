@@ -44,6 +44,16 @@ open: any signed-in user can browse companies, contacts, opportunities, and proj
   search actions (`src/actions/projects/searchStaff.ts` / `searchCompanies.ts`), so a
   delivery manager can staff a project without gaining CRM write access.
 
+One capability gates a **read** rather than a write:
+
+- **`feedback.review`** — view *all* peer feedback in full (the manager/admin
+  oversight view). It does NOT gate *giving* feedback: any active staff member may
+  leave feedback about any other active staff member (enforced by the
+  `authorizeFeedbackCreate` hook, not a capability). And it is not needed to read
+  feedback *about yourself* — recipients always see the limited recipient view
+  (message + giver name only), and givers always see the feedback they wrote. See
+  [performance domain](performance.md).
+
 ## Roles → permissions (the canonical matrix — THIS IS THE CONTRACT)
 
 Single role per user. Roles are stored in `user.role` (text). This table is the
@@ -52,14 +62,14 @@ via `bun test`) and audited by `/audit-rbac`. **Changing it requires changing th
 `roles` map in `permissions.ts`, the test, and this table in lockstep** — that
 friction is deliberate.
 
-| Role               | `staff.edit` | `pto.review` | `crm.edit` | `projects.edit` | Notes                                |
-| ------------------ | :----------: | :----------: | :--------: | :-------------: | ------------------------------------ |
-| `user`             |      –       |      –       |     –      |        –        | default role for new users           |
-| `delivery-manager` |      –       |      –       |     –      |        ✓        | owns projects & staffing             |
-| `finance`          |      –       |      –       |     –      |        –        | no business perms yet                |
-| `sales`            |      –       |      –       |     ✓      |        –        | CRM data entry                       |
-| `manager`          |      ✓       |      ✓       |     ✓      |        ✓        | all defined business perms           |
-| `admin`            |      ✓       |      ✓       |     ✓      |        ✓        | + Better Auth admin-plugin user/session perms (`...adminAc.statements`) |
+| Role               | `staff.edit` | `pto.review` | `crm.edit` | `projects.edit` | `feedback.review` | Notes                                |
+| ------------------ | :----------: | :----------: | :--------: | :-------------: | :---------------: | ------------------------------------ |
+| `user`             |      –       |      –       |     –      |        –        |         –         | default role for new users           |
+| `delivery-manager` |      –       |      –       |     –      |        ✓        |         –         | owns projects & staffing             |
+| `finance`          |      –       |      –       |     –      |        –        |         –         | no business perms yet                |
+| `sales`            |      –       |      –       |     ✓      |        –        |         –         | CRM data entry                       |
+| `manager`          |      ✓       |      ✓       |     ✓      |        ✓        |         ✓         | all defined business perms           |
+| `admin`            |      ✓       |      ✓       |     ✓      |        ✓        |         ✓         | + Better Auth admin-plugin user/session perms (`...adminAc.statements`) |
 
 `DEFAULT_ROLE = "user"`, mirrored by `admin({ defaultRole: "user" })` in `auth.ts`.
 `adminRoles: ["admin"]` lists which roles may call the admin-plugin endpoints.

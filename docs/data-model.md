@@ -2,7 +2,7 @@
 
 The five domains share one model. This is the most important doc for understanding the system: changes here ripple everywhere.
 
-**Status: mostly proposed.** Entities and relationships below are the intended design. Realized so far: the **Person** anchor (auth `user`), the **Staff profiles** tables (`staff`, `staff_employment`, `staff_pto`), the **CRM** slice (`companies`, `contacts`, `opportunities` + four opportunity junction tables), and the **Projects** slice (`projects`, `project_delivery_managers`, `project_roles` — the first cut of Allocation) — see "What's realized in code".
+**Status: mostly proposed.** Entities and relationships below are the intended design. Realized so far: the **Person** anchor (auth `user`), the **Staff profiles** tables (`staff`, `staff_employment`, `staff_pto`), the **CRM** slice (`companies`, `contacts`, `opportunities` + four opportunity junction tables), the **Projects** slice (`projects`, `project_delivery_managers`, `project_roles` — the first cut of Allocation), and the first **Performance** slice (`feedback` — peer feedback) — see "What's realized in code".
 
 ## What's realized in code
 
@@ -23,7 +23,9 @@ The five domains share one model. This is the most important doc for understandi
   - **`project_delivery_managers`** — junction (many staff per project) following the CRM junction convention exactly ([ADR 0016](./decisions/0016-junction-table-and-shared-enum-conventions.md)): surrogate `text` PK, `unique(projectId, staffId)`, index on `staffId`, both FKs cascade.
   - **`project_roles`** — a **staffing line** (NOT a pure junction — carries columns): `projectId` → projects (cascade), `staffId` → staff (**restrict**), `lineOfBusiness` (shared enum), `startDate`/`endDate` (date, string mode), `hoursPerDay` (numeric(4,2), default 8). Indexed on both FKs; **no `unique` on the FK pair** (a person can hold multiple lines on one project). This is the **first concrete cut of the proposed Allocation entity** — stored as simple mutable rows, *not* effective-dated history. See [domains/projects.md](./domains/projects.md), [domains/allocations.md](./domains/allocations.md), and [ADR 0017](./decisions/0017-project-roles-as-first-allocation-cut.md).
   - Open reads + `projects.edit`-gated create + `/projects` page exist; create + read only (no edit/delete). See [domains/projects.md](./domains/projects.md).
-- Nothing else (the won-Opportunity → Project *flow* — the `opportunityId` FK exists but is never populated — a full Allocation domain, TimeEntry, reviews) exists yet. (The legacy `staff_profile` example table was deleted — `drizzle/0003_tranquil_miek.sql` drops it.)
+- **Performance slice** (`src/lib/db/performance-schema.ts`, barrelled by `schema.ts`; migration `drizzle/0018_wild_beast.sql`):
+  - **`feedback`** — peer feedback: `fromStaffId` + `toStaffId` (both FK → `staff.id`, both `onDelete: cascade`, each indexed), a 5-point `feedback_rating` pgEnum, required `context`, optional `keepDoing`/`stopDoing`/`startDoing` (at least one required, enforced in the zod schema)/`other`, and an optional `messageToRecipient`. **Point-in-time** (an immutable event log — NOT effective-dated; a person may leave feedback about the same person repeatedly, so **no unique `(from, to)`**). The rating enum's values/labels live in the pure, client-importable **`src/lib/feedback-rating.ts`** (same single-source pattern as `line-of-business.ts`). Privacy is enforced **by the read projections, not the table** — three tiers (give = open to active staff via the `authorizeFeedbackCreate` hook; recipient sees only giver name + `messageToRecipient`; `feedback.review` = manager/admin see all in full). See [domains/performance.md](./domains/performance.md) and [ADR 0020](./decisions/0020-feedback-privacy-tiers.md).
+- Nothing else (the won-Opportunity → Project *flow* — the `opportunityId` FK exists but is never populated — a full Allocation domain, TimeEntry, review cycles/goals) exists yet. (The legacy `staff_profile` example table was deleted — `drizzle/0003_tranquil_miek.sql` drops it.)
 
 ## Core entities
 
@@ -36,7 +38,8 @@ The five domains share one model. This is the most important doc for understandi
 - **Project** (a.k.a. engagement) — billable work for a Company. The hub linking CRM ↔ delivery. _(Realized (first slice) — `projects`; required `companyId`, `onDelete: restrict`; optional `opportunityId` (FK → `opportunities`, `restrict`, 1:N); delivery managers via `project_delivery_managers`. Create + read only; the `opportunityId` column exists but the won-Opportunity → Project handoff flow is still proposed.)_ See [domains/projects.md](./domains/projects.md).
 - **Allocation** — a _time-ranged_ assignment of a Person to a Project (start/end, % or hours, project role). The heart of capacity planning. _(Partially realized — `project_roles` is the first cut: a staff member on a line of business for a date range at N hours/day. Simple rows, not effective-dated history yet — see [ADR 0017](./decisions/0017-project-roles-as-first-allocation-cut.md).)_
 - **TimeEntry** — hours a Person logged against a Project (and optionally a task) on a date; billable or not. Aggregated into **Timesheets** for approval.
-- **ReviewCycle / PerformanceReview / Goal** — periodic assessment of a Person, often informed by their project work and utilization.
+- **Feedback** — point-in-time peer feedback from one Person about another (rating + context + keep/stop/start + optional recipient message). _(Realized — `feedback`; staff↔staff, tiered visibility — see [domains/performance.md](./domains/performance.md) and [ADR 0020](./decisions/0020-feedback-privacy-tiers.md).)_
+- **ReviewCycle / PerformanceReview / Goal** — periodic assessment of a Person, often informed by their project work and utilization. _(Proposed.)_
 
 ## How the domains connect
 
@@ -54,7 +57,8 @@ user (auth)    ──0:1── Person (staff)      via staff.userId (nullable, u
 Person (staff) ──< StaffEmployment         (effective-dated; latest = current)
 Person (staff) ──< StaffPto                 (leave spans; reduce capacity)
 Person (staff) ──inline── Skill[]           (jsonb column on staff, not a table)
-Person  ──< PerformanceReview              (within a ReviewCycle)
+Person (staff) ──< Feedback >── Person (staff)  (peer feedback; from/to, both FK cascade) [realized]
+Person  ──< PerformanceReview              (within a ReviewCycle) [proposed]
 ```
 
 ## Key derived concepts

@@ -28,3 +28,4 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0017](./0017-project-roles-as-first-allocation-cut.md) | `project_roles` as the first cut of Allocation (simple rows, not effective-dated) | accepted |
 | [0018](./0018-skills-inline-jsonb-catalogue.md) | Skills stored inline (jsonb) from a hardcoded catalogue, not a normalized table | accepted |
 | [0019](./0019-project-opportunity-link.md) | Project ↔ Opportunity link: optional 1:N FK on `projects`, `restrict` | accepted |
+| [0020](./0020-feedback-privacy-tiers.md) | Peer feedback: privacy tiers as read-projections; giving open, review gated | accepted |
