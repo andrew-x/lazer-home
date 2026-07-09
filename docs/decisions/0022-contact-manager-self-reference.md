@@ -1,4 +1,4 @@
-# 0020 — Contact "managed by": self-referential FK, same-company invariant enforced app-side
+# 0022 — Contact "managed by": self-referential FK, same-company invariant enforced app-side
 
 **Status:** accepted · 2026-07-09
 
@@ -19,7 +19,7 @@ shared `optionalUrl` schema (same as company `websiteUrl`), shown as an external
 
 Add a nullable **`managerId`** column to `contacts` (`src/lib/db/crm-schema.ts`), a
 self-referential FK → `contacts.id` with **`onDelete: "set null"`**. Migration
-`drizzle/0018_modern_the_santerians.sql`. Drizzle needs an explicit
+`drizzle/0021_glamorous_goliath.sql`. Drizzle needs an explicit
 `(): AnyPgColumn => contacts.id` reference callback to type the self-reference.
 
 - **Self-referential single FK, `set null`.** Mirrors the optional-FK convention on

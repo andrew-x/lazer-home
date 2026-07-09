@@ -5,6 +5,7 @@ export {
   isNonEmptyString,
   normalizeKey,
   parseDate,
+  parseNumber,
   US_DATE,
 } from "./parse";
 export type { ParsedDate, RawRow, SkippedRow, TransformResult } from "./types";

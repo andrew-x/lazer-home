@@ -40,6 +40,18 @@ export function parseDate(input: string): ParsedDate {
   return { ok: false };
 }
 
+/**
+ * Parse a money/number cell, tolerant of currency symbols, thousands separators,
+ * and surrounding whitespace (e.g. "CA$150,000.00" → 150000). Blank, unparseable,
+ * or negative → null.
+ */
+export function parseNumber(input: string): number | null {
+  const cleaned = input.replace(/[^0-9.-]/g, "");
+  if (!cleaned) return null;
+  const value = Number(cleaned);
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
 /** Type-guard for `.filter(...)` that drops falsy sentinels (false, ""). */
 export const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;

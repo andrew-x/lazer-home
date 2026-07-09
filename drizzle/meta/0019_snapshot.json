@@ -1,6 +1,6 @@
 {
-  "id": "3b82ab21-7b80-4a98-8580-0585a646ef31",
-  "prevId": "ad2e61d5-5e2e-473a-85b4-fee42d940ee2",
+  "id": "3afc1094-d092-4f72-a931-06e9a108d395",
+  "prevId": "3b82ab21-7b80-4a98-8580-0585a646ef31",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1360,32 +1360,33 @@
           "name": "base",
           "type": "numeric(12, 2)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "hourly_rate": {
           "name": "hourly_rate",
           "type": "numeric(12, 2)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "guaranteed_bonus": {
           "name": "guaranteed_bonus",
           "type": "numeric(12, 2)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "discretionary_bonus": {
           "name": "discretionary_bonus",
           "type": "numeric(12, 2)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": 0
         },
         "currency": {
           "name": "currency",
           "type": "currency",
           "typeSchema": "public",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",

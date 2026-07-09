@@ -22,18 +22,34 @@ import type {
   StaffImportPlan,
 } from "@/lib/staff-import/types";
 
+const MONEY_FIELDS = new Set<ComparableField>([
+  "base",
+  "hourlyRate",
+  "guaranteedBonus",
+  "discretionaryBonus",
+]);
+
 function formatValue(field: ComparableField, value: unknown): string {
   if (value === null || value === "") return "—";
   if (field === "isActive" || field === "isBillable")
     return value ? "Yes" : "No";
   if (field === "employmentType" && typeof value === "string")
     return humanizeEnum(value);
+  if (MONEY_FIELDS.has(field) && typeof value === "number")
+    return new Intl.NumberFormat().format(value);
   return String(value);
 }
 
 function dashCell({ getValue }: { getValue: () => unknown }) {
   const value = getValue();
   return value == null || value === "" ? "—" : String(value);
+}
+
+function moneyCell({ getValue }: { getValue: () => unknown }) {
+  const value = getValue();
+  return typeof value === "number"
+    ? new Intl.NumberFormat().format(value)
+    : "—";
 }
 
 const NEW_COLUMNS: ColumnDef<NormalizedStaff>[] = [
@@ -52,6 +68,14 @@ const NEW_COLUMNS: ColumnDef<NormalizedStaff>[] = [
     header: "Billable",
     cell: ({ getValue }) => (getValue<boolean>() ? "Yes" : "No"),
   },
+  { accessorKey: "base", header: "Base", cell: moneyCell },
+  { accessorKey: "hourlyRate", header: "Hourly rate", cell: moneyCell },
+  {
+    accessorKey: "guaranteedBonus",
+    header: "Guaranteed bonus",
+    cell: moneyCell,
+  },
+  { accessorKey: "currency", header: "Currency", cell: dashCell },
   { accessorKey: "joinDate", header: "Join date", cell: dashCell },
   {
     accessorKey: "terminationDate",
@@ -66,6 +90,10 @@ const UPDATE_FIELDS: { field: ComparableField; header: string }[] = [
   { field: "lineOfBusiness", header: "Line of business" },
   { field: "employmentType", header: "Type" },
   { field: "isBillable", header: "Billable" },
+  { field: "base", header: "Base" },
+  { field: "hourlyRate", header: "Hourly rate" },
+  { field: "guaranteedBonus", header: "Guaranteed bonus" },
+  { field: "currency", header: "Currency" },
   { field: "joinDate", header: "Join date" },
   { field: "terminationDate", header: "Termination" },
   { field: "isActive", header: "Active" },
@@ -165,7 +193,7 @@ export function StaffImport() {
       fileCard={{
         title: "1. Choose a CSV file",
         description:
-          "A Rippling export with columns: Employee - ID, Employee, Work email, Start date, Last day of work, Department, Teams, Title, Employment type name.",
+          "A Rippling export with columns: Employee - ID, Employee, Work email, Start date, Last day of work, Department, Teams, Title, Employment type name, Annual base remuneration, Hourly Rate, Target annual bonus, Compensation currency.",
       }}
       planBadges={PLAN_BADGES}
       sections={SECTIONS}

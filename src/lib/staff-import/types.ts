@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CURRENCY, type Currency } from "@/lib/currency";
 import {
   type billableTypeEnum,
   employmentTypeEnum,
@@ -42,6 +43,13 @@ export const normalizedStaffSchema = z
     employmentType: z.enum(EMPLOYMENT_TYPE),
     isBillable: z.boolean(),
     utilizationTarget: z.number().int().min(0).max(100),
+    // Compensation. Required for staff going forward — the transform skips any row
+    // missing a comp value. `discretionaryBonus` isn't imported yet (defaults to 0).
+    base: z.number().nonnegative(),
+    hourlyRate: z.number().nonnegative(),
+    guaranteedBonus: z.number().nonnegative(),
+    discretionaryBonus: z.number().nonnegative(),
+    currency: z.enum(CURRENCY),
   })
   .refine((r) => r.terminationDate === null || !r.isActive, {
     message: "isActive must be false when a termination date is set",
@@ -71,6 +79,11 @@ export const EMPLOYMENT_FIELDS = [
   "employmentType",
   "isBillable",
   "utilizationTarget",
+  "base",
+  "hourlyRate",
+  "guaranteedBonus",
+  "discretionaryBonus",
+  "currency",
 ] as const satisfies readonly (keyof NormalizedStaff)[];
 
 export type ComparableField =
@@ -90,6 +103,13 @@ export type ComparableSnapshot = {
   employmentType: EmploymentType | null;
   isBillable: boolean | null;
   utilizationTarget: number | null;
+  // Compensation. Carried forward when a CSV cell is blank so a partial re-sync
+  // never clears it (see plan.ts).
+  base: number | null;
+  hourlyRate: number | null;
+  guaranteedBonus: number | null;
+  discretionaryBonus: number | null;
+  currency: Currency | null;
   // Set in-app, never from the CSV; carried forward when import spawns a new
   // employment row so a re-sync never resets them.
   isManagement: boolean | null;

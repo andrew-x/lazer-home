@@ -15,14 +15,28 @@ export const OPPORTUNITY_SOURCES = [
   "contact_referral",
 ] as const;
 
+/**
+ * The pipeline stages, as flat leaf statuses in strict pipeline order. Array
+ * index === pipeline position — both the pgEnum and the group structure in
+ * `@/lib/opportunity-pipeline` derive from this order, so keep them ordered.
+ * Grouping (Scoping/Allocating/Closing hold several substatuses; the rest are
+ * single-status groups) lives in `opportunity-pipeline.ts`.
+ */
 export const OPPORTUNITY_STATUSES = [
   "maturing",
   "lead",
   "qualifying",
+  "scoping_awaiting_info",
   "scoping",
-  "closing",
-  "closed_lost",
+  "scoping_reviewing",
+  "allocating_awaiting_profiles",
+  "allocating_introing_profiles",
+  "negotiating",
+  "closing_awaiting_contracts",
+  "closing_redlining",
+  "closing_awaiting_signatures",
   "closed_won",
+  "closed_lost",
 ] as const;
 
 export type OpportunitySource = (typeof OPPORTUNITY_SOURCES)[number];
