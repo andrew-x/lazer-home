@@ -24,8 +24,12 @@ Store skills **inline on the `staff` row** as a single `jsonb` column
 the schema's **first jsonb/array column** (`drizzle/0015_big_venus.sql`).
 
 - **Catalogue lives in code**, not the DB: `src/lib/skills.ts` is the single source
-  of truth for the pickable skills (`SKILL_CATEGORIES`, grouped by discipline —
-  currently PLACEHOLDER values), the flat `ALL_SKILLS` / `SKILL_TO_CATEGORY` helpers,
+  of truth for the pickable skills — a curated catalogue of ~307 skills across 9
+  top-level **dimensions** (Type of Work, Languages, Frameworks, Hosting, Databases,
+  DevOps & CI/CD, Testing, Tools, Compliance). Several dimensions carry sub-groups in
+  the source purely to organize it, but the picker groups **one level deep, by
+  dimension**: `SKILL_CATEGORIES` flattens each dimension's sub-groups into a single
+  ordered skill list. Plus the flat `ALL_SKILLS` / `SKILL_TO_CATEGORY` helpers,
   the fixed 3-value proficiency set (`PROFICIENCY_LEVELS` =
   `senior`/`intermediate`/`learning`, ordered most→least, with `PROFICIENCY_LABELS`),
   and the `StaffSkill` type.
@@ -48,8 +52,9 @@ the schema's **first jsonb/array column** (`drizzle/0015_big_venus.sql`).
   index on the jsonb or migrate to the normalized `skill` + join tables this ADR
   deferred. The catalogue-in-code shape makes such a migration mechanical.
 - **Taxonomy changes require a code deploy** (edit `src/lib/skills.ts`), not a DB
-  write or admin UI. Acceptable while the list is small and curator == developer; the
-  PLACEHOLDER set is expected to be swapped for a curated one the same way.
+  write or admin UI. Acceptable while the curator == developer; the curated catalogue
+  is edited in-place there (add/remove skills, reorder — order is preserved in the
+  picker).
 - **Proficiency is a fixed 3-value set** baked into code, not a per-org configurable
   scale. Changing it is a code + (if display order matters) UI change.
 - **No per-skill history / effective dating** — unlike `staff_employment`, the skills
@@ -66,7 +71,7 @@ the schema's **first jsonb/array column** (`drizzle/0015_big_venus.sql`).
   history nothing yet consumes. Explicitly the fallback if cross-entity skill use
   appears.
 - **A `skill` catalogue table (DB-driven), skills still inline** — rejected: adds a
-  table and a read just to move the placeholder list out of code, with no query benefit
+  table and a read just to move the catalogue out of code, with no query benefit
   while usage is inline-only. A code array is simpler and type-safe end to end.
 - **Free-text skills (no catalogue)** — rejected: no consistency, would make any future
   matching/reporting hopeless. A closed catalogue keeps the door open cheaply.
