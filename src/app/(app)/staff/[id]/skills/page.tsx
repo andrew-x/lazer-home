@@ -40,6 +40,7 @@ export default async function EditSkillsPage({
           variant="ghost"
           size="sm"
           className="-ml-2 w-fit"
+          nativeButton={false}
           render={<Link href={`/staff/${id}`} />}
         >
           <IconArrowLeft />

@@ -192,6 +192,7 @@ export function ProfileView({
               <Button
                 variant="ghost"
                 size="sm"
+                nativeButton={false}
                 render={<Link href={`/staff/${staffId}/skills`} />}
               >
                 <IconPencil />
