@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { getCompaniesPage } from "@/actions/crm/getCompaniesPage";
-import { AddCompanyDialog } from "@/components/crm/add-company-dialog";
-import { CompaniesTable } from "@/components/crm/companies-table";
+import { getContactsPage } from "@/actions/crm/getContactsPage";
+import { AddContactDialog } from "@/components/crm/add-contact-dialog";
+import { ContactsTable } from "@/components/crm/contacts-table";
 import { PaginationControls } from "@/components/crm/pagination-controls";
 import { getCurrentUser } from "@/lib/auth";
 import { userHasPermission } from "@/lib/permissions";
 
-export const metadata: Metadata = { title: "Companies" };
+export const metadata: Metadata = { title: "Contacts" };
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -16,15 +16,15 @@ function parsePage(value: string | string[] | undefined): number {
   return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1;
 }
 
-export default async function CompaniesPage({
+export default async function ContactsPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
 
-  const [companies, user] = await Promise.all([
-    getCompaniesPage(parsePage(params.companiesPage)),
+  const [contacts, user] = await Promise.all([
+    getContactsPage(parsePage(params.contactsPage)),
     getCurrentUser(),
   ]);
 
@@ -34,28 +34,28 @@ export default async function CompaniesPage({
     <div className="mx-auto flex max-w-5xl flex-col gap-10">
       <header>
         <h2 className="font-heading text-xl font-semibold tracking-tight">
-          Companies
+          Contacts
         </h2>
         <p className="text-sm text-muted-foreground">
-          The clients and partners we work with.
+          The people at the companies we work with.
         </p>
       </header>
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-4">
           <h3 className="font-heading text-base font-semibold tracking-tight">
-            All companies
+            All contacts
           </h3>
-          {canEdit ? <AddCompanyDialog /> : null}
+          {canEdit ? <AddContactDialog /> : null}
         </div>
         <div className="rounded-md border">
-          <CompaniesTable rows={companies.rows} />
+          <ContactsTable rows={contacts.rows} />
           <PaginationControls
-            basePath="/companies"
+            basePath="/contacts"
             params={params}
-            paramKey="companiesPage"
-            page={companies.page}
-            pageCount={companies.pageCount}
+            paramKey="contactsPage"
+            page={contacts.page}
+            pageCount={contacts.pageCount}
           />
         </div>
       </section>

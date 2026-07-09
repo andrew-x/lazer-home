@@ -1,5 +1,6 @@
 import type { InferSelectModel } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   doublePrecision,
   index,
@@ -48,6 +49,15 @@ export const contacts = pgTable("contacts", {
   companyId: text().references(() => companies.id, { onDelete: "set null" }),
   // Optional free-text job title, e.g. "CTO".
   role: text(),
+  // Optional LinkedIn profile URL.
+  linkedinUrl: text(),
+  // Optional "managed by" link to another contact. Self-referential; set-null on
+  // delete so removing a manager just clears their reports' pointer (mirrors the
+  // optional-FK convention on `companyId`). By our rules a manager is always a
+  // contact at the same company (enforced in `createContact`).
+  managerId: text().references((): AnyPgColumn => contacts.id, {
+    onDelete: "set null",
+  }),
 
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp()

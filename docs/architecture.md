@@ -35,7 +35,7 @@ src/
     layout.tsx               root layout (fonts, metadata, TooltipProvider, Toaster)
     (app)/                   AUTHENTICATED route group — layout.tsx gates via getCurrentUser() + getCurrentStaff()→redirect, renders AppShell
       layout.tsx page.tsx profile/page.tsx settings/page.tsx loading.tsx
-      staff/page.tsx staff/[id]/page.tsx  companies/page.tsx ("Companies & Contacts") opportunities/page.tsx projects/page.tsx
+      staff/page.tsx staff/[id]/page.tsx  companies/page.tsx contacts/page.tsx opportunities/page.tsx projects/page.tsx
     (onboarding)/            POST-LOGIN block screen — authed users without a usable staff record (no group layout; page self-gates)
       profile-setup/page.tsx
     (auth)/login/page.tsx    PUBLIC route group (Google sign-in)
