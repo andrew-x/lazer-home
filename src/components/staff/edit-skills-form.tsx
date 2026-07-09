@@ -31,9 +31,6 @@ import {
 } from "@/lib/skills";
 import { cn } from "@/lib/utils";
 
-// How many available skills to show before "Show more" (when not searching).
-const COLLAPSED_LIMIT = 14;
-
 /**
  * Dedicated skills editor. Pick a level with the "Add as" selector, then click
  * skills from the searchable catalogue to add them at that level — so a batch of
@@ -52,7 +49,6 @@ export function EditSkillsForm({
   const [skills, setSkills] = useState<StaffSkill[]>(initialSkills);
   const [addAs, setAddAs] = useState<ProficiencyLevel>("intermediate");
   const [query, setQuery] = useState("");
-  const [expanded, setExpanded] = useState(false);
 
   const { execute, isExecuting, result } = useAction(updateStaffSkills, {
     onSuccess: () => router.push(`/staff/${staffId}`),
@@ -96,12 +92,7 @@ export function EditSkillsForm({
         addAs={addAs}
         onAddAsChange={setAddAs}
         query={query}
-        onQueryChange={(next) => {
-          setQuery(next);
-          setExpanded(false);
-        }}
-        expanded={expanded}
-        onToggleExpanded={() => setExpanded((value) => !value)}
+        onQueryChange={setQuery}
         onAdd={addSkill}
       />
 
@@ -246,8 +237,6 @@ function AddSkills({
   onAddAsChange,
   query,
   onQueryChange,
-  expanded,
-  onToggleExpanded,
   onAdd,
 }: {
   chosen: Set<string>;
@@ -255,13 +244,11 @@ function AddSkills({
   onAddAsChange: (level: ProficiencyLevel) => void;
   query: string;
   onQueryChange: (next: string) => void;
-  expanded: boolean;
-  onToggleExpanded: () => void;
   onAdd: (name: string) => void;
 }) {
   const trimmed = query.trim().toLowerCase();
 
-  // Available (unchosen) skills, filtered by the search, grouped by discipline.
+  // Available (unchosen) skills, filtered by the search, grouped by dimension.
   const groups = useMemo(
     () =>
       SKILL_CATEGORIES.map((category) => ({
@@ -275,27 +262,7 @@ function AddSkills({
     [chosen, trimmed],
   );
 
-  const totalAvailable = groups.reduce(
-    (n, group) => n + group.skills.length,
-    0,
-  );
-  // Collapse only when browsing (no search) and the user hasn't expanded.
-  const collapse = trimmed === "" && !expanded;
-
-  // When collapsed, take skills across groups in order up to the limit.
-  const displayGroups: { name: string; skills: string[] }[] = [];
-  let budget = COLLAPSED_LIMIT;
-  for (const group of groups) {
-    if (collapse && budget <= 0) break;
-    const skills = collapse ? group.skills.slice(0, budget) : [...group.skills];
-    budget -= skills.length;
-    displayGroups.push({ name: group.name, skills });
-  }
-  const hiddenCount = collapse
-    ? totalAvailable - Math.min(COLLAPSED_LIMIT, totalAvailable)
-    : 0;
-  const canCollapse =
-    !collapse && trimmed === "" && totalAvailable > COLLAPSED_LIMIT;
+  const totalAvailable = groups.reduce((n, group) => n + group.skills.length, 0);
 
   return (
     <section className="flex flex-col gap-3 rounded-lg border p-4">
@@ -340,7 +307,7 @@ function AddSkills({
         </p>
       ) : (
         <div className="flex flex-col gap-3">
-          {displayGroups.map((group) => (
+          {groups.map((group) => (
             <div key={group.name} className="flex flex-col gap-1.5">
               <span className="text-xs text-muted-foreground">
                 {group.name}
@@ -362,25 +329,6 @@ function AddSkills({
               </div>
             </div>
           ))}
-
-          {hiddenCount > 0 ? (
-            <button
-              type="button"
-              onClick={onToggleExpanded}
-              className="w-fit text-xs font-medium text-primary hover:underline"
-            >
-              Show {hiddenCount} more
-            </button>
-          ) : null}
-          {canCollapse ? (
-            <button
-              type="button"
-              onClick={onToggleExpanded}
-              className="w-fit text-xs font-medium text-primary hover:underline"
-            >
-              Show fewer
-            </button>
-          ) : null}
         </div>
       )}
     </section>
