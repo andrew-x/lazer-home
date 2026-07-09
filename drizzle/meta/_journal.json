@@ -127,6 +127,13 @@
       "when": 1783602900403,
       "tag": "0017_amused_corsair",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783609931434,
+      "tag": "0018_wild_beast",
+      "breakpoints": true
     }
   ]
 }
