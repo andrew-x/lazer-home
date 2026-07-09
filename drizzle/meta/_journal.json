@@ -124,8 +124,29 @@
     {
       "idx": 17,
       "version": "7",
-      "when": 1783607172498,
-      "tag": "0017_material_korvac",
+      "when": 1783602900403,
+      "tag": "0017_amused_corsair",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783604823681,
+      "tag": "0018_gorgeous_celestials",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1783607162853,
+      "tag": "0019_dry_captain_cross",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1783610162355,
+      "tag": "0020_unique_blue_shield",
       "breakpoints": true
     }
   ]

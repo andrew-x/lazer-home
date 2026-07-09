@@ -8,7 +8,7 @@ import {
   timestamp,
   unique,
 } from "drizzle-orm/pg-core";
-import { companies } from "./crm-schema";
+import { companies, opportunities } from "./crm-schema";
 import { lineOfBusinessEnum, staff } from "./staff-schema";
 
 // ---------------------------------------------------------------------------
@@ -21,21 +21,32 @@ import { lineOfBusinessEnum, staff } from "./staff-schema";
 // See docs/data-model.md and docs/domains/projects.md.
 // ---------------------------------------------------------------------------
 
-export const projects = pgTable("projects", {
-  id: text().primaryKey(),
-  name: text().notNull(),
-  // A project always belongs to a company. `restrict`: a company with live
-  // projects can't be deleted (mirrors opportunities).
-  companyId: text()
-    .notNull()
-    .references(() => companies.id, { onDelete: "restrict" }),
+export const projects = pgTable(
+  "projects",
+  {
+    id: text().primaryKey(),
+    name: text().notNull(),
+    // A project always belongs to a company. `restrict`: a company with live
+    // projects can't be deleted (mirrors opportunities).
+    companyId: text()
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    // A project may originate from a CRM opportunity — optional, so a project
+    // can also be created standalone. `restrict`: an opportunity with live
+    // projects can't be deleted (mirrors companyId). One opportunity can have
+    // many projects; a project relates to at most one opportunity.
+    opportunityId: text().references(() => opportunities.id, {
+      onDelete: "restrict",
+    }),
 
-  createdAt: timestamp().defaultNow().notNull(),
-  updatedAt: timestamp()
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
-});
+    createdAt: timestamp().defaultNow().notNull(),
+    updatedAt: timestamp()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [index("projects_opportunity_idx").on(t.opportunityId)],
+);
 
 // Delivery managers: many staff per project. Junction table following the CRM
 // convention — surrogate `text` PK, a unique on the FK pair for set-semantics,

@@ -1,4 +1,4 @@
-# 0019 — Opportunity pipeline: status groups in code + single global fractional ordering
+# 0021 — Opportunity pipeline: status groups in code + single global fractional ordering
 
 **Status:** accepted · 2026-07-09
 

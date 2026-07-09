@@ -3,9 +3,11 @@ import {
   getField,
   isNonEmptyString,
   parseDate,
+  parseNumber,
   type RawRow,
   type TransformResult,
 } from "@/lib/csv-import";
+import { normalizeCurrency } from "@/lib/currency";
 import type {
   EmploymentType,
   LineOfBusiness,
@@ -125,6 +127,30 @@ export function transformRows(
       return;
     }
 
+    // Compensation is required for staff going forward. Skip any row missing a
+    // value (0 is allowed; blank/invalid/negative parses to null). `discretionaryBonus`
+    // isn't imported yet, so it defaults to 0.
+    const base = parseNumber(getField(raw, "Annual base remuneration"));
+    const hourlyRate = parseNumber(getField(raw, "Hourly Rate"));
+    const guaranteedBonus = parseNumber(getField(raw, "Target annual bonus"));
+    const currency = normalizeCurrency(getField(raw, "Compensation currency"));
+    const missingComp = [
+      base === null && "Annual base remuneration",
+      hourlyRate === null && "Hourly Rate",
+      guaranteedBonus === null && "Target annual bonus",
+      currency === null && "Compensation currency",
+    ].filter(isNonEmptyString);
+    // Disjunction (not `missingComp.length`) so TS narrows each value to non-null.
+    if (
+      base === null ||
+      hourlyRate === null ||
+      guaranteedBonus === null ||
+      currency === null
+    ) {
+      skip(`Missing/invalid compensation: ${missingComp.join(", ")}`);
+      return;
+    }
+
     const role = deriveRole(department, getField(raw, "Title"));
     const isBillable = !NON_BILLABLE_ROLES.has(role);
 
@@ -142,6 +168,11 @@ export function transformRows(
       ),
       isBillable,
       utilizationTarget: isBillable ? 100 : 0,
+      base,
+      hourlyRate,
+      guaranteedBonus,
+      discretionaryBonus: 0,
+      currency,
     });
   });
 

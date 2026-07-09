@@ -19,7 +19,6 @@ import { formatDate } from "@/lib/format";
 
 const CATEGORY_LABEL: Record<HistoryCategory, string> = {
   EMPLOYMENT: "Employment",
-  COMPENSATION: "Compensation",
   ALLOCATION: "Allocation",
 };
 

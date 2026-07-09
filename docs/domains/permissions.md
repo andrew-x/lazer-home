@@ -28,11 +28,13 @@ so the admin role retains its built-in capabilities) with two business resources
 
 - **`staff.edit`** — edit *another* staff member's profile. (Editing your *own*
   linked profile never needs it — see ownership rule below.)
+- **`staff.viewCompensation`** — view *another* staff member's compensation (on
+  their profile and in the history feed). (Your own compensation is always visible.)
 - **`pto.review`** — view the aggregated PTO summary of *other* staff. (Your own
   PTO is always visible.)
 
-Both semantics are about acting on **other** people; the owner path is always
-allowed without a permission.
+These semantics are about acting on / viewing **other** people; the owner path is
+always allowed without a permission.
 
 Two flat write capabilities gate data entry (no ownership dimension). Reads are
 open: any signed-in user can browse companies, contacts, opportunities, and projects.
@@ -52,14 +54,14 @@ via `bun test`) and audited by `/audit-rbac`. **Changing it requires changing th
 `roles` map in `permissions.ts`, the test, and this table in lockstep** — that
 friction is deliberate.
 
-| Role               | `staff.edit` | `pto.review` | `crm.edit` | `projects.edit` | Notes                                |
-| ------------------ | :----------: | :----------: | :--------: | :-------------: | ------------------------------------ |
-| `user`             |      –       |      –       |     –      |        –        | default role for new users           |
-| `delivery-manager` |      –       |      –       |     –      |        ✓        | owns projects & staffing             |
-| `finance`          |      –       |      –       |     –      |        –        | no business perms yet                |
-| `sales`            |      –       |      –       |     ✓      |        –        | CRM data entry                       |
-| `manager`          |      ✓       |      ✓       |     ✓      |        ✓        | all defined business perms           |
-| `admin`            |      ✓       |      ✓       |     ✓      |        ✓        | + Better Auth admin-plugin user/session perms (`...adminAc.statements`) |
+| Role               | `staff.edit` | `staff.viewCompensation` | `pto.review` | `crm.edit` | `projects.edit` | Notes                                |
+| ------------------ | :----------: | :----------------------: | :----------: | :--------: | :-------------: | ------------------------------------ |
+| `user`             |      –       |            –             |      –       |     –      |        –        | default role for new users           |
+| `delivery-manager` |      –       |            –             |      –       |     –      |        ✓        | owns projects & staffing             |
+| `finance`          |      –       |            ✓             |      –       |     –      |        –        | views staff compensation             |
+| `sales`            |      –       |            –             |      –       |     ✓      |        –        | CRM data entry                       |
+| `manager`          |      ✓       |            ✓             |      ✓       |     ✓      |        ✓        | all defined business perms           |
+| `admin`            |      ✓       |            ✓             |      ✓       |     ✓      |        ✓        | + Better Auth admin-plugin user/session perms (`...adminAc.statements`) |
 
 `DEFAULT_ROLE = "user"`, mirrored by `admin({ defaultRole: "user" })` in `auth.ts`.
 `adminRoles: ["admin"]` lists which roles may call the admin-plugin endpoints.
@@ -141,6 +143,13 @@ set. The metadata schema in `src/lib/action.ts` carries `role`, `permission`, an
     bodies** (the old `// TODO: lock down` markers are gone). The hook is the real
     boundary; the UI check is never trusted alone. **Contract:** any action using it
     must take a `staffId: string` in its input.
+- **`src/actions/staff/canViewCompensation.ts`** — the comp-visibility decision
+  point (mirrors `canEditStaff`). **`canViewCompensation(user, targetStaffId):
+  Promise<boolean>`** — a user may **always** see their **own** compensation; seeing
+  anyone else's requires `staff.viewCompensation`. Because `HistorySheet` is a client
+  component, this gates comp both as a UI affordance (the profile comp card) *and* at
+  the read (`getStaffHistory` omits `COMPENSATION` entries entirely when false, so
+  salary never leaves the server for an unauthorized viewer).
 - **`src/actions/staff/getStaffPto.ts`** — self-scoping read. Own PTO always
   visible; viewing another person's aggregated PTO requires `pto.review`, else it
   returns `null` and `ProfileView` hides the section (graceful, not an error).

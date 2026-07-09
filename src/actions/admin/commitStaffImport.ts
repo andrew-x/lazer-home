@@ -57,6 +57,11 @@ export const commitStaffImport = publicActionClient
         employmentType: row.employmentType,
         isBillable: row.isBillable,
         utilizationTarget: row.utilizationTarget,
+        base: row.base,
+        hourlyRate: row.hourlyRate,
+        guaranteedBonus: row.guaranteedBonus,
+        discretionaryBonus: row.discretionaryBonus,
+        currency: row.currency,
       });
     }
 
@@ -80,6 +85,12 @@ export const commitStaffImport = publicActionClient
           employmentType: incoming.employmentType,
           isBillable: incoming.isBillable,
           utilizationTarget: incoming.utilizationTarget,
+          // Comp is required on every import row.
+          base: incoming.base,
+          hourlyRate: incoming.hourlyRate,
+          guaranteedBonus: incoming.guaranteedBonus,
+          discretionaryBonus: incoming.discretionaryBonus,
+          currency: incoming.currency,
           // isManagement and billableType aren't CSV facts — carry the current
           // values forward so a role/LoB change never silently resets them.
           isManagement: current.isManagement ?? false,

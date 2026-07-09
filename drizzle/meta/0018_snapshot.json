@@ -1,6 +1,6 @@
 {
-  "id": "ad2e61d5-5e2e-473a-85b4-fee42d940ee2",
-  "prevId": "347f7003-acc0-4bb3-b943-874c180d1815",
+  "id": "3b82ab21-7b80-4a98-8580-0585a646ef31",
+  "prevId": "ad2e61d5-5e2e-473a-85b4-fee42d940ee2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1074,12 +1074,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "opportunity_id": {
-          "name": "opportunity_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -1093,6 +1087,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "opportunity_id": {
+          "name": "opportunity_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -1356,6 +1356,37 @@
           "notNull": true,
           "default": false
         },
+        "base": {
+          "name": "base",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hourly_rate": {
+          "name": "hourly_rate",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "guaranteed_bonus": {
+          "name": "guaranteed_bonus",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "discretionary_bonus": {
+          "name": "discretionary_bonus",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "currency",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -1507,6 +1538,11 @@
       "name": "billable_type",
       "schema": "public",
       "values": ["HUB", "GLOBAL"]
+    },
+    "public.currency": {
+      "name": "currency",
+      "schema": "public",
+      "values": ["CAD", "USD", "GBP", "EUR"]
     },
     "public.employment_type": {
       "name": "employment_type",

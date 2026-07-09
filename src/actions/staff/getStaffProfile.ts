@@ -23,7 +23,15 @@ export type StaffProfile = {
   joinDate: string | null;
   employment: Pick<
     StaffEmployment,
-    "lineOfBusiness" | "role" | "employmentType" | "isBillable"
+    | "lineOfBusiness"
+    | "role"
+    | "employmentType"
+    | "isBillable"
+    | "base"
+    | "hourlyRate"
+    | "guaranteedBonus"
+    | "discretionaryBonus"
+    | "currency"
   > | null;
 };
 
@@ -64,6 +72,11 @@ export const getStaffProfile = cache(
         role: staffEmployment.role,
         employmentType: staffEmployment.employmentType,
         isBillable: staffEmployment.isBillable,
+        base: staffEmployment.base,
+        hourlyRate: staffEmployment.hourlyRate,
+        guaranteedBonus: staffEmployment.guaranteedBonus,
+        discretionaryBonus: staffEmployment.discretionaryBonus,
+        currency: staffEmployment.currency,
       })
       .from(staffEmployment)
       .where(eq(staffEmployment.staffId, staffId))

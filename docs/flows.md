@@ -4,7 +4,7 @@
 
 ## The core lifecycle: sell → staff → deliver → bill → review
 
-1. **Sell (CRM).** An Opportunity progresses through the pipeline for a Company (clients + partners; see [domains/crm.md](./domains/crm.md)). When *won*, it produces a Project. _(Companies/contacts/opportunities are built — create + read. Projects are built too (create + read; see [domains/projects.md](./domains/projects.md)), but the won-Opportunity → Project link is still proposed — projects are created standalone.)_
+1. **Sell (CRM).** An Opportunity progresses through the pipeline for a Company (clients + partners; see [domains/crm.md](./domains/crm.md)). When *won*, it produces a Project. _(Companies/contacts/opportunities are built — create + read. Projects are built too (create + read; see [domains/projects.md](./domains/projects.md)), the won-Opportunity → Project *link column* now exists (`projects.opportunityId`, [ADR 0019](./decisions/0019-project-opportunity-link.md)) but the *handoff flow* is still proposed — nothing populates it, so projects are created standalone.)_
 2. **Staff (Allocations).** Managers allocate People to the Project over a date range, using StaffProfile skills and current availability/utilization to choose who. _(First cut built: a Project carries delivery managers + `project_roles` staffing lines — see [domains/projects.md](./domains/projects.md), [domains/allocations.md](./domains/allocations.md). Capacity planning / conflict handling is still proposed.)_
 3. **Deliver + log (Timesheets).** Allocated People log TimeEntries against the Project. Entries roll into Timesheets for approval.
 4. **Bill (Timesheets → finance).** Approved billable hours × charge rate become the billing basis. Margin = (charge − cost) × hours.

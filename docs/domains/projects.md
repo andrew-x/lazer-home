@@ -4,8 +4,10 @@
 `/projects` page all exist (create + read only — no edit/delete, mirroring
 opportunities). This is the **hub linking CRM to delivery** and the first concrete
 cut of the proposed **Allocation** concept (`project_roles`). The link *from* a won
-Opportunity *to* a Project is still **proposed** — projects are created standalone
-today. Built mirroring the Opportunities feature.
+Opportunity *to* a Project now **exists at the schema level** (`projects.opportunityId`,
+[ADR 0019](../decisions/0019-project-opportunity-link.md)) but the **handoff flow is
+still proposed** — nothing populates it, so projects are created standalone today. Built
+mirroring the Opportunities feature.
 
 ## Purpose
 
@@ -18,8 +20,15 @@ delivery, allocations, timesheets, and billing.
 - **Project** (built) — billable work that **always belongs to a Company**. Fields:
   `name` (required), required `companyId` (FK → `companies`, **`onDelete: restrict`**
   — a company with live projects can't be deleted, exactly like `opportunities`),
-  timestamps. Table `projects`, id prefix `proj`. Schema in
-  `src/lib/db/projects-schema.ts` (barrelled by `src/lib/db/schema.ts`).
+  **optional `opportunityId`** (nullable FK → `opportunities`, **`onDelete: restrict`**,
+  index `projects_opportunity_idx`) — the CRM → delivery link, **1:N** (one opportunity →
+  many projects; a project relates to at most one). Optional so a project can be created
+  standalone; **restrict** mirrors `companyId`. **Schema-only** today — no flow sets it,
+  and the same-company invariant (linked opportunity's company == project's company) is
+  **not** enforced (a future app-level check). See
+  [ADR 0019](../decisions/0019-project-opportunity-link.md). Plus timestamps. Table
+  `projects`, id prefix `proj`. Schema in `src/lib/db/projects-schema.ts` (barrelled by
+  `src/lib/db/schema.ts`).
 - **Project delivery managers** (built) — the staff who run a project. A **junction
   table** `project_delivery_managers` (many staff per project) following the CRM
   junction convention exactly ([ADR 0016](../decisions/0016-junction-table-and-shared-enum-conventions.md)):
@@ -39,8 +48,9 @@ delivery, allocations, timesheets, and billing.
 ## What's built
 
 - **Schema** — `src/lib/db/projects-schema.ts` (`projects`, `project_delivery_managers`,
-  `project_roles`), barrelled by `src/lib/db/schema.ts`. Migration
-  `drizzle/0015_premium_vertigo.sql`.
+  `project_roles`), barrelled by `src/lib/db/schema.ts`. Migrations
+  `drizzle/0015_premium_vertigo.sql` and `drizzle/0017_amused_corsair.sql` (adds the
+  `projects.opportunityId` FK + index).
 - **Shared line-of-business module** — `src/lib/line-of-business.ts` exports the
   `LINE_OF_BUSINESS` tuple, the `LineOfBusiness` type, and `LINE_OF_BUSINESS_LABELS`.
   A **pure, client-importable** module (no `db`/drizzle) so the `lineOfBusinessEnum`
@@ -94,16 +104,21 @@ gate is the real boundary. See [permissions.md](./permissions.md).
 - **Create a project + staff it** (built) — pick a company, add delivery managers, add
   one or more role lines (staff + line of business + date range + hours/day), submit.
   One transaction writes it all. Create only today.
-- **Won → Project handoff** _(proposed)_ — a won Opportunity (`status = closed_won`)
-  should create/link the Project delivery staffs and bills against. Not built:
-  projects are created standalone, with no back-reference to an opportunity. This is
-  the CRM ↔ delivery seam — keep the link explicit when it lands. See
-  [crm.md](./crm.md) and [flows.md](../flows.md).
+- **Won → Project handoff** _(flow proposed; link column built)_ — a won Opportunity
+  (`status = closed_won`) should create/link the Project delivery staffs and bills
+  against. The back-reference column now exists (`projects.opportunityId`,
+  [ADR 0019](../decisions/0019-project-opportunity-link.md)) but **nothing populates it**:
+  `createProject` and its schema/form are unchanged and never set it, so projects are
+  still created standalone. When the flow lands, set `opportunityId` and add the
+  same-company check (opportunity's company == project's company). See [crm.md](./crm.md)
+  and [flows.md](../flows.md).
 
 ## Connects to
 
-- **CRM** — every project belongs to a `companies` row (required FK, `restrict`). The
-  won-Opportunity → Project link is the proposed seam.
+- **CRM** — every project belongs to a `companies` row (required FK, `restrict`), and may
+  optionally link to an `opportunities` row (`opportunityId`, nullable FK, `restrict`,
+  1:N). The won-Opportunity → Project *flow* is the proposed seam; the column is built but
+  unpopulated ([ADR 0019](../decisions/0019-project-opportunity-link.md)).
 - **Staff** — delivery managers and role staff are `staff` rows. Delivery-manager FKs
   cascade; a role's `staffId` is `restrict`.
 - **Allocations** — `project_roles` is the first concrete cut of the Allocation
@@ -113,9 +128,12 @@ gate is the real boundary. See [permissions.md](./permissions.md).
 
 ## Open questions / not yet built
 
-- **Edit/delete** — only create + read exist. The `onDelete: restrict` on both
-  `projects.companyId` and `project_roles.staffId` means a company- or staff-delete
-  flow must handle live projects/roles.
+- **Edit/delete** — only create + read exist. The `onDelete: restrict` on
+  `projects.companyId`, `projects.opportunityId`, and `project_roles.staffId` means a
+  company-, opportunity-, or staff-delete flow must handle live projects/roles.
+- **`opportunityId` is unpopulated + unenforced** — the column exists but no flow sets it,
+  and nothing guarantees the linked opportunity shares the project's company. Wire it and
+  add the same-company check when the won → Project handoff is built ([ADR 0019](../decisions/0019-project-opportunity-link.md)).
 - **Roles are simple rows, not effective-dated history** — a role's dates/hours are
   edited in place (once edit exists), not versioned like `staff_employment`. See
   [ADR 0017](../decisions/0017-project-roles-as-first-allocation-cut.md). Full

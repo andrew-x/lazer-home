@@ -1,6 +1,6 @@
 {
-  "id": "ad2e61d5-5e2e-473a-85b4-fee42d940ee2",
-  "prevId": "347f7003-acc0-4bb3-b943-874c180d1815",
+  "id": "3b2c6a83-31f8-43b1-b8a0-41394e1f58cf",
+  "prevId": "3afc1094-d092-4f72-a931-06e9a108d395",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -510,6 +510,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "position": {
+          "name": "position",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -525,7 +532,29 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "opportunities_status_position_idx": {
+          "name": "opportunities_status_position_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "opportunities_company_id_companies_id_fk": {
           "name": "opportunities_company_id_companies_id_fk",
@@ -1356,6 +1385,38 @@
           "notNull": true,
           "default": false
         },
+        "base": {
+          "name": "base",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hourly_rate": {
+          "name": "hourly_rate",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "guaranteed_bonus": {
+          "name": "guaranteed_bonus",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "discretionary_bonus": {
+          "name": "discretionary_bonus",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "currency": {
+          "name": "currency",
+          "type": "currency",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -1497,16 +1558,28 @@
         "maturing",
         "lead",
         "qualifying",
+        "scoping_awaiting_info",
         "scoping",
-        "closing",
-        "closed_lost",
-        "closed_won"
+        "scoping_reviewing",
+        "allocating_awaiting_profiles",
+        "allocating_introing_profiles",
+        "negotiating",
+        "closing_awaiting_contracts",
+        "closing_redlining",
+        "closing_awaiting_signatures",
+        "closed_won",
+        "closed_lost"
       ]
     },
     "public.billable_type": {
       "name": "billable_type",
       "schema": "public",
       "values": ["HUB", "GLOBAL"]
+    },
+    "public.currency": {
+      "name": "currency",
+      "schema": "public",
+      "values": ["CAD", "USD", "GBP", "EUR"]
     },
     "public.employment_type": {
       "name": "employment_type",
