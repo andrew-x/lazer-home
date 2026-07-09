@@ -54,6 +54,11 @@ export async function computeImportPlan(
           employmentType: staffEmployment.employmentType,
           isBillable: staffEmployment.isBillable,
           utilizationTarget: staffEmployment.utilizationTarget,
+          base: staffEmployment.base,
+          hourlyRate: staffEmployment.hourlyRate,
+          guaranteedBonus: staffEmployment.guaranteedBonus,
+          discretionaryBonus: staffEmployment.discretionaryBonus,
+          currency: staffEmployment.currency,
           isManagement: staffEmployment.isManagement,
           billableType: staffEmployment.billableType,
         })
@@ -90,6 +95,11 @@ export async function computeImportPlan(
       employmentType: employment?.employmentType ?? null,
       isBillable: employment?.isBillable ?? null,
       utilizationTarget: employment?.utilizationTarget ?? null,
+      base: employment?.base ?? null,
+      hourlyRate: employment?.hourlyRate ?? null,
+      guaranteedBonus: employment?.guaranteedBonus ?? null,
+      discretionaryBonus: employment?.discretionaryBonus ?? null,
+      currency: employment?.currency ?? null,
       isManagement: employment?.isManagement ?? null,
       billableType: employment?.billableType ?? null,
     };
@@ -98,6 +108,8 @@ export async function computeImportPlan(
     // someone already in LEADERSHIP we preserve their role and its billability
     // rather than overwriting it from the CSV-derived role. (`isManagement` is
     // likewise import-preserved, but for everyone — carried forward at commit.)
+    // Compensation is required on every import row, so it flows straight from
+    // `incoming` — no carry-forward needed here.
     const effective: NormalizedStaff =
       current.role === "LEADERSHIP"
         ? {

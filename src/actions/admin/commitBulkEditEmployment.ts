@@ -61,6 +61,13 @@ export const commitBulkEditEmployment = publicActionClient
             utilizationTarget: staffEmployment.utilizationTarget,
             billableType: staffEmployment.billableType,
             isManagement: staffEmployment.isManagement,
+            // Comp isn't editable here (import-only); read it so a new inserted row
+            // carries it forward instead of clearing it.
+            base: staffEmployment.base,
+            hourlyRate: staffEmployment.hourlyRate,
+            guaranteedBonus: staffEmployment.guaranteedBonus,
+            discretionaryBonus: staffEmployment.discretionaryBonus,
+            currency: staffEmployment.currency,
           })
           .from(staffEmployment)
           .where(inArray(staffEmployment.staffId, staffIds))
@@ -127,18 +134,29 @@ export const commitBulkEditEmployment = publicActionClient
 
       await db.transaction(async (tx) => {
         if (effectiveDate) {
-          const rows: StaffEmploymentInsert[] = effective.map((c) => ({
-            id: generateId("staffEmployment"),
-            staffId: c.staffId,
-            effectiveFromDate: effectiveDate,
-            lineOfBusiness: c.lineOfBusiness,
-            role: c.role,
-            employmentType: c.employmentType,
-            isBillable: c.isBillable,
-            utilizationTarget: c.utilizationTarget,
-            billableType: c.billableType,
-            isManagement: c.isManagement,
-          }));
+          const rows: StaffEmploymentInsert[] = effective.map((c) => {
+            // Carry comp forward from the latest row — it isn't part of the edit.
+            const latest = latestByStaff.get(c.staffId);
+            return {
+              id: generateId("staffEmployment"),
+              staffId: c.staffId,
+              effectiveFromDate: effectiveDate,
+              lineOfBusiness: c.lineOfBusiness,
+              role: c.role,
+              employmentType: c.employmentType,
+              isBillable: c.isBillable,
+              utilizationTarget: c.utilizationTarget,
+              billableType: c.billableType,
+              isManagement: c.isManagement,
+              // `latest` is guaranteed present (missing rows were filtered out);
+              // comp is NOT NULL, so carry it forward as-is.
+              base: latest?.base ?? 0,
+              hourlyRate: latest?.hourlyRate ?? 0,
+              guaranteedBonus: latest?.guaranteedBonus ?? 0,
+              discretionaryBonus: latest?.discretionaryBonus ?? 0,
+              currency: latest?.currency ?? "CAD",
+            };
+          });
           await tx.insert(staffEmployment).values(rows);
         } else {
           // In-place correction of the latest row (updatedAt via $onUpdate).
