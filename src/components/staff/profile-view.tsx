@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { HistoryEntry } from "@/actions/staff/getStaffHistory";
 import type { StaffProfile } from "@/actions/staff/getStaffProfile";
 import type { StaffPtoView } from "@/actions/staff/getStaffPto";
+import { CompensationSection } from "@/components/staff/compensation-section";
 import { EditClientIntroDialog } from "@/components/staff/edit-client-intro-dialog";
 import { EditLinksDialog } from "@/components/staff/edit-links-dialog";
 import { EditResumeDialog } from "@/components/staff/edit-resume-dialog";
@@ -59,6 +60,7 @@ export function ProfileView({
   history,
   pto,
   canEdit,
+  canViewCompensation,
 }: {
   staffId: string;
   imageUrl: string | null;
@@ -68,6 +70,8 @@ export function ProfileView({
   pto: StaffPtoView | null;
   /** Whether the viewer may edit this profile (own profile, or `staff.edit`). */
   canEdit: boolean;
+  /** Whether the viewer may see this person's compensation (own, or `staff.viewCompensation`). */
+  canViewCompensation: boolean;
 }) {
   const { employment } = profile;
   const initials = initialsFor(profile.name, profile.email);
@@ -205,6 +209,23 @@ export function ProfileView({
           <SkillsSection skills={profile.skills} />
         </CardContent>
       </Card>
+
+      {canViewCompensation ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Compensation</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CompensationSection
+              base={employment?.base ?? null}
+              hourlyRate={employment?.hourlyRate ?? null}
+              guaranteedBonus={employment?.guaranteedBonus ?? null}
+              discretionaryBonus={employment?.discretionaryBonus ?? null}
+              currency={employment?.currency ?? null}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {pto ? <PtoSection pto={pto} /> : null}
     </div>
