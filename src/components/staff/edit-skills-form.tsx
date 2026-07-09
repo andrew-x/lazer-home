@@ -262,7 +262,10 @@ function AddSkills({
     [chosen, trimmed],
   );
 
-  const totalAvailable = groups.reduce((n, group) => n + group.skills.length, 0);
+  const totalAvailable = groups.reduce(
+    (n, group) => n + group.skills.length,
+    0,
+  );
 
   return (
     <section className="flex flex-col gap-3 rounded-lg border p-4">

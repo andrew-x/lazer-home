@@ -366,9 +366,7 @@ const COMPLIANCE = [
 type DimensionSource = readonly string[] | Record<string, readonly string[]>;
 
 function flatten(source: DimensionSource): string[] {
-  return Array.isArray(source)
-    ? [...source]
-    : Object.values(source).flatMap((skills) => skills);
+  return Array.isArray(source) ? [...source] : Object.values(source).flat();
 }
 
 // Dimension label → source. Order is meaningful; it drives the picker order.
