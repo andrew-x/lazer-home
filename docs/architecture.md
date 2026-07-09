@@ -1,6 +1,6 @@
 # Architecture
 
-**Status: scaffolded, first domain slices landing.** The core technical stack and architectural patterns are committed and in code. What exists is the foundation (env, db, auth, action layer), the **authenticated UI shell + auth screens** (see [ui.md](./ui.md)), the **staff schema + post-login staff-record gate** (the first real data-model slice; the earlier `StaffProfileForm`/`updateStaffProfile` demo has been deleted), and a growing **CRM slice** (`companies`/`contacts`/`opportunities` data, reads, create actions, and `/companies` + `/opportunities` pages — see [domains/crm.md](./domains/crm.md)). The first real data-backed authenticated pages are **`/profile`** ("My profile") and the **browse-staff** feature — a directory (`/staff`) and per-person profiles (`/staff/[id]`) that show *other* people via the same shared `ProfileView` (see [ui.md](./ui.md)) — the first place all three call-site patterns from ADR 0010 appear together (server-only read, next-safe-action mutation, presentational client UI). Browse-staff is also the first **cross-person** data access: its reads aren't ownership-scoped, and its link/intro/resume edits are now gated by RBAC (own → always; other → the `staff.edit` permission) — see Authorization, [domains/permissions.md](./domains/permissions.md), and [ADR 0014](./decisions/0014-rbac-better-auth-access-control.md). The resume edit is a **two-step parse-then-store** flow (upload a PDF → server extracts text for review → user saves), which never persists the file — see [ADR 0013](./decisions/0013-resume-pdf-parse-not-store.md). The CRM slice adds the first **server-side-paginated** reads (`src/lib/pagination.ts`) and the first type-ahead search (`src/lib/search.ts`), plus the first flat (non-ownership) write gate: a single `crm.edit` capability gates all CRM writes (companies, contacts *and* opportunities), while reads stay open to any signed-in user. Opportunities also bring the repo's first **many-to-many junction tables** (see [data-model.md](./data-model.md#junction-tables--the-first-many-to-many-pattern)) and the first CRM ↔ staff link.
+**Status: scaffolded, first domain slices landing.** The core technical stack and architectural patterns are committed and in code. What exists is the foundation (env, db, auth, action layer), the **authenticated UI shell + auth screens** (see [ui.md](./ui.md)), the **staff schema + post-login staff-record gate** (the first real data-model slice; the earlier `StaffProfileForm`/`updateStaffProfile` demo has been deleted), and a growing **CRM slice** (`companies`/`contacts`/`opportunities` data, reads, create actions, and `/companies` + `/opportunities` pages — see [domains/crm.md](./domains/crm.md)). The first real data-backed authenticated pages are **`/profile`** ("My profile") and the **browse-staff** feature — a directory (`/staff`) and per-person profiles (`/staff/[id]`) that show *other* people via the same shared `ProfileView` (see [ui.md](./ui.md)) — the first place all three call-site patterns from ADR 0010 appear together (server-only read, next-safe-action mutation, presentational client UI). Browse-staff is also the first **cross-person** data access: its reads aren't ownership-scoped, and its link/intro/resume edits are now gated by RBAC (own → always; other → the `staff.edit` permission) — see Authorization, [domains/permissions.md](./domains/permissions.md), and [ADR 0014](./decisions/0014-rbac-better-auth-access-control.md). The resume edit is a **two-step parse-then-store** flow (upload a PDF → server extracts text for review → user saves), which never persists the file — see [ADR 0013](./decisions/0013-resume-pdf-parse-not-store.md). The CRM slice adds the first **server-side-paginated** reads (`src/lib/pagination.ts`) and the first type-ahead search (`src/lib/search.ts`), plus the first flat (non-ownership) write gate: a single `crm.edit` capability gates all CRM writes (companies, contacts *and* opportunities), while reads stay open to any signed-in user. Opportunities also bring the repo's first **many-to-many junction tables** (see [data-model.md](./data-model.md#junction-tables--the-first-many-to-many-pattern)) and the first CRM ↔ staff link. A **Projects slice** (`projects`/`project_delivery_managers`/`project_roles` data, a server-paginated read, a `projects.edit`-gated create, and the `/projects` page — see [domains/projects.md](./domains/projects.md)) follows next: it reuses the junction/shared-enum conventions, adds the first **data-carrying junction** (`project_roles`, the first cut of Allocation — [ADR 0017](./decisions/0017-project-roles-as-first-allocation-cut.md)), a second flat write capability (`projects.edit`), and shares its staff/company search query bodies with CRM via `src/actions/shared/entitySearch.ts`.
 
 ## What we're building
 
@@ -35,7 +35,7 @@ src/
     layout.tsx               root layout (fonts, metadata, TooltipProvider, Toaster)
     (app)/                   AUTHENTICATED route group — layout.tsx gates via getCurrentUser() + getCurrentStaff()→redirect, renders AppShell
       layout.tsx page.tsx profile/page.tsx settings/page.tsx loading.tsx
-      staff/page.tsx staff/[id]/page.tsx  companies/page.tsx ("Companies & Contacts") opportunities/page.tsx
+      staff/page.tsx staff/[id]/page.tsx  companies/page.tsx ("Companies & Contacts") opportunities/page.tsx projects/page.tsx
     (onboarding)/            POST-LOGIN block screen — authed users without a usable staff record (no group layout; page self-gates)
       profile-setup/page.tsx
     (auth)/login/page.tsx    PUBLIC route group (Google sign-in)
@@ -54,11 +54,14 @@ src/
     <domain>/<verb><Thing>.ts  mutations → next-safe-action, one per file (+ .schema.ts)
     admin/                   {preview,commit}StaffImport + {preview,commit}PtoImport + commitBulkEditEmployment (publicActionClient + assertLocalhost); getUsers + commitUserChanges (manage-users: secureActionClient role:admin + assertLocalhost, mutates via Better Auth admin API); promoteSelfToAdmin (secureActionClient + assertLocalhost — the ONE deliberate direct-column role write, first-admin bootstrap escape hatch)
     crm/                     get{Companies,Contacts,Opportunities}Page (server-only, server-side paginated, open reads) + search{Companies,Contacts,Staff} (type-ahead) + create{Company,Contact,Opportunity} — all writes gated crm.edit (+.schema.ts; createOpportunity.schema.ts is the single source for the source/status enum tuples, shared with the pgEnum)
+    projects/                getProjectsPage (server-only, paginated, open read) + searchStaff/searchCompanies (type-ahead, projects.edit-gated) + createProject — writes gated projects.edit (+.schema.ts, pure)
+    shared/                  entitySearch.ts — shared searchStaffByName/searchCompaniesByName query bodies (server-only) reused by BOTH crm/ and projects/ search actions (each wraps with its own permission gate)
   components/                React components; ui/ = vendored shadcn primitives,
-                             form/ = shared form-dialog + form-field (RHF form extraction reused by edit/create dialogs),
+                             form/ = shared form-dialog + form-field + enum-select (EnumSelect, extracted from add-opportunity-dialog for reuse),
                              app-shell/ + auth/ + brand/ = the UI shell, admin/ = shared csv-import + editable-table + table-filters + data-table + staff-import + pto-import + bulk-edit-roles + manage-users + promote-self-button UI,
                              staff/ = shared ProfileView (backs /profile + /staff/[id]) + directory/cards + edit dialogs (links, client-intro, resume) + history sheet,
-                             crm/ = add-{company,contact,opportunity}-dialog + company-combobox + entity-multi-combobox + create-{company,contact}-inline-dialog + {companies,contacts,opportunities}-table + opportunity-display + pagination-controls
+                             crm/ = add-{company,contact,opportunity}-dialog + company-combobox + entity-multi-combobox + entity-combobox (single-select sibling, used by projects) + create-{company,contact}-inline-dialog + {companies,contacts,opportunities}-table + opportunity-display + pagination-controls,
+                             projects/ = add-project-dialog (useFieldArray roles repeater) + projects-table
   hooks/                     useZodForm (RHF + zodResolver wrapper), useDebouncedValue (debounce, used by company-combobox), useMobile
   lib/
     action.ts                publicActionClient + secureActionClient (the core); metadata-driven gates: role + permission + authorize (ActionAuthorize hook), all enforced before the body
@@ -71,6 +74,7 @@ src/
     constants.ts             APP_NAME / APP_DESCRIPTION (shared app strings)
     format.ts                humanizeEnum() + formatDate() + initialsFor() + formatTimestamp() — display helpers (timezone-safe date/time formatting)
     like.ts                  escapeLike() — escape LIKE/ILIKE metacharacters so user input matches literally
+    line-of-business.ts      shared LINE_OF_BUSINESS tuple + labels (pure, client-importable) — single source for the lineOfBusinessEnum pgEnum, the projects zod schema, and the form
     pagination.ts            shared server-side pagination primitives (page size, offset/limit + count, {rows,total,page,pageSize,pageCount} envelope) — used by all CRM list reads
     search.ts                shared type-ahead search primitives (query-limit schema etc.) — used by search{Companies,Contacts,Staff}
     url-schema.ts            shared optional-URL zod field (blank→null; bare host → https:// normalised)
@@ -82,9 +86,10 @@ src/
     pto-import/              CSV PTO import (same shape as staff-import): transform.ts / plan.ts / types.ts — builds on csv-import/
     db/
       db.ts                  hot-reload-safe Drizzle singleton
-      schema.ts              barrel: re-exports auth-schema + staff-schema + crm-schema (one import for the whole schema)
-      staff-schema.ts        staff / staff_employment / staff_pto + domain enums
+      schema.ts              barrel: re-exports auth-schema + staff-schema + crm-schema + projects-schema (one import for the whole schema)
+      staff-schema.ts        staff / staff_employment / staff_pto + domain enums (lineOfBusinessEnum built from src/lib/line-of-business.ts)
       crm-schema.ts          companies / contacts / opportunities + 4 opportunity junction tables (CRM slice)
+      projects-schema.ts     projects / project_delivery_managers / project_roles (Projects slice; project_roles = first cut of Allocation)
       auth-schema.ts         better-auth tables (generated; in OUR migrations)
       ids.ts                 generateId(prefix)
 drizzle/                     generated SQL migrations
