@@ -1,6 +1,7 @@
 import type { InferSelectModel } from "drizzle-orm";
 import {
   boolean,
+  doublePrecision,
   index,
   pgEnum,
   pgTable,
@@ -64,26 +65,34 @@ export const opportunityStatusEnum = pgEnum("opportunity_status", [
   ...OPPORTUNITY_STATUSES,
 ]);
 
-export const opportunities = pgTable("opportunities", {
-  id: text().primaryKey(),
-  name: text().notNull(),
-  // A deal always belongs to a company. `restrict`: a company with live
-  // opportunities can't be deleted (unlike contacts, whose company is optional
-  // and set-null). See docs/domains/crm.md.
-  companyId: text()
-    .notNull()
-    .references(() => companies.id, { onDelete: "restrict" }),
-  source: opportunitySourceEnum().notNull(),
-  status: opportunityStatusEnum().notNull(),
-  // Free-text "what happens next" note.
-  nextSteps: text(),
+export const opportunities = pgTable(
+  "opportunities",
+  {
+    id: text().primaryKey(),
+    name: text().notNull(),
+    // A deal always belongs to a company. `restrict`: a company with live
+    // opportunities can't be deleted (unlike contacts, whose company is optional
+    // and set-null). See docs/domains/crm.md.
+    companyId: text()
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    source: opportunitySourceEnum().notNull(),
+    status: opportunityStatusEnum().notNull(),
+    // Free-text "what happens next" note.
+    nextSteps: text(),
+    // Manual kanban ordering: a global fractional index. Cards in a column
+    // (a status or a collapsed group) sort by `position` asc; a drag writes the
+    // midpoint between its new neighbors, so a move updates just this one row.
+    position: doublePrecision().notNull().default(0),
 
-  createdAt: timestamp().defaultNow().notNull(),
-  updatedAt: timestamp()
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
-});
+    createdAt: timestamp().defaultNow().notNull(),
+    updatedAt: timestamp()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [index("opportunities_status_position_idx").on(t.status, t.position)],
+);
 
 // Junction tables link an opportunity to its people. Surrogate `text` PK (repo
 // convention — no composite PKs), a unique on the FK pair for set-semantics, and
