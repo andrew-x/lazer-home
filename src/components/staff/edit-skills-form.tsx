@@ -81,33 +81,44 @@ export function EditSkillsForm({
 
   return (
     <div className="flex flex-col gap-6">
-      <SelectedSkills
-        skills={skills}
-        onRemove={removeSkill}
-        onSetLevel={setLevel}
-      />
+      {/*
+        Two-panel layout: the editor (left) visibly feeds the "Your skills" list
+        (right), so it reads left→right as cause→effect. The catalogue column is
+        the long one and scrolls with the page; the list is pinned in view so
+        skills are seen landing as they're added. On narrow screens this collapses
+        to a single stack with the list first (order utilities), keeping the
+        outcome glanceable when pinning isn't possible.
+      */}
+      <div className="grid items-start gap-6 md:grid-cols-2">
+        <div className="md:order-2 md:sticky md:top-6 md:max-h-[calc(100dvh-8rem)] md:overflow-y-auto">
+          <SelectedSkills
+            skills={skills}
+            onRemove={removeSkill}
+            onSetLevel={setLevel}
+          />
+        </div>
 
-      <AddSkills
-        chosen={chosen}
-        addAs={addAs}
-        onAddAsChange={setAddAs}
-        query={query}
-        onQueryChange={setQuery}
-        onAdd={addSkill}
-      />
+        <div className="md:order-1">
+          <AddSkills
+            chosen={chosen}
+            addAs={addAs}
+            onAddAsChange={setAddAs}
+            query={query}
+            onQueryChange={setQuery}
+            onAdd={addSkill}
+          />
+        </div>
+      </div>
 
       {result.serverError ? (
         <p className="text-sm text-destructive">{result.serverError}</p>
       ) : null}
 
-      <div className="flex items-center gap-2 border-t pt-4">
-        <Button
-          type="button"
-          onClick={() => execute({ staffId, skills })}
-          disabled={isExecuting}
-        >
-          {isExecuting ? "Saving…" : "Save skills"}
-        </Button>
+      {/*
+        Action bar pinned to the bottom of the viewport so Save/Cancel are always
+        reachable while scrolling the long catalogue. Right-aligned, Save last.
+      */}
+      <div className="sticky bottom-0 -mx-4 flex items-center justify-end gap-2 border-t bg-background px-4 py-4 md:-mx-6 md:px-6">
         <Button
           type="button"
           variant="ghost"
@@ -115,6 +126,13 @@ export function EditSkillsForm({
           disabled={isExecuting}
         >
           Cancel
+        </Button>
+        <Button
+          type="button"
+          onClick={() => execute({ staffId, skills })}
+          disabled={isExecuting}
+        >
+          {isExecuting ? "Saving…" : "Save skills"}
         </Button>
       </div>
     </div>
@@ -144,7 +162,7 @@ function SelectedSkills({
 
       {skills.length === 0 ? (
         <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-          No skills yet. Pick some from the catalogue below to get started.
+          No skills yet. Pick some from the catalogue to get started.
         </p>
       ) : (
         <div className="flex flex-col gap-3">
@@ -268,48 +286,55 @@ function AddSkills({
   );
 
   return (
-    <section className="flex flex-col gap-3 rounded-lg border p-4">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="text-sm font-medium">Add as</span>
-        <div className="inline-flex rounded-lg border p-0.5">
-          {PROFICIENCY_LEVELS.map((level) => (
-            <button
-              key={level}
-              type="button"
-              onClick={() => onAddAsChange(level)}
-              aria-pressed={addAs === level}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                addAs === level
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {PROFICIENCY_LABELS[level]}
-            </button>
-          ))}
+    <section className="rounded-lg border">
+      {/*
+        The level toggle + search stick to the top of the screen while the
+        catalogue scrolls beneath, so you can change the target level or filter
+        without scrolling back up. bg-background covers the chips passing under.
+      */}
+      <div className="sticky top-0 z-10 flex flex-col gap-3 rounded-t-lg border-b bg-background p-4">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="text-sm font-medium">Add as</span>
+          <div className="inline-flex rounded-lg border p-0.5">
+            {PROFICIENCY_LEVELS.map((level) => (
+              <button
+                key={level}
+                type="button"
+                onClick={() => onAddAsChange(level)}
+                aria-pressed={addAs === level}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                  addAs === level
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {PROFICIENCY_LABELS[level]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="relative">
+          <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="Search skills…"
+            className="pl-8"
+            aria-label="Search skills"
+          />
         </div>
       </div>
 
-      <div className="relative">
-        <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Search skills…"
-          className="pl-8"
-          aria-label="Search skills"
-        />
-      </div>
-
       {totalAvailable === 0 ? (
-        <p className="py-4 text-center text-sm text-muted-foreground">
+        <p className="px-4 py-8 text-center text-sm text-muted-foreground">
           {trimmed === ""
             ? "Every catalogue skill has been added."
             : `No skills match “${query.trim()}”.`}
         </p>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 p-4">
           {groups.map((group) => (
             <div key={group.name} className="flex flex-col gap-1.5">
               <span className="text-xs text-muted-foreground">
