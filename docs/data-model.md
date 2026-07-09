@@ -2,7 +2,7 @@
 
 The five domains share one model. This is the most important doc for understanding the system: changes here ripple everywhere.
 
-**Status: mostly proposed.** Entities and relationships below are the intended design. Realized so far: the **Person** anchor (auth `user`), the **Staff profiles** tables (`staff`, `staff_employment`, `staff_pto`), and the **CRM** slice (`companies`, `contacts`, `opportunities` + four opportunity junction tables) — see "What's realized in code".
+**Status: mostly proposed.** Entities and relationships below are the intended design. Realized so far: the **Person** anchor (auth `user`), the **Staff profiles** tables (`staff`, `staff_employment`, `staff_pto`), the **CRM** slice (`companies`, `contacts`, `opportunities` + four opportunity junction tables), and the **Projects** slice (`projects`, `project_delivery_managers`, `project_roles` — the first cut of Allocation) — see "What's realized in code".
 
 ## What's realized in code
 
@@ -11,14 +11,19 @@ The five domains share one model. This is the most important doc for understandi
   - **`staff`** — the durable person record (notNull/unique external `ripplingId`, name, non-unique email, optional `userId` link to auth `user`, profile links, `clientIntro` (+ `clientIntroUpdatedAt`), free-text `resume` (+ `resumeUpdatedAt`), lifecycle dates, `isActive`). Both `*UpdatedAt` instants are stamped **explicitly by their update action** when the text changes, not via `$onUpdate` (which would fire on every row write, e.g. an import re-sync).
   - **`staff_employment`** — time-varying employment facts (line of business, role, employment type, billability, `utilizationTarget`, `billableType` (NOT NULL, default `HUB`), and a boolean `isManagement`), as **one effective-dated row per change**; current state = latest `effectiveFromDate`. FK → `staff.id` cascade. `isManagement` and `billableType` are **orthogonal to `role`** (someone can hold a working role *and* be management for it) and set in-app only. See [ADR 0007](./decisions/0007-staff-employment-effective-dating.md) and [domains/staff-profiles.md](./domains/staff-profiles.md).
   - **`staff_pto`** — leave spans (`startDate`/`endDate`, `type`, `isPending`, **notNull/unique `ripplingId`** = Rippling "Leave request ID"). FK → `staff.id` cascade. Discrete rows, **not** effective-dated; reduces a person's available capacity for allocations. Populated by a second local-only importer (`/admin/upload-pto`) — see [domains/staff-profiles.md](./domains/staff-profiles.md).
-- **`lineOfBusinessEnum`** (`line_of_business`: `CORPORATE`, `CORE`, `FINTECH`, `COMMERCE`, `DESIGN`) is a **shared/global enum**, exported top-level and intended for reuse beyond staff (CRM/allocations), not a staff-specific type.
+- **`lineOfBusinessEnum`** (`line_of_business`: `CORPORATE`, `CORE`, `FINTECH`, `COMMERCE`, `DESIGN`) is a **shared/global enum**, reused beyond staff (now by `project_roles`), not a staff-specific type. Its value tuple + labels live in a pure, client-importable module **`src/lib/line-of-business.ts`** (`LINE_OF_BUSINESS`, `LINE_OF_BUSINESS_LABELS`), the single source both the `pgEnum` in `staff-schema.ts` and the projects zod schema/form import — the same single-source pattern opportunities uses for its `source`/`status` enums (see [ADR 0016](./decisions/0016-junction-table-and-shared-enum-conventions.md)).
 - **Local-only CSV import tools** are the only things that write the staff domain so far: `/admin/upload-staff` (Rippling export → `staff` + effective-dated `staff_employment`) and `/admin/upload-pto` (Rippling leave export → `staff_pto`). See [domains/staff-profiles.md](./domains/staff-profiles.md).
 - **CRM slice** (`src/lib/db/crm-schema.ts`, barrelled by `schema.ts`; migrations `drizzle/0012_spotty_mysterio.sql`, `drizzle/0013_clean_firelord.sql` (adds `contacts.phone`) + `drizzle/0014_nostalgic_crusher_hogan.sql`):
   - **`companies`** — organisations we deal with. `isPartner` is a **standalone boolean** flag (default false) marking partners — not a client/partner split; a company need be neither. `name` notNull, optional `websiteUrl`. We chose *Company* over the narrower *Client* the spine originally named — see [ADR 0015](./decisions/0015-crm-company-over-client.md).
   - **`contacts`** — people, optionally employed by a company (`companyId` FK → `companies`, `onDelete: set null`; null when unknown or once the company is removed). `firstName`/`lastName`/`email` notNull, **`email` unique**, optional `phone` and optional free-text `role`.
   - **`opportunities`** — pipeline deals, each **required** to belong to a company (`companyId` FK → `companies`, **`onDelete: restrict`** — contrast the contacts' set-null; a company with live opportunities can't be deleted). `source` + `status` pgEnums, optional `nextSteps`. Their related people (contacts, owners, referral sources) live in **four junction tables** — the repo's first many-to-many pattern (see [below](#junction-tables--the-first-many-to-many-pattern)). `owners` and `source_staff` link to **`staff`**, the first CRM ↔ staff FK.
-  - Open reads + `crm.edit`-gated create mutations (one capability gates all CRM writes — companies, contacts *and* opportunities) + `/companies` and `/opportunities` pages exist; **the link from a won Opportunity to a Project is still proposed** (Project isn't built). See [domains/crm.md](./domains/crm.md).
-- Nothing else (Project, Allocation, TimeEntry, reviews) exists yet. (The legacy `staff_profile` example table was deleted — `drizzle/0003_tranquil_miek.sql` drops it.)
+  - Open reads + `crm.edit`-gated create mutations (one capability gates all CRM writes — companies, contacts *and* opportunities) + `/companies` and `/opportunities` pages exist; **the link from a won Opportunity to a Project is still proposed** (projects exist but are created standalone, with no back-reference to an opportunity). See [domains/crm.md](./domains/crm.md).
+- **Projects slice** (`src/lib/db/projects-schema.ts`, barrelled by `schema.ts`; migration `drizzle/0015_premium_vertigo.sql`):
+  - **`projects`** — billable work that always belongs to a company (`companyId` FK → `companies`, **`onDelete: restrict`** — like opportunities, a company with live projects can't be deleted). `name` notNull. id prefix `proj`.
+  - **`project_delivery_managers`** — junction (many staff per project) following the CRM junction convention exactly ([ADR 0016](./decisions/0016-junction-table-and-shared-enum-conventions.md)): surrogate `text` PK, `unique(projectId, staffId)`, index on `staffId`, both FKs cascade.
+  - **`project_roles`** — a **staffing line** (NOT a pure junction — carries columns): `projectId` → projects (cascade), `staffId` → staff (**restrict**), `lineOfBusiness` (shared enum), `startDate`/`endDate` (date, string mode), `hoursPerDay` (numeric(4,2), default 8). Indexed on both FKs; **no `unique` on the FK pair** (a person can hold multiple lines on one project). This is the **first concrete cut of the proposed Allocation entity** — stored as simple mutable rows, *not* effective-dated history. See [domains/projects.md](./domains/projects.md), [domains/allocations.md](./domains/allocations.md), and [ADR 0017](./decisions/0017-project-roles-as-first-allocation-cut.md).
+  - Open reads + `projects.edit`-gated create + `/projects` page exist; create + read only (no edit/delete). See [domains/projects.md](./domains/projects.md).
+- Nothing else (the won-Opportunity → Project link, a full Allocation domain, TimeEntry, reviews) exists yet. (The legacy `staff_profile` example table was deleted — `drizzle/0003_tranquil_miek.sql` drops it.)
 
 ## Core entities
 
@@ -28,8 +33,8 @@ The five domains share one model. This is the most important doc for understandi
 - **Company** — an organisation we deal with (CRM); an `isPartner` flag marks partners (standalone, not a client/partner split). _(Realized — `companies`.)_ Chosen over the narrower *Client* the spine first named; see [ADR 0015](./decisions/0015-crm-company-over-client.md).
   - **Contact** (optional company per contact) — a person, optionally at a Company. _(Realized — `contacts`; `companyId` nullable, `onDelete: set null`.)_
   - **Opportunity** — a pipeline deal that always belongs to a Company; when _won_, will become/link to a Project. _(Realized — `opportunities` + junction tables; `companyId` required, `onDelete: restrict`. The Project link is proposed.)_
-- **Project** (a.k.a. engagement) — billable work for a Company. The hub linking CRM ↔ delivery. _(Proposed.)_
-- **Allocation** — a _time-ranged_ assignment of a Person to a Project (start/end, % or hours, project role). The heart of capacity planning.
+- **Project** (a.k.a. engagement) — billable work for a Company. The hub linking CRM ↔ delivery. _(Realized (first slice) — `projects`; required `companyId`, `onDelete: restrict`; delivery managers via `project_delivery_managers`. Create + read only; the won-Opportunity → Project link is still proposed.)_ See [domains/projects.md](./domains/projects.md).
+- **Allocation** — a _time-ranged_ assignment of a Person to a Project (start/end, % or hours, project role). The heart of capacity planning. _(Partially realized — `project_roles` is the first cut: a staff member on a line of business for a date range at N hours/day. Simple rows, not effective-dated history yet — see [ADR 0017](./decisions/0017-project-roles-as-first-allocation-cut.md).)_
 - **TimeEntry** — hours a Person logged against a Project (and optionally a task) on a date; billable or not. Aggregated into **Timesheets** for approval.
 - **ReviewCycle / PerformanceReview / Goal** — periodic assessment of a Person, often informed by their project work and utilization.
 
@@ -40,9 +45,10 @@ Company ──< Contact                        (optional company; FK set-null)
 Company ──< Opportunity ──(won)──> Project  (required company; FK restrict)
 Opportunity >──< Contact                   (related + referral-source, via junction tables)
 Opportunity >──< Person (staff)            (owners + referral-source, via junction tables)
-Company ──< Project
-Project >──< Person      via Allocation   (the plan, time-ranged)
-Person  ──< TimeEntry >── Project          (the actuals)
+Company ──< Project                        (required company; FK restrict) [realized]
+Project >──< Person (staff)                via project_delivery_managers (junction) [realized]
+Project >──< Person (staff)                via Allocation = project_roles (first cut; staffId FK restrict) [realized]
+Person  ──< TimeEntry >── Project          (the actuals) [proposed]
 user (auth)    ──0:1── Person (staff)      via staff.userId (nullable, unique)
 Person (staff) ──< StaffEmployment         (effective-dated; latest = current)
 Person (staff) ──< StaffPto                 (leave spans; reduce capacity)
@@ -58,13 +64,13 @@ Person  ──< PerformanceReview              (within a ReviewCycle)
 
 ## Nuances to respect
 
-- Everything time-bound (allocations, rates, reviews, **employment**) needs effective-dated handling — a person's role, rate, or skills change over time. The realized pattern is **history-as-rows** (`staff_employment`): a new row per change, current state = latest `effectiveFromDate`. See [ADR 0007](./decisions/0007-staff-employment-effective-dating.md).
+- Everything time-bound (allocations, rates, reviews, **employment**) needs effective-dated handling — a person's role, rate, or skills change over time. The realized pattern is **history-as-rows** (`staff_employment`): a new row per change, current state = latest `effectiveFromDate`. See [ADR 0007](./decisions/0007-staff-employment-effective-dating.md). **Caveat:** the first Allocation cut (`project_roles`) does *not* yet follow this — it stores simple mutable rows, so it can't reconstruct a past plan. Deliberate scope call for the first slice; see [ADR 0017](./decisions/0017-project-roles-as-first-allocation-cut.md).
 - Rates and salaries are highly sensitive — see authorization in [architecture.md](./architecture.md) and the RBAC model in [domains/permissions.md](./domains/permissions.md).
 - **Dates and times are timezone-agnostic.** Calendar dates (effective-from, PTO spans, join/termination) are `date()` strings (`"YYYY-MM-DD"`, no zone); instants are plain `timestamp` _without_ time zone — treat all stored datetimes as wall-clock and convert zones only at the UI edge. See [`.claude/rules/database.md`](../.claude/rules/database.md).
 
 ### Junction tables — the first many-to-many pattern
 
-The four `opportunity_*` join tables (`src/lib/db/crm-schema.ts`) are the repo's **first** many-to-many relations and set the convention future join tables should copy:
+The four `opportunity_*` join tables (`src/lib/db/crm-schema.ts`) are the repo's **first** many-to-many relations and set the convention future join tables should copy (`project_delivery_managers` follows it exactly; `project_roles` follows the FK/index parts but is a **data-carrying** line, not a pure junction — see [domains/projects.md](./domains/projects.md)):
 
 - **Surrogate `text` PK** via `generateId(prefix)` (e.g. `opp-contact`), not a composite PK — consistent with the app-minted-CUID2 ID convention everywhere else ([`.claude/rules/database.md`](../.claude/rules/database.md)).
 - **`unique(...)` on the FK pair** — gives set-semantics (a row can't be linked twice). Writers still dedupe input id arrays before insert so a repeat can't trip this index (see `createOpportunity`).

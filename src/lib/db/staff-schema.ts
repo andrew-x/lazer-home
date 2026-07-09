@@ -8,6 +8,7 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
+import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
 import { user } from "./auth-schema";
 
 // ---------------------------------------------------------------------------
@@ -22,13 +23,11 @@ import { user } from "./auth-schema";
 
 // --- Enums -----------------------------------------------------------------
 
-// Shared/global enum — reused beyond staff (e.g. CRM, allocations).
+// Shared/global enum — reused beyond staff (e.g. CRM, projects/allocations).
+// Values live in `@/lib/line-of-business` (a pure module) so the pgEnum here and
+// the zod enum / form labels there share one source of truth.
 export const lineOfBusinessEnum = pgEnum("line_of_business", [
-  "CORPORATE",
-  "CORE",
-  "FINTECH",
-  "COMMERCE",
-  "DESIGN",
+  ...LINE_OF_BUSINESS,
 ]);
 
 export const roleEnum = pgEnum("role", [
