@@ -3,12 +3,14 @@ import {
   boolean,
   date,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
 import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
+import type { StaffSkill } from "@/lib/skills";
 import { user } from "./auth-schema";
 
 // ---------------------------------------------------------------------------
@@ -88,6 +90,10 @@ export const staff = pgTable("staff", {
   // write (e.g. an import re-sync).
   resume: text(),
   resumeUpdatedAt: timestamp(),
+
+  // Skills held, as an inline list of { name, level } picked from the hardcoded
+  // catalogue in `@/lib/skills` (deliberately not a normalized skills table).
+  skills: jsonb().$type<StaffSkill[]>().notNull().default([]),
 
   joinDate: date(),
   terminationDate: date(),

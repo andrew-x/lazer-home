@@ -1,0 +1,1 @@
+ALTER TABLE "staff" ADD COLUMN "skills" jsonb DEFAULT '[]'::jsonb NOT NULL;
