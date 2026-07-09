@@ -17,6 +17,7 @@ const MATRIX: Record<
   AppRole,
   {
     staffEdit: boolean;
+    staffViewCompensation: boolean;
     ptoReview: boolean;
     crmEdit: boolean;
     projectsEdit: boolean;
@@ -24,36 +25,42 @@ const MATRIX: Record<
 > = {
   user: {
     staffEdit: false,
+    staffViewCompensation: false,
     ptoReview: false,
     crmEdit: false,
     projectsEdit: false,
   },
   "delivery-manager": {
     staffEdit: false,
+    staffViewCompensation: false,
     ptoReview: false,
     crmEdit: false,
     projectsEdit: true,
   },
   finance: {
     staffEdit: false,
+    staffViewCompensation: true,
     ptoReview: false,
     crmEdit: false,
     projectsEdit: false,
   },
   sales: {
     staffEdit: false,
+    staffViewCompensation: false,
     ptoReview: false,
     crmEdit: true,
     projectsEdit: false,
   },
   manager: {
     staffEdit: true,
+    staffViewCompensation: true,
     ptoReview: true,
     crmEdit: true,
     projectsEdit: true,
   },
   admin: {
     staffEdit: true,
+    staffViewCompensation: true,
     ptoReview: true,
     crmEdit: true,
     projectsEdit: true,
@@ -67,6 +74,12 @@ describe("permission matrix", () => {
     test(`${role}: staff.edit === ${expected.staffEdit}`, () => {
       expect(userHasPermission({ role }, { staff: ["edit"] })).toBe(
         expected.staffEdit,
+      );
+    });
+
+    test(`${role}: staff.viewCompensation === ${expected.staffViewCompensation}`, () => {
+      expect(userHasPermission({ role }, { staff: ["viewCompensation"] })).toBe(
+        expected.staffViewCompensation,
       );
     });
 

@@ -127,6 +127,20 @@
       "when": 1783602900403,
       "tag": "0017_amused_corsair",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783604823681,
+      "tag": "0018_gorgeous_celestials",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1783607162853,
+      "tag": "0019_dry_captain_cross",
+      "breakpoints": true
     }
   ]
 }

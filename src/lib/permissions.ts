@@ -24,7 +24,7 @@ import { UserSafeActionError } from "@/lib/errors";
  */
 export const statement = {
   ...defaultStatements,
-  staff: ["edit"], // edit another staff member's profile
+  staff: ["edit", "viewCompensation"], // edit another staff member's profile; view others' compensation
   pto: ["review"], // view aggregated PTO summaries of other staff
   crm: ["edit"], // add/edit CRM companies, contacts & opportunities (reads are open)
   projects: ["edit"], // add/edit projects & their staffing (reads are open)
@@ -39,17 +39,17 @@ export const ac = createAccessControl(statement);
 export const roles = {
   user: ac.newRole({}),
   "delivery-manager": ac.newRole({ projects: ["edit"] }),
-  finance: ac.newRole({}),
+  finance: ac.newRole({ staff: ["viewCompensation"] }),
   sales: ac.newRole({ crm: ["edit"] }),
   manager: ac.newRole({
-    staff: ["edit"],
+    staff: ["edit", "viewCompensation"],
     pto: ["review"],
     crm: ["edit"],
     projects: ["edit"],
   }),
   // Admin keeps the business perms AND the Better Auth admin-plugin perms.
   admin: ac.newRole({
-    staff: ["edit"],
+    staff: ["edit", "viewCompensation"],
     pto: ["review"],
     crm: ["edit"],
     projects: ["edit"],

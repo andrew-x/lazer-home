@@ -22,9 +22,10 @@ export default async function ProfilePage() {
   // page if the record vanished mid-request.
   if (!user || !staffId) notFound();
 
+  // Own profile — always allowed to see own compensation.
   const [profile, history, pto] = await Promise.all([
     getStaffProfile(staffId),
-    getStaffHistory(staffId),
+    getStaffHistory(staffId, true),
     getStaffPto(staffId),
   ]);
   if (!profile) notFound();
@@ -37,6 +38,7 @@ export default async function ProfilePage() {
       history={history}
       pto={pto}
       canEdit={true}
+      canViewCompensation={true}
     />
   );
 }
