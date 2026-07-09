@@ -3,6 +3,7 @@ import {
   IconBriefcase,
   IconBuildingSkyscraper,
   IconHome,
+  IconMessageHeart,
   IconSettings,
   IconTargetArrow,
   IconUser,
@@ -24,6 +25,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   { title: "Opportunities", href: "/opportunities", icon: IconTargetArrow },
   { title: "Projects", href: "/projects", icon: IconBriefcase },
+  { title: "Feedback", href: "/feedback", icon: IconMessageHeart },
   { title: "Settings", href: "/settings", icon: IconSettings },
 ];
 
