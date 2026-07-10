@@ -14,6 +14,9 @@ export default async function OpportunitiesPage() {
   ]);
 
   const canEdit = user ? userHasPermission(user, { crm: ["edit"] }) : false;
+  const canCreateProject = user
+    ? userHasPermission(user, { projects: ["edit"] })
+    : false;
 
   return (
     <div className="flex flex-col gap-10">
@@ -33,7 +36,11 @@ export default async function OpportunitiesPage() {
           </h3>
           {canEdit ? <AddOpportunityDialog /> : null}
         </div>
-        <OpportunityBoard cards={cards} canEdit={canEdit} />
+        <OpportunityBoard
+          cards={cards}
+          canEdit={canEdit}
+          canCreateProject={canCreateProject}
+        />
       </section>
     </div>
   );

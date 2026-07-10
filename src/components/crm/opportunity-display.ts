@@ -2,6 +2,7 @@ import type {
   OpportunitySource,
   OpportunityStatus,
 } from "@/actions/crm/createOpportunity.schema";
+import { OPPORTUNITY_GROUPS } from "@/lib/opportunity-pipeline";
 
 /** Human labels for the opportunity source enum. */
 export const SOURCE_LABELS: Record<OpportunitySource, string> = {
@@ -34,3 +35,21 @@ export const STATUS_LABELS: Record<OpportunityStatus, string> = {
   closed_won: "Closed – Won",
   closed_lost: "Closed – Lost",
 };
+
+/**
+ * Status labels for a dropdown that lists every leaf status with no column
+ * context — substatuses are qualified with their group (e.g. "Scoping – Awaiting
+ * info") so they read unambiguously. Shared by the add-opportunity dialog and the
+ * detail drawer.
+ */
+export const STATUS_SELECT_LABELS: Record<OpportunityStatus, string> =
+  Object.fromEntries(
+    OPPORTUNITY_GROUPS.flatMap((group) =>
+      group.statuses.map((status) => [
+        status,
+        group.statuses.length > 1
+          ? `${group.label} – ${STATUS_LABELS[status]}`
+          : STATUS_LABELS[status],
+      ]),
+    ),
+  ) as Record<OpportunityStatus, string>;
