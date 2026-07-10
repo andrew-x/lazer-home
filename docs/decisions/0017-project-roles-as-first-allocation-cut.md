@@ -30,8 +30,14 @@ apply (indexes on both FKs) but deliberately has **no `unique` on the FK pair** 
 same person can hold multiple role lines on one project (e.g. different date ranges or
 lines of business).
 
+> **Updated by [ADR 0024](./0024-opportunity-project-handoff-and-placeholder-roles.md):**
+> `staffId` is now **nullable** — a null role is a *placeholder / open position* defined
+> before it's staffed — and the table gained `roleType` (a NOT NULL discipline enum,
+> distinct from line of business) and an optional `name`. Line of business, dates, and
+> hours stay required on every role.
+
 **FK delete behaviour is asymmetric:** `projectId` → projects **cascade** (a role dies
-with its project), `staffId` → staff **`restrict`** (a role without its person is
+with its project), `staffId` → staff **`restrict`** (a *staffed* role without its person is
 meaningless, and deleting a staff member who has live roles should be blocked, not
 silently drop their allocations). This mirrors the `opportunities.companyId` restrict
 reasoning from [ADR 0016](./0016-junction-table-and-shared-enum-conventions.md).
