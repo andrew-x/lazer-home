@@ -12,6 +12,7 @@ import {
 import { searchStaffForFeedback } from "@/actions/feedback/searchStaffForFeedback";
 import { EntityCombobox } from "@/components/crm/entity-combobox";
 import type { EntityOption } from "@/components/crm/entity-multi-combobox";
+import { applyServerIssues } from "@/components/form/apply-server-issues";
 import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -120,14 +121,7 @@ export function FeedbackForm() {
 
     const parsed = createFeedbackSchema.safeParse(payload);
     if (!parsed.success) {
-      for (const issue of parsed.error.issues) {
-        const head = issue.path[0];
-        if (typeof head === "string" && head in FIELD_FOR_ISSUE) {
-          setError(FIELD_FOR_ISSUE[head as keyof CreateFeedbackInput], {
-            message: issue.message,
-          });
-        }
-      }
+      applyServerIssues(setError, parsed.error, FIELD_FOR_ISSUE);
       return;
     }
 

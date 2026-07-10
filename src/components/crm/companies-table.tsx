@@ -1,4 +1,6 @@
 import type { CompanyRow } from "@/actions/crm/getCompaniesPage";
+import { EmptyCell } from "@/components/empty-cell";
+import { ExternalLink } from "@/components/external-link";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -33,23 +35,18 @@ export function CompaniesTable({ rows }: { rows: CompanyRow[] }) {
             <TableCell className="font-medium">{company.name}</TableCell>
             <TableCell>
               {company.websiteUrl ? (
-                <a
-                  href={company.websiteUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary underline-offset-4 hover:underline"
-                >
+                <ExternalLink href={company.websiteUrl}>
                   {company.websiteUrl.replace(/^https?:\/\//, "")}
-                </a>
+                </ExternalLink>
               ) : (
-                <span className="text-muted-foreground">—</span>
+                <EmptyCell />
               )}
             </TableCell>
             <TableCell>
               {company.isPartner ? (
                 <Badge variant="secondary">Partner</Badge>
               ) : (
-                <span className="text-muted-foreground">—</span>
+                <EmptyCell />
               )}
             </TableCell>
           </TableRow>

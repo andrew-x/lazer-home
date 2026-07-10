@@ -30,13 +30,10 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { normalizeEmploymentFacts } from "@/lib/employment";
 import { humanizeEnum } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import {
-  EditableTable,
-  type EditableTableMeta,
-  useEditableRows,
-} from "./editable-table";
+import { EditableTable, editDraft, useEditableRows } from "./editable-table";
 import { ALL, SelectFilter, SortHeader, TriStateFilter } from "./table-filters";
 
 /**
@@ -55,22 +52,21 @@ const FIELD_LABELS: Record<keyof EditableValues, string> = {
   isManagement: "Management",
 };
 
-type TableMeta = EditableTableMeta<EditableValues>;
-
 const getStaffId = (row: StaffEmploymentEditRow) => row.staffId;
 
-/** Merge a patch, enforcing the billable/management/utilization invariants. */
+/**
+ * Merge a patch, enforcing the shared billable/management/utilization invariants
+ * (`@/lib/employment`). Enabling management in this patch defaults the row to
+ * non-billable, which the shared normalizer then zeroes the target for.
+ */
 function applyEmploymentPatch(
   base: EditableValues,
   patch: Partial<EditableValues>,
 ): EditableValues {
-  const next: EditableValues = { ...base, ...patch };
-  // Turning on management makes someone non-billable by default (they can still
-  // be flipped back to billable afterward).
-  if (patch.isManagement === true) next.isBillable = false;
-  // Non-billable rows carry a 0% target (mirrors the import invariant).
-  if (!next.isBillable) next.utilizationTarget = 0;
-  return next;
+  return normalizeEmploymentFacts(
+    { ...base, ...patch },
+    { justEnabledManagement: patch.isManagement === true },
+  );
 }
 
 function pickEditable(row: StaffEmploymentEditRow): EditableValues {
@@ -102,6 +98,20 @@ function formatValue(
 const clampPercent = (n: number) =>
   Math.max(0, Math.min(100, Number.isFinite(n) ? Math.round(n) : 0));
 
+/**
+ * Build a single-field patch for `meta.update` from a dynamic field key.
+ * Centralizes the one unavoidable assertion: the Select/Switch editors emit a
+ * bare `string`/`boolean`, which we trust matches the field's type because the
+ * control's options ARE that field's legal values. Keeps the cell call sites
+ * free of computed-key casts.
+ */
+function pickField<K extends FactField>(
+  field: K,
+  value: string | boolean,
+): Pick<EditableValues, K> {
+  return { [field]: value } as Pick<EditableValues, K>;
+}
+
 // --- Cell editors ----------------------------------------------------------
 
 function EnumCell({
@@ -117,14 +127,13 @@ function EnumCell({
   table: TanstackTable<StaffEmploymentEditRow>;
   className?: string;
 }) {
-  const meta = table.options.meta as TableMeta;
+  const meta = editDraft(table);
   const value = meta.valuesFor(staffId)[field];
   return (
     <Select
       value={value}
       onValueChange={(next) => {
-        if (next)
-          meta.update(staffId, { [field]: next } as Partial<EditableValues>);
+        if (next) meta.update(staffId, pickField(field, next));
       }}
     >
       <SelectTrigger
@@ -156,14 +165,12 @@ function SwitchCell({
   field: "isBillable" | "isManagement";
   table: TanstackTable<StaffEmploymentEditRow>;
 }) {
-  const meta = table.options.meta as TableMeta;
+  const meta = editDraft(table);
   const checked = meta.valuesFor(staffId)[field];
   return (
     <Switch
       checked={checked}
-      onCheckedChange={(next) =>
-        meta.update(staffId, { [field]: next } as Partial<EditableValues>)
-      }
+      onCheckedChange={(next) => meta.update(staffId, pickField(field, next))}
       aria-label={FIELD_LABELS[field]}
     />
   );
@@ -176,7 +183,7 @@ function UtilizationCell({
   staffId: string;
   table: TanstackTable<StaffEmploymentEditRow>;
 }) {
-  const meta = table.options.meta as TableMeta;
+  const meta = editDraft(table);
   const values = meta.valuesFor(staffId);
   const disabled = !values.isBillable;
   return (
@@ -222,7 +229,7 @@ function BillableTypeCell({
   options: string[];
   table: TanstackTable<StaffEmploymentEditRow>;
 }) {
-  const meta = table.options.meta as TableMeta;
+  const meta = editDraft(table);
   const value = meta.valuesFor(staffId).billableType;
   return (
     <ToggleGroup
@@ -233,9 +240,7 @@ function BillableTypeCell({
       value={[value]}
       onValueChange={(values) => {
         if (values.length > 0) {
-          meta.update(staffId, {
-            billableType: values[0] as EditableValues["billableType"],
-          });
+          meta.update(staffId, pickField("billableType", values[0]));
         }
       }}
     >

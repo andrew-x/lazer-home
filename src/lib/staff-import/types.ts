@@ -6,6 +6,7 @@ import {
   lineOfBusinessEnum,
   roleEnum,
 } from "@/lib/db/staff-schema";
+import { isEmploymentInvariantSatisfied } from "@/lib/employment";
 
 /**
  * Shapes for the admin staff CSV import. These are shared between the client
@@ -55,7 +56,7 @@ export const normalizedStaffSchema = z
     message: "isActive must be false when a termination date is set",
     path: ["isActive"],
   })
-  .refine((r) => r.isBillable || r.utilizationTarget === 0, {
+  .refine(isEmploymentInvariantSatisfied, {
     message: "utilizationTarget must be 0 when not billable",
     path: ["utilizationTarget"],
   });

@@ -1,5 +1,7 @@
 import { IconBrandLinkedin } from "@tabler/icons-react";
 import type { ContactRow } from "@/actions/crm/getContactsPage";
+import { EmptyCell } from "@/components/empty-cell";
+import { ExternalLink } from "@/components/external-link";
 import {
   Table,
   TableBody,
@@ -54,35 +56,23 @@ export function ContactsTable({ rows }: { rows: ContactRow[] }) {
                   {contact.phone}
                 </a>
               ) : (
-                <span className="text-muted-foreground">—</span>
+                <EmptyCell />
               )}
             </TableCell>
-            <TableCell>
-              {contact.role ?? <span className="text-muted-foreground">—</span>}
-            </TableCell>
-            <TableCell>
-              {contact.companyName ?? (
-                <span className="text-muted-foreground">—</span>
-              )}
-            </TableCell>
-            <TableCell>
-              {contact.managerName ?? (
-                <span className="text-muted-foreground">—</span>
-              )}
-            </TableCell>
+            <TableCell>{contact.role ?? <EmptyCell />}</TableCell>
+            <TableCell>{contact.companyName ?? <EmptyCell />}</TableCell>
+            <TableCell>{contact.managerName ?? <EmptyCell />}</TableCell>
             <TableCell>
               {contact.linkedinUrl ? (
-                <a
+                <ExternalLink
                   href={contact.linkedinUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+                  className="inline-flex items-center gap-1"
                 >
                   <IconBrandLinkedin className="size-4" />
                   Profile
-                </a>
+                </ExternalLink>
               ) : (
-                <span className="text-muted-foreground">—</span>
+                <EmptyCell />
               )}
             </TableCell>
           </TableRow>

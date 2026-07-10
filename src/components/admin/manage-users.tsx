@@ -23,11 +23,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { humanizeEnum } from "@/lib/format";
 import { type AppRole, ROLE_SLUGS } from "@/lib/permissions";
-import {
-  EditableTable,
-  type EditableTableMeta,
-  useEditableRows,
-} from "./editable-table";
+import { EditableTable, editDraft, useEditableRows } from "./editable-table";
 import {
   ALL,
   FilterLabel,
@@ -52,8 +48,6 @@ const FIELD_LABELS: Record<keyof EditableValues, string> = {
   banned: "Banned",
 };
 
-type TableMeta = EditableTableMeta<EditableValues>;
-
 const getUserId = (row: UserAdminRow) => row.id;
 
 function pickEditable(row: UserAdminRow): EditableValues {
@@ -77,7 +71,7 @@ function RoleCell({
   userId: string;
   table: TanstackTable<UserAdminRow>;
 }) {
-  const meta = table.options.meta as TableMeta;
+  const meta = editDraft(table);
   const value = meta.valuesFor(userId).role;
   return (
     <Select
@@ -111,7 +105,7 @@ function BannedCell({
   userId: string;
   table: TanstackTable<UserAdminRow>;
 }) {
-  const meta = table.options.meta as TableMeta;
+  const meta = editDraft(table);
   const checked = meta.valuesFor(userId).banned;
   return (
     <Switch

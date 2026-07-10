@@ -1,4 +1,5 @@
 import type { ProjectRow } from "@/actions/projects/getProjectsPage";
+import { EmptyCell } from "@/components/empty-cell";
 import {
   Table,
   TableBody,
@@ -36,7 +37,7 @@ export function ProjectsTable({ rows }: { rows: ProjectRow[] }) {
               {project.deliveryManagerNames.length > 0 ? (
                 project.deliveryManagerNames.join(", ")
               ) : (
-                <span className="text-muted-foreground">—</span>
+                <EmptyCell />
               )}
             </TableCell>
             <TableCell>{project.roleCount}</TableCell>

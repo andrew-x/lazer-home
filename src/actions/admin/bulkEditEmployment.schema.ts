@@ -1,14 +1,15 @@
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { billableTypeEnum, staffEmployment } from "@/lib/db/schema";
+import { isEmploymentInvariantSatisfied } from "@/lib/employment";
 
 /**
  * One staff member's edited employment facts in a bulk edit. Built from the
  * Drizzle insert schema (single source of truth for the enums), with the
  * defaulted/loosely-typed columns tightened: the client always sends each row's
  * full current state, so every fact is required here, and `utilizationTarget` is
- * bounded 0–100. The billable/target invariant mirrors the import's
- * `normalizedStaffSchema`.
+ * bounded 0–100. The billable/target invariant is the shared one from
+ * `@/lib/employment` (also enforced by the import's `normalizedStaffSchema`).
  */
 const employmentChangeSchema = createInsertSchema(staffEmployment)
   .pick({
@@ -23,7 +24,7 @@ const employmentChangeSchema = createInsertSchema(staffEmployment)
     billableType: z.enum(billableTypeEnum.enumValues),
     isManagement: z.boolean(),
   })
-  .refine((r) => r.isBillable || r.utilizationTarget === 0, {
+  .refine(isEmploymentInvariantSatisfied, {
     message: "Utilization target must be 0 when not billable.",
     path: ["utilizationTarget"],
   });

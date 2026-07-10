@@ -45,13 +45,14 @@ export function EnumSelect<T extends string>({
     >
       <SelectTrigger className="w-full" aria-invalid={invalid}>
         <SelectValue>
-          {(v: string | null) =>
-            v ? (
-              labels[v as T]
+          {(v: string | null) => {
+            const known = toEnumValue(options, v);
+            return known ? (
+              labels[known]
             ) : (
               <span className="text-muted-foreground">{placeholder}</span>
-            )
-          }
+            );
+          }}
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
