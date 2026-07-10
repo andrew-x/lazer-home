@@ -29,8 +29,6 @@ bun run db:migrate   # apply Drizzle migrations to DATABASE_URL
 bun run dev          # next dev → http://localhost:3000
 ```
 
-> **Heads-up:** migrations have **not** been applied to the Neon DB yet. Until `bun run db:migrate` succeeds against it, the Better Auth tables (`user`, `session`, `account`, `verification`) don't exist, so **login won't work** (sessions can't persist).
-
 ## The verify loop
 
 Run before considering a change done:

@@ -54,7 +54,8 @@ One capability gates a **read** rather than a write:
   `authorizeFeedbackCreate` hook, not a capability). And it is not needed to read
   feedback *about yourself* — recipients always see the limited recipient view
   (message + giver name only), and givers always see the feedback they wrote. See
-  [performance domain](performance.md).
+  the [performance domain](performance.md) and
+  [ADR 0023](../decisions/0023-feedback-privacy-tiers.md).
 
 ## Roles → permissions (the canonical matrix — THIS IS THE CONTRACT)
 
@@ -91,6 +92,10 @@ call in action bodies and SSR reads alike.
   by `secureActionClient` (for `metadata.permission`), by `metadata.authorize` hooks
   (e.g. `authorizeStaffEdit`), and in reads where denial should be an error — i.e.
   wherever authz is enforced, just not inside action bodies.
+- **`isAdmin(user): boolean`** — true when the user holds the top `admin` role. The
+  one place the `"admin"` literal lives for coarse role gating (e.g. `checkAuth("admin")`),
+  so access-control logic stays in this module. Prefer `userHasPermission` for
+  specific capabilities.
 - **`isAppRole(role): role is AppRole`** — type guard narrowing an arbitrary role
   string to a known role.
 - **`roleSchema`** (Zod enum of `ROLE_SLUGS`) — validate any role value before it's
@@ -158,8 +163,10 @@ set. The metadata schema in `src/lib/action.ts` carries `role`, `permission`, an
   Promise<boolean>`** — a user may **always** see their **own** compensation; seeing
   anyone else's requires `staff.viewCompensation`. Because `HistorySheet` is a client
   component, this gates comp both as a UI affordance (the profile comp card) *and* at
-  the read (`getStaffHistory` omits `COMPENSATION` entries entirely when false, so
-  salary never leaves the server for an unauthorized viewer).
+  the read: there is **no separate `COMPENSATION` category** — comp amounts ride each
+  `EMPLOYMENT` entry's summary, and when the flag is false `getStaffHistory` drops
+  those amounts from the summary, so salary never leaves the server for an
+  unauthorized viewer.
 - **`src/actions/staff/getStaffPto.ts`** — self-scoping read. Own PTO always
   visible; viewing another person's aggregated PTO requires `pto.review`, else it
   returns `null` and `ProfileView` hides the section (graceful, not an error).

@@ -32,3 +32,8 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0021](./0021-opportunity-pipeline-groups-and-fractional-ordering.md) | Opportunity pipeline: status groups in code + single global fractional ordering | accepted |
 | [0022](./0022-contact-manager-self-reference.md) | Contact "managed by" self-referential FK; same-company invariant enforced app-side | accepted |
 | [0023](./0023-feedback-privacy-tiers.md) | Peer feedback: privacy tiers as read-projections; giving open, review gated | accepted |
+
+> **0012 is intentionally absent** (the log jumps 0011 → 0013). It was a short-lived
+> ADR documenting the *open staff-edit gap pending RBAC*; it was **withdrawn** once
+> [ADR 0014](./0014-rbac-better-auth-access-control.md) closed that gap, and its file
+> was removed. The number is retired — don't reuse it.

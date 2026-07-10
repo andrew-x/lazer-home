@@ -20,7 +20,7 @@ once (no unique `(from, to)` constraint).
 ### Entity — `feedback` (`src/lib/db/performance-schema.ts`)
 
 The performance domain's first table (barrelled by `src/lib/db/schema.ts`,
-migration `drizzle/0018_wild_beast.sql`):
+migration `drizzle/0022_elite_khan.sql`):
 
 - **`fromStaffId` / `toStaffId`** — giver and recipient, both FK → `staff.id`,
   both **`onDelete: cascade`** (feedback is meaningless without both people).
@@ -85,7 +85,9 @@ view) is flagged **future work**. See [ADR 0023](../decisions/0023-feedback-priv
   "You've given"), `feedback/new/page.tsx` (the **dedicated give-feedback page**),
   and `[id]/page.tsx` (detail). Components under `src/components/feedback/`:
   `feedback-form` (the give-feedback form, rendered on the `/new` page — replaced
-  the old dialog), `feedback-about-me`, `feedback-given-table`. New vendored
+  the old dialog), `feedback-about-me`, `feedback-given-table`, and
+  `feedback-detail-fields` (renders a single feedback item's full content, backing
+  the `[id]` detail page). New vendored
   primitive `src/components/ui/radio-group.tsx` (Base UI `Radio`/`RadioGroup`)
   for the rating picker. The recipient tab warns that only the message-to-recipient
   is visible; the detail page gates full content via `getFeedbackDetail`.

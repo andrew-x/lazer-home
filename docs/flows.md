@@ -1,6 +1,6 @@
 # Key flows (cross-domain)
 
-**Status: mixed.** The end-to-end paths the platform must support. Each crosses multiple domains, which is why they live here rather than in a single domain doc. The auth, CRM create, staff browse/edit (incl. resume), and localhost-only admin flows are **built** and described as realized; the core sell → staff → deliver → bill → review lifecycle (allocations, timesheets, performance) remains **proposed** until those domains exist.
+**Status: mixed.** The end-to-end paths the platform must support. Each crosses multiple domains, which is why they live here rather than in a single domain doc. The auth, CRM create, staff browse/edit (incl. resume), peer-feedback, and localhost-only admin flows are **built** and described as realized; the rest of the core sell → staff → deliver → bill → review lifecycle (allocations, timesheets, formal reviews) remains **proposed** until those domains exist.
 
 ## The core lifecycle: sell → staff → deliver → bill → review
 
@@ -8,7 +8,7 @@
 2. **Staff (Allocations).** Managers allocate People to the Project over a date range, using StaffProfile skills and current availability/utilization to choose who. _(First cut built: a Project carries delivery managers + `project_roles` staffing lines — see [domains/projects.md](./domains/projects.md), [domains/allocations.md](./domains/allocations.md). Capacity planning / conflict handling is still proposed.)_
 3. **Deliver + log (Timesheets).** Allocated People log TimeEntries against the Project. Entries roll into Timesheets for approval.
 4. **Bill (Timesheets → finance).** Approved billable hours × charge rate become the billing basis. Margin = (charge − cost) × hours.
-5. **Review (Performance).** During a ReviewCycle, a Person's project work and utilization inform their PerformanceReview and Goals.
+5. **Review (Performance).** A Person's project work and utilization inform assessment and growth. _(First slice built: continuous **peer feedback** (staff → staff) — see the peer-feedback flow below and [domains/performance.md](./domains/performance.md). The formal machinery — ReviewCycle, PerformanceReview, Goals — is still proposed.)_
 
 ## Supporting flows
 
@@ -95,6 +95,20 @@ How companies, contacts, and opportunities are created (read side is in [domains
 > **Companies and contacts each have their own route** (`/companies`, `/contacts`) — the combined page was split. `AddContactDialog` and the contacts table live on `/contacts`.
 
 > **Projects** (`/projects`) follow the same gated-create pattern, gated on **`projects.edit`** instead of `crm.edit`: the page hides `AddProjectDialog` unless `userHasPermission(user, { projects: ["edit"] })`, and `createProject` declares `metadata({ permission: { projects: ["edit"] } })`. Its form is a `useFieldArray` roles repeater; `createProject` writes the project + delivery-manager junction rows + role rows in one transaction. Its staff/company pickers use `projects.edit`-gated search actions sharing the query bodies in `src/actions/shared/entitySearch.ts`. See [domains/projects.md](./domains/projects.md).
+
+## Peer-feedback flow (give feedback → three-tier visibility)
+
+How continuous peer feedback moves from a giver to a subject, and who can read what afterwards. This is the first **Performance** slice and is staff↔staff — both endpoints are `staff` rows (see [domains/performance.md](./domains/performance.md), [ADR 0023](./decisions/0023-feedback-privacy-tiers.md)). Giving is **open to any active staff** (no capability); the privacy tiers live entirely in the read projections, not the table.
+
+1. **Give (`/feedback/new`).** The `FeedbackForm` picks a **subject** via `searchStaffForFeedback` (type-ahead over active staff, **excluding the caller** — no self-feedback) and captures a required 5-point rating, required `context` (how/when they worked together), the keep/stop/start prompts, optional `other`, and an optional `messageToRecipient`. The schema (`createFeedback.schema.ts`) requires **at least one of keep/stop/start** and never accepts `fromStaffId` — the giver is resolved server-side from the session.
+2. **Write.** `createFeedback` runs `metadata({ authorize: authorizeFeedbackCreate })`, so `secureActionClient` re-validates the target through `canGiveFeedback` (caller active staff, subject a *distinct* active staff member) before the body; the body resolves `fromStaffId` from `getCurrentStaffId()` and inserts one immutable `feedback` row (point-in-time; a person can give feedback about the same subject repeatedly). Revalidates `/feedback`.
+3. **Read — three tiers, enforced by projection.** Who sees what is the crux:
+   - **Giver** sees the full feedback they wrote — `getFeedbackIGave` (the "You've given" tab) and the giver branch of `getFeedbackDetail`.
+   - **Subject (recipient)** sees a **limited view** — `getFeedbackAboutMe` (the "About you" tab) projects **only** the giver's name, `messageToRecipient`, and date; never the rating, context, or keep/stop/start/other. The hidden columns never leave the server.
+   - **Reviewer (`feedback.review` — manager/admin)** sees **any** individual item in full via `getFeedbackDetail` (`/feedback/[id]`), which returns full content only for a `feedback.review` holder or the giver, and `null` otherwise so the page `notFound()`s without leaking existence (`getFeedbackDetail.ts:68-70`). Note the accepted first-slice gap: a reviewer can also see feedback about *themselves* (see [domains/performance.md](./domains/performance.md)).
+4. **Feeds performance.** This is the first captured signal for performance management; the proposed ReviewCycle/PerformanceReview machinery will draw on it (not yet wired).
+
+> "Manager" here is the `feedback.review` **capability**, not a reporting line — there is no per-person manager/report graph in the system. Visibility is purely role-based.
 
 ## The technical request flow (every mutation)
 
