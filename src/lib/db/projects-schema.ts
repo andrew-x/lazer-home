@@ -3,11 +3,13 @@ import {
   date,
   index,
   numeric,
+  pgEnum,
   pgTable,
   text,
   timestamp,
   unique,
 } from "drizzle-orm/pg-core";
+import { PROJECT_ROLE_TYPES } from "@/lib/project-role-type";
 import { companies, opportunities } from "./crm-schema";
 import { lineOfBusinessEnum, staff } from "./staff-schema";
 
@@ -69,10 +71,17 @@ export const projectDeliveryManagers = pgTable(
   ],
 );
 
+// Role type (discipline) values — built from the shared, client-safe module so
+// the pgEnum, zod, and form labels can't drift.
+export const projectRoleTypeEnum = pgEnum("project_role_type", [
+  ...PROJECT_ROLE_TYPES,
+]);
+
 // Roles: a staffing line on a project. Not a pure junction — it carries the
-// line of business, date range, and daily hours. `staffId` is `restrict` (a
-// role without its person is meaningless; deleting staff with live roles is
-// blocked), while `projectId` cascades with its parent project.
+// role type (discipline), line of business, date range, and daily hours. A role
+// may be a *placeholder* (an open position defined before it's staffed), so
+// `staffId` is nullable; when set, it's `restrict` (a staffed role blocks
+// deleting its person). `projectId` cascades with its parent project.
 export const projectRoles = pgTable(
   "project_roles",
   {
@@ -80,9 +89,11 @@ export const projectRoles = pgTable(
     projectId: text()
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
-    staffId: text()
-      .notNull()
-      .references(() => staff.id, { onDelete: "restrict" }),
+    // Null for a placeholder/open position; set once the role is staffed.
+    staffId: text().references(() => staff.id, { onDelete: "restrict" }),
+    // Optional label for the line, e.g. "Senior Backend Engineer".
+    name: text(),
+    roleType: projectRoleTypeEnum().notNull(),
     lineOfBusiness: lineOfBusinessEnum().notNull(),
     startDate: date().notNull(),
     endDate: date().notNull(),

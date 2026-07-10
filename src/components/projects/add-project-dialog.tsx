@@ -2,6 +2,7 @@
 
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useAction } from "next-safe-action/hooks";
+import type { ReactElement } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { createProject } from "@/actions/projects/createProject";
 import {
@@ -32,9 +33,16 @@ import {
   LINE_OF_BUSINESS_LABELS,
   type LineOfBusiness,
 } from "@/lib/line-of-business";
+import {
+  PROJECT_ROLE_TYPE_LABELS,
+  PROJECT_ROLE_TYPES,
+  type ProjectRoleType,
+} from "@/lib/project-role-type";
 
 type RoleFieldValues = {
   staff: EntityOption | null;
+  name: string;
+  roleType: ProjectRoleType | "";
   lineOfBusiness: LineOfBusiness | "";
   startDate: string | null;
   endDate: string | null;
@@ -51,18 +59,12 @@ type ProjectFormValues = {
 
 const EMPTY_ROLE: RoleFieldValues = {
   staff: null,
+  name: "",
+  roleType: "",
   lineOfBusiness: "",
   startDate: null,
   endDate: null,
   hoursPerDay: "8",
-};
-
-const DEFAULT_VALUES: ProjectFormValues = {
-  name: "",
-  companyId: "",
-  companyName: "",
-  deliveryManagers: [],
-  roles: [],
 };
 
 // Maps a role sub-field (schema name) to the form field name (per row).
@@ -71,6 +73,8 @@ const ROLE_FIELD_FOR_ISSUE: Record<
   keyof RoleFieldValues
 > = {
   staffId: "staff",
+  name: "name",
+  roleType: "roleType",
   lineOfBusiness: "lineOfBusiness",
   startDate: "startDate",
   endDate: "endDate",
@@ -87,29 +91,97 @@ const FIELD_FOR_ISSUE: Record<
 > = {
   name: "name",
   companyId: "companyId",
+  // Prefilled/derived, never surfaced as a form field.
+  opportunityId: "companyId",
   deliveryManagerIds: "deliveryManagers",
   roles: { array: "roles", fields: ROLE_FIELD_FOR_ISSUE },
 };
 
-export function AddProjectDialog() {
-  return (
-    <FormDialog
-      trigger={
+type ProjectDialogProps = {
+  /** Link the created project to this CRM opportunity. */
+  opportunityId?: string;
+  /** Prefill (and, with `lockCompany`, pin) the company. */
+  defaultCompanyId?: string;
+  defaultCompanyName?: string;
+  /** Render the company read-only — used when creating from an opportunity. */
+  lockCompany?: boolean;
+  /** Called with the new project's id after a successful create. */
+  onCreated?: (projectId: string) => void;
+};
+
+/**
+ * The create-project dialog. Self-manages its trigger button by default (the
+ * projects page); pass `open`/`onOpenChange` to drive it from a parent (the
+ * opportunity drawer and the board's delivery-stage prompt), plus the
+ * `opportunity`/company props to link and pin it. One component serves all three.
+ */
+export function AddProjectDialog({
+  trigger,
+  open,
+  onOpenChange,
+  forceMountOverlay,
+  opportunityId,
+  defaultCompanyId,
+  defaultCompanyName,
+  lockCompany,
+  onCreated,
+}: ProjectDialogProps & {
+  trigger?: ReactElement;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /**
+   * Render this dialog's own backdrop even when nested inside another open
+   * dialog (e.g. the opportunity drawer) — otherwise Base UI suppresses it and
+   * the parent surface stays unblurred behind this dialog.
+   */
+  forceMountOverlay?: boolean;
+}) {
+  const controlled = open !== undefined && onOpenChange !== undefined;
+  const resolvedTrigger = controlled
+    ? undefined
+    : (trigger ?? (
         <Button size="sm">
           <IconPlus />
           Add project
         </Button>
-      }
+      ));
+
+  return (
+    <FormDialog
+      trigger={resolvedTrigger}
+      open={open}
+      onOpenChange={onOpenChange}
+      forceMountOverlay={forceMountOverlay}
       title="Add project"
-      description="Create a project for a company and staff it with roles."
+      description={
+        opportunityId
+          ? "Create the project that delivers this opportunity."
+          : "Create a project for a company and staff it with roles."
+      }
       contentClassName="max-h-[85vh] overflow-y-auto sm:max-w-2xl"
     >
-      {({ close }) => <ProjectForm onSaved={close} />}
+      {({ close }) => (
+        <ProjectForm
+          onSaved={close}
+          opportunityId={opportunityId}
+          defaultCompanyId={defaultCompanyId}
+          defaultCompanyName={defaultCompanyName}
+          lockCompany={lockCompany}
+          onCreated={onCreated}
+        />
+      )}
     </FormDialog>
   );
 }
 
-function ProjectForm({ onSaved }: { onSaved: () => void }) {
+function ProjectForm({
+  onSaved,
+  opportunityId,
+  defaultCompanyId,
+  defaultCompanyName,
+  lockCompany,
+  onCreated,
+}: ProjectDialogProps & { onSaved: () => void }) {
   const {
     register,
     control,
@@ -119,12 +191,23 @@ function ProjectForm({ onSaved }: { onSaved: () => void }) {
     clearErrors,
     watch,
     formState: { errors },
-  } = useForm<ProjectFormValues>({ defaultValues: DEFAULT_VALUES });
+  } = useForm<ProjectFormValues>({
+    defaultValues: {
+      name: "",
+      companyId: defaultCompanyId ?? "",
+      companyName: defaultCompanyName ?? "",
+      deliveryManagers: [],
+      roles: [],
+    },
+  });
 
   const { fields, append, remove } = useFieldArray({ control, name: "roles" });
 
   const { execute, result, isPending } = useAction(createProject, {
-    onSuccess: () => onSaved(),
+    onSuccess: ({ data }) => {
+      if (data?.id) onCreated?.(data.id);
+      onSaved();
+    },
   });
 
   const companyName = watch("companyName");
@@ -134,9 +217,12 @@ function ProjectForm({ onSaved }: { onSaved: () => void }) {
     const payload = {
       name: values.name,
       companyId: values.companyId,
+      opportunityId,
       deliveryManagerIds: values.deliveryManagers.map((d) => d.id),
       roles: values.roles.map((role) => ({
-        staffId: role.staff?.id ?? "",
+        staffId: role.staff?.id ?? undefined,
+        name: role.name,
+        roleType: role.roleType,
         lineOfBusiness: role.lineOfBusiness,
         startDate: role.startDate ?? "",
         endDate: role.endDate ?? "",
@@ -168,24 +254,32 @@ function ProjectForm({ onSaved }: { onSaved: () => void }) {
         />
       </FormField>
 
-      <Controller
-        control={control}
-        name="companyId"
-        render={({ field }) => (
-          <FormField label="Company" error={errors.companyId?.message}>
-            <CompanyCombobox
-              value={field.value || null}
-              selectedName={companyName || null}
-              searchAction={searchCompanies}
-              onChange={(next) => {
-                field.onChange(next?.id ?? "");
-                setValue("companyName", next?.name ?? "");
-                if (next) clearErrors("companyId");
-              }}
-            />
-          </FormField>
-        )}
-      />
+      {lockCompany ? (
+        <FormField label="Company">
+          <p className="text-sm text-muted-foreground">
+            {defaultCompanyName ?? "—"}
+          </p>
+        </FormField>
+      ) : (
+        <Controller
+          control={control}
+          name="companyId"
+          render={({ field }) => (
+            <FormField label="Company" error={errors.companyId?.message}>
+              <CompanyCombobox
+                value={field.value || null}
+                selectedName={companyName || null}
+                searchAction={searchCompanies}
+                onChange={(next) => {
+                  field.onChange(next?.id ?? "");
+                  setValue("companyName", next?.name ?? "");
+                  if (next) clearErrors("companyId");
+                }}
+              />
+            </FormField>
+          )}
+        />
+      )}
 
       <FormField label="Delivery managers">
         <Controller
@@ -219,7 +313,8 @@ function ProjectForm({ onSaved }: { onSaved: () => void }) {
 
         {fields.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No roles yet. Add one to staff this project.
+            No roles yet. Add one to staff this project — leave the person blank
+            for a placeholder (open) role.
           </p>
         ) : null}
 
@@ -247,7 +342,44 @@ function ProjectForm({ onSaved }: { onSaved: () => void }) {
 
               <div className="flex gap-3">
                 <FormField
-                  label="Staff"
+                  label="Role type"
+                  error={rowErrors?.roleType?.message}
+                  className="flex-1"
+                >
+                  <Controller
+                    control={control}
+                    name={`roles.${index}.roleType`}
+                    render={({ field, fieldState }) => (
+                      <EnumSelect
+                        options={PROJECT_ROLE_TYPES}
+                        labels={PROJECT_ROLE_TYPE_LABELS}
+                        placeholder="Select a role type"
+                        value={field.value}
+                        invalid={Boolean(fieldState.error)}
+                        onValueChange={field.onChange}
+                      />
+                    )}
+                  />
+                </FormField>
+
+                <FormField
+                  label="Name (optional)"
+                  htmlFor={`role-name-${index}`}
+                  error={rowErrors?.name?.message}
+                  className="flex-1"
+                >
+                  <Input
+                    id={`role-name-${index}`}
+                    placeholder="Senior Backend Engineer"
+                    aria-invalid={Boolean(rowErrors?.name)}
+                    {...register(`roles.${index}.name`)}
+                  />
+                </FormField>
+              </div>
+
+              <div className="flex gap-3">
+                <FormField
+                  label="Staff (optional)"
                   error={rowErrors?.staff?.message}
                   className="flex-1"
                 >
