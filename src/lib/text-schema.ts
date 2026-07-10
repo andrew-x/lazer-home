@@ -4,16 +4,16 @@ import { z } from "zod";
  * Optional free-text field validator. Blank/whitespace → null; otherwise
  * trimmed. Accepts null/undefined on input too, so re-parsing the transformed
  * value (client → server round-trip) is stable. The `max` length is enforced on
- * the raw input.
+ * the raw input, with an optional custom over-limit `message`.
  *
  * Shared by every optional-text form field (contact phone/role, opportunity
  * next steps) so the trim / empty→null / max behaviour stays consistent in one
  * place — the text counterpart to `optionalUrl` in `url-schema.ts`.
  */
-export const optionalText = (max: number) =>
+export const optionalText = (max: number, message?: string) =>
   z
     .string()
-    .max(max)
+    .max(max, message)
     .nullish()
     .transform((value) => {
       const trimmed = value?.trim();

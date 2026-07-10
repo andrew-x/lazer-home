@@ -84,10 +84,13 @@ delivery, allocations, timesheets, and billing.
   managers, Roles count) and `add-project-dialog.tsx` (create form with a
   `useFieldArray` roles repeater). A "Projects" nav entry (`IconBriefcase`) is in
   `src/components/app-shell/nav.ts`. New reusable components landed here:
-  `src/components/crm/entity-combobox.tsx` (single-select sibling of
-  `EntityMultiCombobox`, used for a role's one staff member) and
-  `src/components/form/enum-select.tsx` (`EnumSelect`, extracted from
-  `add-opportunity-dialog.tsx` for reuse).
+  `src/components/crm/entity-combobox.tsx` (`EntityCombobox`, the single-select
+  sibling of `EntityMultiCombobox`) and `src/components/form/enum-select.tsx`
+  (`EnumSelect`, extracted from `add-opportunity-dialog.tsx` for reuse).
+  `EntityCombobox` is used directly for a role's one staff member here, and is
+  now the **shared single-select base** (with a `searchArgs` prop for extra,
+  non-query search arguments like a `companyId` scope) that both `CompanyCombobox`
+  and `ManagerComboboxField` wrap — see [../ui.md](../ui.md).
 
 ## Authorization
 

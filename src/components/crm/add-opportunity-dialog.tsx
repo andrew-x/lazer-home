@@ -13,6 +13,7 @@ import {
   type OpportunityStatus,
 } from "@/actions/crm/createOpportunity.schema";
 import { searchStaff } from "@/actions/crm/searchStaff";
+import { applyServerIssues } from "@/components/form/apply-server-issues";
 import { EnumSelect } from "@/components/form/enum-select";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
 import { FormField } from "@/components/form/form-field";
@@ -139,14 +140,7 @@ function OpportunityForm({ onSaved }: { onSaved: () => void }) {
 
     const parsed = createOpportunitySchema.safeParse(payload);
     if (!parsed.success) {
-      for (const issue of parsed.error.issues) {
-        const key = issue.path[0];
-        const field =
-          typeof key === "string" && key in FIELD_FOR_ISSUE
-            ? FIELD_FOR_ISSUE[key as keyof CreateOpportunityInput]
-            : undefined;
-        if (field) setError(field, { message: issue.message });
-      }
+      applyServerIssues(setError, parsed.error, FIELD_FOR_ISSUE);
       return;
     }
 

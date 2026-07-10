@@ -15,16 +15,16 @@ export const createCompany = secureActionClient
   })
   .inputSchema(createCompanySchema)
   .action(async ({ parsedInput }) => {
-    const [created] = await db
-      .insert(companies)
-      .values({
-        id: generateId("company"),
-        name: parsedInput.name,
-        websiteUrl: parsedInput.websiteUrl,
-        isPartner: parsedInput.isPartner,
-      })
-      .returning({ id: companies.id });
+    // Minted up front so the created id can be returned to callers without a
+    // `.returning()` round-trip (mirrors createContact / createOpportunity).
+    const companyId = generateId("company");
+    await db.insert(companies).values({
+      id: companyId,
+      name: parsedInput.name,
+      websiteUrl: parsedInput.websiteUrl,
+      isPartner: parsedInput.isPartner,
+    });
 
     revalidatePath("/companies");
-    return { id: created.id };
+    return { id: companyId };
   });

@@ -109,7 +109,13 @@ function ResumeForm({
       setUploadError("That PDF is too large. Keep it under ~6 MB.");
       return;
     }
-    const fileBase64 = await fileToBase64(file);
+    let fileBase64: string;
+    try {
+      fileBase64 = await fileToBase64(file);
+    } catch {
+      setUploadError("Couldn't read that file. Try again.");
+      return;
+    }
     parse.execute({ fileBase64 });
   }
 

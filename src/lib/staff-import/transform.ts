@@ -8,6 +8,7 @@ import {
   type TransformResult,
 } from "@/lib/csv-import";
 import { normalizeCurrency } from "@/lib/currency";
+import { normalizeEmploymentFacts } from "@/lib/employment";
 import type {
   EmploymentType,
   LineOfBusiness,
@@ -152,7 +153,12 @@ export function transformRows(
     }
 
     const role = deriveRole(department, getField(raw, "Title"));
-    const isBillable = !NON_BILLABLE_ROLES.has(role);
+    // Billable staff default to a 100% target; the shared invariant zeroes it
+    // for the non-billable roles (single source of truth in `@/lib/employment`).
+    const { isBillable, utilizationTarget } = normalizeEmploymentFacts({
+      isBillable: !NON_BILLABLE_ROLES.has(role),
+      utilizationTarget: 100,
+    });
 
     rows.push({
       ripplingId,
@@ -167,7 +173,7 @@ export function transformRows(
         getField(raw, "Employment type name"),
       ),
       isBillable,
-      utilizationTarget: isBillable ? 100 : 0,
+      utilizationTarget,
       base,
       hourlyRate,
       guaranteedBonus,

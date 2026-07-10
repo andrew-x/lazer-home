@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { idList } from "@/lib/id-schema";
 import { optionalText } from "@/lib/text-schema";
 
 /**
@@ -41,9 +42,6 @@ export const OPPORTUNITY_STATUSES = [
 
 export type OpportunitySource = (typeof OPPORTUNITY_SOURCES)[number];
 export type OpportunityStatus = (typeof OPPORTUNITY_STATUSES)[number];
-
-/** A list of related-entity ids (contacts/staff), defaulting to empty. */
-const idList = z.array(z.string().min(1)).default([]);
 
 export const createOpportunitySchema = z
   .object({

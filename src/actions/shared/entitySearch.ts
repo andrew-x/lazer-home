@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, ilike } from "drizzle-orm";
+import { and, asc, eq, ilike, ne } from "drizzle-orm";
 import { db } from "@/lib/db/db";
 import { companies, staff } from "@/lib/db/schema";
 import { escapeLike } from "@/lib/like";
@@ -16,8 +16,14 @@ import { SEARCH_LIMIT } from "@/lib/search";
  * A blank query returns nothing (search only runs once the user types).
  */
 
-/** Active staff whose name matches `query`, as `{ id, name }` (capped). */
-export async function searchStaffByName(query: string) {
+/**
+ * Active staff whose name matches `query`, as `{ id, name }` (capped). Pass
+ * `excludeId` to drop a specific staff row (e.g. the caller, for self-exclusion).
+ */
+export async function searchStaffByName(
+  query: string,
+  { excludeId }: { excludeId?: string } = {},
+) {
   if (query === "") return [];
 
   return db
@@ -27,6 +33,7 @@ export async function searchStaffByName(query: string) {
       and(
         eq(staff.isActive, true),
         ilike(staff.name, `%${escapeLike(query)}%`),
+        excludeId ? ne(staff.id, excludeId) : undefined,
       ),
     )
     .orderBy(asc(staff.name))

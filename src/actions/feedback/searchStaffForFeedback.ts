@@ -1,12 +1,9 @@
 "use server";
 
-import { and, asc, eq, ilike, ne } from "drizzle-orm";
+import { searchStaffByName } from "@/actions/shared/entitySearch";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
 import { secureActionClient } from "@/lib/action";
-import { db } from "@/lib/db/db";
-import { staff } from "@/lib/db/schema";
-import { escapeLike } from "@/lib/like";
-import { SEARCH_LIMIT, searchQuerySchema } from "@/lib/search";
+import { searchQuerySchema } from "@/lib/search";
 
 /**
  * Type-ahead search for the feedback recipient picker: active staff matching the
@@ -21,16 +18,5 @@ export const searchStaffForFeedback = secureActionClient
     if (query === "") return [];
 
     const selfStaffId = await getCurrentStaffId();
-    const conditions = [
-      eq(staff.isActive, true),
-      ilike(staff.name, `%${escapeLike(query)}%`),
-    ];
-    if (selfStaffId) conditions.push(ne(staff.id, selfStaffId));
-
-    return db
-      .select({ id: staff.id, name: staff.name })
-      .from(staff)
-      .where(and(...conditions))
-      .orderBy(asc(staff.name))
-      .limit(SEARCH_LIMIT);
+    return searchStaffByName(query, { excludeId: selfStaffId ?? undefined });
   });

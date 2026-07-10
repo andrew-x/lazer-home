@@ -23,17 +23,23 @@ type EntitySearchAction = typeof searchStaff;
  * (`filter={null}`); results come from `searchAction` keyed off the debounced
  * input. Holds one `EntityOption | null` and is clearable. Used where a slot
  * takes exactly one entity (e.g. the staff on a project role).
+ *
+ * `searchArgs` passes extra, non-query arguments to the search action (e.g. a
+ * `companyId` scope); a change to it re-runs the search. Callers must keep it
+ * referentially stable (e.g. `useMemo`) so it doesn't re-search every render.
  */
 export function EntityCombobox({
   value,
   onChange,
   searchAction,
+  searchArgs,
   placeholder = "Search…",
   invalid = false,
 }: {
   value: EntityOption | null;
   onChange: (next: EntityOption | null) => void;
   searchAction: EntitySearchAction;
+  searchArgs?: Record<string, unknown>;
   placeholder?: string;
   invalid?: boolean;
 }) {
@@ -47,8 +53,8 @@ export function EntityCombobox({
       reset();
       return;
     }
-    execute({ query: trimmed });
-  }, [debouncedQuery, execute, reset]);
+    execute({ query: trimmed, ...searchArgs });
+  }, [debouncedQuery, searchArgs, execute, reset]);
 
   // Keep the selected item in the list even when it's absent from the current
   // results, so its label and selected state render correctly.

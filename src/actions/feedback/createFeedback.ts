@@ -36,11 +36,11 @@ export const createFeedback = secureActionClient
       toStaffId: parsedInput.toStaffId,
       rating: parsedInput.rating,
       context: parsedInput.context,
-      keepDoing: parsedInput.keepDoing ?? null,
-      stopDoing: parsedInput.stopDoing ?? null,
-      startDoing: parsedInput.startDoing ?? null,
-      other: parsedInput.other ?? null,
-      messageToRecipient: parsedInput.messageToRecipient ?? null,
+      keepDoing: parsedInput.keepDoing,
+      stopDoing: parsedInput.stopDoing,
+      startDoing: parsedInput.startDoing,
+      other: parsedInput.other,
+      messageToRecipient: parsedInput.messageToRecipient,
     });
 
     revalidatePath("/feedback");

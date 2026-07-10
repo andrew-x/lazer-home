@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { idList } from "@/lib/id-schema";
 import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
 
 /**
@@ -12,9 +13,6 @@ import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
 const dateString = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date.");
-
-/** A list of related-staff ids, defaulting to empty. */
-const idList = z.array(z.string().min(1)).default([]);
 
 /** A single staffing line on a project. */
 export const projectRoleSchema = z

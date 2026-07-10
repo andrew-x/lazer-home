@@ -2,12 +2,7 @@
 
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useAction } from "next-safe-action/hooks";
-import {
-  Controller,
-  type FieldPath,
-  useFieldArray,
-  useForm,
-} from "react-hook-form";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { createProject } from "@/actions/projects/createProject";
 import {
   type CreateProjectInput,
@@ -22,6 +17,10 @@ import {
   EntityMultiCombobox,
   type EntityOption,
 } from "@/components/crm/entity-multi-combobox";
+import {
+  applyServerIssues,
+  type IssueTarget,
+} from "@/components/form/apply-server-issues";
 import { EnumSelect } from "@/components/form/enum-select";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
 import { FormField } from "@/components/form/form-field";
@@ -66,18 +65,6 @@ const DEFAULT_VALUES: ProjectFormValues = {
   roles: [],
 };
 
-// Maps a top-level server-schema issue path to its form field. Typed by
-// `keyof CreateProjectInput` so a new schema field can't silently drop its errors.
-const FIELD_FOR_ISSUE: Record<
-  keyof CreateProjectInput,
-  FieldPath<ProjectFormValues>
-> = {
-  name: "name",
-  companyId: "companyId",
-  deliveryManagerIds: "deliveryManagers",
-  roles: "roles",
-};
-
 // Maps a role sub-field (schema name) to the form field name (per row).
 const ROLE_FIELD_FOR_ISSUE: Record<
   keyof ProjectRoleInput,
@@ -88,6 +75,20 @@ const ROLE_FIELD_FOR_ISSUE: Record<
   startDate: "startDate",
   endDate: "endDate",
   hoursPerDay: "hoursPerDay",
+};
+
+// Maps a top-level server-schema issue path to its form field. Typed by
+// `keyof CreateProjectInput` so a new schema field can't silently drop its
+// errors. `roles` is a field-array: its issues (`roles[i].sub`) route per-row
+// through ROLE_FIELD_FOR_ISSUE.
+const FIELD_FOR_ISSUE: Record<
+  keyof CreateProjectInput,
+  IssueTarget<ProjectFormValues>
+> = {
+  name: "name",
+  companyId: "companyId",
+  deliveryManagerIds: "deliveryManagers",
+  roles: { array: "roles", fields: ROLE_FIELD_FOR_ISSUE },
 };
 
 export function AddProjectDialog() {
@@ -145,30 +146,7 @@ function ProjectForm({ onSaved }: { onSaved: () => void }) {
 
     const parsed = createProjectSchema.safeParse(payload);
     if (!parsed.success) {
-      for (const issue of parsed.error.issues) {
-        const [head, index, sub] = issue.path;
-        if (
-          head === "roles" &&
-          typeof index === "number" &&
-          typeof sub === "string"
-        ) {
-          const field = ROLE_FIELD_FOR_ISSUE[sub as keyof ProjectRoleInput];
-          if (field) {
-            setError(
-              `roles.${index}.${field}` as FieldPath<ProjectFormValues>,
-              {
-                message: issue.message,
-              },
-            );
-          }
-          continue;
-        }
-        if (typeof head === "string" && head in FIELD_FOR_ISSUE) {
-          setError(FIELD_FOR_ISSUE[head as keyof CreateProjectInput], {
-            message: issue.message,
-          });
-        }
-      }
+      applyServerIssues(setError, parsed.error, FIELD_FOR_ISSUE);
       return;
     }
 

@@ -32,6 +32,10 @@ You're dispatched after a major change, usually with a short summary of what cha
 - **Stay consistent** with the existing `/docs` layout.
 - **Don't touch application code.** You only edit `/docs`.
 
+## Standing environment facts
+
+- **The Neon (Postgres) database is always migrated and up to date.** Never document migrations as "pending" or warn that "login won't work until `db:migrate` runs" — that scaffold-era caveat is obsolete. Assume the schema in the DB matches the latest Drizzle migration. `bun run db:generate`/`db:migrate` remain the documented *workflow* for making schema changes, but never frame the deployed DB as un-migrated.
+
 ## Output
 
 Return a concise report to the main agent: which docs you created/updated/removed and the one or two most important things now captured. Keep it short — the main agent's context is precious.
