@@ -5,6 +5,9 @@ import { revalidatePath } from "next/cache";
 import { secureActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
 import { opportunities } from "@/lib/db/schema";
+import { UserSafeActionError } from "@/lib/errors";
+import { requiresProject } from "@/lib/opportunity-pipeline";
+import { opportunityHasProject } from "./opportunityHasProject";
 import { updateOpportunityPositionSchema } from "./updateOpportunityPosition.schema";
 
 /**
@@ -20,6 +23,17 @@ export const updateOpportunityPosition = secureActionClient
   })
   .inputSchema(updateOpportunityPositionSchema)
   .action(async ({ parsedInput }) => {
+    // Delivery stages require a linked project (see `requiresProject`). Enforced
+    // here too — not just in the UI — so the rule can't be bypassed.
+    if (
+      requiresProject(parsedInput.status) &&
+      !(await opportunityHasProject(parsedInput.id))
+    ) {
+      throw new UserSafeActionError(
+        "Create a project for this opportunity before moving it to Allocating or later.",
+      );
+    }
+
     await db
       .update(opportunities)
       .set({ status: parsedInput.status, position: parsedInput.position })

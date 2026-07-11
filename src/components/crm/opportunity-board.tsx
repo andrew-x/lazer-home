@@ -21,6 +21,7 @@ import type { OpportunityStatus } from "@/actions/crm/createOpportunity.schema";
 import type { OpportunityBoardCard } from "@/actions/crm/getOpportunitiesBoard";
 import { updateOpportunityPosition } from "@/actions/crm/updateOpportunityPosition";
 import { IconButton } from "@/components/icon-button";
+import { AddProjectDialog } from "@/components/projects/add-project-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -29,11 +30,23 @@ import {
   OPPORTUNITY_GROUPS,
   type OpportunityGroup,
   type OpportunityGroupId,
+  requiresProject,
   resolveTargetStatus,
 } from "@/lib/opportunity-pipeline";
 import { OpportunityBoardColumn } from "./opportunity-board-column";
-import { OpportunityCardView } from "./opportunity-card";
+import { CardDragHandle, OpportunityCardView } from "./opportunity-card";
+import { OpportunityDetailSheet } from "./opportunity-detail-sheet";
 import { STATUS_LABELS } from "./opportunity-display";
+
+/** A status move waiting on a project being created for the opportunity. */
+type PendingMove = { id: string; status: OpportunityStatus; position: number };
+
+type ProjectPrompt = {
+  opportunityId: string;
+  companyId: string;
+  companyName: string;
+  pendingMove: PendingMove;
+};
 
 type BoardColumn = {
   id: string;
@@ -111,9 +124,11 @@ function buildUnits(
 export function OpportunityBoard({
   cards: initialCards,
   canEdit,
+  canCreateProject,
 }: {
   cards: OpportunityBoardCard[];
   canEdit: boolean;
+  canCreateProject: boolean;
 }) {
   const searchId = useId();
   const [cards, setCards] = useState(initialCards);
@@ -122,6 +137,13 @@ export function OpportunityBoard({
   >({});
   const [search, setSearch] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  // Detail drawer + the delivery-stage "create a project first" prompt.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [projectPrompt, setProjectPrompt] = useState<ProjectPrompt | null>(
+    null,
+  );
 
   const snapshotRef = useRef<OpportunityBoardCard[]>(initialCards);
   const originStatusRef = useRef<OpportunityStatus | null>(null);
@@ -202,6 +224,11 @@ export function OpportunityBoard({
     originStatusRef.current = cards.find((c) => c.id === id)?.status ?? null;
   };
 
+  const openCard = (id: string) => {
+    setSelectedId(id);
+    setDrawerOpen(true);
+  };
+
   const onDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
@@ -254,6 +281,28 @@ export function OpportunityBoard({
       return; // no change
     }
 
+    // Delivery stages need a project. Block the move (don't apply it), and
+    // either prompt to create one on the spot or explain who can.
+    if (requiresProject(newStatus) && current && !current.hasProject) {
+      if (canCreateProject) {
+        setProjectPrompt({
+          opportunityId: activeCardId,
+          companyId: current.companyId,
+          companyName: current.companyName,
+          pendingMove: {
+            id: activeCardId,
+            status: newStatus,
+            position: newPosition,
+          },
+        });
+      } else {
+        toast.error(
+          "A delivery manager must create a project for this opportunity before it can advance.",
+        );
+      }
+      return;
+    }
+
     setCards((prev) =>
       prev.map((c) =>
         c.id === activeCardId
@@ -262,6 +311,31 @@ export function OpportunityBoard({
       ),
     );
     execute({ id: activeCardId, status: newStatus, position: newPosition });
+  };
+
+  // After the prompted project is created, complete the pending status move.
+  const completePendingMove = () => {
+    const move = projectPrompt?.pendingMove;
+    setProjectPrompt(null);
+    if (!move) return;
+    // The project now exists, so a failed status update should revert to the
+    // origin *with* hasProject true — patch the snapshot the error path restores.
+    snapshotRef.current = snapshotRef.current.map((c) =>
+      c.id === move.id ? { ...c, hasProject: true } : c,
+    );
+    setCards((prev) =>
+      prev.map((c) =>
+        c.id === move.id
+          ? {
+              ...c,
+              status: move.status,
+              position: move.position,
+              hasProject: true,
+            }
+          : c,
+      ),
+    );
+    execute(move);
   };
 
   const activeCard = activeId
@@ -297,6 +371,7 @@ export function OpportunityBoard({
                   cards={visibleByColumnId.get(col.id) ?? []}
                   showSubstatusBadge={col.showSubstatusBadge}
                   canEdit={canEdit}
+                  onOpenCard={canEdit ? openCard : undefined}
                 />
               ))}
             </div>
@@ -309,6 +384,7 @@ export function OpportunityBoard({
             cards={visibleByColumnId.get(unit.column.id) ?? []}
             showSubstatusBadge={unit.column.showSubstatusBadge}
             canEdit={canEdit}
+            onOpenCard={canEdit ? openCard : undefined}
             toggle={
               unit.expandable
                 ? {
@@ -368,6 +444,7 @@ export function OpportunityBoard({
                     : null
                 }
                 overlay
+                dragHandle={<CardDragHandle />}
               />
             ) : null}
           </DragOverlay>
@@ -375,6 +452,28 @@ export function OpportunityBoard({
       ) : (
         board
       )}
+
+      {canEdit ? (
+        <>
+          <OpportunityDetailSheet
+            opportunityId={selectedId}
+            open={drawerOpen}
+            onOpenChange={setDrawerOpen}
+            canCreateProject={canCreateProject}
+          />
+          <AddProjectDialog
+            open={projectPrompt !== null}
+            onOpenChange={(next) => {
+              if (!next) setProjectPrompt(null);
+            }}
+            opportunityId={projectPrompt?.opportunityId}
+            defaultCompanyId={projectPrompt?.companyId}
+            defaultCompanyName={projectPrompt?.companyName}
+            lockCompany
+            onCreated={completePendingMove}
+          />
+        </>
+      ) : null}
     </div>
   );
 }

@@ -83,6 +83,20 @@ export function groupIndexOfStatus(status: OpportunityStatus): number {
   return GROUP_INDEX_BY_ID[groupByStatus[status].id];
 }
 
+/**
+ * Whether an opportunity at this status must have a linked project. True from
+ * the Allocating group onward (Allocating → Negotiating → Closing → Won) — the
+ * point delivery is being staffed — with Closed – Lost excepted (a lost deal
+ * never needs a project). Enforced server-side in the status-changing actions
+ * and surfaced client-side by the board/drawer.
+ */
+export function requiresProject(status: OpportunityStatus): boolean {
+  return (
+    groupIndexOfStatus(status) >= GROUP_INDEX_BY_ID.allocating &&
+    status !== "closed_lost"
+  );
+}
+
 // Lockstep guard: the groups must cover every status exactly once, in order.
 // Same "deliberate friction" idea as the permissions matrix test — the two
 // structures can't drift silently.

@@ -162,6 +162,13 @@
       "when": 1783623792896,
       "tag": "0022_elite_khan",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1783704263119,
+      "tag": "0023_eager_demogoblin",
+      "breakpoints": true
     }
   ]
 }

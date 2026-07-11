@@ -6,6 +6,7 @@ import {
   companies,
   opportunities,
   opportunityOwners,
+  projects,
   staff,
 } from "@/lib/db/schema";
 import type {
@@ -16,10 +17,14 @@ import type {
 export type OpportunityBoardCard = {
   id: string;
   name: string;
+  companyId: string;
   companyName: string;
   source: OpportunitySource;
   status: OpportunityStatus;
   ownerNames: string[];
+  // Whether a project is linked — drives the delivery-stage requirement in the
+  // board (block a move into Allocating+ with no project).
+  hasProject: boolean;
   position: number;
   // Epoch millis — the client sorts by (position, createdAt) to match the
   // server's tie-break so a tied position never flips order between renders.
@@ -37,6 +42,7 @@ export async function getOpportunitiesBoard(): Promise<OpportunityBoardCard[]> {
     .select({
       id: opportunities.id,
       name: opportunities.name,
+      companyId: opportunities.companyId,
       companyName: companies.name,
       source: opportunities.source,
       status: opportunities.status,
@@ -47,9 +53,13 @@ export async function getOpportunitiesBoard(): Promise<OpportunityBoardCard[]> {
     .innerJoin(companies, eq(opportunities.companyId, companies.id))
     .orderBy(asc(opportunities.position), asc(opportunities.createdAt));
 
-  // Resolve owner names for all cards in one grouped query.
+  // Resolve owner names and project links for all cards in two grouped queries
+  // (no N+1).
   const ownersByOpportunity = new Map<string, string[]>();
+  const withProject = new Set<string>();
   if (baseRows.length > 0) {
+    const ids = baseRows.map((r) => r.id);
+
     const ownerRows = await db
       .select({
         opportunityId: opportunityOwners.opportunityId,
@@ -57,12 +67,7 @@ export async function getOpportunitiesBoard(): Promise<OpportunityBoardCard[]> {
       })
       .from(opportunityOwners)
       .innerJoin(staff, eq(opportunityOwners.staffId, staff.id))
-      .where(
-        inArray(
-          opportunityOwners.opportunityId,
-          baseRows.map((r) => r.id),
-        ),
-      )
+      .where(inArray(opportunityOwners.opportunityId, ids))
       .orderBy(asc(staff.name));
 
     for (const { opportunityId, name } of ownerRows) {
@@ -70,11 +75,21 @@ export async function getOpportunitiesBoard(): Promise<OpportunityBoardCard[]> {
       list.push(name);
       ownersByOpportunity.set(opportunityId, list);
     }
+
+    const projectRows = await db
+      .select({ opportunityId: projects.opportunityId })
+      .from(projects)
+      .where(inArray(projects.opportunityId, ids));
+
+    for (const { opportunityId } of projectRows) {
+      if (opportunityId) withProject.add(opportunityId);
+    }
   }
 
   return baseRows.map((r) => ({
     ...r,
     createdAt: r.createdAt.getTime(),
     ownerNames: ownersByOpportunity.get(r.id) ?? [],
+    hasProject: withProject.has(r.id),
   }));
 }

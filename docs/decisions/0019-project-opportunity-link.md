@@ -9,10 +9,11 @@ delivery seam — see [data-model.md](../data-model.md), [domains/crm.md](../dom
 Until now that link was purely proposed: `projects` and `opportunities` existed but had
 no reference between them, and projects were created standalone.
 
-This change adds the **data-level** link only — a column and FK. It does *not* build the
-won → Project handoff flow: nothing populates the column yet (the `createProject` action
-and form are unchanged), and there's no UI. The shape of the link, though, is a settled
-design choice worth recording.
+This ADR (when written) added the **data-level** link only — a column and FK — and left
+the handoff flow proposed. **That flow is now built** ([ADR 0024](./0024-opportunity-project-handoff-and-placeholder-roles.md)):
+`createProject` accepts an optional `opportunityId` and sets the column, driven from the
+opportunity detail drawer and the board's delivery-stage prompt. The shape of the link
+below is the settled design it realizes.
 
 Open questions the link forced: one project per opportunity or many? Required or optional?
 Which `onDelete`? Should the linked opportunity be constrained to the project's company?
@@ -40,15 +41,14 @@ opportunity?"). Migration `drizzle/0017_amused_corsair.sql`.
 
 ## Consequences
 
-- The won → Project handoff can now be built without another migration: wire the
-  `createProject` action/form (and eventually a "create project from opportunity" entry
-  point) to set `opportunityId`. Until then the column is always null. Reads that project
-  columns explicitly (per [`.claude/rules/database.md`](../../.claude/rules/database.md))
-  won't surface it until asked.
-- **A same-company mismatch is currently possible.** If/when the flow lands, add an
-  app-level check that the chosen opportunity's company matches the project's company
-  (both actions already consume ids, so the check is a cheap lookup). Don't assume the
-  invariant holds when reasoning about company-scoped reads.
+- The won → Project handoff **is now built** ([ADR 0024](./0024-opportunity-project-handoff-and-placeholder-roles.md)):
+  `createProject` sets `opportunityId` when created from an opportunity, and
+  `getOpportunitiesBoard` reads a `hasProject` flag off this FK to enforce the
+  delivery-stage requirement. The column is still null for standalone projects.
+- **A same-company mismatch is still possible.** The app-level check (chosen opportunity's
+  company == project's company) was **not** added when the flow landed; the handoff prefills
+  and locks the company from the opportunity in the UI, but the server doesn't verify it.
+  Don't assume the invariant holds when reasoning about company-scoped reads.
 - A future opportunity-delete flow must handle the `restrict` (can't blindly delete an
   opportunity that has projects), same as the company-delete flow.
 

@@ -29,6 +29,7 @@ export function OpportunityBoardColumn({
   showSubstatusBadge,
   canEdit,
   toggle,
+  onOpenCard,
 }: {
   id: string;
   label: string;
@@ -36,6 +37,7 @@ export function OpportunityBoardColumn({
   showSubstatusBadge: boolean;
   canEdit: boolean;
   toggle?: ColumnToggle;
+  onOpenCard?: (id: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
 
@@ -57,6 +59,7 @@ export function OpportunityBoardColumn({
             key={card.id}
             card={card}
             showSubstatusBadge={showSubstatusBadge}
+            onOpen={onOpenCard}
           />
         ))
       ) : (

@@ -34,6 +34,7 @@ export const createProject = secureActionClient
         id: projectId,
         name: parsedInput.name,
         companyId: parsedInput.companyId,
+        opportunityId: parsedInput.opportunityId ?? null,
       });
 
       if (deliveryManagerIds.length > 0) {
@@ -51,7 +52,10 @@ export const createProject = secureActionClient
           parsedInput.roles.map((role) => ({
             id: generateId("proj-role"),
             projectId,
-            staffId: role.staffId,
+            // Null ⇒ placeholder/open position.
+            staffId: role.staffId ?? null,
+            name: role.name,
+            roleType: role.roleType,
             lineOfBusiness: role.lineOfBusiness,
             startDate: role.startDate,
             endDate: role.endDate,
@@ -62,5 +66,7 @@ export const createProject = secureActionClient
     });
 
     revalidatePath("/projects");
+    // A project linked to an opportunity changes the board's `hasProject`.
+    revalidatePath("/opportunities");
     return { id: projectId };
   });
