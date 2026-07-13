@@ -1,6 +1,7 @@
 import "server-only";
 
 import { desc, eq } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { cache } from "react";
 import { db } from "@/lib/db/db";
 import { type StaffEmployment, staff, staffEmployment } from "@/lib/db/schema";
@@ -21,6 +22,10 @@ export type StaffProfile = {
   resumeUpdatedAt: Date | null;
   skills: StaffSkill[];
   joinDate: string | null;
+  // The person's manager (set via import; null when none). `managerName` is null
+  // whenever `managerId` is.
+  managerId: string | null;
+  managerName: string | null;
   employment: Pick<
     StaffEmployment,
     | "lineOfBusiness"
@@ -45,6 +50,7 @@ export type StaffProfile = {
  */
 export const getStaffProfile = cache(
   async (staffId: string): Promise<StaffProfile | null> => {
+    const manager = alias(staff, "manager");
     const [profile] = await db
       .select({
         name: staff.name,
@@ -57,8 +63,11 @@ export const getStaffProfile = cache(
         resumeUpdatedAt: staff.resumeUpdatedAt,
         skills: staff.skills,
         joinDate: staff.joinDate,
+        managerId: staff.managerId,
+        managerName: manager.name,
       })
       .from(staff)
+      .leftJoin(manager, eq(manager.id, staff.managerId))
       .where(eq(staff.id, staffId))
       .limit(1);
 
