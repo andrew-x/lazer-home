@@ -38,24 +38,48 @@ migration `drizzle/0024_lovely_tyger_tiger.sql`). See [ADR 0025](../decisions/00
 
 **Week math** lives in the pure module `src/lib/timesheet-week.ts` (no `db` import,
 so UI + actions + validation agree on what a "week" is): `getWeekStart`, `addWeeks`,
-`getWeekDays`, `currentWeekStart`, `weeksBetween`, `isWithinEditWindow`. Weeks are
-timezone-agnostic and keyed by their ISO-Monday `"YYYY-MM-DD"` string (matching the
-DB's `date` convention); it deliberately parses/formats via local Y/M/D parts to
-avoid `new Date("...")` UTC drift.
+`getWeekDays`, `currentWeekStart`, `weeksBetween`, `isWithinEditWindow`, `isWeekend`.
+Weeks are timezone-agnostic and keyed by their ISO-Monday `"YYYY-MM-DD"` string
+(matching the DB's `date` convention); it deliberately parses/formats via local Y/M/D
+parts to avoid `new Date("...")` UTC drift.
+
+**Weekday-only capture.** Although a week spans all 7 days, timesheets record
+**weekday (Mon–Fri) work only**. `isWeekend(date)` gates this on both sides: the grid
+renders Sat/Sun columns blank and muted with no input, and `saveTimesheet.schema.ts`
+rejects any entry whose date is a weekend ("Hours can't be logged on weekends.").
 
 ## Key flows
 
 Actions live in `src/actions/timesheets/`. All three mutations use
 `secureActionClient` gated by the `authorizeTimesheetEdit` hook (see [Access](#access-control)).
 
-- **Log → save draft.** `/timesheets` (`src/app/(app)/timesheets/page.tsx`) renders
-  the weekly grid (`src/components/timesheets/timesheet-week.tsx`): one row per target
-  (project or bucket), a hours cell per day, per-day column totals with a cap warning.
-  **`saveTimesheet`** does a **whole-week transactional replace**: create the
-  `timesheets` row lazily if absent, then delete all its `time_entries` and re-insert
-  the non-zero rows. Zero-hour rows (empty cells) are dropped. Validation
+The UX is **browse, then edit** — there is no week-arrow navigation.
+
+- **Browse.** `/timesheets` (`src/app/(app)/timesheets/page.tsx`) is a **list of the
+  viewer's own weeks, newest first** (`src/components/timesheets/timesheets-list.tsx`).
+  Each row shows the week range, status (Draft / Submitted, or **"Not started"** for a
+  week with no row yet), the total hours, and an **Edit** / **View** button (View when
+  the week is outside the editable window). `getTimesheetList(staffId)` is the aggregate
+  read: every week with a `timesheets` row (summed hours), plus the previous / current /
+  next weeks always injected even when unstarted, so the actionable ±1-week window is
+  never missing from the list.
+- **Log → save draft.** Clicking Edit/View opens **`/timesheets/[week]`**
+  (`src/app/(app)/timesheets/[week]/page.tsx`) — the weekly grid
+  (`src/components/timesheets/timesheet-week.tsx`): one row per target (project or
+  bucket), a hours cell per **weekday**, per-day column totals with a cap warning. The
+  status badge + week range live in the edit-page header; the grid itself carries no
+  navigation. The `[week]` param is any date in the target week, normalized to its
+  ISO-Monday key. **`saveTimesheet`** does a **whole-week transactional replace**:
+  create the `timesheets` row lazily if absent, then delete all its `time_entries` and
+  re-insert the non-zero rows. Zero-hour rows (empty cells) are dropped. Validation
   (`saveTimesheet.schema.ts`, shared client+server): one target per row, dates within
-  the week, no duplicate (day, target) rows, and the 8h/day cap.
+  the week, no weekend dates, no duplicate (day, target) rows, and the 8h/day cap.
+- **Project autofill.** Adding a **project** row prefills its weekday cells with each
+  day's *remaining* capacity (8h minus hours already logged that day) — a convenience so
+  a main project soaks up unallocated weekday time. Weekends are skipped. Adding a
+  **non-billable** bucket (PTO / Unallocated Bench / Internal Admin) does **not**
+  autofill — it starts empty. This is client-only sugar in the grid; the values are
+  still editable and saved like any other.
 - **Submit → lock.** **`submitTimesheet`** flips `draft → submitted` and stamps
   `submittedAt` (upsert on the unique key, so an empty week can be submitted).
   A submitted week is **locked**: `saveTimesheet` refuses to overwrite it unless the

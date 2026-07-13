@@ -34,6 +34,19 @@ rows.
 **The 8h/day cap is a per-day total across all rows**, not per project — enforced in
 the shared `saveTimesheet.schema.ts` (client resolver + server).
 
+**Timesheets capture weekday (Mon–Fri) work only.** A week is still keyed and displayed
+as 7 days, but Saturday/Sunday are non-editable: the grid renders them blank/muted with
+no input, and the shared schema rejects any weekend-dated entry (`isWeekend` in
+`src/lib/timesheet-week.ts`). Weekend work is rare enough for a consultancy that the
+simpler, honest default is to disallow it rather than model it.
+
+**Adding a project row autofills weekday cells; non-billable buckets don't.** As a
+client-side convenience, adding a project prefills each weekday with its remaining
+capacity (8h minus what's already logged that day, weekends skipped) so a main project
+soaks up unallocated time; adding a PTO / Unallocated Bench / Internal Admin bucket
+starts empty. Prefilled values are ordinary editable cells — this is UX sugar, not a
+persistence rule.
+
 **Submit locks; reopen unlocks; no manager approval in v1.** Submitting flips the week
 to `submitted` and stamps `submittedAt`; a locked week can't be overwritten by a normal
 save. The owner **reopens** (back to `draft`) to correct. There is no approve/reject

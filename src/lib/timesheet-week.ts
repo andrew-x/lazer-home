@@ -45,6 +45,12 @@ export function addWeeks(weekStart: string, n: number): string {
   return toIsoDate(d);
 }
 
+/** True for a Saturday or Sunday — timesheets only capture weekday work. */
+export function isWeekend(date: string): boolean {
+  const day = parseLocal(date).getDay();
+  return day === 0 || day === 6;
+}
+
 /** The 7 day dates (Mon→Sun) of the week beginning `weekStart`. */
 export function getWeekDays(weekStart: string): string[] {
   const monday = parseLocal(weekStart);

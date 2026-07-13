@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  IconChevronLeft,
-  IconChevronRight,
-  IconTrash,
-} from "@tabler/icons-react";
-import Link from "next/link";
+import { IconTrash } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
 import { useRef, useState } from "react";
@@ -17,7 +12,6 @@ import { saveTimesheet } from "@/actions/timesheets/saveTimesheet";
 import { DAILY_HOUR_CAP } from "@/actions/timesheets/saveTimesheet.schema";
 import { submitTimesheet } from "@/actions/timesheets/submitTimesheet";
 import { IconButton } from "@/components/icon-button";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -38,13 +32,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDate } from "@/lib/format";
 import {
   TIMESHEET_CATEGORY,
   TIMESHEET_CATEGORY_LABELS,
   type TimesheetCategory,
 } from "@/lib/timesheet-category";
-import { addWeeks, currentWeekStart } from "@/lib/timesheet-week";
+import { isWeekend } from "@/lib/timesheet-week";
 import { cn } from "@/lib/utils";
 
 /** A grid row: one target (project or category) with a value per weekday. */
@@ -210,6 +203,25 @@ export function TimesheetWeek({
     setRows((prev) => prev.filter((row) => row.key !== rowKey));
   }
 
+  /**
+   * Hours to prefill a newly-added PROJECT row with: each weekday's remaining
+   * capacity (8h minus what's already logged that day), so a project soaks up
+   * unallocated weekday time. Weekends stay blank. Non-billable rows get nothing.
+   */
+  function autofillProjectHours(): Record<string, string> {
+    const filled: Record<string, string> = {};
+    for (const date of weekDays) {
+      if (isWeekend(date)) continue;
+      const used = rows.reduce(
+        (sum, row) => sum + parseHours(row.hours[date]),
+        0,
+      );
+      const remaining = DAILY_HOUR_CAP - used;
+      if (remaining > 0) filled[date] = String(remaining);
+    }
+    return filled;
+  }
+
   function addTarget(value: string) {
     if (value.startsWith(PROJECT_PREFIX)) {
       const id = value.slice(PROJECT_PREFIX.length);
@@ -225,7 +237,7 @@ export function TimesheetWeek({
           sublabel: project.companyName,
           projectId: id,
           category: null,
-          hours: {},
+          hours: autofillProjectHours(),
         },
       ]);
     } else if (value.startsWith(CATEGORY_PREFIX)) {
@@ -281,48 +293,6 @@ export function TimesheetWeek({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Week navigation + status */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            aria-label="Previous week"
-            render={
-              <Link href={`/timesheets?week=${addWeeks(weekStartDate, -1)}`} />
-            }
-          >
-            <IconChevronLeft />
-          </Button>
-          <div className="min-w-56 text-center">
-            <div className="text-sm font-medium">
-              {formatDate(weekDays[0])} – {formatDate(weekDays[6])}
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            aria-label="Next week"
-            render={
-              <Link href={`/timesheets?week=${addWeeks(weekStartDate, 1)}`} />
-            }
-          >
-            <IconChevronRight />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            render={<Link href={`/timesheets?week=${currentWeekStart()}`} />}
-          >
-            This week
-          </Button>
-        </div>
-
-        <Badge variant={locked ? "secondary" : "outline"}>
-          {locked ? "Submitted" : "Draft"}
-        </Badge>
-      </div>
-
       {/* Grid */}
       <div className="rounded-md border">
         <Table>
@@ -332,7 +302,13 @@ export function TimesheetWeek({
               {weekDays.map((date) => {
                 const { weekday, day } = dayHeader(date);
                 return (
-                  <TableHead key={date} className="text-center">
+                  <TableHead
+                    key={date}
+                    className={cn(
+                      "text-center",
+                      isWeekend(date) && "bg-muted/40",
+                    )}
+                  >
                     <span className="text-muted-foreground">{weekday}</span>{" "}
                     {day}
                   </TableHead>
@@ -371,24 +347,35 @@ export function TimesheetWeek({
                         </div>
                       ) : null}
                     </TableCell>
-                    {weekDays.map((date) => (
-                      <TableCell key={date} className="text-center">
-                        <Input
-                          type="number"
-                          step="0.25"
-                          min="0"
-                          max={DAILY_HOUR_CAP}
-                          inputMode="decimal"
-                          aria-label={`${row.label} hours on ${date}`}
-                          disabled={!editable}
-                          value={row.hours[date] ?? ""}
-                          onChange={(e) =>
-                            setCell(row.key, date, e.target.value)
-                          }
-                          className="mx-auto w-16 text-center"
-                        />
-                      </TableCell>
-                    ))}
+                    {weekDays.map((date) => {
+                      const weekend = isWeekend(date);
+                      return (
+                        <TableCell
+                          key={date}
+                          className={cn(
+                            "text-center",
+                            weekend && "bg-muted/40",
+                          )}
+                        >
+                          {weekend ? null : (
+                            <Input
+                              type="number"
+                              step="0.25"
+                              min="0"
+                              max={DAILY_HOUR_CAP}
+                              inputMode="decimal"
+                              aria-label={`${row.label} hours on ${date}`}
+                              disabled={!editable}
+                              value={row.hours[date] ?? ""}
+                              onChange={(e) =>
+                                setCell(row.key, date, e.target.value)
+                              }
+                              className="mx-auto w-16 text-center"
+                            />
+                          )}
+                        </TableCell>
+                      );
+                    })}
                     <TableCell className="text-center font-medium tabular-nums">
                       {rowTotal || "—"}
                     </TableCell>
@@ -416,6 +403,7 @@ export function TimesheetWeek({
                   key={weekDays[i]}
                   className={cn(
                     "text-center font-medium tabular-nums",
+                    isWeekend(weekDays[i]) && "bg-muted/40",
                     total > DAILY_HOUR_CAP && "text-destructive",
                   )}
                 >

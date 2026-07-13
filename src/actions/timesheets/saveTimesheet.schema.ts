@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TIMESHEET_CATEGORY } from "@/lib/timesheet-category";
-import { getWeekDays, getWeekStart } from "@/lib/timesheet-week";
+import { getWeekDays, getWeekStart, isWeekend } from "@/lib/timesheet-week";
 
 /**
  * Save-timesheet input. A pure, client-importable module (no `db`/drizzle) so the
@@ -64,6 +64,13 @@ export const saveTimesheetSchema = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Date is outside this week.",
+          path: ["entries", index, "date"],
+        });
+      } else if (isWeekend(entry.date)) {
+        // Timesheets only capture weekday work (weekend cells are disabled).
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Hours can't be logged on weekends.",
           path: ["entries", index, "date"],
         });
       }

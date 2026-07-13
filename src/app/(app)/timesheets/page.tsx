@@ -1,26 +1,12 @@
 import type { Metadata } from "next";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
-import { canEditTimesheet } from "@/actions/timesheets/canEditTimesheet";
-import { getSelectableProjects } from "@/actions/timesheets/getSelectableProjects";
-import { getTimesheet } from "@/actions/timesheets/getTimesheet";
-import { TimesheetWeek } from "@/components/timesheets/timesheet-week";
+import { getTimesheetList } from "@/actions/timesheets/getTimesheetList";
+import { TimesheetsList } from "@/components/timesheets/timesheets-list";
 import { getCurrentUser } from "@/lib/auth";
-import {
-  currentWeekStart,
-  getWeekDays,
-  getWeekStart,
-} from "@/lib/timesheet-week";
+import { userHasPermission } from "@/lib/permissions";
+import { isWithinEditWindow } from "@/lib/timesheet-week";
 
 export const metadata: Metadata = { title: "Timesheets" };
-
-type SearchParams = Record<string, string | string[] | undefined>;
-
-/** Resolve the `?week=` param to an ISO-Monday week start; default this week. */
-function parseWeek(value: string | string[] | undefined): string {
-  const raw = Array.isArray(value) ? value[0] : value;
-  if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return getWeekStart(raw);
-  return currentWeekStart();
-}
 
 function Header() {
   return (
@@ -29,21 +15,14 @@ function Header() {
         Timesheets
       </h2>
       <p className="text-sm text-muted-foreground">
-        Log your hours per day against projects and non-billable work, up to 8
-        hours a day.
+        Your weekly time. Open a week to log hours against projects and
+        non-billable work, up to 8 hours a day.
       </p>
     </header>
   );
 }
 
-export default async function TimesheetsPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>;
-}) {
-  const params = await searchParams;
-  const weekStartDate = parseWeek(params.week);
-
+export default async function TimesheetsPage() {
   const [staffId, user] = await Promise.all([
     getCurrentStaffId(),
     getCurrentUser(),
@@ -51,7 +30,7 @@ export default async function TimesheetsPage({
 
   if (!staffId || !user) {
     return (
-      <div className="mx-auto flex max-w-6xl flex-col gap-8">
+      <div className="mx-auto flex max-w-4xl flex-col gap-8">
         <Header />
         <p className="text-sm text-muted-foreground">
           Your account isn't linked to a staff profile yet, so there's no
@@ -61,32 +40,17 @@ export default async function TimesheetsPage({
     );
   }
 
-  const [timesheet, projects, canEdit] = await Promise.all([
-    getTimesheet(staffId, weekStartDate),
-    getSelectableProjects(),
-    canEditTimesheet(user, { staffId, weekStartDate }),
-  ]);
+  const rows = await getTimesheetList(staffId);
 
-  // The viewer's own timesheet always resolves (an empty draft when unsaved).
-  const sheet = timesheet ?? {
-    status: "draft" as const,
-    submittedAt: null,
-    entries: [],
-  };
+  // This is the viewer's own list, so ownership is a given — a week is editable
+  // when it's inside the ±1-week window, or the viewer holds the capability.
+  const hasEditAll = userHasPermission(user, { timesheets: ["edit"] });
+  const canEdit = (week: string) => hasEditAll || isWithinEditWindow(week);
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8">
+    <div className="mx-auto flex max-w-4xl flex-col gap-8">
       <Header />
-      <TimesheetWeek
-        key={weekStartDate}
-        staffId={staffId}
-        weekStartDate={weekStartDate}
-        weekDays={getWeekDays(weekStartDate)}
-        status={sheet.status}
-        initialEntries={sheet.entries}
-        projects={projects}
-        canEdit={canEdit}
-      />
+      <TimesheetsList rows={rows} canEdit={canEdit} />
     </div>
   );
 }
