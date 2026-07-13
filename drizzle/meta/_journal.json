@@ -190,6 +190,13 @@
       "when": 1783950896199,
       "tag": "0026_rich_the_captain",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1783953444575,
+      "tag": "0027_flawless_arachne",
+      "breakpoints": true
     }
   ]
 }

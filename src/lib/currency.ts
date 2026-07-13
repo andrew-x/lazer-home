@@ -4,7 +4,7 @@
  * schemas, and client display all share exactly one source of truth — mirroring
  * `@/lib/line-of-business`.
  */
-export const CURRENCY = ["CAD", "USD", "GBP", "EUR"] as const;
+export const CURRENCY = ["CAD", "USD", "GBP", "EUR", "AED"] as const;
 
 export type Currency = (typeof CURRENCY)[number];
 
@@ -14,6 +14,7 @@ export const CURRENCY_LABELS: Record<Currency, string> = {
   USD: "US dollar",
   GBP: "British pound",
   EUR: "Euro",
+  AED: "UAE dirham",
 };
 
 /** Format a money amount for display, e.g. `formatMoney(150000, "CAD")` → "CA$150,000.00". */
