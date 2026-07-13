@@ -52,6 +52,7 @@ export const updateOpportunity = secureActionClient
         .update(opportunities)
         .set({
           name: parsedInput.name,
+          lineOfBusiness: parsedInput.lineOfBusiness,
           source: parsedInput.source,
           status: parsedInput.status,
           nextSteps: parsedInput.nextSteps,

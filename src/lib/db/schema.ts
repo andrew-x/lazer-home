@@ -5,6 +5,8 @@
 export * from "./auth-schema";
 // CRM domain (companies, contacts).
 export * from "./crm-schema";
+// CRM sales pipeline (opportunities + junction tables).
+export * from "./opportunities-schema";
 // Performance domain (peer feedback + rating enum).
 export * from "./performance-schema";
 // Projects domain (projects, delivery managers, roles).

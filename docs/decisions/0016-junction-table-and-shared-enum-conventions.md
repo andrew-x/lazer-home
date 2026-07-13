@@ -13,14 +13,20 @@ will copy. Two sub-questions arose:
 1. **How to model a join row** — composite PK on the two FKs, or a surrogate id like
    every other table?
 2. **The `source`/`status` enums** are needed in two places at once: a Postgres
-   `pgEnum` (in `crm-schema.ts`, which pulls in `db`/drizzle and can't be imported by
+   `pgEnum` (in the schema, which pulls in `db`/drizzle and can't be imported by
    client form code) *and* a zod `z.enum` for the form + action schema. How do we
    avoid two drifting copies?
+
+> **Updated by [ADR 0025](./0025-line-of-business-on-opportunity-and-project-not-role.md):**
+> the `opportunities` table, its four junction tables, and the `pgEnum`s now live in
+> `src/lib/db/opportunities-schema.ts` (split out of `crm-schema.ts`, which keeps only
+> `companies` + `contacts`). The conventions below are unchanged; only the file moved.
 
 ## Decision
 
 **Junction tables** (`opportunity_contacts`, `opportunity_owners`,
-`opportunity_source_contacts`, `opportunity_source_staff` in `src/lib/db/crm-schema.ts`):
+`opportunity_source_contacts`, `opportunity_source_staff` in
+`src/lib/db/opportunities-schema.ts`):
 
 - **Surrogate `text` PK** via `generateId(prefix)` — same app-minted-CUID2 convention
   as every other table, *not* a composite PK.
