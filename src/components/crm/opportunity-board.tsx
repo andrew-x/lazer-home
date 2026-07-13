@@ -152,8 +152,11 @@ export function OpportunityBoard({
   // clobbering in-flight optimistic moves: only reset when the server payload
   // actually changes. Our optimistic value equals what the server stores, so a
   // post-move revalidation resolves to identical state.
+  // `hasProject` is part of the signature: linking a project via the detail
+  // drawer changes it without moving the card, and the board must adopt that so
+  // it stops prompting to create a (duplicate) project.
   const signature = initialCards
-    .map((c) => `${c.id}:${c.status}:${c.position}`)
+    .map((c) => `${c.id}:${c.status}:${c.position}:${c.hasProject}`)
     .join("|");
   const lastSignature = useRef(signature);
   useEffect(() => {
@@ -282,8 +285,15 @@ export function OpportunityBoard({
     }
 
     // Delivery stages need a project. Block the move (don't apply it), and
-    // either prompt to create one on the spot or explain who can.
-    if (requiresProject(newStatus) && current && !current.hasProject) {
+    // either prompt to create one on the spot or explain who can. Only when the
+    // card actually changes stage — a reorder within the same column (status
+    // unchanged) must not trigger the prompt.
+    if (
+      newStatus !== originStatus &&
+      requiresProject(newStatus) &&
+      current &&
+      !current.hasProject
+    ) {
       if (canCreateProject) {
         setProjectPrompt({
           opportunityId: activeCardId,

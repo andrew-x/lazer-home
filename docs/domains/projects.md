@@ -9,6 +9,9 @@ is now **populated by a real handoff flow** ([ADR 0024](../decisions/0024-opport
 a project can be created from an opportunity (via its detail drawer or the board's
 delivery-stage prompt), and roles can be **placeholders/open positions** (null `staffId`)
 carrying a `roleType`. Standalone projects (no opportunity, staffed roles) still work.
+A project now carries a **required, project-level line of business** (the shared enum,
+defaulted from its originating opportunity — no longer a per-role field), and creating
+one requires **at least one role** ([ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
 Built mirroring the Opportunities feature.
 
 ## Purpose
@@ -22,6 +25,8 @@ delivery, allocations, timesheets, and billing.
 - **Project** (built) — billable work that **always belongs to a Company**. Fields:
   `name` (required), required `companyId` (FK → `companies`, **`onDelete: restrict`**
   — a company with live projects can't be deleted, exactly like `opportunities`),
+  **required `lineOfBusiness`** (a **project-level** field, the shared `lineOfBusinessEnum`
+  — which practice bills the engagement; NOT per-role, [ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)),
   **optional `opportunityId`** (nullable FK → `opportunities`, **`onDelete: restrict`**,
   index `projects_opportunity_idx`) — the CRM → delivery link, **1:N** (one opportunity →
   many projects; a project relates to at most one). Optional so a project can be created
@@ -39,21 +44,23 @@ delivery, allocations, timesheets, and billing.
   surrogate `text` PK (`proj-dm`), a `unique(projectId, staffId)` for set-semantics,
   an `index` on `staffId` for reverse lookups, and **both FKs `onDelete: cascade`**.
 - **Project role** (built) — a **staffing line**: a person (or an open position) of a
-  given discipline on a line of business for a date range at N hours/day. Table
-  `project_roles`, id prefix `proj-role`. **Not a pure junction** — it carries columns:
+  given discipline for a date range at N hours/day. Table `project_roles`, id prefix
+  `proj-role`. It carries **no line of business** — that lives on the project now
+  ([ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
+  **Not a pure junction** — it carries columns:
   - **`staffId` → staff, `restrict`, NULLABLE.** A **null `staffId` is a placeholder /
     open position** — a role defined before it's staffed (created by leaving the staff
     picker blank). `restrict` only bites a *staffed* role: deleting a person with live
     roles is blocked.
   - **`roleType`** (NOT NULL, `projectRoleTypeEnum`: `ENGINEER`/`DESIGNER`/`ARCHITECT`/`QA`/`SPECIALIST`)
     — the role's **discipline**, what identifies an open position when no person is set.
-    **Orthogonal to `lineOfBusiness`** (what kind of work vs. which practice bills it). Its
+    **Orthogonal to the project's `lineOfBusiness`** (what kind of work vs. which practice bills it). Its
     tuple + labels live in the pure, client-importable `src/lib/project-role-type.ts`
     (mirrors `line-of-business.ts` — the pgEnum, zod, and form share one source).
   - **`name`** — optional free-text label, e.g. "Senior Backend Engineer".
-  - `lineOfBusiness` (shared `lineOfBusinessEnum`), `startDate`/`endDate` (`date`, string
-    mode, `"YYYY-MM-DD"`), `hoursPerDay` (`numeric(4,2)`, number mode, default `8`, allows
-    half-days) — **all required on every role**, staffed or placeholder.
+  - `startDate`/`endDate` (`date`, string mode, `"YYYY-MM-DD"`), `hoursPerDay`
+    (`numeric(4,2)`, number mode, default `8`, allows half-days) — **all required on
+    every role**, staffed or placeholder. (No `lineOfBusiness` — that's on the project.)
   - `projectId` → projects **cascade** (a role dies with its project). Indexed on both
     `projectId` and `staffId`.
 
@@ -64,12 +71,16 @@ delivery, allocations, timesheets, and billing.
 ## What's built
 
 - **Schema** — `src/lib/db/projects-schema.ts` (`projects`, `project_delivery_managers`,
-  `project_roles`), barrelled by `src/lib/db/schema.ts`. Migrations
-  `drizzle/0015_premium_vertigo.sql`, `drizzle/0017_amused_corsair.sql` (adds the
-  `projects.opportunityId` FK + index), and `drizzle/0023_eager_demogoblin.sql` (adds the
+  `project_roles`), barrelled by `src/lib/db/schema.ts`; imports `opportunities` from
+  `./opportunities-schema` (opportunities were split out of `crm-schema.ts` —
+  [ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
+  Migrations `drizzle/0015_premium_vertigo.sql`, `drizzle/0017_amused_corsair.sql` (adds the
+  `projects.opportunityId` FK + index), `drizzle/0023_eager_demogoblin.sql` (adds the
   `project_role_type` enum; makes `project_roles.staff_id` nullable; adds `name` +
   `role_type`, backfilling existing rows to `ENGINEER` via a temporary default that's then
-  dropped).
+  dropped), and `drizzle/0024_harsh_diamondback.sql` (adds `projects.line_of_business` —
+  backfilled to `CORE` via a temporary default then dropped, so it's NOT NULL with no
+  default — **and drops `project_roles.line_of_business`**).
 - **Shared role-type module** — `src/lib/project-role-type.ts` exports `PROJECT_ROLE_TYPES`
   (`ENGINEER`/`DESIGNER`/`ARCHITECT`/`QA`/`SPECIALIST`), the `ProjectRoleType` type, and
   `PROJECT_ROLE_TYPE_LABELS`. A **pure, client-importable** module (no `db`/drizzle) so the
@@ -82,8 +93,9 @@ delivery, allocations, timesheets, and billing.
   pgEnum in `staff-schema.ts`, the projects zod schema, and the client form all share
   **one source of truth** — the same single-source pattern opportunities uses for its
   `source`/`status` enums ([ADR 0016](../decisions/0016-junction-table-and-shared-enum-conventions.md)).
-  Line of business is a **shared/global enum** reused across staff, CRM, and
-  projects/allocations.
+  Line of business is a **shared/global enum** carried by three entities — **staff**
+  (`staff_employment`), **opportunities**, and **projects** (no longer `project_roles`,
+  [ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
 - **Server layer** — `src/actions/projects/`:
   - `getProjectsPage.ts` — server-only read (per [ADR 0010](../decisions/0010-actions-layer-owns-db-access.md)),
     server-side offset/limit pagination via `src/lib/pagination.ts` (same envelope as
@@ -92,17 +104,19 @@ delivery, allocations, timesheets, and billing.
     **single grouped follow-up query** over just this page's ids, and role counts via
     a **grouped count** — no N+1.
   - `createProject.ts` — gated `projects.edit`. One `db.transaction`: inserts the
-    project (setting the optional `opportunityId`), then bulk-inserts delivery-manager
-    junction rows (deduped so a repeat can't trip the `unique` index) and role rows (a
-    null `staffId` ⇒ placeholder). The company must already exist (picked via search); the
-    action only consumes ids. Revalidates **both** `/projects` and `/opportunities` (a
-    linked project changes the board's `hasProject`).
+    project (setting `lineOfBusiness` and the optional `opportunityId`), then bulk-inserts
+    delivery-manager junction rows (deduped so a repeat can't trip the `unique` index) and
+    role rows (a null `staffId` ⇒ placeholder). The company must already exist (picked via
+    search); the action only consumes ids. Revalidates **both** `/projects` and
+    `/opportunities` (a linked project changes the board's `hasProject`).
   - `createProject.schema.ts` — the shared zod schema (pure, client-importable).
     Line-of-business values come from `@/lib/line-of-business`, role types from
-    `@/lib/project-role-type`. Accepts an optional `opportunityId`. Per role: `staffId`
-    optional (absent ⇒ placeholder), optional `name`, **required `roleType`**, required
-    line of business/dates/hours; each role `.refine`s `endDate >= startDate`;
-    `hoursPerDay` is coerced, positive, ≤24.
+    `@/lib/project-role-type`. **`lineOfBusiness` is a required top-level (project-wide)
+    field**; accepts an optional `opportunityId`; **`roles` requires at least one**
+    (`.min(1, "Add at least one role.")`). Per role: `staffId` optional (absent ⇒
+    placeholder), optional `name`, **required `roleType`**, required dates/hours (no
+    per-role line of business); each role `.refine`s `endDate >= startDate`; `hoursPerDay`
+    is coerced, positive, ≤24.
   - `searchStaff.ts` / `searchCompanies.ts` — type-ahead pickers, gated
     **`projects.edit`** (so a delivery manager can staff a project without gaining CRM
     write access). Their query bodies are the **shared** `searchStaffByName` /
@@ -111,12 +125,17 @@ delivery, allocations, timesheets, and billing.
     separate permission gates per domain.
 - **UI** — `/projects` (`src/app/(app)/projects/page.tsx`) + `src/components/projects/**` —
   see [../ui.md](../ui.md). `projects-table.tsx` (columns: Name, Company, Delivery
-  managers, Roles count) and `add-project-dialog.tsx` (create form with a
-  `useFieldArray` roles repeater; each role row picks a **role type**, an optional staff
-  member — blank ⇒ placeholder — an optional name, line of business, dates, and hours).
+  managers, Roles count) and `add-project-dialog.tsx` (create form with a project-level
+  line-of-business `EnumSelect` near the company field, plus a `useFieldArray` roles
+  repeater **seeded with one empty role** so the "at least one role" requirement is
+  obvious; each role row picks a **role type**, an optional staff member — blank ⇒
+  placeholder — an optional name, dates, and hours, but **no line of business** — that's
+  set once at the project level).
   **`AddProjectDialog` is parameterized** so one component serves three call sites: props
   `opportunityId`, `defaultCompanyId`/`defaultCompanyName`, `lockCompany` (pin the company
-  to the opportunity's), `onCreated`, and a controlled `open`/`onOpenChange`. Used on the
+  to the opportunity's), **`defaultLineOfBusiness`** (pre-fills the project's line of
+  business — the handoff passes the opportunity's, still editable), `onCreated`, and a
+  controlled `open`/`onOpenChange`. Used on the
   projects page (self-triggered, own button), the opportunity detail drawer, and the
   board's delivery-stage prompt (prefilled + company-locked for that opportunity). A
   "Projects" nav entry (`IconBriefcase`) is in
@@ -141,16 +160,20 @@ gate is the real boundary. See [permissions.md](./permissions.md).
 
 ## Key flows
 
-- **Create a project + staff it** (built) — pick a company, add delivery managers, add
-  one or more role lines (role type + optional staff + optional name + line of business +
-  date range + hours/day). Leaving staff blank creates a **placeholder / open position**.
-  One transaction writes it all. Create only today.
+- **Create a project + staff it** (built) — pick a company, set the project's **line of
+  business**, add delivery managers, add **at least one** role line (role type + optional
+  staff + optional name + date range + hours/day — no per-role line of business). Leaving
+  staff blank creates a **placeholder / open position**. One transaction writes it all.
+  Create only today.
 - **Opportunity → Project handoff** (built) — a project is now created *from* an
   opportunity, setting `projects.opportunityId`, via two entry points: the opportunity
   **detail drawer** and the board's **delivery-stage prompt** (auto-opened when a card is
   dragged into Allocating+ with no project — see the `requiresProject` rule in
   [crm.md](./crm.md) and [ADR 0024](../decisions/0024-opportunity-project-handoff-and-placeholder-roles.md)).
-  Both prefill and lock the company from the opportunity. The same-company invariant is
+  Both prefill and lock the company from the opportunity, and **prefill the project's line
+  of business from the opportunity's** (still editable — the `defaultLineOfBusiness` prop,
+  [ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
+  The same-company invariant is
   enforced only in the UI, not the server (see above). Projects at the Allocating stage
   typically carry **placeholder roles** since staff aren't chosen yet. See
   [flows.md](../flows.md).

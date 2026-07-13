@@ -24,7 +24,7 @@ Knowledge lives outside this file so it loads only when a task needs it. Don't p
 - **`docs/decisions/`** — ADRs: _why_ things are the way they are, plus the non-obvious nuances.
 - **`docs/ui.md`** — frontend: shadcn/Base UI, theming & design language, the app shell.
 
-`/docs` is this project's durable memory. Trust it, and keep it true (see _Keeping docs alive_). Path-scoped working rules also live in `.claude/rules/` (server-actions, database, forms, ui, nextjs) and auto-load when you touch matching files.
+`/docs` is this project's durable memory. Trust it, and keep it true (see _Keeping docs alive_). Path-scoped working rules also live in `.claude/rules/` (server-actions, database, forms, ui, nextjs). In **Claude Code** they auto-load when you touch matching files; in **Codex** the same rules are duplicated as nested `AGENTS.md` files (`src/AGENTS.md` for Next.js/UI/forms, `src/actions/AGENTS.md`, `src/lib/db/AGENTS.md`) that load by working directory — read the one for the area you're editing. See _Agent runtimes_ below.
 
 ## How we work together
 
@@ -43,6 +43,21 @@ When the work reveals something reusable, propose capturing it instead of re-exp
 - A repeatable procedure → a **command** (`.claude/commands/`) or **skill**.
 - A delegable, self-contained job → a **subagent** (`.claude/agents/`).
 
+## Agent runtimes (Claude Code + Codex)
+
+This repo is wired for **two** coding-agent runtimes, kept in deliberate parity — **full duplication, not symlinks or references.** `AGENTS.md` (this file, plus the nested ones) is the shared brain both read; everything else is mirrored per runtime:
+
+| Concern | Claude Code | Codex |
+|---|---|---|
+| Project instructions | `CLAUDE.md` → `@AGENTS.md` | `AGENTS.md` (native) |
+| Path-scoped coding rules | `.claude/rules/*.md` (path-glob auto-load) | nested `src/**/AGENTS.md` (cwd-load) + permissions inlined below |
+| Docs-keeper subagent | `.claude/agents/librarian.md` | `.codex/agents/librarian.toml` |
+| Commands / skills | `.claude/commands/*.md` | `.agents/skills/*/SKILL.md` |
+| Command permissions | `.claude/settings.json` → `permissions` | `.codex/rules/default.rules` (Starlark `prefix_rule`) |
+| Lifecycle hooks | `.claude/settings.json` → `hooks` | `.codex/hooks.json` + `.codex/hooks/*.sh` |
+
+Codex builds its `AGENTS.md` chain **once at startup, walking repo-root → cwd**, and cannot lazily load a rule when it touches a matching file. So the security-critical **permissions** rule is inlined in full below (always in context), and the other rules live at the common-ancestor directory of their scope. **Keep the two runtimes in sync:** when you change one side (a rule, command, subagent, hook, or permission), mirror it on the other. Run **`/audit-agents`** (Claude Code) or the **audit-agents** skill (Codex) to check parity and surface drift or improvements.
+
 ## Context discipline — main context is gold
 
 The main session's context window is the scarcest resource. Protect it.
@@ -53,11 +68,22 @@ The main session's context window is the scarcest resource. Protect it.
 
 ## Keeping docs alive (the librarian)
 
-After any **major change** — a new feature, a schema/data-model change, a significant refactor, or an architectural decision — **dispatch the `librarian` subagent** (via the Agent tool) to reconcile `/docs`. Do this **automatically, without being asked.** Hand it a short summary of what changed; it owns the docs. Don't hand-write `/docs` from the main session — delegating keeps your context clean and the docs in one consistent voice.
+After any **major change** — a new feature, a schema/data-model change, a significant refactor, or an architectural decision — **dispatch the `librarian` subagent** to reconcile `/docs` (via the Agent tool in Claude Code; the `librarian` agent in `.codex/agents/librarian.toml` under Codex). Do this **automatically, without being asked.** Hand it a short summary of what changed; it owns the docs. Don't hand-write `/docs` from the main session — delegating keeps your context clean and the docs in one consistent voice.
 
 ## Permissions (RBAC) — never break them
 
-Access control is non-negotiable. `src/lib/permissions.ts` is the single source of truth (roles, the permission matrix, and the `requirePermission`/`userHasPermission` helpers); the model is documented in `docs/domains/permissions.md`. **If you ever find a way to bypass a permission check, read/mutate another user's data, or escalate a role, STOP and flag it as a vulnerability immediately — don't work around it.** The full rule loads from `.claude/rules/permissions.md` when you touch auth/action/actions files. Run **`/audit-rbac`** to audit the whole system.
+Access control is non-negotiable. `src/lib/permissions.ts` is the single source of truth (roles, the permission matrix, and the `requirePermission`/`userHasPermission` helpers); the model is documented in `docs/domains/permissions.md`. **If you ever find a way to bypass a permission check, read/mutate another user's data, or escalate a role, STOP and flag it as a vulnerability immediately — don't work around it.**
+
+In **Claude Code** the full rule loads from `.claude/rules/permissions.md` when you touch auth/action/actions files. Because **Codex** can't auto-load it, the non-negotiables are inlined here so both runtimes always have them:
+
+- **Never weaken, bypass, or work around a permission check.** If you discover a missing gate, an action that skips ownership, a read that leaks another user's data, an escalation path, or a role that grants more than its matrix row — **STOP and flag it loudly as a vulnerability.** Don't silently route around it, "temporarily" loosen it, or leave a TODO.
+- **Every mutating/sensitive action declares its gate in metadata** — `metadata.role`, `metadata.permission`, and/or a row-level `metadata.authorize` (an `ActionAuthorize` hook reading `clientInput`), all enforced by `secureActionClient` *before* the body — or carries an explicit, justified comment for why it is intentionally public. No silent ungated mutations; authorization is never hand-written in action bodies.
+- **Input-dependent / ownership checks are mandatory** wherever an action accepts a target id it could read or mutate across users. A route-level gate alone is not enough.
+- **All DB access goes through the actions layer** (see `src/actions/AGENTS.md`), and **`permissions.ts` is the only place access-control logic lives** — never re-implement role checks inline (`user.role === "manager"`); call the helpers.
+- **Keep the matrix in lockstep** across `permissions.ts`, `src/lib/permissions.test.ts`, and `docs/domains/permissions.md` — changing one requires changing all three.
+- **`user.role` must validate against `roleSchema`**, and unknown/null roles **default to deny** (least privilege).
+
+Run **`/audit-rbac`** (Claude Code) or the **audit-rbac** skill (Codex) to audit the whole system; `bun run check` runs the matrix test.
 
 ## Reviewing changes
 
@@ -72,7 +98,7 @@ Runtime and package manager are **Bun**. Linter/formatter is **Biome** (not ESLi
 - After schema changes: `bun run db:generate` → `bun run db:migrate` (`db:push`/`db:studio` for dev; `auth:generate` for Better Auth tables)
 - **Before claiming done:** run `bun run check`, plus `bun run build` for anything non-trivial.
 
-Area-specific conventions live in `.claude/rules/` and load when you touch the matching files.
+Area-specific conventions live in `.claude/rules/` (Claude Code) and the nested `src/**/AGENTS.md` files (Codex) — see _Agent runtimes_.
 
 ## Plans and specs
 

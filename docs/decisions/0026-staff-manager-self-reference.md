@@ -1,4 +1,4 @@
-# 0025 — Staff "reports to": durable self-FK, import-resolved by email in two passes
+# 0026 — Staff "reports to": durable self-FK, import-resolved by email in two passes
 
 **Status:** accepted · 2026-07-13
 
@@ -21,7 +21,7 @@ It mirrors the `contacts.managerId` self-FK ([ADR 0022](./0022-contact-manager-s
 ### 1. Durable self-FK on `staff`, not effective-dated on `staff_employment`
 
 `managerId` is a nullable, self-referential FK `text().references((): AnyPgColumn => staff.id, { onDelete: "set null" })`
-on the **`staff`** table (`src/lib/db/staff-schema.ts`), migration `drizzle/0024_past_thundra.sql`.
+on the **`staff`** table (`src/lib/db/staff-schema.ts`), migration `drizzle/0025_giant_bullseye.sql`.
 Drizzle needs the `AnyPgColumn` return annotation to type the self-reference, same as
 `contacts.managerId`. `set null` matches the optional-FK convention: removing a manager
 clears their reports' pointers rather than deleting or blocking.

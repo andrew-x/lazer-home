@@ -1,0 +1,35 @@
+# Codex command-permission rules (Starlark) — the analog of Claude Code's
+# .claude/settings.json `permissions.allow` / `permissions.ask` lists.
+# Codex "rules" gate SHELL COMMANDS by prefix; they are NOT instructional docs
+# (those live in AGENTS.md / the nested src/**/AGENTS.md files).
+#
+# decision precedence when several rules match: "forbidden" > "prompt" > "allow".
+# Claude's `allow` -> decision="allow"; Claude's `ask` -> decision="prompt".
+#
+# Note: Claude's path-argument "ask" rules (cat:/*, ls:~/*, find:/*, i.e. reading
+# outside the project root) have no prefix-based equivalent here — that boundary is
+# enforced by Codex's sandbox (sandbox_mode) plus the "Stay inside the project root"
+# rule in AGENTS.md, not by these prefix rules.
+
+# --- Bun / toolchain (Bun + Biome, per AGENTS.md) ---
+prefix_rule(pattern=["bun", "run"], decision="allow")
+prefix_rule(pattern=["bun", "test"], decision="allow")
+prefix_rule(pattern=["bunx", "biome"], decision="allow")
+prefix_rule(pattern=["bunx", "--bun", "biome"], decision="allow")
+prefix_rule(pattern=["bunx", "drizzle-kit"], decision="allow")
+prefix_rule(pattern=["bunx", "--bun", "shadcn"], decision="allow")
+prefix_rule(pattern=["biome"], decision="allow")
+prefix_rule(pattern=["tsc"], decision="allow")
+
+# --- Read-only git ---
+prefix_rule(pattern=["git", "status"], decision="allow")
+prefix_rule(pattern=["git", "diff"], decision="allow")
+prefix_rule(pattern=["git", "log"], decision="allow")
+prefix_rule(pattern=["git", "show"], decision="allow")
+
+# --- Read-only inspection ---
+prefix_rule(pattern=["ls"], decision="allow")
+prefix_rule(pattern=["find"], decision="allow")
+prefix_rule(pattern=["grep"], decision="allow")
+prefix_rule(pattern=["rg"], decision="allow")
+prefix_rule(pattern=["cat"], decision="allow")

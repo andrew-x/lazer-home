@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { idList } from "@/lib/id-schema";
+import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
 import { optionalText } from "@/lib/text-schema";
 import {
   OPPORTUNITY_SOURCES,
@@ -17,6 +18,7 @@ export const updateOpportunitySchema = z
   .object({
     id: z.string().min(1),
     name: z.string().trim().min(1, "Name is required.").max(200),
+    lineOfBusiness: z.enum(LINE_OF_BUSINESS),
     contactIds: idList,
     ownerIds: idList,
     source: z.enum(OPPORTUNITY_SOURCES),

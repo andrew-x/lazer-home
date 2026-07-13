@@ -173,8 +173,15 @@
     {
       "idx": 24,
       "version": "7",
-      "when": 1783947055972,
-      "tag": "0024_past_thundra",
+      "when": 1783946413668,
+      "tag": "0024_harsh_diamondback",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1783949596780,
+      "tag": "0025_giant_bullseye",
       "breakpoints": true
     }
   ]

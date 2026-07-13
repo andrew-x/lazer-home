@@ -32,6 +32,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  LINE_OF_BUSINESS,
+  LINE_OF_BUSINESS_LABELS,
+  type LineOfBusiness,
+} from "@/lib/line-of-business";
 import { requiresProject } from "@/lib/opportunity-pipeline";
 import { ContactsComboboxField } from "./contacts-combobox-field";
 import {
@@ -114,6 +119,7 @@ export function OpportunityDetailSheet({
 
 type EditFormValues = {
   name: string;
+  lineOfBusiness: LineOfBusiness | "";
   contacts: EntityOption[];
   owners: EntityOption[];
   source: OpportunitySource | "";
@@ -132,6 +138,7 @@ const FIELD_FOR_ISSUE: Record<
 > = {
   id: "name",
   name: "name",
+  lineOfBusiness: "lineOfBusiness",
   contactIds: "contacts",
   ownerIds: "owners",
   source: "source",
@@ -164,6 +171,7 @@ function EditForm({
   } = useForm<EditFormValues>({
     defaultValues: {
       name: detail.name,
+      lineOfBusiness: detail.lineOfBusiness,
       contacts: detail.contacts,
       owners: detail.owners,
       source: detail.source,
@@ -202,6 +210,7 @@ function EditForm({
     const payload = {
       id: detail.id,
       name: values.name,
+      lineOfBusiness: values.lineOfBusiness,
       contactIds: values.contacts.map((c) => c.id),
       ownerIds: values.owners.map((o) => o.id),
       source: values.source,
@@ -234,6 +243,26 @@ function EditForm({
           id="opp-edit-name"
           aria-invalid={Boolean(errors.name)}
           {...register("name")}
+        />
+      </FormField>
+
+      <FormField
+        label="Line of business"
+        error={errors.lineOfBusiness?.message}
+      >
+        <Controller
+          control={control}
+          name="lineOfBusiness"
+          render={({ field, fieldState }) => (
+            <EnumSelect
+              options={LINE_OF_BUSINESS}
+              labels={LINE_OF_BUSINESS_LABELS}
+              placeholder="Select a line of business"
+              value={field.value}
+              invalid={Boolean(fieldState.error)}
+              onValueChange={field.onChange}
+            />
+          )}
         />
       </FormField>
 
@@ -400,6 +429,7 @@ function EditForm({
         opportunityId={detail.id}
         defaultCompanyId={detail.company.id}
         defaultCompanyName={detail.company.name}
+        defaultLineOfBusiness={detail.lineOfBusiness}
         lockCompany
         onCreated={() => {
           setProjectGuardError(null);

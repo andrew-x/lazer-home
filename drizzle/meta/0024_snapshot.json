@@ -1,5 +1,5 @@
 {
-  "id": "5aadfc9d-c68d-489a-9dce-668fc4fdfd12",
+  "id": "6d2be6d1-e921-4f6a-b631-8e5a3c15cf26",
   "prevId": "9ac81167-8524-48c1-ac25-7a3985eeb57e",
   "version": "7",
   "dialect": "postgresql",
@@ -521,6 +521,13 @@
         "status": {
           "name": "status",
           "type": "opportunity_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "line_of_business": {
+          "name": "line_of_business",
+          "type": "line_of_business",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
@@ -1161,13 +1168,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "line_of_business": {
-          "name": "line_of_business",
-          "type": "line_of_business",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
         "start_date": {
           "name": "start_date",
           "type": "date",
@@ -1275,6 +1275,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "line_of_business": {
+          "name": "line_of_business",
+          "type": "line_of_business",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
         "opportunity_id": {
           "name": "opportunity_id",
           "type": "text",
@@ -1373,12 +1380,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "manager_id": {
-          "name": "manager_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "linkedin_url": {
           "name": "linkedin_url",
           "type": "text",
@@ -1469,15 +1470,6 @@
           "tableFrom": "staff",
           "tableTo": "user",
           "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "staff_manager_id_staff_id_fk": {
-          "name": "staff_manager_id_staff_id_fk",
-          "tableFrom": "staff",
-          "tableTo": "staff",
-          "columnsFrom": ["manager_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
