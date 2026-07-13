@@ -2,7 +2,7 @@
 
 The five domains share one model. This is the most important doc for understanding the system: changes here ripple everywhere.
 
-**Status: mostly proposed.** Entities and relationships below are the intended design. Realized so far: the **Person** anchor (auth `user`), the **Staff profiles** tables (`staff`, `staff_employment`, `staff_pto`), the **CRM** slice (`companies`, `contacts`, `opportunities` + four opportunity junction tables), the **Projects** slice (`projects`, `project_delivery_managers`, `project_roles` — the first cut of Allocation), and the first **Performance** slice (`feedback` — peer feedback) — see "What's realized in code".
+**Status: mostly proposed.** Entities and relationships below are the intended design. Realized so far: the **Person** anchor (auth `user`), the **Staff profiles** tables (`staff`, `staff_employment`, `staff_pto`), the **CRM** slice (`companies`, `contacts`, `opportunities` + four opportunity junction tables), the **Projects** slice (`projects`, `project_delivery_managers`, `project_roles` — the first cut of Allocation), the **Timesheets** slice (`timesheets`, `time_entries` — weekly actuals), and the first **Performance** slice (`feedback` — peer feedback) — see "What's realized in code".
 
 ## What's realized in code
 
@@ -26,7 +26,11 @@ The five domains share one model. This is the most important doc for understandi
   - Open reads + `projects.edit`-gated create + `/projects` page exist; create + read only (no edit/delete). See [domains/projects.md](./domains/projects.md).
 - **Performance slice** (`src/lib/db/performance-schema.ts`, barrelled by `schema.ts`; migration `drizzle/0022_elite_khan.sql`):
   - **`feedback`** — peer feedback: `fromStaffId` + `toStaffId` (both FK → `staff.id`, both `onDelete: cascade`, each indexed), a 5-point `feedback_rating` pgEnum, required `context`, optional `keepDoing`/`stopDoing`/`startDoing` (at least one required, enforced in the zod schema)/`other`, and an optional `messageToRecipient`. **Point-in-time** (an immutable event log — NOT effective-dated; a person may leave feedback about the same person repeatedly, so **no unique `(from, to)`**). The rating enum's values/labels live in the pure, client-importable **`src/lib/feedback-rating.ts`** (same single-source pattern as `line-of-business.ts`). Privacy is enforced **by the read projections, not the table** — three tiers (give = open to active staff via the `authorizeFeedbackCreate` hook; recipient sees only giver name + `messageToRecipient`; `feedback.review` = manager/admin see all in full). See [domains/performance.md](./domains/performance.md) and [ADR 0023](./decisions/0023-feedback-privacy-tiers.md).
-- Nothing else (a full Allocation domain, TimeEntry, review cycles/goals) exists yet. (The legacy `staff_profile` example table was deleted — `drizzle/0003_tranquil_miek.sql` drops it.)
+- **Timesheets slice** (`src/lib/db/timesheets-schema.ts`, barrelled by `schema.ts`; migration `drizzle/0024_lovely_tyger_tiger.sql`):
+  - **`timesheets`** — one person's week: `staffId` → `staff` (cascade), **`weekStartDate`** (`date`, ISO Monday), `status` (`timesheet_status`: `draft`|`submitted`), `submittedAt` (nullable). **`unique(staffId, weekStartDate)`** — one sheet per person per week; the row is created **lazily** on first save/submit. id prefix `ts`.
+  - **`time_entries`** — per-day rows: `timesheetId` → `timesheets` (cascade), `date`, `hours` (`numeric(4,2)`), targeting **exactly one** of `projectId` → `projects` (**`restrict`**, nullable) or a non-billable `category` (`time_entry_category`: `PTO`/`UNALLOCATED_BENCH`/`INTERNAL_ADMIN`). The XOR is enforced by a DB `CHECK` (`time_entries_target_check`) *and* zod. id prefix `te`. Category values live in the pure module `src/lib/timesheet-category.ts` (single-source pattern, like `line-of-business.ts`); the PTO bucket is **independent of `staff_pto`** (no sync).
+  - These are the **actuals** complementing the `project_roles` allocation plan. Save is a whole-week transactional replace; submit locks the week (`timesheets.edit` capability edits any/locked week, bypassing the ±1-week owner edit window). No approval or billing yet. See [domains/timesheets.md](./domains/timesheets.md) and [ADR 0025](./decisions/0025-timesheet-weekly-model-and-edit-window.md).
+- Nothing else (a full Allocation domain, review cycles/goals) exists yet. (The legacy `staff_profile` example table was deleted — `drizzle/0003_tranquil_miek.sql` drops it.)
 
 ## Core entities
 
@@ -38,7 +42,7 @@ The five domains share one model. This is the most important doc for understandi
   - **Opportunity** — a pipeline deal that always belongs to a Company; when it reaches delivery stages, links to a Project. _(Realized — `opportunities` + junction tables; `companyId` required, `onDelete: restrict`. The Project link (`projects.opportunityId`, 1:N) is now populated by the handoff flow — see [ADR 0019](./decisions/0019-project-opportunity-link.md), [ADR 0024](./decisions/0024-opportunity-project-handoff-and-placeholder-roles.md).)_
 - **Project** (a.k.a. engagement) — billable work for a Company. The hub linking CRM ↔ delivery. _(Realized (first slice) — `projects`; required `companyId`, `onDelete: restrict`; optional `opportunityId` (FK → `opportunities`, `restrict`, 1:N), now populated when a project is created from an opportunity; delivery managers via `project_delivery_managers`. Create + read only.)_ See [domains/projects.md](./domains/projects.md).
 - **Allocation** — a _time-ranged_ assignment of a Person to a Project (start/end, % or hours, project role). The heart of capacity planning. _(Partially realized — `project_roles` is the first cut: a staff member (or a **placeholder/open position** when `staffId` is null) of a given role type on a line of business for a date range at N hours/day. Simple rows, not effective-dated history yet — see [ADR 0017](./decisions/0017-project-roles-as-first-allocation-cut.md), [ADR 0024](./decisions/0024-opportunity-project-handoff-and-placeholder-roles.md).)_
-- **TimeEntry** — hours a Person logged against a Project (and optionally a task) on a date; billable or not. Aggregated into **Timesheets** for approval.
+- **TimeEntry** — hours a Person logged against a Project (or a non-billable bucket) on a date. Grouped into a **Timesheet** = one Person's week (`draft`→`submitted`). _(Realized — `time_entries` + `timesheets`; per-day rows, whole-week save, submit-locks. Approval + billing deferred — see [domains/timesheets.md](./domains/timesheets.md) and [ADR 0025](./decisions/0025-timesheet-weekly-model-and-edit-window.md).)_
 - **Feedback** — point-in-time peer feedback from one Person about another (rating + context + keep/stop/start + optional recipient message). _(Realized — `feedback`; staff↔staff, tiered visibility — see [domains/performance.md](./domains/performance.md) and [ADR 0023](./decisions/0023-feedback-privacy-tiers.md).)_
 - **ReviewCycle / PerformanceReview / Goal** — periodic assessment of a Person, often informed by their project work and utilization. _(Proposed.)_
 
@@ -54,7 +58,8 @@ Opportunity >──< Person (staff)            (owners + referral-source, via ju
 Company ──< Project                        (required company; FK restrict) [realized]
 Project >──< Person (staff)                via project_delivery_managers (junction) [realized]
 Project >──< Person (staff)                via Allocation = project_roles (first cut; staffId FK restrict, NULLABLE = placeholder) [realized]
-Person  ──< TimeEntry >── Project          (the actuals) [proposed]
+Person (staff) ──< Timesheet              (one per person per week; draft→submitted) [realized]
+Timesheet ──< TimeEntry >── Project        (the actuals; entry targets a project OR a non-billable bucket) [realized]
 user (auth)    ──0:1── Person (staff)      via staff.userId (nullable, unique)
 Person (staff) ──< StaffEmployment         (effective-dated; latest = current)
 Person (staff) ──< StaffPto                 (leave spans; reduce capacity)
@@ -66,7 +71,7 @@ Person  ──< PerformanceReview              (within a ReviewCycle) [proposed]
 ## Key derived concepts
 
 - **Utilization** = billable hours ÷ available hours for a Person over a period. Drives capacity (for allocations) and feeds performance.
-- **Forecast vs. actuals** — Allocations are the _plan_; TimeEntries are the _actuals_. Comparing them is a central reporting need.
+- **Forecast vs. actuals** — Allocations (`project_roles`) are the _plan_; TimeEntries (now realized) are the _actuals_. Both exist; **reconciling them is still unbuilt** and a central reporting need.
 - **Margin** = (charge rate − cost rate) × billable hours, per Project/Person.
 
 ## Nuances to respect

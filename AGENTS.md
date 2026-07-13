@@ -10,7 +10,7 @@ An internal **PSA platform** for a software consultancy, spanning five connected
 
 This is one system, not five apps: a _person_ (staff profile) is _allocated_ to a _project_ (tied to a CRM _client_), _logs time_ against it (timesheet), and that feeds both billing and _performance_. The shared data model is the spine — see `docs/data-model.md`.
 
-> **Status:** actively built out on the scaffolded stack (Drizzle + Postgres, Better Auth, next-safe-action, Google-only auth, the app shell). **Built:** CRM (companies/contacts, contact manager, opportunities pipeline + kanban), projects (with the CRM-opportunity link), staff profiles (roles, skills, effective-dated compensation, PTO/staff import), and the peer-feedback slice of performance management. **Not yet:** allocations, timesheets, and the rest of performance (reviews, goals, growth). See `docs/architecture.md`.
+> **Status:** actively built out on the scaffolded stack (Drizzle + Postgres, Better Auth, next-safe-action, Google-only auth, the app shell). **Built:** CRM (companies/contacts, contact manager, opportunities pipeline + kanban), projects (with the CRM-opportunity link), staff profiles (roles, skills, effective-dated compensation, PTO/staff import), timesheets (weekly time capture with a draft→submitted lifecycle), and the peer-feedback slice of performance management. **Not yet:** allocations, timesheet approval/billing, and the rest of performance (reviews, goals, growth). See `docs/architecture.md`.
 
 ## Documentation map — read on demand, don't preload
 

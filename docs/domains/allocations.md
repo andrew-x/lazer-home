@@ -35,7 +35,7 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
 ## Connects to
 
 - **Staff profiles** — skills + availability drive who can be allocated.
-- **Timesheets** — actuals are logged against the same Person↔Project pairing.
+- **Timesheets** — actuals (`time_entries`) are logged against the same Person↔Project pairing (now **built**; logging isn't restricted to allocated projects). Reconciling actuals against the `project_roles` plan is still unbuilt. See [domains/timesheets.md](./timesheets.md).
 - **Performance** — utilization (from allocations vs. availability) is a performance input.
 
 ## Open questions
