@@ -35,6 +35,7 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0024](./0024-opportunity-project-handoff-and-placeholder-roles.md) | Opportunity → Project handoff: delivery-stage project requirement + placeholder roles + role type | accepted |
 | [0025](./0025-line-of-business-on-opportunity-and-project-not-role.md) | Line of business belongs to the opportunity & project, not the role; opportunities split to own schema file | accepted |
 | [0026](./0026-staff-manager-self-reference.md) | Staff "reports to": durable self-FK, import-resolved by email in two passes | accepted |
+| [0027](./0027-timesheet-weekly-model-and-edit-window.md) | Timesheets: per-day weekly model, whole-week replace, ±1-week edit window | accepted |
 
 > **0012 is intentionally absent** (the log jumps 0011 → 0013). It was a short-lived
 > ADR documenting the *open staff-edit gap pending RBAC*; it was **withdrawn** once

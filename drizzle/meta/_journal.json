@@ -183,6 +183,13 @@
       "when": 1783949596780,
       "tag": "0025_giant_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1783950896199,
+      "tag": "0026_rich_the_captain",
+      "breakpoints": true
     }
   ]
 }

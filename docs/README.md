@@ -14,7 +14,7 @@ The durable knowledge base for the PSA platform — maintained by the `librarian
 | [domains/crm.md](./domains/crm.md) | Companies (clients + partners), contacts, sales pipeline |
 | [domains/projects.md](./domains/projects.md) | Projects (client engagements) + delivery managers + role/staffing lines |
 | [domains/allocations.md](./domains/allocations.md) | Staffing people onto projects over time |
-| [domains/timesheets.md](./domains/timesheets.md) | Time capture, approval, billing basis |
+| [domains/timesheets.md](./domains/timesheets.md) | Weekly time capture (built); approval + billing deferred |
 | [domains/staff-profiles.md](./domains/staff-profiles.md) | People, roles, skills, compensation, availability |
 | [domains/performance.md](./domains/performance.md) | Peer feedback (built); reviews, goals, growth (proposed) |
 | [domains/permissions.md](./domains/permissions.md) | RBAC: permission model, role→permission matrix, enforcement layers, helpers |

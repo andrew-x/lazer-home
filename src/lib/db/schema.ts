@@ -13,3 +13,5 @@ export * from "./performance-schema";
 export * from "./projects-schema";
 // Staff profiles domain (staff, staff_employment, staff_pto + enums).
 export * from "./staff-schema";
+// Timesheets domain (timesheets, time_entries + enums).
+export * from "./timesheets-schema";

@@ -1,20 +1,20 @@
 # Key flows (cross-domain)
 
-**Status: mixed.** The end-to-end paths the platform must support. Each crosses multiple domains, which is why they live here rather than in a single domain doc. The auth, CRM create, staff browse/edit (incl. resume), peer-feedback, and localhost-only admin flows are **built** and described as realized; the rest of the core sell → staff → deliver → bill → review lifecycle (allocations, timesheets, formal reviews) remains **proposed** until those domains exist.
+**Status: mixed.** The end-to-end paths the platform must support. Each crosses multiple domains, which is why they live here rather than in a single domain doc. The auth, CRM create, staff browse/edit (incl. resume), peer-feedback, timesheet capture, and localhost-only admin flows are **built** and described as realized; the rest of the core sell → staff → deliver → bill → review lifecycle (allocations capacity planning, timesheet approval/billing, formal reviews) remains **proposed** until those slices exist.
 
 ## The core lifecycle: sell → staff → deliver → bill → review
 
 1. **Sell (CRM).** An Opportunity progresses through the pipeline for a Company (clients + partners; see [domains/crm.md](./domains/crm.md)) — created, edited via a detail drawer, and dragged across the kanban board. As it reaches **delivery stages** (Allocating onward) it must produce a **Project**. _(Companies/contacts/opportunities are built — companies/contacts create + read, opportunities create + edit + move. Projects are built too (see [domains/projects.md](./domains/projects.md)), and the **Opportunity → Project handoff is now built**: `projects.opportunityId` is populated when a project is created from an opportunity, and the `requiresProject` rule blocks advancing to a delivery stage without one — see the handoff flow below and [ADR 0024](./decisions/0024-opportunity-project-handoff-and-placeholder-roles.md).)_
 2. **Staff (Allocations).** Managers allocate People to the Project over a date range, using StaffProfile skills and current availability/utilization to choose who. _(First cut built: a Project carries delivery managers + `project_roles` staffing lines, which can be **placeholders / open positions** (null `staffId`, identified by a `roleType`) defined before they're staffed — see [domains/projects.md](./domains/projects.md), [domains/allocations.md](./domains/allocations.md), [ADR 0024](./decisions/0024-opportunity-project-handoff-and-placeholder-roles.md). Capacity planning / conflict handling is still proposed.)_
-3. **Deliver + log (Timesheets).** Allocated People log TimeEntries against the Project. Entries roll into Timesheets for approval.
-4. **Bill (Timesheets → finance).** Approved billable hours × charge rate become the billing basis. Margin = (charge − cost) × hours.
+3. **Deliver + log (Timesheets).** People log per-day TimeEntries against a Project (or a non-billable bucket) into their weekly Timesheet, then submit to lock the week. _(Built: weekly capture with a draft→submitted lifecycle at `/timesheets`, logging allowed against **any** project — see [domains/timesheets.md](./domains/timesheets.md), [ADR 0027](./decisions/0027-timesheet-weekly-model-and-edit-window.md). No manager approval step in v1.)_
+4. **Bill (Timesheets → finance).** Approved billable hours × charge rate become the billing basis. Margin = (charge − cost) × hours. _(Proposed — charge rates, approval, and invoicing are not built.)_
 5. **Review (Performance).** A Person's project work and utilization inform assessment and growth. _(First slice built: continuous **peer feedback** (staff → staff) — see the peer-feedback flow below and [domains/performance.md](./domains/performance.md). The formal machinery — ReviewCycle, PerformanceReview, Goals — is still proposed.)_
 
 ## Supporting flows
 
 - **Capacity planning** — compare each Person's allocations (plan) against availability to find who's over/under-allocated before staffing new work.
 - **Forecast vs. actuals** — compare allocated hours against logged TimeEntries to track delivery health and re-forecast.
-- **Timesheet approval** — submit → manager review → approve/reject → locked for billing.
+- **Timesheet approval** — proposed. Today submit merely locks the week (reopen to correct); a manager review → approve/reject → locked-for-billing workflow is not built.
 
 ## Auth flow (Google sign-in → session → app access)
 

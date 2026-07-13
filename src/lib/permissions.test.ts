@@ -22,6 +22,7 @@ const MATRIX: Record<
     crmEdit: boolean;
     projectsEdit: boolean;
     feedbackReview: boolean;
+    timesheetsEdit: boolean;
   }
 > = {
   user: {
@@ -31,6 +32,7 @@ const MATRIX: Record<
     crmEdit: false,
     projectsEdit: false,
     feedbackReview: false,
+    timesheetsEdit: false,
   },
   "delivery-manager": {
     staffEdit: false,
@@ -39,6 +41,7 @@ const MATRIX: Record<
     crmEdit: false,
     projectsEdit: true,
     feedbackReview: false,
+    timesheetsEdit: false,
   },
   finance: {
     staffEdit: false,
@@ -47,6 +50,7 @@ const MATRIX: Record<
     crmEdit: false,
     projectsEdit: false,
     feedbackReview: false,
+    timesheetsEdit: false,
   },
   sales: {
     staffEdit: false,
@@ -55,6 +59,7 @@ const MATRIX: Record<
     crmEdit: true,
     projectsEdit: false,
     feedbackReview: false,
+    timesheetsEdit: false,
   },
   manager: {
     staffEdit: true,
@@ -63,6 +68,7 @@ const MATRIX: Record<
     crmEdit: true,
     projectsEdit: true,
     feedbackReview: true,
+    timesheetsEdit: true,
   },
   admin: {
     staffEdit: true,
@@ -71,6 +77,7 @@ const MATRIX: Record<
     crmEdit: true,
     projectsEdit: true,
     feedbackReview: true,
+    timesheetsEdit: true,
   },
 };
 
@@ -111,6 +118,12 @@ describe("permission matrix", () => {
     test(`${role}: feedback.review === ${expected.feedbackReview}`, () => {
       expect(userHasPermission({ role }, { feedback: ["review"] })).toBe(
         expected.feedbackReview,
+      );
+    });
+
+    test(`${role}: timesheets.edit === ${expected.timesheetsEdit}`, () => {
+      expect(userHasPermission({ role }, { timesheets: ["edit"] })).toBe(
+        expected.timesheetsEdit,
       );
     });
   }

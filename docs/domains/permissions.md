@@ -46,6 +46,16 @@ open: any signed-in user can browse companies, contacts, opportunities, and proj
   search actions (`src/actions/projects/searchStaff.ts` / `searchCompanies.ts`), so a
   delivery manager can staff a project without gaining CRM write access.
 
+A capability gates editing **other people's / locked** timesheets:
+
+- **`timesheets.edit`** — edit *any* timesheet, bypassing both the owner check and
+  the ±1-week edit window. A normal user may always edit their *own* timesheet while
+  it's within the window (last / this / next week) with no permission; editing another
+  person's timesheet, or their own outside that window, requires this capability
+  (manager/admin). Enforced by the `authorizeTimesheetEdit` hook (input-dependent, so
+  it can't be a static permission alone). See the
+  [timesheets domain](timesheets.md).
+
 One capability gates a **read** rather than a write:
 
 - **`feedback.review`** — view *all* peer feedback in full (the manager/admin
@@ -65,14 +75,14 @@ via `bun test`) and audited by `/audit-rbac`. **Changing it requires changing th
 `roles` map in `permissions.ts`, the test, and this table in lockstep** — that
 friction is deliberate.
 
-| Role               | `staff.edit` | `staff.viewCompensation` | `pto.review` | `crm.edit` | `projects.edit` | `feedback.review` | Notes                                |
-| ------------------ | :----------: | :----------------------: | :----------: | :--------: | :-------------: | :---------------: | ------------------------------------ |
-| `user`             |      –       |            –             |      –       |     –      |        –        |         –         | default role for new users           |
-| `delivery-manager` |      –       |            –             |      –       |     –      |        ✓        |         –         | owns projects & staffing             |
-| `finance`          |      –       |            ✓             |      –       |     –      |        –        |         –         | views staff compensation             |
-| `sales`            |      –       |            –             |      –       |     ✓      |        –        |         –         | CRM data entry                       |
-| `manager`          |      ✓       |            ✓             |      ✓       |     ✓      |        ✓        |         ✓         | all defined business perms           |
-| `admin`            |      ✓       |            ✓             |      ✓       |     ✓      |        ✓        |         ✓         | + Better Auth admin-plugin user/session perms (`...adminAc.statements`) |
+| Role               | `staff.edit` | `staff.viewCompensation` | `pto.review` | `crm.edit` | `projects.edit` | `feedback.review` | `timesheets.edit` | Notes                                |
+| ------------------ | :----------: | :----------------------: | :----------: | :--------: | :-------------: | :---------------: | :---------------: | ------------------------------------ |
+| `user`             |      –       |            –             |      –       |     –      |        –        |         –         |         –         | default role for new users           |
+| `delivery-manager` |      –       |            –             |      –       |     –      |        ✓        |         –         |         –         | owns projects & staffing             |
+| `finance`          |      –       |            ✓             |      –       |     –      |        –        |         –         |         –         | views staff compensation             |
+| `sales`            |      –       |            –             |      –       |     ✓      |        –        |         –         |         –         | CRM data entry                       |
+| `manager`          |      ✓       |            ✓             |      ✓       |     ✓      |        ✓        |         ✓         |         ✓         | all defined business perms           |
+| `admin`            |      ✓       |            ✓             |      ✓       |     ✓      |        ✓        |         ✓         |         ✓         | + Better Auth admin-plugin user/session perms (`...adminAc.statements`) |
 
 `DEFAULT_ROLE = "user"`, mirrored by `admin({ defaultRole: "user" })` in `auth.ts`.
 `adminRoles: ["admin"]` lists which roles may call the admin-plugin endpoints.
