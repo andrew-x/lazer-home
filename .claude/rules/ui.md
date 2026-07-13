@@ -33,9 +33,9 @@ Aim for a distinctive, editorial look — not the default rounded/shadowed AI-ap
 ## App structure & navigation
 
 - `src/app/(app)/**` — **authenticated** pages. The `(app)/layout.tsx` Server Component calls `getCurrentUser()` and `redirect("/login")` if absent, then renders `AppShell`. Route protection lives here, not in middleware.
-- **Sidebar** is a **floating icon island**: `<Sidebar variant="floating" collapsible="icon">` with `SidebarProvider defaultOpen={false}`, so it defaults to an icon rail; nav icons get tooltips automatically. Sidebar icons are `size-5`. The open/close **toggle lives in the sidebar footer** (a `SidebarMenuButton` calling `useSidebar().toggleSidebar`), not the page header.
+- **Sidebar** is a **floating icon island**: `<Sidebar variant="floating" collapsible="icon">` with `SidebarProvider defaultOpen={false}`, so it defaults to an icon rail; nav icons get tooltips automatically. Sidebar icons are `size-5`. The open/close **toggle lives in the sidebar footer** (a `SidebarMenuButton` calling `useSidebar().toggleSidebar`). There is **no global page header bar** — pages render their own in-page `<h2>` title and set the tab title via `export const metadata`.
 - `src/app/(auth)/**` — **public** pages (currently just `/login`).
-- **Add a nav item** by editing `src/components/app-shell/nav.ts` (`NAV_ITEMS`) — drives both the sidebar and the header title.
+- **Add a nav item** by editing `src/components/app-shell/nav.ts` (`NAV_ITEMS`) — drives the sidebar entries (there's no page-title header).
 - Auth is **Google-only**: `authClient.signIn.social({ provider: "google" })` / `authClient.signOut()`.
 
 ## Error / not-found / loading (Next 16 specifics)

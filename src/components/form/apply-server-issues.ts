@@ -47,8 +47,15 @@ export function applyServerIssues<TFieldValues extends FieldValues>(
       continue;
     }
 
+    // Array-level issue (e.g. a min-length rule on the array itself): the path
+    // is just `[array]`, so land it on the array field.
+    if (typeof index !== "number") {
+      setError(target.array, { message: issue.message });
+      continue;
+    }
+
     // Nested field-array row: expect an [array, index, subField] path.
-    if (typeof index !== "number" || typeof sub !== "string") continue;
+    if (typeof sub !== "string") continue;
     const subField = target.fields[sub];
     if (!subField) continue;
     setError(

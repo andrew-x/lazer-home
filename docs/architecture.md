@@ -79,7 +79,7 @@ src/
     constants.ts             APP_NAME / APP_DESCRIPTION (shared app strings)
     format.ts                humanizeEnum() + formatDate() + initialsFor() + formatTimestamp() — display helpers (timezone-safe date/time formatting)
     like.ts                  escapeLike() — escape LIKE/ILIKE metacharacters so user input matches literally
-    line-of-business.ts      shared LINE_OF_BUSINESS tuple + labels (pure, client-importable) — single source for the lineOfBusinessEnum pgEnum, the projects zod schema, and the form
+    line-of-business.ts      shared LINE_OF_BUSINESS tuple + labels (pure, client-importable) — single source for the lineOfBusinessEnum pgEnum + the CRM/projects zod schemas + forms (carried by staff_employment, opportunities, projects; [ADR 0025](./decisions/0025-line-of-business-on-opportunity-and-project-not-role.md))
     currency.ts              CURRENCY tuple + labels + formatMoney (pure) — single source for the currency pgEnum, comp import schema, and display ([ADR 0020](./decisions/0020-compensation-effective-dated-import-only.md))
     skills.ts                the hardcoded skills catalogue (SKILL_CATEGORIES/ALL_SKILLS + PROFICIENCY_LEVELS, client-safe) — single source for the picker, the zod schema, and staff.skills ([ADR 0018](./decisions/0018-skills-inline-jsonb-catalogue.md))
     feedback-rating.ts       FEEDBACK_RATINGS tuple + labels/descriptions (pure) — single source for the feedback_rating pgEnum, the zod schema, and the rating radio ([ADR 0023](./decisions/0023-feedback-privacy-tiers.md))
@@ -97,10 +97,11 @@ src/
     pto-import/              CSV PTO import (same shape as staff-import): transform.ts / plan.ts / types.ts — builds on csv-import/
     db/
       db.ts                  hot-reload-safe Drizzle singleton
-      schema.ts              barrel: re-exports auth-schema + staff-schema + crm-schema + projects-schema + performance-schema (one import for the whole schema)
+      schema.ts              barrel: re-exports auth-schema + staff-schema + crm-schema + opportunities-schema + projects-schema + performance-schema (one import for the whole schema)
       staff-schema.ts        staff / staff_employment / staff_pto + domain enums (lineOfBusinessEnum built from src/lib/line-of-business.ts)
-      crm-schema.ts          companies / contacts / opportunities + 4 opportunity junction tables (CRM slice)
-      projects-schema.ts     projects / project_delivery_managers / project_roles (Projects slice; project_roles = first cut of Allocation)
+      crm-schema.ts          companies / contacts (CRM slice)
+      opportunities-schema.ts opportunities + 4 junction tables + source/status pgEnums + lineOfBusiness (split out of crm-schema.ts; [ADR 0025](./decisions/0025-line-of-business-on-opportunity-and-project-not-role.md))
+      projects-schema.ts     projects (with lineOfBusiness) / project_delivery_managers / project_roles (Projects slice; project_roles = first cut of Allocation)
       performance-schema.ts  feedback (peer feedback; from/to staff FKs, feedback_rating enum — first Performance slice)
       auth-schema.ts         better-auth tables (generated; in OUR migrations)
       ids.ts                 generateId(prefix)

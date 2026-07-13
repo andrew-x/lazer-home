@@ -20,6 +20,11 @@ import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  LINE_OF_BUSINESS,
+  LINE_OF_BUSINESS_LABELS,
+  type LineOfBusiness,
+} from "@/lib/line-of-business";
 import { CompanyComboboxField } from "./company-combobox-field";
 import { ContactsComboboxField } from "./contacts-combobox-field";
 import {
@@ -32,6 +37,7 @@ type OpportunityFormValues = {
   name: string;
   companyId: string;
   companyName: string;
+  lineOfBusiness: LineOfBusiness | "";
   contacts: EntityOption[];
   owners: EntityOption[];
   source: OpportunitySource | "";
@@ -45,6 +51,7 @@ const DEFAULT_VALUES: OpportunityFormValues = {
   name: "",
   companyId: "",
   companyName: "",
+  lineOfBusiness: "",
   contacts: [],
   owners: [],
   source: "",
@@ -63,6 +70,7 @@ const FIELD_FOR_ISSUE: Record<
 > = {
   name: "name",
   companyId: "companyId",
+  lineOfBusiness: "lineOfBusiness",
   contactIds: "contacts",
   ownerIds: "owners",
   source: "source",
@@ -114,6 +122,7 @@ function OpportunityForm({ onSaved }: { onSaved: () => void }) {
     const payload = {
       name: values.name,
       companyId: values.companyId,
+      lineOfBusiness: values.lineOfBusiness,
       contactIds: values.contacts.map((c) => c.id),
       ownerIds: values.owners.map((o) => o.id),
       source: values.source,
@@ -159,6 +168,26 @@ function OpportunityForm({ onSaved }: { onSaved: () => void }) {
           />
         )}
       />
+
+      <FormField
+        label="Line of business"
+        error={errors.lineOfBusiness?.message}
+      >
+        <Controller
+          control={control}
+          name="lineOfBusiness"
+          render={({ field, fieldState }) => (
+            <EnumSelect
+              options={LINE_OF_BUSINESS}
+              labels={LINE_OF_BUSINESS_LABELS}
+              placeholder="Select a line of business"
+              value={field.value}
+              invalid={Boolean(fieldState.error)}
+              onValueChange={field.onChange}
+            />
+          )}
+        />
+      </FormField>
 
       <Controller
         control={control}

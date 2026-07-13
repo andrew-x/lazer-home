@@ -43,7 +43,6 @@ type RoleFieldValues = {
   staff: EntityOption | null;
   name: string;
   roleType: ProjectRoleType | "";
-  lineOfBusiness: LineOfBusiness | "";
   startDate: string | null;
   endDate: string | null;
   hoursPerDay: string;
@@ -53,6 +52,7 @@ type ProjectFormValues = {
   name: string;
   companyId: string;
   companyName: string;
+  lineOfBusiness: LineOfBusiness | "";
   deliveryManagers: EntityOption[];
   roles: RoleFieldValues[];
 };
@@ -61,7 +61,6 @@ const EMPTY_ROLE: RoleFieldValues = {
   staff: null,
   name: "",
   roleType: "",
-  lineOfBusiness: "",
   startDate: null,
   endDate: null,
   hoursPerDay: "8",
@@ -75,7 +74,6 @@ const ROLE_FIELD_FOR_ISSUE: Record<
   staffId: "staff",
   name: "name",
   roleType: "roleType",
-  lineOfBusiness: "lineOfBusiness",
   startDate: "startDate",
   endDate: "endDate",
   hoursPerDay: "hoursPerDay",
@@ -91,6 +89,7 @@ const FIELD_FOR_ISSUE: Record<
 > = {
   name: "name",
   companyId: "companyId",
+  lineOfBusiness: "lineOfBusiness",
   // Prefilled/derived, never surfaced as a form field.
   opportunityId: "companyId",
   deliveryManagerIds: "deliveryManagers",
@@ -103,6 +102,11 @@ type ProjectDialogProps = {
   /** Prefill (and, with `lockCompany`, pin) the company. */
   defaultCompanyId?: string;
   defaultCompanyName?: string;
+  /**
+   * Prefill the line of business — used when creating from an opportunity, so
+   * the project defaults to the opportunity's line of business (still editable).
+   */
+  defaultLineOfBusiness?: LineOfBusiness;
   /** Render the company read-only — used when creating from an opportunity. */
   lockCompany?: boolean;
   /** Called with the new project's id after a successful create. */
@@ -123,6 +127,7 @@ export function AddProjectDialog({
   opportunityId,
   defaultCompanyId,
   defaultCompanyName,
+  defaultLineOfBusiness,
   lockCompany,
   onCreated,
 }: ProjectDialogProps & {
@@ -166,6 +171,7 @@ export function AddProjectDialog({
           opportunityId={opportunityId}
           defaultCompanyId={defaultCompanyId}
           defaultCompanyName={defaultCompanyName}
+          defaultLineOfBusiness={defaultLineOfBusiness}
           lockCompany={lockCompany}
           onCreated={onCreated}
         />
@@ -179,6 +185,7 @@ function ProjectForm({
   opportunityId,
   defaultCompanyId,
   defaultCompanyName,
+  defaultLineOfBusiness,
   lockCompany,
   onCreated,
 }: ProjectDialogProps & { onSaved: () => void }) {
@@ -196,8 +203,10 @@ function ProjectForm({
       name: "",
       companyId: defaultCompanyId ?? "",
       companyName: defaultCompanyName ?? "",
+      lineOfBusiness: defaultLineOfBusiness ?? "",
       deliveryManagers: [],
-      roles: [],
+      // Seed one role so the "at least one role" requirement is obvious.
+      roles: [EMPTY_ROLE],
     },
   });
 
@@ -217,13 +226,13 @@ function ProjectForm({
     const payload = {
       name: values.name,
       companyId: values.companyId,
+      lineOfBusiness: values.lineOfBusiness,
       opportunityId,
       deliveryManagerIds: values.deliveryManagers.map((d) => d.id),
       roles: values.roles.map((role) => ({
         staffId: role.staff?.id ?? undefined,
         name: role.name,
         roleType: role.roleType,
-        lineOfBusiness: role.lineOfBusiness,
         startDate: role.startDate ?? "",
         endDate: role.endDate ?? "",
         hoursPerDay: role.hoursPerDay,
@@ -281,6 +290,26 @@ function ProjectForm({
         />
       )}
 
+      <FormField
+        label="Line of business"
+        error={errors.lineOfBusiness?.message}
+      >
+        <Controller
+          control={control}
+          name="lineOfBusiness"
+          render={({ field, fieldState }) => (
+            <EnumSelect
+              options={LINE_OF_BUSINESS}
+              labels={LINE_OF_BUSINESS_LABELS}
+              placeholder="Select a line of business"
+              value={field.value}
+              invalid={Boolean(fieldState.error)}
+              onValueChange={field.onChange}
+            />
+          )}
+        />
+      </FormField>
+
       <FormField label="Delivery managers">
         <Controller
           control={control}
@@ -313,8 +342,14 @@ function ProjectForm({
 
         {fields.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No roles yet. Add one to staff this project — leave the person blank
-            for a placeholder (open) role.
+            At least one role is required. Add one to staff this project — leave
+            the person blank for a placeholder (open) role.
+          </p>
+        ) : null}
+
+        {errors.roles?.root?.message ? (
+          <p className="text-sm text-destructive">
+            {errors.roles.root.message}
           </p>
         ) : null}
 
@@ -377,48 +412,24 @@ function ProjectForm({
                 </FormField>
               </div>
 
-              <div className="flex gap-3">
-                <FormField
-                  label="Staff (optional)"
-                  error={rowErrors?.staff?.message}
-                  className="flex-1"
-                >
-                  <Controller
-                    control={control}
-                    name={`roles.${index}.staff`}
-                    render={({ field, fieldState }) => (
-                      <EntityCombobox
-                        value={field.value}
-                        onChange={field.onChange}
-                        searchAction={searchStaff}
-                        placeholder="Search staff…"
-                        invalid={Boolean(fieldState.error)}
-                      />
-                    )}
-                  />
-                </FormField>
-
-                <FormField
-                  label="Line of business"
-                  error={rowErrors?.lineOfBusiness?.message}
-                  className="flex-1"
-                >
-                  <Controller
-                    control={control}
-                    name={`roles.${index}.lineOfBusiness`}
-                    render={({ field, fieldState }) => (
-                      <EnumSelect
-                        options={LINE_OF_BUSINESS}
-                        labels={LINE_OF_BUSINESS_LABELS}
-                        placeholder="Select a line of business"
-                        value={field.value}
-                        invalid={Boolean(fieldState.error)}
-                        onValueChange={field.onChange}
-                      />
-                    )}
-                  />
-                </FormField>
-              </div>
+              <FormField
+                label="Staff (optional)"
+                error={rowErrors?.staff?.message}
+              >
+                <Controller
+                  control={control}
+                  name={`roles.${index}.staff`}
+                  render={({ field, fieldState }) => (
+                    <EntityCombobox
+                      value={field.value}
+                      onChange={field.onChange}
+                      searchAction={searchStaff}
+                      placeholder="Search staff…"
+                      invalid={Boolean(fieldState.error)}
+                    />
+                  )}
+                />
+              </FormField>
 
               <div className="flex gap-3">
                 <FormField

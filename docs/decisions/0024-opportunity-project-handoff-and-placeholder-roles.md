@@ -37,6 +37,9 @@ is **still not enforced** (deferred as in ADR 0019).
   role type = what kind of work; line of business = which practice bills it.
 - **`name`** (optional text) — a free label, e.g. "Senior Backend Engineer".
 - Line of business, dates, and hours remain **required on every role**, staffed or not.
+  *(Later changed by [ADR 0025](./0025-line-of-business-on-opportunity-and-project-not-role.md):
+  line of business was dropped from the role and moved to the project; dates and hours
+  are still required per role.)*
 - Role types live in the pure, client-importable `src/lib/project-role-type.ts`
   (`PROJECT_ROLE_TYPES` + labels), the single source the pgEnum, zod, and form share —
   the same pattern as `line-of-business.ts` ([ADR 0016](./0016-junction-table-and-shared-enum-conventions.md)).

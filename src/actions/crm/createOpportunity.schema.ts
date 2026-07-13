@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { idList } from "@/lib/id-schema";
+import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
 import { optionalText } from "@/lib/text-schema";
 
 /**
  * The opportunity pipeline enums. Declared here (a pure, client-importable
- * module — no `db`/drizzle) so the pgEnum in `crm-schema.ts` and the zod enum
- * below share exactly one source of truth. See docs/domains/crm.md.
+ * module — no `db`/drizzle) so the pgEnum in `opportunities-schema.ts` and the
+ * zod enum below share exactly one source of truth. See docs/domains/crm.md.
  */
 export const OPPORTUNITY_SOURCES = [
   "inbound",
@@ -48,6 +49,7 @@ export const createOpportunitySchema = z
     name: z.string().trim().min(1, "Name is required.").max(200),
     // Company is required — every opportunity belongs to a company.
     companyId: z.string().min(1, "Company is required."),
+    lineOfBusiness: z.enum(LINE_OF_BUSINESS),
     contactIds: idList,
     ownerIds: idList,
     source: z.enum(OPPORTUNITY_SOURCES),

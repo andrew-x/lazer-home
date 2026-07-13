@@ -34,6 +34,7 @@ export const createProject = secureActionClient
         id: projectId,
         name: parsedInput.name,
         companyId: parsedInput.companyId,
+        lineOfBusiness: parsedInput.lineOfBusiness,
         opportunityId: parsedInput.opportunityId ?? null,
       });
 
@@ -56,7 +57,6 @@ export const createProject = secureActionClient
             staffId: role.staffId ?? null,
             name: role.name,
             roleType: role.roleType,
-            lineOfBusiness: role.lineOfBusiness,
             startDate: role.startDate,
             endDate: role.endDate,
             hoursPerDay: role.hoursPerDay,
