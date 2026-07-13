@@ -10,16 +10,18 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import { PROJECT_ROLE_TYPES } from "@/lib/project-role-type";
-import { companies, opportunities } from "./crm-schema";
+import { companies } from "./crm-schema";
+import { opportunities } from "./opportunities-schema";
 import { lineOfBusinessEnum, staff } from "./staff-schema";
 
 // ---------------------------------------------------------------------------
 // Projects domain
 //
 // A `project` is billable work for a company — the hub linking CRM to delivery.
+// It carries a line of business (defaulted from its originating opportunity).
 // `project_delivery_managers` is a junction to the staff who run the project.
-// `project_roles` are the staffing lines: a person on a line of business for a
-// date range at N hours/day (the first cut of the proposed Allocation entity).
+// `project_roles` are the staffing lines: a person for a date range at N
+// hours/day (the first cut of the proposed Allocation entity).
 // See docs/data-model.md and docs/domains/projects.md.
 // ---------------------------------------------------------------------------
 
@@ -33,6 +35,10 @@ export const projects = pgTable(
     companyId: text()
       .notNull()
       .references(() => companies.id, { onDelete: "restrict" }),
+    // The line of business this project belongs to. Defaults to the originating
+    // opportunity's line of business when created from one (see createProject).
+    // Shared/global enum (see `lineOfBusinessEnum`).
+    lineOfBusiness: lineOfBusinessEnum().notNull(),
     // A project may originate from a CRM opportunity — optional, so a project
     // can also be created standalone. `restrict`: an opportunity with live
     // projects can't be deleted (mirrors companyId). One opportunity can have
@@ -78,10 +84,11 @@ export const projectRoleTypeEnum = pgEnum("project_role_type", [
 ]);
 
 // Roles: a staffing line on a project. Not a pure junction — it carries the
-// role type (discipline), line of business, date range, and daily hours. A role
-// may be a *placeholder* (an open position defined before it's staffed), so
-// `staffId` is nullable; when set, it's `restrict` (a staffed role blocks
-// deleting its person). `projectId` cascades with its parent project.
+// role type (discipline), date range, and daily hours. A role may be a
+// *placeholder* (an open position defined before it's staffed), so `staffId` is
+// nullable; when set, it's `restrict` (a staffed role blocks deleting its
+// person). `projectId` cascades with its parent project. Line of business lives
+// on the project, not the role.
 export const projectRoles = pgTable(
   "project_roles",
   {
@@ -94,7 +101,6 @@ export const projectRoles = pgTable(
     // Optional label for the line, e.g. "Senior Backend Engineer".
     name: text(),
     roleType: projectRoleTypeEnum().notNull(),
-    lineOfBusiness: lineOfBusinessEnum().notNull(),
     startDate: date().notNull(),
     endDate: date().notNull(),
     // Daily hours for this role; allows half-days (e.g. 7.5). Defaults to 8.

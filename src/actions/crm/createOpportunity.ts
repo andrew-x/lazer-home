@@ -46,6 +46,7 @@ export const createOpportunity = secureActionClient
         id: opportunityId,
         name: parsedInput.name,
         companyId: parsedInput.companyId,
+        lineOfBusiness: parsedInput.lineOfBusiness,
         source: parsedInput.source,
         status: parsedInput.status,
         nextSteps: parsedInput.nextSteps,
