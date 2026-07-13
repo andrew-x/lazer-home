@@ -13,6 +13,7 @@ import {
   projects,
   staff,
 } from "@/lib/db/schema";
+import type { LineOfBusiness } from "@/lib/line-of-business";
 import type {
   OpportunitySource,
   OpportunityStatus,
@@ -25,6 +26,7 @@ export type OpportunityDetail = {
   id: string;
   name: string;
   company: EntityRef;
+  lineOfBusiness: LineOfBusiness;
   source: OpportunitySource;
   status: OpportunityStatus;
   nextSteps: string | null;
@@ -52,6 +54,7 @@ export async function getOpportunity(
       name: opportunities.name,
       companyId: opportunities.companyId,
       companyName: companies.name,
+      lineOfBusiness: opportunities.lineOfBusiness,
       source: opportunities.source,
       status: opportunities.status,
       nextSteps: opportunities.nextSteps,
@@ -103,6 +106,7 @@ export async function getOpportunity(
     id: base.id,
     name: base.name,
     company: { id: base.companyId, name: base.companyName },
+    lineOfBusiness: base.lineOfBusiness,
     source: base.source,
     status: base.status,
     nextSteps: base.nextSteps,

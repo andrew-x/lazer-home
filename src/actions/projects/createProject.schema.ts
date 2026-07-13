@@ -9,7 +9,8 @@ import { optionalText } from "@/lib/text-schema";
  * `db`/drizzle) so the create form's resolver and the server action share one
  * schema. Line-of-business values come from `@/lib/line-of-business` and role
  * types from `@/lib/project-role-type` — the same sources the pgEnums are built
- * from. See docs/domains/projects.md.
+ * from. Line of business is a project-level field (not per-role). See
+ * docs/domains/projects.md.
  */
 
 /** A calendar date as a timezone-agnostic "YYYY-MM-DD" string (DatePicker output). */
@@ -20,8 +21,8 @@ const dateString = z
 /**
  * A single staffing line on a project. `staffId` is optional — a role can be a
  * *placeholder* (an open position defined before it's staffed), identified by
- * its `roleType` and optional `name`. Line of business, dates, and hours are
- * always required.
+ * its `roleType` and optional `name`. Dates and hours are always required. Line
+ * of business lives on the project, not the role.
  */
 export const projectRoleSchema = z
   .object({
@@ -30,7 +31,6 @@ export const projectRoleSchema = z
     // Optional label, e.g. "Senior Backend Engineer".
     name: optionalText(200),
     roleType: z.enum(PROJECT_ROLE_TYPES),
-    lineOfBusiness: z.enum(LINE_OF_BUSINESS),
     startDate: dateString,
     endDate: dateString,
     // Daily hours; allows half-days. Defaults to a full 8-hour day.
@@ -51,10 +51,14 @@ export const createProjectSchema = z.object({
   name: z.string().trim().min(1, "Name is required.").max(200),
   // Every project belongs to a company.
   companyId: z.string().min(1, "Company is required."),
+  // The project's line of business. Defaults to the originating opportunity's
+  // when created from one (handled in the form).
+  lineOfBusiness: z.enum(LINE_OF_BUSINESS),
   // Optional CRM opportunity this project delivers.
   opportunityId: z.string().min(1).optional(),
   deliveryManagerIds: idList,
-  roles: z.array(projectRoleSchema).default([]),
+  // A project must be staffed with at least one role at creation.
+  roles: z.array(projectRoleSchema).min(1, "Add at least one role."),
 });
 
 export type CreateProjectInput = z.input<typeof createProjectSchema>;

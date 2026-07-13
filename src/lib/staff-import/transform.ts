@@ -2,6 +2,7 @@ import {
   createDuplicateTracker,
   getField,
   isNonEmptyString,
+  normalizeKey,
   parseDate,
   parseNumber,
   type RawRow,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/csv-import";
 import { normalizeCurrency } from "@/lib/currency";
 import { normalizeEmploymentFacts } from "@/lib/employment";
+import { MANAGER_EMAIL_HEADER } from "./managers";
 import type {
   EmploymentType,
   LineOfBusiness,
@@ -74,6 +76,15 @@ export function transformRows(
   const rows: NormalizedStaff[] = [];
   const skipped: TransformResult<NormalizedStaff>["skipped"] = [];
   const seenRipplingIds = createDuplicateTracker();
+
+  // Whether the file even has a manager column. When absent, the import carries
+  // no manager info — every row's managerEmail is left `undefined` so existing
+  // links are preserved (vs a present-but-blank cell, which clears). Header mode
+  // gives every row the same keys, so the first row is representative.
+  const managerKey = normalizeKey(MANAGER_EMAIL_HEADER);
+  const hasManagerColumn =
+    rawRows.length > 0 &&
+    Object.keys(rawRows[0]).some((key) => normalizeKey(key) === managerKey);
 
   rawRows.forEach((raw, index) => {
     const rowNumber = index + 2; // +1 for 0-index, +1 for the header row.
@@ -160,10 +171,18 @@ export function transformRows(
       utilizationTarget: 100,
     });
 
+    // The manager is matched by email during the server diff (managers.ts).
+    // Column present: a value links, a blank cell clears (null). Column absent:
+    // undefined → preserve existing links.
+    const managerEmail = hasManagerColumn
+      ? getField(raw, MANAGER_EMAIL_HEADER) || null
+      : undefined;
+
     rows.push({
       ripplingId,
       name,
       email,
+      managerEmail,
       joinDate: joinDate.value,
       terminationDate: terminationDate.value,
       isActive: terminationDate.value === null,

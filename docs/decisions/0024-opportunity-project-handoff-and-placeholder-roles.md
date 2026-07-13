@@ -37,19 +37,37 @@ is **still not enforced** (deferred as in ADR 0019).
   role type = what kind of work; line of business = which practice bills it.
 - **`name`** (optional text) — a free label, e.g. "Senior Backend Engineer".
 - Line of business, dates, and hours remain **required on every role**, staffed or not.
+  *(Later changed by [ADR 0025](./0025-line-of-business-on-opportunity-and-project-not-role.md):
+  line of business was dropped from the role and moved to the project; dates and hours
+  are still required per role.)*
 - Role types live in the pure, client-importable `src/lib/project-role-type.ts`
   (`PROJECT_ROLE_TYPES` + labels), the single source the pgEnum, zod, and form share —
   the same pattern as `line-of-business.ts` ([ADR 0016](./0016-junction-table-and-shared-enum-conventions.md)).
 
 **3. Delivery stages require a linked project.** New `requiresProject(status)` in
 `src/lib/opportunity-pipeline.ts`: true from the **Allocating** group onward (Allocating →
-Negotiating → Closing → Won), with **Closed – Lost excepted**. Enforced **server-side in
-both** status-changing actions (`updateOpportunityPosition`, `updateOpportunity`) via the
-indexed existence check `opportunityHasProject` — throwing a `UserSafeActionError` if a
-delivery-stage move has no project — so the rule can't be bypassed by hitting the action
-directly. Client-side, dragging a card into Allocating+ with no project is *blocked* (the
-move isn't applied) and, for a user who can create projects, auto-opens the create-project
-dialog prefilled for that opportunity; on creation the pending move completes.
+Negotiating → Closing → Won), with **Closed – Lost excepted**. The invariant — *an
+opportunity in a delivery stage has a linked project* — is enforced **server-side at the
+entry points**, so it can't be bypassed by hitting an action directly:
+
+- **Creation is forbidden in a delivery stage.** `createOpportunity` rejects any
+  `requiresProject(status)` input outright — a brand-new opportunity can't have a linked
+  project yet, so that state is unreachable. The error nudges the user to create it earlier
+  and add a project as it advances.
+- **The guard is transition-based, not state-based.** In `updateOpportunityPosition` and
+  `updateOpportunity`, the check fires **only when the status is actually changing into a
+  requiring stage without a project** — `newStatus !== currentStatus && requiresProject(newStatus) && !opportunityHasProject(id)`.
+  Both actions first fetch the current status to compare. Editing an opportunity already in
+  a delivery stage (renaming, changing owners/next-steps) or reordering a card *within* a
+  delivery column no longer trips the guard — the earlier every-edit check over-fired and
+  blocked unrelated writes. When it does fire it throws a `UserSafeActionError`.
+
+Client-side, dragging a card into Allocating+ with no project is *blocked* (the move isn't
+applied) **only on a genuine stage change** (`newStatus !== originStatus`), so an intra-column
+reorder never prompts. For a user who can create projects the block auto-opens the
+create-project dialog prefilled for that opportunity; on creation the pending move completes.
+The board's re-sync signature includes `hasProject`, so linking a project via the detail
+drawer flips the card's state and the board stops re-prompting to create a duplicate.
 
 ## Consequences
 

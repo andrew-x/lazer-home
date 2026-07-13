@@ -14,7 +14,7 @@ reconciliation) is not built yet.
 ## Data model — as realized
 
 Schema slice `src/lib/db/timesheets-schema.ts` (barrelled by `src/lib/db/schema.ts`;
-migration `drizzle/0024_lovely_tyger_tiger.sql`). See [ADR 0025](../decisions/0025-timesheet-weekly-model-and-edit-window.md).
+migration `drizzle/0026_rich_the_captain.sql`). See [ADR 0027](../decisions/0027-timesheet-weekly-model-and-edit-window.md).
 
 - **`timesheets`** — one person's week. `id` (prefix `ts`), `staffId` → `staff.id`
   (cascade), **`weekStartDate`** (`date`, the ISO **Monday** of the week), `status`
@@ -125,7 +125,7 @@ the grid warns live and the server rejects). A single entry also can't exceed 8h
 
 ## Open questions
 
-Resolved in v1 (recorded here so they aren't relitigated — see [ADR 0025](../decisions/0025-timesheet-weekly-model-and-edit-window.md)):
+Resolved in v1 (recorded here so they aren't relitigated — see [ADR 0027](../decisions/0027-timesheet-weekly-model-and-edit-window.md)):
 
 - **Can people log against projects they aren't allocated to?** **Yes** — any project
   is a valid target, plus the three non-billable buckets.

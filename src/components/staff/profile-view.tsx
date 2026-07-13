@@ -113,6 +113,17 @@ export function ProfileView({
               ? ` · Joined ${formatDate(profile.joinDate)}`
               : ""}
           </span>
+          {profile.managerId ? (
+            <span className="text-sm text-muted-foreground">
+              Reports to{" "}
+              <Link
+                href={`/staff/${profile.managerId}`}
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                {profile.managerName}
+              </Link>
+            </span>
+          ) : null}
         </div>
         <div className="ml-auto self-start">
           <HistorySheet entries={history} />

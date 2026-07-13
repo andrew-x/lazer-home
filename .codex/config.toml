@@ -1,0 +1,12 @@
+# Codex project config — mirrors the Claude Code setup in .claude/.
+# See AGENTS.md ("Agent runtimes") for the full Claude Code ↔ Codex mapping.
+
+[features]
+# Lifecycle hooks (.codex/hooks.json) and subagents (.codex/agents/*.toml).
+hooks = true
+multi_agent = true
+
+[agents]
+max_threads = 12
+max_depth = 3
+job_max_runtime_seconds = 3600
