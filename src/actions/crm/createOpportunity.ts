@@ -12,6 +12,8 @@ import {
   opportunitySourceContacts,
   opportunitySourceStaff,
 } from "@/lib/db/schema";
+import { UserSafeActionError } from "@/lib/errors";
+import { requiresProject } from "@/lib/opportunity-pipeline";
 import { createOpportunitySchema } from "./createOpportunity.schema";
 
 /**
@@ -27,6 +29,16 @@ export const createOpportunity = secureActionClient
   })
   .inputSchema(createOpportunitySchema)
   .action(async ({ parsedInput }) => {
+    // A brand-new opportunity can't have a linked project yet, so it must not
+    // start in a delivery stage (Allocating onward) — that state is what the
+    // project guard exists to prevent. Create it earlier, then add a project as
+    // it advances. See `requiresProject`.
+    if (requiresProject(parsedInput.status)) {
+      throw new UserSafeActionError(
+        "A new opportunity can't start at Allocating or later — create it in an earlier stage, then add a project as it advances.",
+      );
+    }
+
     const opportunityId = generateId("opp");
 
     // Dedupe each id list so a duplicate can't trip the junction unique index.

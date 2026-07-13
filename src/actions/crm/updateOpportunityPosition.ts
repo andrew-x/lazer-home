@@ -24,8 +24,17 @@ export const updateOpportunityPosition = secureActionClient
   .inputSchema(updateOpportunityPositionSchema)
   .action(async ({ parsedInput }) => {
     // Delivery stages require a linked project (see `requiresProject`). Enforced
-    // here too — not just in the UI — so the rule can't be bypassed.
+    // here too — not just in the UI — so the rule can't be bypassed. Only fire
+    // on a genuine move *into* a requiring stage, so reordering a card within a
+    // delivery column (status unchanged) isn't blocked.
+    const [current] = await db
+      .select({ status: opportunities.status })
+      .from(opportunities)
+      .where(eq(opportunities.id, parsedInput.id))
+      .limit(1);
     if (
+      current &&
+      parsedInput.status !== current.status &&
       requiresProject(parsedInput.status) &&
       !(await opportunityHasProject(parsedInput.id))
     ) {

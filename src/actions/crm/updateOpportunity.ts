@@ -31,7 +31,18 @@ export const updateOpportunity = secureActionClient
   })
   .inputSchema(updateOpportunitySchema)
   .action(async ({ parsedInput }) => {
+    // The delivery-stage project rule only bites on a *transition* into a stage
+    // that requires one — editing name/owners/next-steps on an opportunity
+    // already in such a stage must not be blocked. Only enforce when the status
+    // actually changes into a requiring stage without a linked project.
+    const [current] = await db
+      .select({ status: opportunities.status })
+      .from(opportunities)
+      .where(eq(opportunities.id, parsedInput.id))
+      .limit(1);
     if (
+      current &&
+      parsedInput.status !== current.status &&
       requiresProject(parsedInput.status) &&
       !(await opportunityHasProject(parsedInput.id))
     ) {
