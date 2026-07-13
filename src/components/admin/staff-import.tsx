@@ -17,6 +17,7 @@ import { transformRows } from "@/lib/staff-import/transform";
 import type {
   ComparableField,
   ImportUpdate,
+  ManagerWarning,
   NormalizedStaff,
   SkippedRow,
   StaffImportPlan,
@@ -45,6 +46,20 @@ function dashCell({ getValue }: { getValue: () => unknown }) {
   return value == null || value === "" ? "—" : String(value);
 }
 
+/** The resolved manager name for an update, highlighted old → new when changed. */
+function ManagerChangeCell({ update }: { update: ImportUpdate }) {
+  const next = update.managerName ?? "—";
+  if (!update.managerChanged) return <span>{next}</span>;
+  const prev = update.current.managerName ?? "—";
+  return (
+    <span className="flex items-center gap-1 rounded-sm bg-primary/10 px-1">
+      <span className="text-muted-foreground line-through">{prev}</span>
+      <span aria-hidden>→</span>
+      <span className="font-medium">{next}</span>
+    </span>
+  );
+}
+
 function moneyCell({ getValue }: { getValue: () => unknown }) {
   const value = getValue();
   return typeof value === "number"
@@ -52,9 +67,13 @@ function moneyCell({ getValue }: { getValue: () => unknown }) {
     : "—";
 }
 
-const NEW_COLUMNS: ColumnDef<NormalizedStaff>[] = [
+/** A create row flattened for the preview table (its resolved manager name). */
+type CreateRow = NormalizedStaff & { managerName: string | null };
+
+const NEW_COLUMNS: ColumnDef<CreateRow>[] = [
   { accessorKey: "name", header: "Name" },
   { accessorKey: "email", header: "Email" },
+  { accessorKey: "managerName", header: "Manager", cell: dashCell },
   { accessorKey: "ripplingId", header: "Rippling ID" },
   { accessorKey: "role", header: "Role" },
   { accessorKey: "lineOfBusiness", header: "Line of business" },
@@ -114,6 +133,11 @@ const UPDATE_COLUMNS: ColumnDef<ImportUpdate>[] = [
       </div>
     ),
   },
+  {
+    id: "manager",
+    header: "Manager",
+    cell: ({ row }) => <ManagerChangeCell update={row.original} />,
+  },
   ...UPDATE_FIELDS.map(
     ({ field, header }): ColumnDef<ImportUpdate> => ({
       id: field,
@@ -123,6 +147,19 @@ const UPDATE_COLUMNS: ColumnDef<ImportUpdate>[] = [
       ),
     }),
   ),
+];
+
+const MANAGER_WARNING_COLUMNS: ColumnDef<ManagerWarning>[] = [
+  { accessorKey: "name", header: "Name" },
+  { accessorKey: "ripplingId", header: "Rippling ID", cell: dashCell },
+  { accessorKey: "managerEmail", header: "Manager email" },
+  {
+    accessorKey: "reason",
+    header: "Reason",
+    cell: ({ getValue }) => (
+      <span className="text-destructive">{getValue<string>()}</span>
+    ),
+  },
 ];
 
 const SKIPPED_COLUMNS: ColumnDef<SkippedRow>[] = [
@@ -146,12 +183,19 @@ const PLAN_BADGES: CsvPlanBadge<StaffImportPlan>[] = [
     variant: "outline",
     show: (p) => p.unchanged > 0,
   },
+  {
+    label: (p) =>
+      `${p.managerWarnings.length} manager ${p.managerWarnings.length === 1 ? "issue" : "issues"}`,
+    variant: "destructive",
+    show: (p) => p.managerWarnings.length > 0,
+  },
 ];
 
 const SECTIONS = [
-  csvPreviewSection<StaffImportPlan, NormalizedStaff>({
+  csvPreviewSection<StaffImportPlan, CreateRow>({
     title: (p) => `New staff (${p.creates.length})`,
-    data: (p) => p.creates,
+    data: (p) =>
+      p.creates.map((c) => ({ ...c.incoming, managerName: c.managerName })),
     columns: NEW_COLUMNS,
     emptyMessage: "No new staff.",
   }),
@@ -167,6 +211,14 @@ const SECTIONS = [
     columns: UPDATE_COLUMNS,
     emptyMessage: "No updates.",
   }),
+  csvPreviewSection<StaffImportPlan, ManagerWarning>({
+    title: (p) => `Manager issues (${p.managerWarnings.length})`,
+    description:
+      "These people import normally; the manager couldn't be linked, so any existing manager is left unchanged (a blank cell clears it).",
+    data: (p) => p.managerWarnings,
+    columns: MANAGER_WARNING_COLUMNS,
+    show: (p) => p.managerWarnings.length > 0,
+  }),
 ];
 
 export function StaffImport() {
@@ -178,7 +230,7 @@ export function StaffImport() {
     onSuccess: ({ data }) => {
       if (!data) return;
       toast.success(
-        `Saved ${data.created} new and ${data.updated} updated staff (${data.employmentRowsAdded} employment rows).`,
+        `Saved ${data.created} new and ${data.updated} updated staff (${data.employmentRowsAdded} employment rows, ${data.managersLinked} managers linked).`,
       );
     },
     onError: ({ error }) =>
@@ -193,7 +245,7 @@ export function StaffImport() {
       fileCard={{
         title: "1. Choose a CSV file",
         description:
-          "A Rippling export with columns: Employee - ID, Employee, Work email, Start date, Last day of work, Department, Teams, Title, Employment type name, Annual base remuneration, Hourly Rate, Target annual bonus, Compensation currency.",
+          "A Rippling export with columns: Employee - ID, Employee, Work email, Manager - Work email, Start date, Last day of work, Department, Teams, Title, Employment type name, Annual base remuneration, Hourly Rate, Target annual bonus, Compensation currency. If the Manager column is omitted, existing manager links are left untouched.",
       }}
       planBadges={PLAN_BADGES}
       sections={SECTIONS}
