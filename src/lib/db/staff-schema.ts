@@ -1,5 +1,6 @@
 import type { InferSelectModel } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   date,
   integer,
@@ -83,6 +84,16 @@ export const staff = pgTable("staff", {
     .references(() => user.id, { onDelete: "set null" }),
   name: text().notNull(),
   email: text().notNull(),
+
+  // Who this person reports to (optional, at most one). Self-reference, so it
+  // needs the `AnyPgColumn` annotation. `set null` mirrors `contacts.managerId`:
+  // removing a manager clears their reports' pointers rather than blocking.
+  // Populated exclusively by the CSV import (matched via `Manager - Work email`);
+  // there is no in-app editor. See docs/domains/staff-profiles.md.
+  managerId: text().references((): AnyPgColumn => staff.id, {
+    onDelete: "set null",
+  }),
+
   linkedinUrl: text(),
   githubUrl: text(),
   portfolioUrl: text(),

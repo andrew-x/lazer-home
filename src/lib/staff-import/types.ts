@@ -36,6 +36,12 @@ export const normalizedStaffSchema = z
     ripplingId: z.string().min(1),
     name: z.string().min(1),
     email: z.string().min(1),
+    // The manager's work email, from the `Manager - Work email` column. Three
+    // states: a string (resolve + link), `null` (column present but cell blank →
+    // clear the manager), or `undefined` (column absent → import carries no
+    // manager info, so existing links are preserved). Resolved to a manager
+    // staff id at commit — see managers.ts / plan.ts.
+    managerEmail: z.string().min(1).nullish(),
     joinDate: z.string().nullable(),
     terminationDate: z.string().nullable(),
     isActive: z.boolean(),
@@ -95,6 +101,12 @@ export type ComparableField =
 export type ComparableSnapshot = {
   name: string;
   email: string;
+  // The current manager as a stable ripplingId (resolved from `staff.managerId`),
+  // so it can be compared against the incoming resolved manager. Not part of the
+  // field tuples above — the manager diff is tracked separately (see plan.ts).
+  managerRipplingId: string | null;
+  /** The current manager's name, for the preview's old→new display. */
+  managerName: string | null;
   joinDate: string | null;
   terminationDate: string | null;
   isActive: boolean;
@@ -124,17 +136,46 @@ export type ImportUpdate = {
   changedFields: ComparableField[];
   /** True when any employment fact changed → a new employment row is inserted. */
   employmentChanged: boolean;
+  /** The incoming manager resolved to a ripplingId (null when none/unresolved). */
+  managerRipplingId: string | null;
+  /** The resolved manager's name, for the preview column (null when none). */
+  managerName: string | null;
+  /** True when the resolved manager differs from the current one. */
+  managerChanged: boolean;
+};
+
+/** A new staff row plus its resolved manager (a stable ripplingId reference). */
+export type ImportCreate = {
+  incoming: NormalizedStaff;
+  managerRipplingId: string | null;
+  /** The resolved manager's name, for the preview column (null when none). */
+  managerName: string | null;
+};
+
+/**
+ * A manager email that couldn't be linked, surfaced for review. Unlike a
+ * `SkippedRow` the person still imports — only the manager pointer is left unset.
+ */
+export type ManagerWarning = {
+  name: string;
+  ripplingId: string;
+  managerEmail: string;
+  reason: string;
 };
 
 export type StaffImportPlan = {
-  creates: NormalizedStaff[];
+  creates: ImportCreate[];
   updates: ImportUpdate[];
   /** Matched rows that are identical to the existing record (no write needed). */
   unchanged: number;
+  /** Manager emails that couldn't be resolved (non-blocking). */
+  managerWarnings: ManagerWarning[];
 };
 
 export type CommitResult = {
   created: number;
   updated: number;
   employmentRowsAdded: number;
+  /** How many manager relationships were linked (creates + updates). */
+  managersLinked: number;
 };
