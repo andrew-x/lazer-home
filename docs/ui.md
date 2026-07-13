@@ -112,14 +112,14 @@ Companies and contacts each get their **own page** (`(app)/companies/page.tsx`, 
 
 `src/components/app-shell/`:
 
-- `app-shell.tsx` — Client Component; wraps `SidebarProvider` and renders the sidebar plus a header showing the page title (`titleForPath(pathname)`). It sets `defaultOpen={false}` so the sidebar starts **collapsed as a floating icon island**. Takes an **`isLocal`** prop and passes it straight through to `AppSidebar`. (`TooltipProvider` is no longer here — it now lives in the root layout; see below.)
+- `app-shell.tsx` — Client Component; wraps `SidebarProvider` and renders the sidebar plus the page content in a padded (`p-4 md:p-6`) `<div>`. **There is no global header bar** — the old `<header>` showing a `titleForPath(pathname)` page title was removed, so `AppShell` no longer reads `usePathname()`. Each page owns its own in-page `<h2>` title (and sets the browser-tab title via `export const metadata`). It sets `defaultOpen={false}` so the sidebar starts **collapsed as a floating icon island**. Takes an **`isLocal`** prop and passes it straight through to `AppSidebar`. (`TooltipProvider` is no longer here — it now lives in the root layout; see below.)
 - `app-sidebar.tsx` — the sidebar itself; uses `<Sidebar variant="floating" collapsible="icon">` (floating icon rail), `size-5` icons. The open/close **toggle lives in its footer** — a `SidebarMenuButton` (Tabler `IconLayoutSidebar`) calling `useSidebar().toggleSidebar` (label toggles Expand/Collapse). It also takes an **`isLocal`** prop that drives the **localhost-only Admin footer entry** (`IconTool` → `/admin`, rendered only when `isLocal`). The prop originates in the server `(app)/layout.tsx`, which computes `await isLocalhost()` (`src/lib/admin.ts`) and threads it **server-layout → `AppShell` → `AppSidebar`** — the same loopback-host boundary that gates the `/admin` segment itself, so the nav affordance and the segment agree.
 - `nav-user.tsx` — the user dropdown in the sidebar footer.
 - `nav.ts` — the nav source of truth (no JSX, so it's importable anywhere).
 
 Collapsed nav items get tooltips automatically via `SidebarMenuButton`'s `tooltip` prop (set to `item.title`).
 
-**Add a nav item:** edit `NAV_ITEMS` in `src/components/app-shell/nav.ts` (`{ title, href, icon }` with a **Tabler** icon, typed as Tabler's `Icon`). It drives both the sidebar entries and the header title (`titleForPath` longest-prefix matches, falling back to `APP_NAME`). Nothing else to touch.
+**Add a nav item:** edit `NAV_ITEMS` in `src/components/app-shell/nav.ts` (`{ title, href, icon }` with a **Tabler** icon, typed as Tabler's `Icon`). It drives the sidebar entries; `isActivePath()` (also in `nav.ts`) highlights the active one. Nothing else to touch. (There's no longer a `titleForPath` helper — the page-title header was removed.)
 
 ## Icon-only buttons (tooltip convention)
 
