@@ -15,8 +15,10 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
 - **Allocation** — a *time-ranged* assignment of a Person to a Project: start/end dates, capacity (% or hours/week), and project role.
   - **First cut realized as `project_roles`** (`src/lib/db/projects-schema.ts`): a
     staffing line = a `staff` member (or a **placeholder / open position** when `staffId`
-    is null) of a given `roleType` (discipline) on a `lineOfBusiness` for a
-    `startDate`/`endDate` range at `hoursPerDay` (default 8). It's a **data-carrying row**,
+    is null) of a given `roleType` (discipline) for a `startDate`/`endDate` range at
+    `hoursPerDay` (default 8). Line of business lives on the **parent project**, not the
+    role ([ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
+    It's a **data-carrying row**,
     not a pure junction. Placeholders let a Project define needed roles before anyone is
     chosen (e.g. during an opportunity's Allocating stage). Today these are **simple
     mutable rows, NOT effective-dated history** like `staff_employment` — so they can't

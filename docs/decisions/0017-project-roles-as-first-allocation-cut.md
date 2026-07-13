@@ -23,18 +23,24 @@ Two modelling questions arose:
 ## Decision
 
 **`project_roles` is a data-carrying table, not a pure junction.** Beyond
-`projectId`/`staffId` it carries `lineOfBusiness` (the shared `lineOfBusinessEnum`),
-`startDate`/`endDate` (`date`, string mode), and `hoursPerDay` (`numeric(4,2)`,
-number mode, default 8). It follows the junction FK/index conventions where they
+`projectId`/`staffId` it carries `startDate`/`endDate` (`date`, string mode) and
+`hoursPerDay` (`numeric(4,2)`, number mode, default 8) — plus, later, `roleType` and
+`name` ([ADR 0024](./0024-opportunity-project-handoff-and-placeholder-roles.md)). (It
+originally also carried `lineOfBusiness`, since moved to the project —
+[ADR 0025](./0025-line-of-business-on-opportunity-and-project-not-role.md).) It follows the junction FK/index conventions where they
 apply (indexes on both FKs) but deliberately has **no `unique` on the FK pair** — the
 same person can hold multiple role lines on one project (e.g. different date ranges or
-lines of business).
+role types).
 
 > **Updated by [ADR 0024](./0024-opportunity-project-handoff-and-placeholder-roles.md):**
 > `staffId` is now **nullable** — a null role is a *placeholder / open position* defined
 > before it's staffed — and the table gained `roleType` (a NOT NULL discipline enum,
-> distinct from line of business) and an optional `name`. Line of business, dates, and
-> hours stay required on every role.
+> distinct from line of business) and an optional `name`.
+>
+> **Superseded in part by [ADR 0025](./0025-line-of-business-on-opportunity-and-project-not-role.md):**
+> `lineOfBusiness` has been **dropped from `project_roles`** — line of business is now a
+> **project-level** field (`projects.lineOfBusiness`), not per-role. A role carries
+> `roleType`, dates, and hours (all still required); it inherits the project's practice.
 
 **FK delete behaviour is asymmetric:** `projectId` → projects **cascade** (a role dies
 with its project), `staffId` → staff **`restrict`** (a *staffed* role without its person is
@@ -46,7 +52,8 @@ reasoning from [ADR 0016](./0016-junction-table-and-shared-enum-conventions.md).
 dates/hours represent the *current* plan; changing them (once edit exists) updates the
 row in place. We are **not** versioning allocations as history-as-rows yet.
 
-`lineOfBusiness` reuses the shared, single-source `LINE_OF_BUSINESS` module
+Line of business (now on the project, [ADR 0025](./0025-line-of-business-on-opportunity-and-project-not-role.md))
+reuses the shared, single-source `LINE_OF_BUSINESS` module
 (`src/lib/line-of-business.ts`), extracted so the pgEnum, the zod schema, and the form
 share one tuple — the same pattern [ADR 0016](./0016-junction-table-and-shared-enum-conventions.md)
 established for the opportunity enums.
@@ -76,5 +83,5 @@ established for the opportunity enums.
   reads, in-place-vs-new-row commit branching). Deferred until the Allocations domain
   needs it; flagged here so it isn't forgotten.
 - **`unique(projectId, staffId)`** — rejected: a person legitimately holds multiple
-  lines on one project (different periods / lines of business).
+  lines on one project (different periods / role types).
 </content>
