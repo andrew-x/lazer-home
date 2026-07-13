@@ -144,7 +144,12 @@ export function transformRows(
     // isn't imported yet, so it defaults to 0.
     const base = parseNumber(getField(raw, "Annual base remuneration"));
     const hourlyRate = parseNumber(getField(raw, "Hourly Rate"));
-    const guaranteedBonus = parseNumber(getField(raw, "Target annual bonus"));
+    // Guaranteed bonus is optional in the source data: a blank cell means "no
+    // guaranteed bonus", so it defaults to 0. A present-but-unparseable value
+    // still fails (parses to null) and skips the row.
+    const guaranteedBonusRaw = getField(raw, "Target annual bonus");
+    const guaranteedBonus =
+      guaranteedBonusRaw === "" ? 0 : parseNumber(guaranteedBonusRaw);
     const currency = normalizeCurrency(getField(raw, "Compensation currency"));
     const missingComp = [
       base === null && "Annual base remuneration",

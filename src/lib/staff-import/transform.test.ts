@@ -50,3 +50,36 @@ describe("transformRows — manager email column handling", () => {
     expect(rows[0].managerEmail).toBe("boss@example.com");
   });
 });
+
+describe("transformRows — guaranteed bonus", () => {
+  test("blank → defaults to 0 (row is kept)", () => {
+    const { rows, skipped } = transformRows([
+      validRawRow({ "Target annual bonus": "" }),
+    ]);
+    expect(skipped).toEqual([]);
+    expect(rows[0].guaranteedBonus).toBe(0);
+  });
+
+  test("whitespace-only → defaults to 0 (row is kept)", () => {
+    const { rows, skipped } = transformRows([
+      validRawRow({ "Target annual bonus": "   " }),
+    ]);
+    expect(skipped).toEqual([]);
+    expect(rows[0].guaranteedBonus).toBe(0);
+  });
+
+  test("a provided value is parsed", () => {
+    const { rows } = transformRows([
+      validRawRow({ "Target annual bonus": "$12,500.00" }),
+    ]);
+    expect(rows[0].guaranteedBonus).toBe(12500);
+  });
+
+  test("present but unparseable → row is still skipped", () => {
+    const { rows, skipped } = transformRows([
+      validRawRow({ "Target annual bonus": "n/a" }),
+    ]);
+    expect(rows).toEqual([]);
+    expect(skipped[0].reason).toContain("Target annual bonus");
+  });
+});
