@@ -4,14 +4,29 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { humanizeEnum, initialsFor } from "@/lib/format";
+import { PROFICIENCY_LABELS } from "@/lib/skills";
 import { cn } from "@/lib/utils";
 
-/** One staff member as a clickable card linking to their profile. */
-export function StaffCard({ entry }: { entry: StaffDirectoryEntry }) {
+/**
+ * One staff member as a clickable card linking to their profile. When
+ * `highlightedSkills` is passed (the active skill search), the person's matching
+ * skills render as badges so the card shows why they matched.
+ */
+export function StaffCard({
+  entry,
+  highlightedSkills,
+}: {
+  entry: StaffDirectoryEntry;
+  highlightedSkills?: string[];
+}) {
   const subtitle = [entry.role, entry.lineOfBusiness]
     .filter((value) => value !== null)
     .map((value) => humanizeEnum(value))
     .join(" · ");
+
+  const matchedSkills = highlightedSkills?.length
+    ? entry.skills.filter((skill) => highlightedSkills.includes(skill.name))
+    : [];
 
   // `Card` is a plain <div> that does not forward a Base UI `render` prop, so we
   // wrap it in the Link and carry the padding/hover/layout classes on the Card.
@@ -53,6 +68,22 @@ export function StaffCard({ entry }: { entry: StaffDirectoryEntry }) {
             </span>
           ) : null}
         </div>
+        {matchedSkills.length > 0 ? (
+          <div className="flex flex-wrap justify-center gap-1">
+            {matchedSkills.map((skill) => (
+              <Badge
+                key={skill.name}
+                variant="secondary"
+                className="font-normal"
+              >
+                {skill.name}
+                <span className="ml-1 text-muted-foreground">
+                  {PROFICIENCY_LABELS[skill.level]}
+                </span>
+              </Badge>
+            ))}
+          </div>
+        ) : null}
       </Card>
     </Link>
   );

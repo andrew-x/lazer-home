@@ -13,6 +13,7 @@ import {
   staffEmployment,
   user,
 } from "@/lib/db/schema";
+import type { StaffSkill } from "@/lib/skills";
 
 /**
  * The values offered by the directory's filter dropdowns, sourced from the DB
@@ -38,6 +39,7 @@ export type StaffDirectoryEntry = {
   email: string;
   isActive: boolean;
   imageUrl: string | null;
+  skills: StaffSkill[];
   lineOfBusiness: StaffEmployment["lineOfBusiness"] | null;
   role: StaffEmployment["role"] | null;
   employmentType: StaffEmployment["employmentType"] | null;
@@ -52,6 +54,7 @@ export async function getStaffDirectory(): Promise<StaffDirectoryEntry[]> {
       email: staff.email,
       isActive: staff.isActive,
       imageUrl: user.image,
+      skills: staff.skills,
     })
     .from(staff)
     .leftJoin(user, eq(staff.userId, user.id))
@@ -85,6 +88,7 @@ export async function getStaffDirectory(): Promise<StaffDirectoryEntry[]> {
       email: s.email,
       isActive: s.isActive,
       imageUrl: s.imageUrl,
+      skills: s.skills,
       lineOfBusiness: employment?.lineOfBusiness ?? null,
       role: employment?.role ?? null,
       employmentType: employment?.employmentType ?? null,
