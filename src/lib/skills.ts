@@ -401,3 +401,37 @@ export const ALL_SKILLS: readonly string[] = SKILL_CATEGORIES.flatMap(
 
 /** A skill a person holds, at a given proficiency level. */
 export type StaffSkill = { name: string; level: ProficiencyLevel };
+
+// --- Filtering -------------------------------------------------------------
+
+/**
+ * Whether `level` is at least as proficient as `minimum`. Ranks come from
+ * `PROFICIENCY_LEVELS` (index 0 = most proficient), so "at least" is a `<=`
+ * comparison on the indices: senior ≥ intermediate ≥ learning.
+ */
+export function meetsMinimumLevel(
+  level: ProficiencyLevel,
+  minimum: ProficiencyLevel,
+): boolean {
+  return (
+    PROFICIENCY_LEVELS.indexOf(level) <= PROFICIENCY_LEVELS.indexOf(minimum)
+  );
+}
+
+/**
+ * Whether a person's `skills` satisfy a skill filter: they must hold EVERY skill
+ * in `required`, each at `minimum` proficiency or higher (AND semantics). An
+ * empty `required` list matches everyone. `minimum` defaults to the lowest level,
+ * so omitting it imposes no level constraint.
+ */
+export function matchesSkillFilter(
+  skills: readonly StaffSkill[],
+  required: readonly string[],
+  minimum: ProficiencyLevel = "learning",
+): boolean {
+  return required.every((name) =>
+    skills.some(
+      (skill) => skill.name === name && meetsMinimumLevel(skill.level, minimum),
+    ),
+  );
+}
