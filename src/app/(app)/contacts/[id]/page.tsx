@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getContactDetail } from "@/actions/crm/getContactDetail";
 import { ContactDetailView } from "@/components/crm/contact-detail-view";
+import { getCurrentUser } from "@/lib/auth";
 import { contactName } from "@/lib/contact-name";
+import { userHasPermission } from "@/lib/permissions";
 
 export async function generateMetadata({
   params,
@@ -22,9 +24,14 @@ export default async function ContactDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const contact = await getContactDetail(id);
+  const [contact, user] = await Promise.all([
+    getContactDetail(id),
+    getCurrentUser(),
+  ]);
 
   if (!contact) notFound();
 
-  return <ContactDetailView contact={contact} />;
+  const canEdit = user ? userHasPermission(user, { crm: ["edit"] }) : false;
+
+  return <ContactDetailView contact={contact} canEdit={canEdit} />;
 }

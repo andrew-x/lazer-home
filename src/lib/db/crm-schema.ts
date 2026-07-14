@@ -6,6 +6,7 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
+import { staff } from "./staff-schema";
 
 // ---------------------------------------------------------------------------
 // CRM domain — companies & contacts
@@ -21,6 +22,11 @@ export const companies = pgTable("companies", {
   name: text().notNull(),
   websiteUrl: text(),
   isPartner: boolean().notNull().default(false),
+  // Optional owner — the staff member accountable for the relationship. Null
+  // when unassigned or once the staff row is removed (set-null, mirroring the
+  // optional-FK convention on `contacts.companyId`). Owner = staff, matching
+  // `opportunityOwners.staffId`.
+  ownerId: text().references(() => staff.id, { onDelete: "set null" }),
 
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp()
@@ -48,6 +54,10 @@ export const contacts = pgTable("contacts", {
   managerId: text().references((): AnyPgColumn => contacts.id, {
     onDelete: "set null",
   }),
+  // Optional owner — the staff member accountable for this contact. Null when
+  // unassigned or once the staff row is removed (set-null, like the other
+  // optional FKs). Owner = staff, matching `companies.ownerId`.
+  ownerId: text().references(() => staff.id, { onDelete: "set null" }),
 
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp()

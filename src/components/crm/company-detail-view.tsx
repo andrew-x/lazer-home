@@ -15,6 +15,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { humanizeEnum } from "@/lib/format";
 import { TabLabel, TableEmpty } from "./detail-parts";
+import { EditCompanyDialog } from "./edit-company-dialog";
 import { OpportunityStatusBadge } from "./opportunity-status-badge";
 
 /**
@@ -24,10 +25,16 @@ import { OpportunityStatusBadge } from "./opportunity-status-badge";
  * people directory); opportunities and projects have no detail page yet, so
  * they render as plain rows.
  */
-export function CompanyDetailView({ company }: { company: CompanyDetail }) {
+export function CompanyDetailView({
+  company,
+  canEdit,
+}: {
+  company: CompanyDetail;
+  canEdit: boolean;
+}) {
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
-      <header className="flex items-center gap-4">
+      <header className="flex items-start gap-4">
         <span className="flex size-12 items-center justify-center rounded-md border bg-muted text-muted-foreground">
           <IconBuilding className="size-6" />
         </span>
@@ -47,7 +54,15 @@ export function CompanyDetailView({ company }: { company: CompanyDetail }) {
           ) : (
             <span className="text-sm text-muted-foreground">No website</span>
           )}
+          <span className="text-sm text-muted-foreground">
+            Owner: {company.ownerName ?? "Unassigned"}
+          </span>
         </div>
+        {canEdit ? (
+          <div className="ml-auto">
+            <EditCompanyDialog company={company} />
+          </div>
+        ) : null}
       </header>
 
       <Tabs defaultValue="opportunities">
