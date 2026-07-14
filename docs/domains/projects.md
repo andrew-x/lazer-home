@@ -140,7 +140,7 @@ delivery, allocations, timesheets, and billing.
   board's delivery-stage prompt (prefilled + company-locked for that opportunity). A
   "Projects" nav entry (`IconBriefcase`) is in
   `src/components/app-shell/nav.ts`. New reusable components landed here:
-  `src/components/crm/entity-combobox.tsx` (`EntityCombobox`, the single-select
+  `src/components/form/entity-combobox.tsx` (`EntityCombobox`, the single-select
   sibling of `EntityMultiCombobox`) and `src/components/form/enum-select.tsx`
   (`EnumSelect`, extracted from `add-opportunity-dialog.tsx` for reuse).
   `EntityCombobox` is used directly for a role's one staff member here, and is

@@ -55,16 +55,16 @@ src/
     staff/canEditStaff.ts  staff-edit authz (ADR 0014): canEditStaff(user, staffId) → boolean (UI affordance) + authorizeStaffEdit (ActionAuthorize hook reading clientInput.staffId; own → always, other → staff.edit)
     <domain>/<verb><Thing>.ts  mutations → next-safe-action, one per file (+ .schema.ts)
     admin/                   {preview,commit}StaffImport + {preview,commit}PtoImport + commitBulkEditEmployment (publicActionClient + assertLocalhost); getUsers + commitUserChanges (manage-users: secureActionClient role:admin + assertLocalhost, mutates via Better Auth admin API); promoteSelfToAdmin (secureActionClient + assertLocalhost — the ONE deliberate direct-column role write, first-admin bootstrap escape hatch)
-    crm/                     get{Companies,Contacts,Opportunities}Page (server-only, server-side paginated, open reads) + search{Companies,Contacts,Staff} (type-ahead) + create{Company,Contact,Opportunity} — all writes gated crm.edit (+.schema.ts; createOpportunity.schema.ts is the single source for the source/status enum tuples, shared with the pgEnum)
+    crm/                     get{Companies,Contacts,Opportunities}Page (server-only, server-side paginated, open reads) + search{Companies,Contacts,Staff} (type-ahead) + create{Company,Contact,Opportunity} — all writes gated crm.edit (+.schema.ts; the source/status enum tuples + labels now live in src/lib/opportunity.ts, imported downward by the schema + pgEnum + UI)
     projects/                getProjectsPage (server-only, paginated, open read) + searchStaff/searchCompanies (type-ahead, projects.edit-gated) + createProject — writes gated projects.edit (+.schema.ts, pure)
     feedback/                createFeedback (+ .schema) + authorizeFeedback (canGiveFeedback + authorizeFeedbackCreate hook — giving open to active staff, no capability) + getFeedbackAboutMe/getFeedbackIGave/getFeedbackDetail (server-only reads, privacy enforced by projection) + searchStaffForFeedback (recipient picker) — see [domains/performance.md](./domains/performance.md)
     timesheets/              getTimesheet + getSelectableProjects (server-only reads, self-scoped / open) + saveTimesheet/submitTimesheet/reopenTimesheet (mutations) + canEditTimesheet (canEditTimesheet(user, {staffId,weekStartDate}) → boolean + authorizeTimesheetEdit hook: own-in-window always, else timesheets.edit) (+ saveTimesheet.schema.ts / timesheetWeek.schema.ts) — see [domains/timesheets.md](./domains/timesheets.md), [ADR 0027](./decisions/0027-timesheet-weekly-model-and-edit-window.md)
     shared/                  entitySearch.ts — shared searchStaffByName/searchCompaniesByName query bodies (server-only) reused by BOTH crm/ and projects/ search actions (each wraps with its own permission gate)
   components/                React components; ui/ = vendored shadcn primitives,
-                             form/ = shared form-dialog + form-field + enum-select (EnumSelect, extracted from add-opportunity-dialog for reuse),
+                             form/ = shared form-dialog + form-field (with a labelAction slot) + enum-select (EnumSelect) + the entity pickers entity-combobox (EntityCombobox, single-select) + entity-multi-combobox (EntityMultiCombobox) + form helpers apply-server-issues + combobox-empty-message (searchEmptyMessage) + stop-bubbling-submit,
                              app-shell/ + auth/ + brand/ = the UI shell, admin/ = shared csv-import + editable-table + table-filters + data-table + staff-import + pto-import + bulk-edit-roles + manage-users + promote-self-button UI,
                              staff/ = shared ProfileView (backs /profile + /staff/[id]) + directory/cards + edit dialogs (links, client-intro, resume) + history sheet,
-                             crm/ = add-{company,contact,opportunity}-dialog + company-combobox + entity-multi-combobox + entity-combobox (single-select sibling, used by projects) + create-{company,contact}-inline-dialog + {companies,contacts,opportunities}-table + opportunity-display + pagination-controls,
+                             crm/ = add-{company,contact,opportunity}-dialog + {company,contact}-fields (shared field groups) + opportunity-form-fields (OpportunityFields + opportunityValuesToInput) + company-combobox + create-{company,contact}-inline-dialog + {companies,contacts,opportunities}-table + opportunity-display + pagination-controls (the entity-combobox/entity-multi-combobox pickers moved to form/),
                              projects/ = add-project-dialog (useFieldArray roles repeater) + projects-table,
                              feedback/ = feedback-form (give-feedback) + feedback-about-me + feedback-given-table + feedback-detail-fields (detail page),
                              timesheets/ = timesheet-week (client weekly grid: week nav, project/bucket row picker, per-day totals + cap warning, Save/Submit/Reopen),
@@ -79,19 +79,21 @@ src/
     logger.ts                structured logging used by the action layer
     utils.ts                 cn()
     constants.ts             APP_NAME / APP_DESCRIPTION (shared app strings)
-    format.ts                humanizeEnum() + formatDate() + initialsFor() + formatTimestamp() — display helpers (timezone-safe date/time formatting)
+    format.ts                humanizeEnum() + formatDate() + formatTimestamp() + initialsFor() + parseIsoDate()/formatIsoDate() — display helpers + the shared drift-safe "YYYY-MM-DD" ↔ Date parse/format (wall-clock, no UTC drift)
     like.ts                  escapeLike() — escape LIKE/ILIKE metacharacters so user input matches literally
     line-of-business.ts      shared LINE_OF_BUSINESS tuple + labels (pure, client-importable) — single source for the lineOfBusinessEnum pgEnum + the CRM/projects zod schemas + forms (carried by staff_employment, opportunities, projects; [ADR 0025](./decisions/0025-line-of-business-on-opportunity-and-project-not-role.md))
-    currency.ts              CURRENCY tuple + labels + formatMoney (pure) — single source for the currency pgEnum, comp import schema, and display ([ADR 0020](./decisions/0020-compensation-effective-dated-import-only.md))
+    currency.ts              CURRENCY tuple + formatMoney + normalizeCurrency (pure) — single source for the currency pgEnum, comp import schema, and display ([ADR 0020](./decisions/0020-compensation-effective-dated-import-only.md))
     skills.ts                the hardcoded skills catalogue (SKILL_CATEGORIES/ALL_SKILLS + PROFICIENCY_LEVELS, client-safe) — single source for the picker, the zod schema, and staff.skills ([ADR 0018](./decisions/0018-skills-inline-jsonb-catalogue.md))
     feedback-rating.ts       FEEDBACK_RATINGS tuple + labels/descriptions (pure) — single source for the feedback_rating pgEnum, the zod schema, and the rating radio ([ADR 0023](./decisions/0023-feedback-privacy-tiers.md))
     timesheet-category.ts    TIMESHEET_CATEGORY tuple + labels (pure) — single source for the time_entry_category pgEnum, the save zod schema, and the grid's bucket labels (PTO independent of staff_pto) ([ADR 0027](./decisions/0027-timesheet-weekly-model-and-edit-window.md))
     timesheet-week.ts        week math (pure, client-importable): getWeekStart/addWeeks/getWeekDays/currentWeekStart/weeksBetween/isWithinEditWindow — weeks keyed by ISO-Monday "YYYY-MM-DD", no date library, no UTC drift
     opportunity-pipeline.ts  OPPORTUNITY_GROUPS + status-group derivation + fractional-ordering helpers (pure; +.test.ts) — the kanban's two-level grouping lives in code, not the DB ([ADR 0021](./decisions/0021-opportunity-pipeline-groups-and-fractional-ordering.md))
     employment.ts            the billability invariants (isEmploymentInvariantSatisfied + normalizeEmploymentFacts, pure) — single source shared by staff-import, the bulk-edit schema/form (mirrors line-of-business.ts)
-    id-schema.ts             shared reusable id/foreign-key zod field
-    pagination.ts            shared server-side pagination primitives (page size, offset/limit + count, {rows,total,page,pageSize,pageCount} envelope) — used by all CRM list reads
-    search.ts                shared type-ahead search primitives (query-limit schema etc.) — used by search{Companies,Contacts,Staff}
+    id-schema.ts             shared entity-id zod fields: id (non-empty), optionalId, idList (defaults to [])
+    date-schema.ts           shared calendar-date zod field: ISO_DATE regex + dateString ("YYYY-MM-DD"), the date counterpart to id/idList
+    pagination.ts            shared server-side pagination primitives (page size, parsePage, clampPage, {rows,total,page,pageSize,pageCount} envelope) — used by all CRM list reads
+    search.ts                shared type-ahead search primitives (SEARCH_LIMIT, searchQuerySchema, the SearchAction contract type the entity pickers accept) — used by search{Companies,Contacts,Staff}
+    contact-name.ts          contactName({firstName,lastName}) — the one place the "First Last" display convention lives
     url-schema.ts            shared optional-URL zod field (blank→null; bare host → https:// normalised)
     text-schema.ts           shared optional free-text zod field (blank/whitespace→null, else trimmed)
     collections.ts           fold pre-sorted rows into a Map keeping the FIRST per key (staff picks latest-employment-per-staff)

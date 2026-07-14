@@ -16,4 +16,5 @@ Client forms use react-hook-form + Zod and bind to server actions in three delib
 
 - Drive button loading state from `isPending` / `isExecuting`.
 - Read server errors off **`action.result.serverError`** (or `error.serverError` in `onError`) — that's the string `handleServerError` chose to surface.
+- Confirm success by the flow's own signal: dialog/navigation flows close or redirect; in-place actions use `toast.success`.
 - Use `cn()` from `@/lib/utils` for conditional class names.
