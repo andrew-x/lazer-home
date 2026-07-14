@@ -11,6 +11,7 @@ import {
   opportunityContacts,
   opportunitySourceContacts,
   projects,
+  staff,
 } from "@/lib/db/schema";
 import type {
   OpportunitySource,
@@ -45,6 +46,8 @@ export type ContactDetail = {
   companyName: string | null;
   managerId: string | null;
   managerName: string | null;
+  ownerId: string | null;
+  ownerName: string | null;
   /** Opportunities this contact sourced (the "referred by" junction). */
   referredOpportunities: ContactOpportunity[];
   /** Opportunities they're a named contact on, excluding ones they referred. */
@@ -84,10 +87,13 @@ export const getContactDetail = cache(
         managerName: sql<
           string | null
         >`${managers.firstName} || ' ' || ${managers.lastName}`,
+        ownerId: contacts.ownerId,
+        ownerName: staff.name,
       })
       .from(contacts)
       .leftJoin(companies, eq(contacts.companyId, companies.id))
       .leftJoin(managers, eq(contacts.managerId, managers.id))
+      .leftJoin(staff, eq(contacts.ownerId, staff.id))
       .where(eq(contacts.id, id))
       .limit(1);
 

@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { contactName } from "@/lib/contact-name";
 import { humanizeEnum, initialsFor } from "@/lib/format";
 import { TabLabel, TableEmpty } from "./detail-parts";
+import { EditContactDialog } from "./edit-contact-dialog";
 import { OpportunityStatusBadge } from "./opportunity-status-badge";
 
 /** A label/value row in the details card; falls back to an em dash when empty. */
@@ -136,7 +137,13 @@ function ProjectTable({ rows }: { rows: ContactProject[] }) {
  * involved in; the Projects tab shows work that grew out of the deals they
  * referred (contacts don't attach to projects directly).
  */
-export function ContactDetailView({ contact }: { contact: ContactDetail }) {
+export function ContactDetailView({
+  contact,
+  canEdit,
+}: {
+  contact: ContactDetail;
+  canEdit: boolean;
+}) {
   const name = contactName(contact);
   const opportunityCount =
     contact.referredOpportunities.length + contact.involvedOpportunities.length;
@@ -157,6 +164,11 @@ export function ContactDetailView({ contact }: { contact: ContactDetail }) {
             </span>
           ) : null}
         </div>
+        {canEdit ? (
+          <div className="ml-auto">
+            <EditContactDialog contact={contact} />
+          </div>
+        ) : null}
       </header>
 
       <Card>
@@ -201,6 +213,7 @@ export function ContactDetailView({ contact }: { contact: ContactDetail }) {
               </InternalLink>
             ) : null}
           </DetailRow>
+          <DetailRow label="Owner">{contact.ownerName}</DetailRow>
         </CardContent>
       </Card>
 

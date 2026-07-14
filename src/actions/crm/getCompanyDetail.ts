@@ -3,7 +3,13 @@ import "server-only";
 import { asc, eq, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/lib/db/db";
-import { companies, contacts, opportunities, projects } from "@/lib/db/schema";
+import {
+  companies,
+  contacts,
+  opportunities,
+  projects,
+  staff,
+} from "@/lib/db/schema";
 import type {
   OpportunitySource,
   OpportunityStatus,
@@ -34,6 +40,8 @@ export type CompanyDetail = {
   name: string;
   websiteUrl: string | null;
   isPartner: boolean;
+  ownerId: string | null;
+  ownerName: string | null;
   opportunities: CompanyOpportunity[];
   projects: CompanyProject[];
   contacts: CompanyContact[];
@@ -58,8 +66,11 @@ export const getCompanyDetail = cache(
         name: companies.name,
         websiteUrl: companies.websiteUrl,
         isPartner: companies.isPartner,
+        ownerId: companies.ownerId,
+        ownerName: staff.name,
       })
       .from(companies)
+      .leftJoin(staff, eq(companies.ownerId, staff.id))
       .where(eq(companies.id, id))
       .limit(1);
 

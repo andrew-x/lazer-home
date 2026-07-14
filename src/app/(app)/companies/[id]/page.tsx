@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCompanyDetail } from "@/actions/crm/getCompanyDetail";
 import { CompanyDetailView } from "@/components/crm/company-detail-view";
+import { getCurrentUser } from "@/lib/auth";
+import { userHasPermission } from "@/lib/permissions";
 
 export async function generateMetadata({
   params,
@@ -19,9 +21,14 @@ export default async function CompanyDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const company = await getCompanyDetail(id);
+  const [company, user] = await Promise.all([
+    getCompanyDetail(id),
+    getCurrentUser(),
+  ]);
 
   if (!company) notFound();
 
-  return <CompanyDetailView company={company} />;
+  const canEdit = user ? userHasPermission(user, { crm: ["edit"] }) : false;
+
+  return <CompanyDetailView company={company} canEdit={canEdit} />;
 }
