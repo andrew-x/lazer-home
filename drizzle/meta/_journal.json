@@ -201,8 +201,15 @@
     {
       "idx": 28,
       "version": "7",
-      "when": 1784038437480,
-      "tag": "0028_complete_starhawk",
+      "when": 1784038526541,
+      "tag": "0028_glossy_dorian_gray",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1784039278269,
+      "tag": "0029_sticky_lockjaw",
       "breakpoints": true
     }
   ]

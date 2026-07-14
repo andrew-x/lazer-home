@@ -39,6 +39,12 @@ import {
   PROJECT_ROLE_TYPES,
   type ProjectRoleType,
 } from "@/lib/project-role-type";
+import {
+  DEFAULT_PROJECT_STATUS,
+  PROJECT_STATUS_LABELS,
+  PROJECT_STATUSES,
+  type ProjectStatus,
+} from "@/lib/project-status";
 
 type RoleFieldValues = {
   staff: EntityOption | null;
@@ -54,6 +60,7 @@ type ProjectFormValues = {
   companyId: string;
   companyName: string;
   lineOfBusiness: LineOfBusiness | "";
+  status: ProjectStatus;
   deliveryManagers: EntityOption[];
   roles: RoleFieldValues[];
 };
@@ -91,6 +98,7 @@ const FIELD_FOR_ISSUE: Record<
   name: "name",
   companyId: "companyId",
   lineOfBusiness: "lineOfBusiness",
+  status: "status",
   // Prefilled/derived, never surfaced as a form field.
   opportunityId: "companyId",
   deliveryManagerIds: "deliveryManagers",
@@ -205,6 +213,7 @@ function ProjectForm({
       companyId: defaultCompanyId ?? "",
       companyName: defaultCompanyName ?? "",
       lineOfBusiness: defaultLineOfBusiness ?? "",
+      status: DEFAULT_PROJECT_STATUS,
       deliveryManagers: [],
       // Seed one role so the "at least one role" requirement is obvious.
       roles: [EMPTY_ROLE],
@@ -228,6 +237,7 @@ function ProjectForm({
       name: values.name,
       companyId: values.companyId,
       lineOfBusiness: values.lineOfBusiness,
+      status: values.status,
       opportunityId,
       deliveryManagerIds: values.deliveryManagers.map((d) => d.id),
       roles: values.roles.map((role) => ({
@@ -303,6 +313,23 @@ function ProjectForm({
               options={LINE_OF_BUSINESS}
               labels={LINE_OF_BUSINESS_LABELS}
               placeholder="Select a line of business"
+              value={field.value}
+              invalid={Boolean(fieldState.error)}
+              onValueChange={field.onChange}
+            />
+          )}
+        />
+      </FormField>
+
+      <FormField label="Status" error={errors.status?.message}>
+        <Controller
+          control={control}
+          name="status"
+          render={({ field, fieldState }) => (
+            <EnumSelect
+              options={PROJECT_STATUSES}
+              labels={PROJECT_STATUS_LABELS}
+              placeholder="Select a status"
               value={field.value}
               invalid={Boolean(fieldState.error)}
               onValueChange={field.onChange}

@@ -1,6 +1,6 @@
 {
-  "id": "1bdda92e-ba91-41b7-9cb5-1c616e9919d1",
-  "prevId": "27e8c361-cc71-4479-896b-2b7b352be9e6",
+  "id": "e7055dd5-1f82-4d20-993d-29730fd134f8",
+  "prevId": "1bdda92e-ba91-41b7-9cb5-1c616e9919d1",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -360,6 +360,12 @@
           "notNull": true,
           "default": false
         },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -376,7 +382,17 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "companies_owner_id_staff_id_fk": {
+          "name": "companies_owner_id_staff_id_fk",
+          "tableFrom": "companies",
+          "tableTo": "staff",
+          "columnsFrom": ["owner_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -441,6 +457,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -472,6 +494,15 @@
           "tableFrom": "contacts",
           "tableTo": "contacts",
           "columnsFrom": ["manager_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "contacts_owner_id_staff_id_fk": {
+          "name": "contacts_owner_id_staff_id_fk",
+          "tableFrom": "contacts",
+          "tableTo": "staff",
+          "columnsFrom": ["owner_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"

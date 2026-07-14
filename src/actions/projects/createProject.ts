@@ -35,6 +35,7 @@ export const createProject = secureActionClient
         name: parsedInput.name,
         companyId: parsedInput.companyId,
         lineOfBusiness: parsedInput.lineOfBusiness,
+        status: parsedInput.status,
         opportunityId: parsedInput.opportunityId ?? null,
       });
 
