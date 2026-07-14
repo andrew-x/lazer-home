@@ -4,6 +4,20 @@ import { IconSearch } from "@tabler/icons-react";
 import { useId, useMemo, useState } from "react";
 import type { StaffDirectoryEntry } from "@/actions/staff/getStaffDirectory";
 import { StaffCard } from "@/components/staff/staff-card";
+import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxCollection,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxItem,
+  ComboboxLabel,
+  ComboboxList,
+  useComboboxAnchor,
+} from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -16,8 +30,29 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { humanizeEnum } from "@/lib/format";
+import {
+  matchesSkillFilter,
+  type ProficiencyLevel,
+  SKILL_CATEGORIES,
+} from "@/lib/skills";
 
 const ALL = "ALL";
+
+/** Sentinel min-level meaning "any proficiency" — imposes no level constraint. */
+const ANY_LEVEL = "ANY";
+type MinLevel = ProficiencyLevel | typeof ANY_LEVEL;
+
+/** Minimum-level segments, ascending (raises the bar left → right). */
+const MIN_LEVEL_OPTIONS: { value: ProficiencyLevel; label: string }[] = [
+  { value: "intermediate", label: "Intermediate+" },
+  { value: "senior", label: "Senior" },
+];
+
+/** The skill catalogue shaped as Base UI Combobox groups (label + items). */
+const SKILL_GROUPS = SKILL_CATEGORIES.map((category) => ({
+  value: category.name,
+  items: [...category.skills],
+}));
 
 /** Small uppercase caption that heads each filter control. */
 function FilterLabel({ children }: { children: string }) {
@@ -101,11 +136,61 @@ function SegmentedFilter({
   );
 }
 
+/** A grouped, searchable multi-select of catalogue skills, shown as chips. */
+function SkillsFilter({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const anchor = useComboboxAnchor();
+  return (
+    <div className="flex flex-col gap-1.5">
+      <FilterLabel>Skills</FilterLabel>
+      <Combobox
+        multiple
+        items={SKILL_GROUPS}
+        value={value}
+        onValueChange={onChange}
+      >
+        <ComboboxChips ref={anchor} className="w-72">
+          {value.map((skill) => (
+            <ComboboxChip key={skill} aria-label={skill}>
+              {skill}
+            </ComboboxChip>
+          ))}
+          <ComboboxChipsInput
+            placeholder={value.length === 0 ? "Search skills…" : ""}
+          />
+        </ComboboxChips>
+        <ComboboxContent anchor={anchor}>
+          <ComboboxEmpty>No skills found.</ComboboxEmpty>
+          <ComboboxList>
+            {(group: { value: string; items: string[] }) => (
+              <ComboboxGroup key={group.value} items={group.items}>
+                <ComboboxLabel>{group.value}</ComboboxLabel>
+                <ComboboxCollection>
+                  {(skill: string) => (
+                    <ComboboxItem key={skill} value={skill}>
+                      {skill}
+                    </ComboboxItem>
+                  )}
+                </ComboboxCollection>
+              </ComboboxGroup>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+    </div>
+  );
+}
+
 /**
  * Staff directory: client-side name search + line-of-business / role selects, a
- * type button group, and a "show inactive" switch (off by default, so only
- * active staff show). All filtering is in-memory over the list fetched once on
- * the server.
+ * type button group, a skills multi-select (with an optional minimum-proficiency
+ * filter), and a "show inactive" switch (off by default, so only active staff
+ * show). All filtering is in-memory over the list fetched once on the server.
  */
 export function StaffDirectory({
   entries,
@@ -124,10 +209,13 @@ export function StaffDirectory({
   const [lineOfBusiness, setLineOfBusiness] = useState(ALL);
   const [role, setRole] = useState(ALL);
   const [type, setType] = useState(ALL);
+  const [skills, setSkills] = useState<string[]>([]);
+  const [minLevel, setMinLevel] = useState<MinLevel>(ANY_LEVEL);
   const [showInactive, setShowInactive] = useState(false);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
+    const minimum = minLevel === ANY_LEVEL ? undefined : minLevel;
     return entries.filter((entry) => {
       if (!showInactive && !entry.isActive) return false;
       if (query && !entry.name.toLowerCase().includes(query)) return false;
@@ -135,9 +223,19 @@ export function StaffDirectory({
         return false;
       if (role !== ALL && entry.role !== role) return false;
       if (type !== ALL && entry.employmentType !== type) return false;
+      if (!matchesSkillFilter(entry.skills, skills, minimum)) return false;
       return true;
     });
-  }, [entries, search, lineOfBusiness, role, type, showInactive]);
+  }, [
+    entries,
+    search,
+    lineOfBusiness,
+    role,
+    type,
+    skills,
+    minLevel,
+    showInactive,
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -176,6 +274,29 @@ export function StaffDirectory({
             options={typeOptions}
             onChange={setType}
           />
+          <SkillsFilter value={skills} onChange={setSkills} />
+          {skills.length > 0 ? (
+            <div className="flex flex-col gap-1.5">
+              <FilterLabel>Minimum level</FilterLabel>
+              <ToggleGroup
+                variant="outline"
+                spacing={0}
+                aria-label="Minimum level"
+                value={[minLevel]}
+                // Single-select: keep one segment always active (see SegmentedFilter).
+                onValueChange={(values) => {
+                  if (values.length > 0) setMinLevel(values[0] as MinLevel);
+                }}
+              >
+                <ToggleGroupItem value={ANY_LEVEL}>Any</ToggleGroupItem>
+                {MIN_LEVEL_OPTIONS.map((option) => (
+                  <ToggleGroupItem key={option.value} value={option.value}>
+                    {option.label}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </div>
+          ) : null}
 
           <div className="flex h-9 items-center gap-2 text-sm">
             <Switch
@@ -195,7 +316,11 @@ export function StaffDirectory({
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {filtered.map((entry) => (
-            <StaffCard key={entry.id} entry={entry} />
+            <StaffCard
+              key={entry.id}
+              entry={entry}
+              highlightedSkills={skills}
+            />
           ))}
         </div>
       )}
