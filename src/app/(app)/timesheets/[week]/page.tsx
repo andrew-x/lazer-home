@@ -1,6 +1,7 @@
 import { IconChevronLeft } from "@tabler/icons-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
 import { canEditTimesheet } from "@/actions/timesheets/canEditTimesheet";
 import { getSelectableProjects } from "@/actions/timesheets/getSelectableProjects";
@@ -9,7 +10,8 @@ import { TimesheetWeek } from "@/components/timesheets/timesheet-week";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
-import { formatDate } from "@/lib/format";
+import { ISO_DATE } from "@/lib/date-schema";
+import { formatDate, formatIsoDate, parseIsoDate } from "@/lib/format";
 import { getWeekDays, getWeekStart } from "@/lib/timesheet-week";
 
 export const metadata: Metadata = { title: "Timesheet" };
@@ -34,6 +36,13 @@ export default async function TimesheetWeekPage({
   params: Promise<{ week: string }>;
 }) {
   const { week } = await params;
+  // Guard the raw URL segment before any date math. Reject anything that isn't a
+  // real calendar date: a format-only regex would let e.g. 2026-02-30 roll over
+  // to a valid week and render the wrong data instead of 404ing, and non-numeric
+  // input would throw a RangeError (500). The round-trip check rejects both.
+  if (!ISO_DATE.test(week) || formatIsoDate(parseIsoDate(week)) !== week) {
+    notFound();
+  }
   // Normalize any date in the target week to its ISO-Monday key.
   const weekStartDate = getWeekStart(week);
   const weekDays = getWeekDays(weekStartDate);
