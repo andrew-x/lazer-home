@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { CompanyCombobox } from "./company-combobox";
 import { CreateCompanyInlineDialog } from "./create-company-inline-dialog";
 
@@ -27,9 +27,10 @@ export function CompanyComboboxField({
   const [createOpen, setCreateOpen] = useState(false);
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between gap-2">
-        <Label>Company</Label>
+    <FormField
+      label="Company"
+      error={error}
+      labelAction={
         <Button
           type="button"
           variant="ghost"
@@ -38,18 +39,18 @@ export function CompanyComboboxField({
         >
           New company
         </Button>
-      </div>
+      }
+    >
       <CompanyCombobox
         value={value}
         selectedName={selectedName}
         onChange={onChange}
       />
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <CreateCompanyInlineDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
         onCreated={(option) => onChange(option)}
       />
-    </div>
+    </FormField>
   );
 }

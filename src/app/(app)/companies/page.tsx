@@ -4,17 +4,12 @@ import { AddCompanyDialog } from "@/components/crm/add-company-dialog";
 import { CompaniesTable } from "@/components/crm/companies-table";
 import { PaginationControls } from "@/components/crm/pagination-controls";
 import { getCurrentUser } from "@/lib/auth";
+import { parsePage } from "@/lib/pagination";
 import { userHasPermission } from "@/lib/permissions";
 
 export const metadata: Metadata = { title: "Companies" };
 
 type SearchParams = Record<string, string | string[] | undefined>;
-
-/** Parse a 1-based page query param; anything invalid falls back to page 1. */
-function parsePage(value: string | string[] | undefined): number {
-  const parsed = Number(Array.isArray(value) ? value[0] : value);
-  return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1;
-}
 
 export default async function CompaniesPage({
   searchParams,

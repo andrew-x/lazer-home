@@ -116,15 +116,15 @@ function buildRows(
     row.hours[e.date] = String(e.hours);
   }
   const rows = [...byKey.values()];
+  // A category row's rank in the canonical order (project rows never reach here).
+  const categoryRank = (category: TimesheetCategory | null) =>
+    category ? categoryOrder.indexOf(category) : -1;
   // Projects (alpha) first, then non-billable categories in their canonical order.
   return rows.sort((a, b) => {
     if (a.projectId && b.projectId) return a.label.localeCompare(b.label);
     if (a.projectId) return -1;
     if (b.projectId) return 1;
-    return (
-      categoryOrder.indexOf(a.category as TimesheetCategory) -
-      categoryOrder.indexOf(b.category as TimesheetCategory)
-    );
+    return categoryRank(a.category) - categoryRank(b.category);
   });
 }
 
@@ -241,7 +241,9 @@ export function TimesheetWeek({
         },
       ]);
     } else if (value.startsWith(CATEGORY_PREFIX)) {
-      const category = value.slice(CATEGORY_PREFIX.length) as TimesheetCategory;
+      const raw = value.slice(CATEGORY_PREFIX.length);
+      const category = TIMESHEET_CATEGORY.find((c) => c === raw);
+      if (!category) return;
       const key = targetKey(null, category);
       if (rows.some((r) => r.key === key)) return;
       setRows((prev) => [

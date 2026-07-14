@@ -7,44 +7,21 @@ import { createOpportunity } from "@/actions/crm/createOpportunity";
 import {
   type CreateOpportunityInput,
   createOpportunitySchema,
-  OPPORTUNITY_SOURCES,
-  OPPORTUNITY_STATUSES,
-  type OpportunitySource,
-  type OpportunityStatus,
 } from "@/actions/crm/createOpportunity.schema";
-import { searchStaff } from "@/actions/crm/searchStaff";
 import { applyServerIssues } from "@/components/form/apply-server-issues";
-import { EnumSelect } from "@/components/form/enum-select";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
-import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  LINE_OF_BUSINESS,
-  LINE_OF_BUSINESS_LABELS,
-  type LineOfBusiness,
-} from "@/lib/line-of-business";
 import { CompanyComboboxField } from "./company-combobox-field";
-import { ContactsComboboxField } from "./contacts-combobox-field";
 import {
-  EntityMultiCombobox,
-  type EntityOption,
-} from "./entity-multi-combobox";
-import { SOURCE_LABELS, STATUS_SELECT_LABELS } from "./opportunity-display";
+  OPPORTUNITY_FIELD_FOR_ISSUE,
+  OpportunityFields,
+  type OpportunityFieldValues,
+  opportunityValuesToInput,
+} from "./opportunity-form-fields";
 
-type OpportunityFormValues = {
-  name: string;
+type OpportunityFormValues = OpportunityFieldValues & {
   companyId: string;
   companyName: string;
-  lineOfBusiness: LineOfBusiness | "";
-  contacts: EntityOption[];
-  owners: EntityOption[];
-  source: OpportunitySource | "";
-  sourceContacts: EntityOption[];
-  sourceStaff: EntityOption[];
-  nextSteps: string;
-  status: OpportunityStatus | "";
 };
 
 const DEFAULT_VALUES: OpportunityFormValues = {
@@ -61,23 +38,15 @@ const DEFAULT_VALUES: OpportunityFormValues = {
   status: "",
 };
 
-// Maps a server-schema issue path to the corresponding form field. Typed by
-// `keyof CreateOpportunityInput` so tsc forces an entry for every schema field —
-// a new field can't silently drop its server errors.
+// Base map plus the create-only `companyId`. Typed by `keyof
+// CreateOpportunityInput` so tsc forces an entry for every schema field — a new
+// field can't silently drop its server errors.
 const FIELD_FOR_ISSUE: Record<
   keyof CreateOpportunityInput,
   keyof OpportunityFormValues
 > = {
-  name: "name",
+  ...OPPORTUNITY_FIELD_FOR_ISSUE,
   companyId: "companyId",
-  lineOfBusiness: "lineOfBusiness",
-  contactIds: "contacts",
-  ownerIds: "owners",
-  source: "source",
-  sourceContactIds: "sourceContacts",
-  sourceStaffIds: "sourceStaff",
-  nextSteps: "nextSteps",
-  status: "status",
 };
 
 export function AddOpportunityDialog() {
@@ -99,8 +68,10 @@ export function AddOpportunityDialog() {
 }
 
 function OpportunityForm({ onSaved }: { onSaved: () => void }) {
+  const form = useForm<OpportunityFormValues>({
+    defaultValues: DEFAULT_VALUES,
+  });
   const {
-    register,
     control,
     handleSubmit,
     setValue,
@@ -108,28 +79,19 @@ function OpportunityForm({ onSaved }: { onSaved: () => void }) {
     clearErrors,
     watch,
     formState: { errors },
-  } = useForm<OpportunityFormValues>({ defaultValues: DEFAULT_VALUES });
+  } = form;
 
   const { execute, result, isPending } = useAction(createOpportunity, {
     onSuccess: () => onSaved(),
   });
 
-  const source = watch("source");
   const companyName = watch("companyName");
 
   const onSubmit = (values: OpportunityFormValues) => {
     clearErrors();
     const payload = {
-      name: values.name,
+      ...opportunityValuesToInput(values),
       companyId: values.companyId,
-      lineOfBusiness: values.lineOfBusiness,
-      contactIds: values.contacts.map((c) => c.id),
-      ownerIds: values.owners.map((o) => o.id),
-      source: values.source,
-      sourceContactIds: values.sourceContacts.map((c) => c.id),
-      sourceStaffIds: values.sourceStaff.map((s) => s.id),
-      nextSteps: values.nextSteps,
-      status: values.status,
     };
 
     const parsed = createOpportunitySchema.safeParse(payload);
@@ -143,161 +105,28 @@ function OpportunityForm({ onSaved }: { onSaved: () => void }) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-      <FormField label="Name" htmlFor="opp-name" error={errors.name?.message}>
-        <Input
-          id="opp-name"
-          placeholder="Acme platform rebuild"
-          aria-invalid={Boolean(errors.name)}
-          {...register("name")}
-        />
-      </FormField>
-
-      <Controller
-        control={control}
-        name="companyId"
-        render={({ field }) => (
-          <CompanyComboboxField
-            value={field.value || null}
-            selectedName={companyName || null}
-            onChange={(next) => {
-              field.onChange(next?.id ?? "");
-              setValue("companyName", next?.name ?? "");
-              if (next) clearErrors("companyId");
-            }}
-            error={errors.companyId?.message}
-          />
-        )}
-      />
-
-      <FormField
-        label="Line of business"
-        error={errors.lineOfBusiness?.message}
-      >
-        <Controller
-          control={control}
-          name="lineOfBusiness"
-          render={({ field, fieldState }) => (
-            <EnumSelect
-              options={LINE_OF_BUSINESS}
-              labels={LINE_OF_BUSINESS_LABELS}
-              placeholder="Select a line of business"
-              value={field.value}
-              invalid={Boolean(fieldState.error)}
-              onValueChange={field.onChange}
-            />
-          )}
-        />
-      </FormField>
-
-      <Controller
-        control={control}
-        name="contacts"
-        render={({ field, fieldState }) => (
-          <ContactsComboboxField
-            label="Contacts"
-            value={field.value}
-            onChange={field.onChange}
-            error={fieldState.error?.message}
-          />
-        )}
-      />
-
-      <FormField label="Owners">
-        <Controller
-          control={control}
-          name="owners"
-          render={({ field, fieldState }) => (
-            <EntityMultiCombobox
-              value={field.value}
-              onChange={field.onChange}
-              searchAction={searchStaff}
-              placeholder="Search staff…"
-              invalid={Boolean(fieldState.error)}
-            />
-          )}
-        />
-      </FormField>
-
-      <FormField label="Source" error={errors.source?.message}>
-        <Controller
-          control={control}
-          name="source"
-          render={({ field, fieldState }) => (
-            <EnumSelect
-              options={OPPORTUNITY_SOURCES}
-              labels={SOURCE_LABELS}
-              placeholder="Select a source"
-              value={field.value}
-              invalid={Boolean(fieldState.error)}
-              onValueChange={(next) => {
-                field.onChange(next);
-                // Referral entities only apply to their matching source.
-                setValue("sourceStaff", []);
-                setValue("sourceContacts", []);
-                clearErrors(["sourceStaff", "sourceContacts"]);
-              }}
-            />
-          )}
-        />
-      </FormField>
-
-      {source === "staff_referral" ? (
-        <FormField label="Referring staff" error={errors.sourceStaff?.message}>
+      <OpportunityFields
+        form={form}
+        idPrefix="opp"
+        companySlot={
           <Controller
             control={control}
-            name="sourceStaff"
-            render={({ field, fieldState }) => (
-              <EntityMultiCombobox
-                value={field.value}
-                onChange={field.onChange}
-                searchAction={searchStaff}
-                placeholder="Search staff…"
-                invalid={Boolean(fieldState.error)}
+            name="companyId"
+            render={({ field }) => (
+              <CompanyComboboxField
+                value={field.value || null}
+                selectedName={companyName || null}
+                onChange={(next) => {
+                  field.onChange(next?.id ?? "");
+                  setValue("companyName", next?.name ?? "");
+                  if (next) clearErrors("companyId");
+                }}
+                error={errors.companyId?.message}
               />
             )}
           />
-        </FormField>
-      ) : null}
-
-      {source === "contact_referral" ? (
-        <Controller
-          control={control}
-          name="sourceContacts"
-          render={({ field, fieldState }) => (
-            <ContactsComboboxField
-              label="Referring contacts"
-              value={field.value}
-              onChange={field.onChange}
-              error={fieldState.error?.message}
-            />
-          )}
-        />
-      ) : null}
-
-      <FormField label="Status" error={errors.status?.message}>
-        <Controller
-          control={control}
-          name="status"
-          render={({ field, fieldState }) => (
-            <EnumSelect
-              options={OPPORTUNITY_STATUSES}
-              labels={STATUS_SELECT_LABELS}
-              placeholder="Select a status"
-              value={field.value}
-              invalid={Boolean(fieldState.error)}
-              onValueChange={field.onChange}
-            />
-          )}
-        />
-      </FormField>
-
-      <FormField label="Next steps" htmlFor="opp-next-steps">
-        <Textarea
-          id="opp-next-steps"
-          placeholder="What happens next?"
-          {...register("nextSteps")}
-        />
-      </FormField>
+        }
+      />
 
       <FormDialogFooter
         serverError={result.serverError}

@@ -2,7 +2,6 @@
 
 import { useAction } from "next-safe-action/hooks";
 import { useEffect, useMemo, useState } from "react";
-import type { searchContacts } from "@/actions/crm/searchContacts";
 import {
   Combobox,
   ComboboxChip,
@@ -15,11 +14,10 @@ import {
   useComboboxAnchor,
 } from "@/components/ui/combobox";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import type { SearchAction } from "@/lib/search";
+import { searchEmptyMessage } from "./combobox-empty-message";
 
 export type EntityOption = { id: string; name: string };
-
-/** A `{ query } -> EntityOption[]` search action (searchContacts/searchStaff). */
-type EntitySearchAction = typeof searchContacts;
 
 /**
  * A searchable, debounced multi-select on the Base UI Combobox chips. Built-in
@@ -37,7 +35,7 @@ export function EntityMultiCombobox({
 }: {
   value: EntityOption[];
   onChange: (next: EntityOption[]) => void;
-  searchAction: EntitySearchAction;
+  searchAction: SearchAction;
   placeholder?: string;
   invalid?: boolean;
 }) {
@@ -97,13 +95,11 @@ export function EntityMultiCombobox({
       </ComboboxChips>
       <ComboboxContent anchor={anchor}>
         <ComboboxEmpty>
-          {query.trim() === ""
-            ? "Type to search…"
-            : isPending
-              ? "Searching…"
-              : result.serverError
-                ? "Search failed — try again."
-                : "No matches."}
+          {searchEmptyMessage({
+            query,
+            isPending,
+            serverError: result.serverError,
+          })}
         </ComboboxEmpty>
         <ComboboxList>
           {(item: EntityOption) => (

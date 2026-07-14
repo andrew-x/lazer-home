@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { id } from "@/lib/id-schema";
 import { roleSchema } from "@/lib/permissions";
 
 /**
@@ -10,7 +11,7 @@ import { roleSchema } from "@/lib/permissions";
  * `'use server'` file per the server-actions rule.
  */
 export const userChangeSchema = z.object({
-  userId: z.string().min(1),
+  userId: id,
   role: roleSchema.nullable(),
   banned: z.boolean(),
 });

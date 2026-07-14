@@ -5,8 +5,9 @@ import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hoo
 import { Controller } from "react-hook-form";
 import { createCompany } from "@/actions/crm/createCompany";
 import { createCompanySchema } from "@/actions/crm/createCompany.schema";
-import type { EntityOption } from "@/components/crm/entity-multi-combobox";
+import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
+import { stopBubblingSubmit } from "@/components/form/stop-bubbling-submit";
 import { CompanyFields } from "./company-fields";
 
 /**
@@ -73,14 +74,7 @@ function InlineCompanyForm({
 
   return (
     <form
-      // This form is portaled but remains a React descendant of the form that
-      // opened it, so its submit would bubble and validate the parent form.
-      // Stop it at the boundary.
-      onSubmit={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        handleSubmitWithAction(e);
-      }}
+      onSubmit={stopBubblingSubmit(handleSubmitWithAction)}
       className="flex flex-col gap-4"
     >
       <Controller

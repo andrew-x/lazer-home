@@ -13,18 +13,19 @@ import {
 import { searchCompanies } from "@/actions/projects/searchCompanies";
 import { searchStaff } from "@/actions/projects/searchStaff";
 import { CompanyCombobox } from "@/components/crm/company-combobox";
-import { EntityCombobox } from "@/components/crm/entity-combobox";
-import {
-  EntityMultiCombobox,
-  type EntityOption,
-} from "@/components/crm/entity-multi-combobox";
 import {
   applyServerIssues,
   type IssueTarget,
 } from "@/components/form/apply-server-issues";
+import { EntityCombobox } from "@/components/form/entity-combobox";
+import {
+  EntityMultiCombobox,
+  type EntityOption,
+} from "@/components/form/entity-multi-combobox";
 import { EnumSelect } from "@/components/form/enum-select";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
 import { FormField } from "@/components/form/form-field";
+import { IconButton } from "@/components/icon-button";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
@@ -364,15 +365,13 @@ function ProjectForm({
                 <span className="text-sm text-muted-foreground">
                   Role {index + 1}
                 </span>
-                <Button
-                  type="button"
-                  variant="ghost"
+                <IconButton
+                  label={`Remove role ${index + 1}`}
                   size="icon-sm"
-                  aria-label={`Remove role ${index + 1}`}
                   onClick={() => remove(index)}
                 >
                   <IconTrash className="size-4" />
-                </Button>
+                </IconButton>
               </div>
 
               <div className="flex gap-3">

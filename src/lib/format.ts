@@ -26,14 +26,31 @@ const LONG_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
 };
 
 /**
+ * Parse a timezone-agnostic "YYYY-MM-DD" string to a local-midnight Date, without
+ * the UTC-offset drift you'd get from `new Date("2024-03-15")`. The shared
+ * drift-safe parse — see the database rule on dates being wall-clock values.
+ */
+export function parseIsoDate(value: string): Date {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/** Format a Date back to a timezone-agnostic "YYYY-MM-DD" string using its local parts. */
+export function formatIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Format a timezone-agnostic "YYYY-MM-DD" date string for display, without the
  * UTC-offset drift you'd get from `new Date("2024-03-15")`. See the database
  * rule on dates being wall-clock values.
  */
 export function formatDate(value: string): string {
-  const [year, month, day] = value.split("-").map(Number);
   return new Intl.DateTimeFormat("en-US", LONG_DATE_OPTIONS).format(
-    new Date(year, month - 1, day),
+    parseIsoDate(value),
   );
 }
 

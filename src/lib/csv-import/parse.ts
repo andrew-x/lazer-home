@@ -1,3 +1,4 @@
+import { ISO_DATE } from "@/lib/date-schema";
 import type { ParsedDate, RawRow } from "./types";
 
 /**
@@ -21,8 +22,7 @@ export function getField(row: RawRow, header: string): string {
   return "";
 }
 
-export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-export const US_DATE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+const US_DATE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
 
 /** Parse common Rippling date formats to "YYYY-MM-DD"; blank → null. */
 export function parseDate(input: string): ParsedDate {

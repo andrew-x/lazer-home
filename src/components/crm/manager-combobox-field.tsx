@@ -2,8 +2,8 @@
 
 import { useMemo } from "react";
 import { searchContacts } from "@/actions/crm/searchContacts";
+import { EntityCombobox } from "@/components/form/entity-combobox";
 import { FormField } from "@/components/form/form-field";
-import { EntityCombobox } from "./entity-combobox";
 
 type ManagerOption = { id: string; name: string };
 

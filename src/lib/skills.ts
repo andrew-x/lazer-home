@@ -399,12 +399,5 @@ export const ALL_SKILLS: readonly string[] = SKILL_CATEGORIES.flatMap(
   (category) => category.skills,
 );
 
-/** Map of skill name → its dimension, for grouping on display. */
-export const SKILL_TO_CATEGORY: Record<string, string> = Object.fromEntries(
-  SKILL_CATEGORIES.flatMap((category) =>
-    category.skills.map((skill) => [skill, category.name] as const),
-  ),
-);
-
 /** A skill a person holds, at a given proficiency level. */
 export type StaffSkill = { name: string; level: ProficiencyLevel };

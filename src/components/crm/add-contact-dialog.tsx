@@ -12,6 +12,7 @@ import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CompanyComboboxField } from "./company-combobox-field";
+import { ContactFields } from "./contact-fields";
 import { ManagerComboboxField } from "./manager-combobox-field";
 
 export function AddContactDialog() {
@@ -70,44 +71,17 @@ function ContactForm({ onSaved }: { onSaved: () => void }) {
 
   return (
     <form onSubmit={handleSubmitWithAction} className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3">
-        <FormField
-          label="First name"
-          htmlFor="contact-first"
-          error={errors.firstName?.message}
-        >
-          <Input
-            id="contact-first"
-            aria-invalid={Boolean(errors.firstName)}
-            {...register("firstName")}
-          />
-        </FormField>
-        <FormField
-          label="Last name"
-          htmlFor="contact-last"
-          error={errors.lastName?.message}
-        >
-          <Input
-            id="contact-last"
-            aria-invalid={Boolean(errors.lastName)}
-            {...register("lastName")}
-          />
-        </FormField>
-      </div>
-
-      <FormField
-        label="Email"
-        htmlFor="contact-email"
-        error={errors.email?.message}
-      >
-        <Input
-          id="contact-email"
-          type="email"
-          placeholder="person@company.com"
-          aria-invalid={Boolean(errors.email)}
-          {...register("email")}
-        />
-      </FormField>
+      <ContactFields
+        idPrefix="contact"
+        firstNameField={register("firstName")}
+        lastNameField={register("lastName")}
+        emailField={register("email")}
+        errors={{
+          firstName: errors.firstName?.message,
+          lastName: errors.lastName?.message,
+          email: errors.email?.message,
+        }}
+      />
 
       <FormField
         label="Phone (optional)"

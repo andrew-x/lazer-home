@@ -4,17 +4,12 @@ import { PaginationControls } from "@/components/crm/pagination-controls";
 import { AddProjectDialog } from "@/components/projects/add-project-dialog";
 import { ProjectsTable } from "@/components/projects/projects-table";
 import { getCurrentUser } from "@/lib/auth";
+import { parsePage } from "@/lib/pagination";
 import { userHasPermission } from "@/lib/permissions";
 
 export const metadata: Metadata = { title: "Projects" };
 
 type SearchParams = Record<string, string | string[] | undefined>;
-
-/** Parse a 1-based page query param; anything invalid falls back to page 1. */
-function parsePage(value: string | string[] | undefined): number {
-  const parsed = Number(Array.isArray(value) ? value[0] : value);
-  return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1;
-}
 
 export default async function ProjectsPage({
   searchParams,

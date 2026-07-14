@@ -2,6 +2,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { billableTypeEnum, staffEmployment } from "@/lib/db/schema";
 import { isEmploymentInvariantSatisfied } from "@/lib/employment";
+import { id } from "@/lib/id-schema";
 
 /**
  * One staff member's edited employment facts in a bulk edit. Built from the
@@ -18,7 +19,7 @@ const employmentChangeSchema = createInsertSchema(staffEmployment)
     employmentType: true,
   })
   .extend({
-    staffId: z.string().min(1),
+    staffId: id,
     isBillable: z.boolean(),
     utilizationTarget: z.number().int().min(0).max(100),
     billableType: z.enum(billableTypeEnum.enumValues),

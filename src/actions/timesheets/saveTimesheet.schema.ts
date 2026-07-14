@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { dateString } from "@/lib/date-schema";
+import { id } from "@/lib/id-schema";
 import { TIMESHEET_CATEGORY } from "@/lib/timesheet-category";
 import { getWeekDays, getWeekStart, isWeekend } from "@/lib/timesheet-week";
 
@@ -12,10 +14,6 @@ import { getWeekDays, getWeekStart, isWeekend } from "@/lib/timesheet-week";
 /** The per-day hour ceiling — total across all rows for a single day. */
 export const DAILY_HOUR_CAP = 8;
 
-const dateString = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date.");
-
 /**
  * A single logged row: hours on one day against EITHER a project (billable) OR a
  * non-billable category — exactly one target. Zero-hour rows are allowed here
@@ -24,7 +22,7 @@ const dateString = z
 export const timeEntryInputSchema = z
   .object({
     date: dateString,
-    projectId: z.string().min(1).nullish(),
+    projectId: id.nullish(),
     category: z.enum(TIMESHEET_CATEGORY).nullish(),
     hours: z.coerce
       .number()
@@ -40,7 +38,7 @@ export const timeEntryInputSchema = z
 
 export const saveTimesheetSchema = z
   .object({
-    staffId: z.string().min(1),
+    staffId: id,
     weekStartDate: dateString,
     entries: z.array(timeEntryInputSchema).max(200, "Too many rows."),
   })

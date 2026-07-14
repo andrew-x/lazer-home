@@ -3,27 +3,17 @@
 import { IconPlus } from "@tabler/icons-react";
 import { useAction } from "next-safe-action/hooks";
 import { useCallback, useEffect, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
-import {
-  OPPORTUNITY_SOURCES,
-  OPPORTUNITY_STATUSES,
-  type OpportunitySource,
-  type OpportunityStatus,
-} from "@/actions/crm/createOpportunity.schema";
+import { useForm } from "react-hook-form";
 import type { OpportunityDetail } from "@/actions/crm/getOpportunity";
 import { getOpportunityDetail } from "@/actions/crm/getOpportunityDetail";
-import { searchStaff } from "@/actions/crm/searchStaff";
 import { updateOpportunity } from "@/actions/crm/updateOpportunity";
 import {
   type UpdateOpportunityInput,
   updateOpportunitySchema,
 } from "@/actions/crm/updateOpportunity.schema";
 import { applyServerIssues } from "@/components/form/apply-server-issues";
-import { EnumSelect } from "@/components/form/enum-select";
-import { FormField } from "@/components/form/form-field";
 import { AddProjectDialog } from "@/components/projects/add-project-dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -31,19 +21,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  LINE_OF_BUSINESS,
-  LINE_OF_BUSINESS_LABELS,
-  type LineOfBusiness,
-} from "@/lib/line-of-business";
 import { requiresProject } from "@/lib/opportunity-pipeline";
-import { ContactsComboboxField } from "./contacts-combobox-field";
 import {
-  EntityMultiCombobox,
-  type EntityOption,
-} from "./entity-multi-combobox";
-import { SOURCE_LABELS, STATUS_SELECT_LABELS } from "./opportunity-display";
+  OPPORTUNITY_FIELD_FOR_ISSUE,
+  OpportunityFields,
+  type OpportunityFieldValues,
+  opportunityValuesToInput,
+} from "./opportunity-form-fields";
 
 /**
  * The opportunity detail drawer: a right-side sheet opened by clicking a board
@@ -117,35 +101,15 @@ export function OpportunityDetailSheet({
   );
 }
 
-type EditFormValues = {
-  name: string;
-  lineOfBusiness: LineOfBusiness | "";
-  contacts: EntityOption[];
-  owners: EntityOption[];
-  source: OpportunitySource | "";
-  sourceContacts: EntityOption[];
-  sourceStaff: EntityOption[];
-  nextSteps: string;
-  status: OpportunityStatus | "";
-};
-
-// Maps a server-schema issue path to its form field, typed by
-// `keyof UpdateOpportunityInput` so a new schema field can't silently drop its
-// errors. `id` never surfaces as a field; route it to `name` as a harmless fallback.
+// Base map plus the update-only `id`. Typed by `keyof UpdateOpportunityInput`
+// so a new schema field can't silently drop its errors. `id` never surfaces as a
+// field; route it to `name` as a harmless fallback.
 const FIELD_FOR_ISSUE: Record<
   keyof UpdateOpportunityInput,
-  keyof EditFormValues
+  keyof OpportunityFieldValues
 > = {
+  ...OPPORTUNITY_FIELD_FOR_ISSUE,
   id: "name",
-  name: "name",
-  lineOfBusiness: "lineOfBusiness",
-  contactIds: "contacts",
-  ownerIds: "owners",
-  source: "source",
-  sourceContactIds: "sourceContacts",
-  sourceStaffIds: "sourceStaff",
-  nextSteps: "nextSteps",
-  status: "status",
 };
 
 function EditForm({
@@ -159,16 +123,7 @@ function EditForm({
   onProjectCreated: () => void;
   onSaved: () => void;
 }) {
-  const {
-    register,
-    control,
-    handleSubmit,
-    setValue,
-    setError,
-    clearErrors,
-    watch,
-    formState: { errors },
-  } = useForm<EditFormValues>({
+  const form = useForm<OpportunityFieldValues>({
     defaultValues: {
       name: detail.name,
       lineOfBusiness: detail.lineOfBusiness,
@@ -181,6 +136,7 @@ function EditForm({
       status: detail.status,
     },
   });
+  const { handleSubmit, setError, clearErrors } = form;
 
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [projectGuardError, setProjectGuardError] = useState<string | null>(
@@ -191,10 +147,9 @@ function EditForm({
     onSuccess: () => onSaved(),
   });
 
-  const source = watch("source");
   const hasProject = detail.projects.length > 0;
 
-  const onSubmit = (values: EditFormValues) => {
+  const onSubmit = (values: OpportunityFieldValues) => {
     clearErrors();
     setProjectGuardError(null);
 
@@ -208,16 +163,8 @@ function EditForm({
     }
 
     const payload = {
+      ...opportunityValuesToInput(values),
       id: detail.id,
-      name: values.name,
-      lineOfBusiness: values.lineOfBusiness,
-      contactIds: values.contacts.map((c) => c.id),
-      ownerIds: values.owners.map((o) => o.id),
-      source: values.source,
-      sourceContactIds: values.sourceContacts.map((c) => c.id),
-      sourceStaffIds: values.sourceStaff.map((s) => s.id),
-      nextSteps: values.nextSteps,
-      status: values.status,
     };
 
     const parsed = updateOpportunitySchema.safeParse(payload);
@@ -234,147 +181,7 @@ function EditForm({
       onSubmit={handleSubmit(onSubmit)}
       className="flex flex-col gap-4 overflow-y-auto px-4 pb-4"
     >
-      <FormField
-        label="Name"
-        htmlFor="opp-edit-name"
-        error={errors.name?.message}
-      >
-        <Input
-          id="opp-edit-name"
-          aria-invalid={Boolean(errors.name)}
-          {...register("name")}
-        />
-      </FormField>
-
-      <FormField
-        label="Line of business"
-        error={errors.lineOfBusiness?.message}
-      >
-        <Controller
-          control={control}
-          name="lineOfBusiness"
-          render={({ field, fieldState }) => (
-            <EnumSelect
-              options={LINE_OF_BUSINESS}
-              labels={LINE_OF_BUSINESS_LABELS}
-              placeholder="Select a line of business"
-              value={field.value}
-              invalid={Boolean(fieldState.error)}
-              onValueChange={field.onChange}
-            />
-          )}
-        />
-      </FormField>
-
-      <FormField label="Status" error={errors.status?.message}>
-        <Controller
-          control={control}
-          name="status"
-          render={({ field, fieldState }) => (
-            <EnumSelect
-              options={OPPORTUNITY_STATUSES}
-              labels={STATUS_SELECT_LABELS}
-              placeholder="Select a status"
-              value={field.value}
-              invalid={Boolean(fieldState.error)}
-              onValueChange={field.onChange}
-            />
-          )}
-        />
-      </FormField>
-
-      <FormField label="Next steps" htmlFor="opp-edit-next-steps">
-        <Textarea
-          id="opp-edit-next-steps"
-          placeholder="What happens next?"
-          {...register("nextSteps")}
-        />
-      </FormField>
-
-      <FormField label="Owners">
-        <Controller
-          control={control}
-          name="owners"
-          render={({ field, fieldState }) => (
-            <EntityMultiCombobox
-              value={field.value}
-              onChange={field.onChange}
-              searchAction={searchStaff}
-              placeholder="Search staff…"
-              invalid={Boolean(fieldState.error)}
-            />
-          )}
-        />
-      </FormField>
-
-      <Controller
-        control={control}
-        name="contacts"
-        render={({ field, fieldState }) => (
-          <ContactsComboboxField
-            label="Contacts"
-            value={field.value}
-            onChange={field.onChange}
-            error={fieldState.error?.message}
-          />
-        )}
-      />
-
-      <FormField label="Source" error={errors.source?.message}>
-        <Controller
-          control={control}
-          name="source"
-          render={({ field, fieldState }) => (
-            <EnumSelect
-              options={OPPORTUNITY_SOURCES}
-              labels={SOURCE_LABELS}
-              placeholder="Select a source"
-              value={field.value}
-              invalid={Boolean(fieldState.error)}
-              onValueChange={(next) => {
-                field.onChange(next);
-                // Referral entities only apply to their matching source.
-                setValue("sourceStaff", []);
-                setValue("sourceContacts", []);
-                clearErrors(["sourceStaff", "sourceContacts"]);
-              }}
-            />
-          )}
-        />
-      </FormField>
-
-      {source === "staff_referral" ? (
-        <FormField label="Referring staff" error={errors.sourceStaff?.message}>
-          <Controller
-            control={control}
-            name="sourceStaff"
-            render={({ field, fieldState }) => (
-              <EntityMultiCombobox
-                value={field.value}
-                onChange={field.onChange}
-                searchAction={searchStaff}
-                placeholder="Search staff…"
-                invalid={Boolean(fieldState.error)}
-              />
-            )}
-          />
-        </FormField>
-      ) : null}
-
-      {source === "contact_referral" ? (
-        <Controller
-          control={control}
-          name="sourceContacts"
-          render={({ field, fieldState }) => (
-            <ContactsComboboxField
-              label="Referring contacts"
-              value={field.value}
-              onChange={field.onChange}
-              error={fieldState.error?.message}
-            />
-          )}
-        />
-      ) : null}
+      <OpportunityFields form={form} idPrefix="opp-edit" />
 
       <div className="flex flex-col gap-2 border-t pt-4">
         <div className="flex items-center justify-between">

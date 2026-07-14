@@ -49,4 +49,6 @@ export const updateOpportunityPosition = secureActionClient
       .where(eq(opportunities.id, parsedInput.id));
 
     revalidatePath("/opportunities");
+
+    return { ok: true };
   });

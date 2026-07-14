@@ -18,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { contactName } from "@/lib/contact-name";
 import { humanizeEnum, initialsFor } from "@/lib/format";
 import { TabLabel, TableEmpty } from "./detail-parts";
 import { OpportunityStatusBadge } from "./opportunity-status-badge";
@@ -136,7 +137,7 @@ function ProjectTable({ rows }: { rows: ContactProject[] }) {
  * referred (contacts don't attach to projects directly).
  */
 export function ContactDetailView({ contact }: { contact: ContactDetail }) {
-  const name = `${contact.firstName} ${contact.lastName}`;
+  const name = contactName(contact);
   const opportunityCount =
     contact.referredOpportunities.length + contact.involvedOpportunities.length;
 

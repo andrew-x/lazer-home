@@ -1,3 +1,4 @@
+import type { SafeActionFn, ValidationErrors } from "next-safe-action";
 import { z } from "zod";
 
 /**
@@ -19,3 +20,21 @@ export const SEARCH_LIMIT = 10;
 export const searchQuerySchema = z.object({
   query: z.string().transform((value) => value.trim()),
 });
+
+/**
+ * The contract an entity-picker search action must satisfy — the generic shape
+ * the `EntityCombobox`/`EntityMultiCombobox` accept, replacing what used to be
+ * captured as `typeof searchStaff` (which leaked a concrete CRM caller into the
+ * generic component). Structurally: a next-safe-action action whose input starts
+ * from `searchQuerySchema` (`{ query }`) and resolves to a list of `{ id, name }`
+ * options. Any action of this shape works (searchStaff, searchContacts,
+ * searchCompanies, …); a caller may layer optional scope args (e.g. `companyId`)
+ * on top of `query`.
+ */
+export type SearchAction = SafeActionFn<
+  string,
+  typeof searchQuerySchema,
+  [],
+  ValidationErrors<typeof searchQuerySchema>,
+  Array<{ id: string; name: string }>
+>;

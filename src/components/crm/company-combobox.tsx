@@ -1,7 +1,7 @@
 "use client";
 
 import { searchCompanies } from "@/actions/crm/searchCompanies";
-import { EntityCombobox } from "./entity-combobox";
+import { EntityCombobox } from "@/components/form/entity-combobox";
 
 type CompanyOption = { id: string; name: string };
 

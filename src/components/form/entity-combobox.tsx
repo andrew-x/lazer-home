@@ -2,7 +2,6 @@
 
 import { useAction } from "next-safe-action/hooks";
 import { useEffect, useMemo, useState } from "react";
-import type { searchStaff } from "@/actions/crm/searchStaff";
 import {
   Combobox,
   ComboboxContent,
@@ -12,10 +11,9 @@ import {
   ComboboxList,
 } from "@/components/ui/combobox";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import type { SearchAction } from "@/lib/search";
+import { searchEmptyMessage } from "./combobox-empty-message";
 import type { EntityOption } from "./entity-multi-combobox";
-
-/** A `{ query } -> EntityOption[]` search action (searchStaff/searchContacts). */
-type EntitySearchAction = typeof searchStaff;
 
 /**
  * A searchable, debounced single-select on the Base UI Combobox — the
@@ -38,7 +36,7 @@ export function EntityCombobox({
 }: {
   value: EntityOption | null;
   onChange: (next: EntityOption | null) => void;
-  searchAction: EntitySearchAction;
+  searchAction: SearchAction;
   searchArgs?: Record<string, unknown>;
   placeholder?: string;
   invalid?: boolean;
@@ -87,13 +85,11 @@ export function EntityCombobox({
       />
       <ComboboxContent>
         <ComboboxEmpty>
-          {query.trim() === ""
-            ? "Type to search…"
-            : isPending
-              ? "Searching…"
-              : result.serverError
-                ? "Search failed — try again."
-                : "No matches."}
+          {searchEmptyMessage({
+            query,
+            isPending,
+            serverError: result.serverError,
+          })}
         </ComboboxEmpty>
         <ComboboxList>
           {(item: EntityOption) => (

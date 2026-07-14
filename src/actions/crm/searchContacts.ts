@@ -3,6 +3,7 @@
 import { and, asc, eq, ilike, or } from "drizzle-orm";
 import { z } from "zod";
 import { secureActionClient } from "@/lib/action";
+import { contactName } from "@/lib/contact-name";
 import { db } from "@/lib/db/db";
 import { contacts } from "@/lib/db/schema";
 import { escapeLike } from "@/lib/like";
@@ -50,8 +51,5 @@ export const searchContacts = secureActionClient
       .orderBy(asc(contacts.lastName), asc(contacts.firstName))
       .limit(SEARCH_LIMIT);
 
-    return rows.map((r) => ({
-      id: r.id,
-      name: `${r.firstName} ${r.lastName}`,
-    }));
+    return rows.map((r) => ({ id: r.id, name: contactName(r) }));
   });

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getContactDetail } from "@/actions/crm/getContactDetail";
 import { ContactDetailView } from "@/components/crm/contact-detail-view";
+import { contactName } from "@/lib/contact-name";
 
 export async function generateMetadata({
   params,
@@ -11,7 +12,7 @@ export async function generateMetadata({
   const { id } = await params;
   const contact = await getContactDetail(id);
   return {
-    title: contact ? `${contact.firstName} ${contact.lastName}` : "Contact",
+    title: contact ? contactName(contact) : "Contact",
   };
 }
 

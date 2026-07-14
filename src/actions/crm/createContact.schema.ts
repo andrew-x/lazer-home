@@ -1,6 +1,7 @@
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { contacts } from "@/lib/db/schema";
+import { id } from "@/lib/id-schema";
 import { optionalText } from "@/lib/text-schema";
 import { optionalUrl } from "@/lib/url-schema";
 
@@ -36,14 +37,14 @@ export const createContactSchema = createInsertSchema(contacts)
     // Optional employer — link an existing company by id (a new company is
     // created separately via `createCompany` first, then passed here as
     // `companyId`).
-    companyId: z.string().min(1).nullable().default(null),
+    companyId: id.nullable().default(null),
     // Optional free-text job title.
     role: optionalText(100),
     // Optional LinkedIn profile URL — normalised/validated like other links.
     linkedinUrl: optionalUrl,
     // Optional "managed by" contact id. Must be a contact at the same company;
     // that cross-field rule is enforced in the action (needs a DB lookup).
-    managerId: z.string().min(1).nullable().default(null),
+    managerId: id.nullable().default(null),
   });
 
 export type CreateContactInput = z.input<typeof createContactSchema>;

@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { searchContacts } from "@/actions/crm/searchContacts";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { CreateContactInlineDialog } from "./create-contact-inline-dialog";
 import {
   EntityMultiCombobox,
   type EntityOption,
-} from "./entity-multi-combobox";
+} from "@/components/form/entity-multi-combobox";
+import { FormField } from "@/components/form/form-field";
+import { Button } from "@/components/ui/button";
+import { CreateContactInlineDialog } from "./create-contact-inline-dialog";
 
 /**
  * The CRM contacts picker: search-and-multi-select existing contacts, or create
@@ -31,9 +31,10 @@ export function ContactsComboboxField({
   const [createOpen, setCreateOpen] = useState(false);
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between gap-2">
-        <Label>{label}</Label>
+    <FormField
+      label={label}
+      error={error}
+      labelAction={
         <Button
           type="button"
           variant="ghost"
@@ -42,7 +43,8 @@ export function ContactsComboboxField({
         >
           New contact
         </Button>
-      </div>
+      }
+    >
       <EntityMultiCombobox
         value={value}
         onChange={onChange}
@@ -50,12 +52,11 @@ export function ContactsComboboxField({
         placeholder="Search contacts…"
         invalid={Boolean(error)}
       />
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <CreateContactInlineDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
         onCreated={(option) => onChange([...value, option])}
       />
-    </div>
+    </FormField>
   );
 }

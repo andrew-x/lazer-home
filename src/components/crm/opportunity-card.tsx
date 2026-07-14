@@ -98,16 +98,25 @@ export function OpportunityCardView({
 
   return (
     <div
-      className={cn(
-        "flex overflow-hidden rounded-md border bg-card text-sm",
-        overlay && "shadow-md",
-      )}
+      className="flex overflow-hidden rounded-md border bg-card text-sm"
+      // The drag overlay is a floating surface lifted above the board, so it
+      // gets a real elevation cue. In-page `shadow-*` classes are neutralized by
+      // globals.css (flat surfaces), so the lift is applied inline to win; live
+      // cards stay flat. Mirrors the overlay shadow tokens in globals.css.
+      style={
+        overlay
+          ? {
+              boxShadow:
+                "0 12px 28px -12px rgb(0 0 0 / 0.16), 0 4px 12px -6px rgb(0 0 0 / 0.1)",
+            }
+          : undefined
+      }
     >
       {dragHandle}
       {onOpen ? (
         <button
           type="button"
-          className={cn(bodyClass, "cursor-pointer")}
+          className={bodyClass}
           aria-label={`Open ${card.name}`}
           onClick={onOpen}
         >

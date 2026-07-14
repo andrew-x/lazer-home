@@ -12,7 +12,7 @@
 import {
   OPPORTUNITY_STATUSES,
   type OpportunityStatus,
-} from "@/actions/crm/createOpportunity.schema";
+} from "@/lib/opportunity";
 
 export type OpportunityGroupId =
   | "maturing"
@@ -70,7 +70,7 @@ OPPORTUNITY_GROUPS.forEach((group, index) => {
   for (const status of group.statuses) groupByStatus[status] = group;
 });
 
-export const GROUP_INDEX_BY_ID: Readonly<Record<OpportunityGroupId, number>> =
+const GROUP_INDEX_BY_ID: Readonly<Record<OpportunityGroupId, number>> =
   groupIndexById;
 
 /** The group a leaf status belongs to. */
@@ -79,7 +79,7 @@ export function groupOfStatus(status: OpportunityStatus): OpportunityGroup {
 }
 
 /** A status's group's pipeline index — the notion of "earlier/later" in the pipeline. */
-export function groupIndexOfStatus(status: OpportunityStatus): number {
+function groupIndexOfStatus(status: OpportunityStatus): number {
   return GROUP_INDEX_BY_ID[groupByStatus[status].id];
 }
 

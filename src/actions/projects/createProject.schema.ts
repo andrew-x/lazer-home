@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { idList } from "@/lib/id-schema";
+import { dateString } from "@/lib/date-schema";
+import { idList, optionalId } from "@/lib/id-schema";
 import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
 import { PROJECT_ROLE_TYPES } from "@/lib/project-role-type";
 import { optionalText } from "@/lib/text-schema";
@@ -13,11 +14,6 @@ import { optionalText } from "@/lib/text-schema";
  * docs/domains/projects.md.
  */
 
-/** A calendar date as a timezone-agnostic "YYYY-MM-DD" string (DatePicker output). */
-const dateString = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date.");
-
 /**
  * A single staffing line on a project. `staffId` is optional — a role can be a
  * *placeholder* (an open position defined before it's staffed), identified by
@@ -27,7 +23,7 @@ const dateString = z
 export const projectRoleSchema = z
   .object({
     // Optional: absent ⇒ placeholder/open position.
-    staffId: z.string().min(1).optional(),
+    staffId: optionalId,
     // Optional label, e.g. "Senior Backend Engineer".
     name: optionalText(200),
     roleType: z.enum(PROJECT_ROLE_TYPES),
@@ -55,7 +51,7 @@ export const createProjectSchema = z.object({
   // when created from one (handled in the form).
   lineOfBusiness: z.enum(LINE_OF_BUSINESS),
   // Optional CRM opportunity this project delivers.
-  opportunityId: z.string().min(1).optional(),
+  opportunityId: optionalId,
   deliveryManagerIds: idList,
   // A project must be staffed with at least one role at creation.
   roles: z.array(projectRoleSchema).min(1, "Add at least one role."),

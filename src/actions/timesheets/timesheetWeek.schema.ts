@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { dateString } from "@/lib/date-schema";
+import { id } from "@/lib/id-schema";
 
 /**
  * Identifies one person's timesheet week — the input shared by the `submit` and
@@ -7,8 +9,8 @@ import { z } from "zod";
  * pulling in a "use server" module.
  */
 export const timesheetWeekSchema = z.object({
-  staffId: z.string().min(1),
-  weekStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date."),
+  staffId: id,
+  weekStartDate: dateString,
 });
 
 export type TimesheetWeekInput = z.input<typeof timesheetWeekSchema>;

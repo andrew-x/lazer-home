@@ -8,15 +8,6 @@ export const CURRENCY = ["CAD", "USD", "GBP", "EUR", "AED"] as const;
 
 export type Currency = (typeof CURRENCY)[number];
 
-/** Human-readable labels for each currency. */
-export const CURRENCY_LABELS: Record<Currency, string> = {
-  CAD: "Canadian dollar",
-  USD: "US dollar",
-  GBP: "British pound",
-  EUR: "Euro",
-  AED: "UAE dirham",
-};
-
 /** Format a money amount for display, e.g. `formatMoney(150000, "CAD")` → "CA$150,000.00". */
 export function formatMoney(amount: number, currency: Currency): string {
   return new Intl.NumberFormat(undefined, {

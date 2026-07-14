@@ -10,9 +10,9 @@ import {
   createFeedbackSchema,
 } from "@/actions/feedback/createFeedback.schema";
 import { searchStaffForFeedback } from "@/actions/feedback/searchStaffForFeedback";
-import { EntityCombobox } from "@/components/crm/entity-combobox";
-import type { EntityOption } from "@/components/crm/entity-multi-combobox";
 import { applyServerIssues } from "@/components/form/apply-server-issues";
+import { EntityCombobox } from "@/components/form/entity-combobox";
+import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";

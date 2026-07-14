@@ -4,10 +4,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks";
 import { createContact } from "@/actions/crm/createContact";
 import { createContactSchema } from "@/actions/crm/createContact.schema";
-import type { EntityOption } from "@/components/crm/entity-multi-combobox";
+import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
-import { FormField } from "@/components/form/form-field";
-import { Input } from "@/components/ui/input";
+import { stopBubblingSubmit } from "@/components/form/stop-bubbling-submit";
+import { contactName } from "@/lib/contact-name";
+import { ContactFields } from "./contact-fields";
 
 /**
  * A minimal create-contact dialog for inline use inside the opportunity form.
@@ -56,8 +57,7 @@ function InlineContactForm({
       actionProps: {
         onSuccess: ({ data }) => {
           if (!data?.id) return;
-          const { firstName, lastName } = form.getValues();
-          onCreated({ id: data.id, name: `${firstName} ${lastName}` });
+          onCreated({ id: data.id, name: contactName(form.getValues()) });
         },
       },
       formProps: {
@@ -80,54 +80,20 @@ function InlineContactForm({
 
   return (
     <form
-      // This form is portaled but remains a React descendant of the form that
-      // opened it, so its submit would bubble and validate the parent form.
-      // Stop it at the boundary.
-      onSubmit={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        handleSubmitWithAction(e);
-      }}
+      onSubmit={stopBubblingSubmit(handleSubmitWithAction)}
       className="flex flex-col gap-4"
     >
-      <div className="grid grid-cols-2 gap-3">
-        <FormField
-          label="First name"
-          htmlFor="inline-contact-first"
-          error={errors.firstName?.message}
-        >
-          <Input
-            id="inline-contact-first"
-            aria-invalid={Boolean(errors.firstName)}
-            {...register("firstName")}
-          />
-        </FormField>
-        <FormField
-          label="Last name"
-          htmlFor="inline-contact-last"
-          error={errors.lastName?.message}
-        >
-          <Input
-            id="inline-contact-last"
-            aria-invalid={Boolean(errors.lastName)}
-            {...register("lastName")}
-          />
-        </FormField>
-      </div>
-
-      <FormField
-        label="Email"
-        htmlFor="inline-contact-email"
-        error={errors.email?.message}
-      >
-        <Input
-          id="inline-contact-email"
-          type="email"
-          placeholder="person@company.com"
-          aria-invalid={Boolean(errors.email)}
-          {...register("email")}
-        />
-      </FormField>
+      <ContactFields
+        idPrefix="inline-contact"
+        firstNameField={register("firstName")}
+        lastNameField={register("lastName")}
+        emailField={register("email")}
+        errors={{
+          firstName: errors.firstName?.message,
+          lastName: errors.lastName?.message,
+          email: errors.email?.message,
+        }}
+      />
 
       <FormDialogFooter
         serverError={action.result.serverError}

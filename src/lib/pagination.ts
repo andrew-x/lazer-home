@@ -9,6 +9,12 @@
 /** Rows per page for CRM list views. */
 export const CRM_PAGE_SIZE = 20;
 
+/** Parse a 1-based page query param; anything invalid falls back to page 1. */
+export function parsePage(value: string | string[] | undefined): number {
+  const parsed = Number(Array.isArray(value) ? value[0] : value);
+  return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1;
+}
+
 /** The envelope every paginated read returns. `page`/`pageCount` are clamped. */
 export type Page<T> = {
   rows: T[];

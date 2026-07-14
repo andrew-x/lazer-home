@@ -9,23 +9,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatIsoDate, parseIsoDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-/** Parse "YYYY-MM-DD" into a local Date (no timezone shift). */
-function toDate(value: string | null): Date | undefined {
-  if (!value) return undefined;
-  const [y, m, d] = value.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-
-/** Format a Date back to a timezone-agnostic "YYYY-MM-DD". */
-function toIso(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
 
 /**
  * A single-date picker bound to a "YYYY-MM-DD" string (or null when cleared).
@@ -70,9 +55,9 @@ export function DatePicker({
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar
             mode="single"
-            selected={toDate(value)}
+            selected={value ? parseIsoDate(value) : undefined}
             onSelect={(date) => {
-              onChange(date ? toIso(date) : null);
+              onChange(date ? formatIsoDate(date) : null);
               setOpen(false);
             }}
             autoFocus

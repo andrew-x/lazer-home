@@ -56,7 +56,7 @@ export function FeedbackGivenTable({ rows }: { rows: FeedbackIGaveRow[] }) {
               <TableCell className="font-medium">
                 <button
                   type="button"
-                  className="cursor-pointer text-left hover:underline"
+                  className="text-left hover:underline"
                   onClick={() => {
                     setSelected(row);
                     setOpen(true);
