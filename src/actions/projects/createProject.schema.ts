@@ -3,6 +3,7 @@ import { dateString } from "@/lib/date-schema";
 import { idList, optionalId } from "@/lib/id-schema";
 import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
 import { PROJECT_ROLE_TYPES } from "@/lib/project-role-type";
+import { DEFAULT_PROJECT_STATUS, PROJECT_STATUSES } from "@/lib/project-status";
 import { optionalText } from "@/lib/text-schema";
 
 /**
@@ -50,6 +51,9 @@ export const createProjectSchema = z.object({
   // The project's line of business. Defaults to the originating opportunity's
   // when created from one (handled in the form).
   lineOfBusiness: z.enum(LINE_OF_BUSINESS),
+  // Lifecycle status at creation. Defaults to `tentative`; the form pre-selects
+  // it but a project can be created already-confirmed (etc.).
+  status: z.enum(PROJECT_STATUSES).default(DEFAULT_PROJECT_STATUS),
   // Optional CRM opportunity this project delivers.
   opportunityId: optionalId,
   deliveryManagerIds: idList,

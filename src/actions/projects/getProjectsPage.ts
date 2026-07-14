@@ -10,10 +10,12 @@ import {
   staff,
 } from "@/lib/db/schema";
 import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/pagination";
+import type { ProjectStatus } from "@/lib/project-status";
 
 export type ProjectRow = {
   id: string;
   name: string;
+  status: ProjectStatus;
   companyId: string;
   companyName: string;
   deliveryManagerNames: string[];
@@ -37,6 +39,7 @@ export async function getProjectsPage(
     .select({
       id: projects.id,
       name: projects.name,
+      status: projects.status,
       companyId: projects.companyId,
       companyName: companies.name,
     })

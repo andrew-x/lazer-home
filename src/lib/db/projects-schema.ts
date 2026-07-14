@@ -10,6 +10,7 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import { PROJECT_ROLE_TYPES } from "@/lib/project-role-type";
+import { DEFAULT_PROJECT_STATUS, PROJECT_STATUSES } from "@/lib/project-status";
 import { companies } from "./crm-schema";
 import { opportunities } from "./opportunities-schema";
 import { lineOfBusinessEnum, staff } from "./staff-schema";
@@ -25,11 +26,20 @@ import { lineOfBusinessEnum, staff } from "./staff-schema";
 // See docs/data-model.md and docs/domains/projects.md.
 // ---------------------------------------------------------------------------
 
+// Lifecycle status values — built from the shared, client-safe module so the
+// pgEnum, zod, and form labels can't drift.
+export const projectStatusEnum = pgEnum("project_status", [
+  ...PROJECT_STATUSES,
+]);
+
 export const projects = pgTable(
   "projects",
   {
     id: text().primaryKey(),
     name: text().notNull(),
+    // Where the project sits in its lifecycle. New projects default to
+    // `tentative`; the shared enum is the single source of truth.
+    status: projectStatusEnum().notNull().default(DEFAULT_PROJECT_STATUS),
     // A project always belongs to a company. `restrict`: a company with live
     // projects can't be deleted (mirrors opportunities).
     companyId: text()

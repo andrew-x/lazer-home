@@ -1,5 +1,6 @@
 import type { ProjectRow } from "@/actions/projects/getProjectsPage";
 import { EmptyCell } from "@/components/empty-cell";
+import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import {
   Table,
   TableBody,
@@ -23,6 +24,7 @@ export function ProjectsTable({ rows }: { rows: ProjectRow[] }) {
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
+          <TableHead>Status</TableHead>
           <TableHead>Company</TableHead>
           <TableHead>Delivery managers</TableHead>
           <TableHead>Roles</TableHead>
@@ -32,6 +34,9 @@ export function ProjectsTable({ rows }: { rows: ProjectRow[] }) {
         {rows.map((project) => (
           <TableRow key={project.id}>
             <TableCell className="font-medium">{project.name}</TableCell>
+            <TableCell>
+              <ProjectStatusBadge status={project.status} />
+            </TableCell>
             <TableCell>{project.companyName}</TableCell>
             <TableCell>
               {project.deliveryManagerNames.length > 0 ? (

@@ -12,6 +12,8 @@ carrying a `roleType`. Standalone projects (no opportunity, staffed roles) still
 A project now carries a **required, project-level line of business** (the shared enum,
 defaulted from its originating opportunity — no longer a per-role field), and creating
 one requires **at least one role** ([ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
+A project also carries a **lifecycle `status`** (`tentative`/`confirmed`/`paused`/`cancelled`,
+defaulting to `tentative`) — settable at create but **not yet editable afterward** (no edit flow).
 Built mirroring the Opportunities feature.
 
 ## Purpose
@@ -27,6 +29,11 @@ delivery, allocations, timesheets, and billing.
   — a company with live projects can't be deleted, exactly like `opportunities`),
   **required `lineOfBusiness`** (a **project-level** field, the shared `lineOfBusinessEnum`
   — which practice bills the engagement; NOT per-role, [ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)),
+  **required `status`** (`projectStatusEnum`: `tentative`/`confirmed`/`paused`/`cancelled`,
+  **NOT NULL, DB default `tentative`** — where the project sits in its lifecycle; its tuple +
+  labels live in the pure, client-importable `src/lib/project-status.ts`, mirroring
+  `line-of-business.ts`. Set at create; **no edit flow yet** so it's effectively fixed after
+  creation),
   **optional `opportunityId`** (nullable FK → `opportunities`, **`onDelete: restrict`**,
   index `projects_opportunity_idx`) — the CRM → delivery link, **1:N** (one opportunity →
   many projects; a project relates to at most one). Optional so a project can be created
@@ -80,7 +87,15 @@ delivery, allocations, timesheets, and billing.
   `role_type`, backfilling existing rows to `ENGINEER` via a temporary default that's then
   dropped), and `drizzle/0024_harsh_diamondback.sql` (adds `projects.line_of_business` —
   backfilled to `CORE` via a temporary default then dropped, so it's NOT NULL with no
-  default — **and drops `project_roles.line_of_business`**).
+  default — **and drops `project_roles.line_of_business`**), and
+  `drizzle/0028_glossy_dorian_gray.sql` (adds the `project_status` enum + `projects.status`
+  column, NOT NULL default `tentative`).
+- **Shared status module** — `src/lib/project-status.ts` exports the `PROJECT_STATUSES`
+  tuple (`tentative`/`confirmed`/`paused`/`cancelled`), the `ProjectStatus` type,
+  `DEFAULT_PROJECT_STATUS` (`tentative`), and `PROJECT_STATUS_LABELS`. A **pure,
+  client-importable** module (no `db`/drizzle) so the `projectStatusEnum` pgEnum, the
+  create-project zod schema, and the form share one source — the same single-source pattern
+  as `line-of-business.ts` and `project-role-type.ts`.
 - **Shared role-type module** — `src/lib/project-role-type.ts` exports `PROJECT_ROLE_TYPES`
   (`ENGINEER`/`DESIGNER`/`ARCHITECT`/`QA`/`SPECIALIST`), the `ProjectRoleType` type, and
   `PROJECT_ROLE_TYPE_LABELS`. A **pure, client-importable** module (no `db`/drizzle) so the
@@ -102,9 +117,10 @@ delivery, allocations, timesheets, and billing.
     the CRM reads), `page` clamped into range. **Inner**-joins companies for
     `companyName` (company is required), resolves delivery-manager names via a
     **single grouped follow-up query** over just this page's ids, and role counts via
-    a **grouped count** — no N+1.
+    a **grouped count** — no N+1. The projection now selects `projects.status` (typed
+    `ProjectStatus` on `ProjectRow`).
   - `createProject.ts` — gated `projects.edit`. One `db.transaction`: inserts the
-    project (setting `lineOfBusiness` and the optional `opportunityId`), then bulk-inserts
+    project (setting `lineOfBusiness`, `status`, and the optional `opportunityId`), then bulk-inserts
     delivery-manager junction rows (deduped so a repeat can't trip the `unique` index) and
     role rows (a null `staffId` ⇒ placeholder). The company must already exist (picked via
     search); the action only consumes ids. Revalidates **both** `/projects` and
@@ -112,7 +128,8 @@ delivery, allocations, timesheets, and billing.
   - `createProject.schema.ts` — the shared zod schema (pure, client-importable).
     Line-of-business values come from `@/lib/line-of-business`, role types from
     `@/lib/project-role-type`. **`lineOfBusiness` is a required top-level (project-wide)
-    field**; accepts an optional `opportunityId`; **`roles` requires at least one**
+    field**; a **`status`** (`z.enum(PROJECT_STATUSES).default("tentative")` from
+    `@/lib/project-status`); accepts an optional `opportunityId`; **`roles` requires at least one**
     (`.min(1, "Add at least one role.")`). Per role: `staffId` optional (absent ⇒
     placeholder), optional `name`, **required `roleType`**, required dates/hours (no
     per-role line of business); each role `.refine`s `endDate >= startDate`; `hoursPerDay`
@@ -124,9 +141,13 @@ delivery, allocations, timesheets, and billing.
     query the CRM `searchStaff`/`searchCompanies` now also delegate to. Same query,
     separate permission gates per domain.
 - **UI** — `/projects` (`src/app/(app)/projects/page.tsx`) + `src/components/projects/**` —
-  see [../ui.md](../ui.md). `projects-table.tsx` (columns: Name, Company, Delivery
-  managers, Roles count) and `add-project-dialog.tsx` (create form with a project-level
-  line-of-business `EnumSelect` near the company field, plus a `useFieldArray` roles
+  see [../ui.md](../ui.md). `projects-table.tsx` (columns: Name, **Status**, Company, Delivery
+  managers, Roles count — Status rendered by `project-status-badge.tsx`, a small
+  `ProjectStatusBadge` mapping each status to a `Badge` variant: confirmed=default,
+  tentative=secondary, paused=outline, cancelled=destructive) and `add-project-dialog.tsx`
+  (create form with a project-level line-of-business `EnumSelect` near the company field,
+  a **Status `EnumSelect`** pre-selected to `Tentative` — so a project can be created
+  already-confirmed/paused/cancelled — plus a `useFieldArray` roles
   repeater **seeded with one empty role** so the "at least one role" requirement is
   obvious; each role row picks a **role type**, an optional staff member — blank ⇒
   placeholder — an optional name, dates, and hours, but **no line of business** — that's
@@ -205,11 +226,16 @@ gate is the real boundary. See [permissions.md](./permissions.md).
 - **Placeholder roles can't be staffed yet** — a null-`staffId` role is created but there's
   no edit flow to later assign a person (or to fill in `name`/`roleType`). Comes with the
   project edit flow.
+- **Status can't be changed after creation** — `status` is set at create and displayed,
+  but there is **no `updateProject` action or edit form**, so a project is stuck in its
+  creation status (a project can't move `tentative` → `confirmed`, be paused, or cancelled).
+  Comes with the project edit flow.
 - **Roles are simple rows, not effective-dated history** — a role's dates/hours are
   edited in place (once edit exists), not versioned like `staff_employment`. See
   [ADR 0017](../decisions/0017-project-roles-as-first-allocation-cut.md). Full
   capacity planning (over/under-allocation, conflicts, forecast vs. actuals) is still
   in the Allocations domain's open questions.
-- No project status/stage, no budget/value, no rates.
+- No budget/value, no rates. (A lifecycle `status` now exists — see above — but no
+  richer pipeline/stage model, and no way to change it post-create yet.)
 </content>
 </invoke>
