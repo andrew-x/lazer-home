@@ -6,9 +6,12 @@ import { cn } from "@/lib/utils";
 export function LogoMark({
   className,
   size = 24,
+  priority = false,
 }: {
   className?: string;
   size?: number;
+  /** Set on above-the-fold instances (e.g. login) so it isn't lazy-loaded as the LCP. */
+  priority?: boolean;
 }) {
   return (
     <Image
@@ -18,6 +21,7 @@ export function LogoMark({
       width={size}
       height={size}
       unoptimized
+      priority={priority}
       className={cn("select-none", className)}
     />
   );
