@@ -35,7 +35,7 @@ const DEFAULT_VALUES: OpportunityFormValues = {
   sourceContacts: [],
   sourceStaff: [],
   nextSteps: "",
-  status: "",
+  status: "lead",
 };
 
 // Base map plus the create-only `companyId`. Typed by `keyof

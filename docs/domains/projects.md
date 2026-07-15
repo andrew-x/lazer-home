@@ -34,10 +34,16 @@ delivery, allocations, timesheets, and billing.
   labels live in the pure, client-importable `src/lib/project-status.ts`, mirroring
   `line-of-business.ts`. Set at create; **no edit flow yet** so it's effectively fixed after
   creation),
-  **optional `opportunityId`** (nullable FK → `opportunities`, **`onDelete: restrict`**,
-  index `projects_opportunity_idx`) — the CRM → delivery link, **1:N** (one opportunity →
-  many projects; a project relates to at most one). Optional so a project can be created
-  standalone; **restrict** mirrors `companyId`. **Now populated** by the handoff flow
+  **optional `opportunityId`** (nullable FK → `opportunities`, **`onDelete: restrict`**) —
+  the CRM → delivery link, **at most one project per opportunity** (a project relates to at
+  most one opportunity, and now an opportunity to at most one project). Enforced by a
+  **partial unique index** `projects_opportunity_idx` (`uniqueIndex(...).where("opportunity_id
+  is not null")`, migration `drizzle/0030_white_raider.sql`) — partial because the column is
+  nullable, so standalone (null-FK) projects aren't constrained and can coexist; it also
+  serves as the FK lookup index. The predicate uses the **bare** column name (Postgres
+  rejects a table-qualified reference in a `CREATE INDEX ... WHERE`). Optional so a project
+  can be created standalone; **restrict** mirrors `companyId`. See the
+  [ADR 0019 amendment](../decisions/0019-project-opportunity-link.md). **Now populated** by the handoff flow
   ([ADR 0024](../decisions/0024-opportunity-project-handoff-and-placeholder-roles.md)); the
   same-company invariant (linked opportunity's company == project's company) is still
   **not** server-enforced (the UI prefills + locks the company from the opportunity, but a
@@ -89,7 +95,9 @@ delivery, allocations, timesheets, and billing.
   backfilled to `CORE` via a temporary default then dropped, so it's NOT NULL with no
   default — **and drops `project_roles.line_of_business`**), and
   `drizzle/0028_glossy_dorian_gray.sql` (adds the `project_status` enum + `projects.status`
-  column, NOT NULL default `tentative`).
+  column, NOT NULL default `tentative`), and `drizzle/0030_white_raider.sql` (drops the old
+  non-unique `projects_opportunity_idx` and recreates it as a **partial unique index** on
+  `opportunity_id WHERE opportunity_id is not null` — one project per opportunity).
 - **Shared status module** — `src/lib/project-status.ts` exports the `PROJECT_STATUSES`
   tuple (`tentative`/`confirmed`/`paused`/`cancelled`), the `ProjectStatus` type,
   `DEFAULT_PROJECT_STATUS` (`tentative`), and `PROJECT_STATUS_LABELS`. A **pure,
@@ -119,12 +127,16 @@ delivery, allocations, timesheets, and billing.
     **single grouped follow-up query** over just this page's ids, and role counts via
     a **grouped count** — no N+1. The projection now selects `projects.status` (typed
     `ProjectStatus` on `ProjectRow`).
-  - `createProject.ts` — gated `projects.edit`. One `db.transaction`: inserts the
-    project (setting `lineOfBusiness`, `status`, and the optional `opportunityId`), then bulk-inserts
-    delivery-manager junction rows (deduped so a repeat can't trip the `unique` index) and
-    role rows (a null `staffId` ⇒ placeholder). The company must already exist (picked via
-    search); the action only consumes ids. Revalidates **both** `/projects` and
-    `/opportunities` (a linked project changes the board's `hasProject`).
+  - `createProject.ts` — gated `projects.edit`. First, if an `opportunityId` is given, it
+    checks `opportunityHasProject` (from `src/actions/crm/`) and throws a user-safe
+    `"This opportunity already has a project."` — a friendly message ahead of the raw
+    partial-unique-index violation (one project per opportunity, [ADR 0019 amendment](../decisions/0019-project-opportunity-link.md)).
+    Then one `db.transaction`: inserts the project (setting `lineOfBusiness`, `status`, and
+    the optional `opportunityId`), then bulk-inserts delivery-manager junction rows (deduped
+    so a repeat can't trip the `unique` index) and role rows (a null `staffId` ⇒ placeholder).
+    The company must already exist (picked via search); the action only consumes ids.
+    Revalidates **both** `/projects` and `/opportunities` (a linked project changes the
+    board's `hasProject`).
   - `createProject.schema.ts` — the shared zod schema (pure, client-importable).
     Line-of-business values come from `@/lib/line-of-business`, role types from
     `@/lib/project-role-type`. **`lineOfBusiness` is a required top-level (project-wide)
@@ -203,7 +215,8 @@ gate is the real boundary. See [permissions.md](./permissions.md).
 
 - **CRM** — every project belongs to a `companies` row (required FK, `restrict`), and may
   optionally link to an `opportunities` row (`opportunityId`, nullable FK, `restrict`,
-  1:N). The Opportunity → Project handoff now **populates** that column
+  **at most one project per opportunity** via a partial unique index). The Opportunity →
+  Project handoff now **populates** that column
   ([ADR 0024](../decisions/0024-opportunity-project-handoff-and-placeholder-roles.md)), and
   the delivery-stage requirement (`requiresProject`) makes a project a precondition for
   advancing an opportunity past Scoping ([ADR 0019](../decisions/0019-project-opportunity-link.md)).

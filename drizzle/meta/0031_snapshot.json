@@ -1,6 +1,6 @@
 {
-  "id": "9076d6c7-d8d9-482c-923c-aff7ad60ce9a",
-  "prevId": "e7055dd5-1f82-4d20-993d-29730fd134f8",
+  "id": "ad98d193-2394-4953-8bd8-c9b0c20c3766",
+  "prevId": "9076d6c7-d8d9-482c-923c-aff7ad60ce9a",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1382,6 +1382,101 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.responses": {
+      "name": "responses",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "staff_id": {
+          "name": "staff_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "question_id": {
+          "name": "question_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "list_response": {
+          "name": "list_response",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "text_response": {
+          "name": "text_response",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "json_response": {
+          "name": "json_response",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "responses_staff_idx": {
+          "name": "responses_staff_idx",
+          "columns": [
+            {
+              "expression": "staff_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "responses_staff_id_staff_id_fk": {
+          "name": "responses_staff_id_staff_id_fk",
+          "tableFrom": "responses",
+          "tableTo": "staff",
+          "columnsFrom": ["staff_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "responses_staff_question_unique": {
+          "name": "responses_staff_question_unique",
+          "nullsNotDistinct": false,
+          "columns": ["staff_id", "question_id"]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
