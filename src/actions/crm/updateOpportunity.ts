@@ -4,7 +4,6 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { secureActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
-import { generateId } from "@/lib/db/ids";
 import {
   opportunities,
   opportunityContacts,
@@ -15,6 +14,7 @@ import {
 import { UserSafeActionError } from "@/lib/errors";
 import { requiresProject } from "@/lib/opportunity-pipeline";
 import { opportunityHasProject } from "./opportunityHasProject";
+import { writeOpportunityLinks } from "./opportunityLinks";
 import { updateOpportunitySchema } from "./updateOpportunity.schema";
 
 /**
@@ -51,11 +51,6 @@ export const updateOpportunity = secureActionClient
       );
     }
 
-    // Dedupe each id list so a duplicate can't trip the junction unique index.
-    const contactIds = [...new Set(parsedInput.contactIds)];
-    const ownerIds = [...new Set(parsedInput.ownerIds)];
-    const sourceContactIds = [...new Set(parsedInput.sourceContactIds)];
-    const sourceStaffIds = [...new Set(parsedInput.sourceStaffIds)];
     const { id } = parsedInput;
 
     await db.transaction(async (tx) => {
@@ -89,45 +84,12 @@ export const updateOpportunity = secureActionClient
         .delete(opportunitySourceStaff)
         .where(eq(opportunitySourceStaff.opportunityId, id));
 
-      if (contactIds.length > 0) {
-        await tx.insert(opportunityContacts).values(
-          contactIds.map((contactId) => ({
-            id: generateId("opp-contact"),
-            opportunityId: id,
-            contactId,
-          })),
-        );
-      }
-
-      if (ownerIds.length > 0) {
-        await tx.insert(opportunityOwners).values(
-          ownerIds.map((staffId) => ({
-            id: generateId("opp-owner"),
-            opportunityId: id,
-            staffId,
-          })),
-        );
-      }
-
-      if (sourceContactIds.length > 0) {
-        await tx.insert(opportunitySourceContacts).values(
-          sourceContactIds.map((contactId) => ({
-            id: generateId("opp-src-contact"),
-            opportunityId: id,
-            contactId,
-          })),
-        );
-      }
-
-      if (sourceStaffIds.length > 0) {
-        await tx.insert(opportunitySourceStaff).values(
-          sourceStaffIds.map((staffId) => ({
-            id: generateId("opp-src-staff"),
-            opportunityId: id,
-            staffId,
-          })),
-        );
-      }
+      await writeOpportunityLinks(tx, id, {
+        contactIds: parsedInput.contactIds,
+        ownerIds: parsedInput.ownerIds,
+        sourceContactIds: parsedInput.sourceContactIds,
+        sourceStaffIds: parsedInput.sourceStaffIds,
+      });
     });
 
     revalidatePath("/opportunities");
