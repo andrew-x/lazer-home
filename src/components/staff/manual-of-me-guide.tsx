@@ -98,14 +98,22 @@ export function ManualOfMeGuide({
         const stillCurrent = i === stepRef.current;
         const unchanged = answersRef.current[i].trim() === trimmed;
         if (stillCurrent) setSaveState(unchanged ? "saved" : "saving");
-        // If edits landed mid-save (here or on the now-current step), save again.
-        const dirtyStep =
-          answersRef.current[stepRef.current].trim() !==
-          savedRef.current[stepRef.current]
-            ? stepRef.current
-            : !unchanged
-              ? i
-              : null;
+
+        // If edits landed mid-save, decide what to re-flush: the current step
+        // wins if the user has since typed on it; otherwise re-flush the
+        // just-saved question `i` if it changed again; else nothing is dirty.
+        const nextDirtyStep = (): number | null => {
+          const currentStep = stepRef.current;
+          if (
+            answersRef.current[currentStep].trim() !==
+            savedRef.current[currentStep]
+          ) {
+            return currentStep;
+          }
+          if (!unchanged) return i;
+          return null;
+        };
+        const dirtyStep = nextDirtyStep();
         if (dirtyStep !== null) void flush(dirtyStep);
       } else if (i === stepRef.current) {
         setSaveState("error");
