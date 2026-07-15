@@ -211,6 +211,13 @@
       "when": 1784039278269,
       "tag": "0029_sticky_lockjaw",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1784118712914,
+      "tag": "0030_confused_doctor_strange",
+      "breakpoints": true
     }
   ]
 }
