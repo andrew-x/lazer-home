@@ -14,7 +14,7 @@ export default async function LoginPage() {
   return (
     <main className="flex min-h-svh flex-col items-center justify-center gap-8 px-6">
       <div className="flex flex-col items-center gap-3">
-        <LogoMark size={36} />
+        <LogoMark size={36} priority />
         <h1 className="font-heading text-xl font-semibold tracking-tight">
           {APP_NAME}
         </h1>
