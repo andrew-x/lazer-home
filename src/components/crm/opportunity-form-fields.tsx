@@ -128,8 +128,6 @@ export function OpportunityFields<TValues extends OpportunityFieldValues>({
         />
       </FormField>
 
-      {companySlot}
-
       <FormField
         label="Line of business"
         error={errors.lineOfBusiness?.message}
@@ -149,6 +147,8 @@ export function OpportunityFields<TValues extends OpportunityFieldValues>({
           )}
         />
       </FormField>
+
+      {companySlot}
 
       <Controller
         control={control}
