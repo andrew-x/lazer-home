@@ -6,7 +6,7 @@ The durable knowledge base for the PSA platform — maintained by the `librarian
 
 | Doc | Covers |
 |-----|--------|
-| [development.md](./development.md) | Runbook: prerequisites, env setup, first run, the verify loop, schema workflow |
+| [development.md](./development.md) | Runbook: prerequisites, env setup, first run, the verify loop, schema workflow, synthetic-data seed (`db:seed`) |
 | [architecture.md](./architecture.md) | System overview, committed tech stack, `src/` layout, auth, authz, running the DB, modified-Next.js deltas |
 | [ui.md](./ui.md) | Frontend: component library, theming/tokens, route-group auth gating, app shell, error/404/loading conventions |
 | [data-model.md](./data-model.md) | Core entities, how the five domains connect, and what's realized in code |
