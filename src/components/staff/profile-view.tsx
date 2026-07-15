@@ -1,5 +1,6 @@
 import { IconPencil } from "@tabler/icons-react";
 import Link from "next/link";
+import type { ManualOfMeEntry } from "@/actions/responses/getManualOfMe";
 import type { HistoryEntry } from "@/actions/staff/getStaffHistory";
 import type { StaffProfile } from "@/actions/staff/getStaffProfile";
 import type { StaffPtoView } from "@/actions/staff/getStaffPto";
@@ -8,6 +9,7 @@ import { EditClientIntroDialog } from "@/components/staff/edit-client-intro-dial
 import { EditLinksDialog } from "@/components/staff/edit-links-dialog";
 import { EditResumeDialog } from "@/components/staff/edit-resume-dialog";
 import { HistorySheet } from "@/components/staff/history-sheet";
+import { ManualOfMeSection } from "@/components/staff/manual-of-me-section";
 import { PtoSection } from "@/components/staff/pto-section";
 import { SkillsSection } from "@/components/staff/skills-section";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -56,6 +58,7 @@ export function ProfileView({
   staffId,
   imageUrl,
   profile,
+  manualOfMe,
   history,
   pto,
   canEdit,
@@ -64,6 +67,8 @@ export function ProfileView({
   staffId: string;
   imageUrl: string | null;
   profile: StaffProfile;
+  /** This person's Manual of Me answers, in question order (unanswered → null). */
+  manualOfMe: ManualOfMeEntry[];
   history: HistoryEntry[];
   /** Null when the viewer isn't allowed to see this person's PTO (pto.review). */
   pto: StaffPtoView | null;
@@ -74,6 +79,9 @@ export function ProfileView({
 }) {
   const { employment } = profile;
   const initials = initialsFor(profile.name, profile.email);
+  const manualOfMeAnswered = manualOfMe.filter(
+    (entry) => entry.textResponse !== null,
+  ).length;
 
   const employmentSummary = employment
     ? [
@@ -167,6 +175,33 @@ export function ProfileView({
               No client intro yet.
             </p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Manual of Me</CardTitle>
+          {canEdit ? (
+            <CardAction>
+              <Button
+                variant="ghost"
+                size="sm"
+                nativeButton={false}
+                render={<Link href={`/staff/${staffId}/manual-of-me`} />}
+              >
+                <IconPencil />
+                {manualOfMeAnswered > 0 ? "Edit" : "Fill out"}
+              </Button>
+            </CardAction>
+          ) : null}
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <ManualOfMeSection entries={manualOfMe} />
+          {manualOfMeAnswered > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              {manualOfMeAnswered} of {manualOfMe.length} answered
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 

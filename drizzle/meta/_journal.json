@@ -218,6 +218,13 @@
       "when": 1784117482419,
       "tag": "0030_white_raider",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1784122258341,
+      "tag": "0031_stiff_leper_queen",
+      "breakpoints": true
     }
   ]
 }
