@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth";
+import { initialsFor } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -16,16 +17,7 @@ export default async function SettingsPage() {
   const user = await getCurrentUser();
   if (!user) return null; // The (app) layout already guards this.
 
-  const initials = (
-    user.name
-      ?.split(" ")
-      .map((part) => part[0])
-      .filter(Boolean)
-      .slice(0, 2)
-      .join("") ||
-    user.email[0] ||
-    "?"
-  ).toUpperCase();
+  const initials = initialsFor(user.name ?? "", user.email);
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">

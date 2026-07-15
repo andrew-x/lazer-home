@@ -32,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { parseIsoDate } from "@/lib/format";
 import {
   TIMESHEET_CATEGORY,
   TIMESHEET_CATEGORY_LABELS,
@@ -81,13 +82,12 @@ function parseHours(raw: string | undefined): number {
 
 /** "Mon 14" style column header for a weekday. */
 function dayHeader(date: string): { weekday: string; day: string } {
-  const [y, m, d] = date.split("-").map(Number);
-  const jsDate = new Date(y, m - 1, d);
+  const jsDate = parseIsoDate(date);
   return {
     weekday: new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(
       jsDate,
     ),
-    day: String(d),
+    day: String(jsDate.getDate()),
   };
 }
 

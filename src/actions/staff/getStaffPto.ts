@@ -4,6 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db/db";
 import { type StaffPto, staffPto } from "@/lib/db/schema";
+import { formatIsoDate, parseIsoDate } from "@/lib/format";
 import { userHasPermission } from "@/lib/permissions";
 import { getCurrentStaffId } from "./getCurrentStaffId";
 
@@ -34,20 +35,10 @@ export type StaffPtoView = {
   summary: PtoCategorySummary[];
 };
 
-/** Today as a wall-clock "YYYY-MM-DD" string (dates are timezone-agnostic). */
-function todayIso(): string {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${now.getFullYear()}-${month}-${day}`;
-}
-
 /** Count Mon–Fri days in the inclusive "YYYY-MM-DD" span (no half-days here). */
 function countWorkingDays(startDate: string, endDate: string): number {
-  const [sy, sm, sd] = startDate.split("-").map(Number);
-  const [ey, em, ed] = endDate.split("-").map(Number);
-  const cursor = new Date(sy, sm - 1, sd);
-  const end = new Date(ey, em - 1, ed);
+  const cursor = parseIsoDate(startDate);
+  const end = parseIsoDate(endDate);
 
   let count = 0;
   while (cursor <= end) {
@@ -87,7 +78,7 @@ export async function getStaffPto(
     .where(eq(staffPto.staffId, staffId))
     .orderBy(asc(staffPto.startDate));
 
-  const today = todayIso();
+  const today = formatIsoDate(new Date());
   const currentYear = new Date().getFullYear();
   const yearStart = `${currentYear}-01-01`;
   const yearEnd = `${currentYear}-12-31`;
