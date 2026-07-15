@@ -11,7 +11,6 @@ import { HistorySheet } from "@/components/staff/history-sheet";
 import { PtoSection } from "@/components/staff/pto-section";
 import { SkillsSection } from "@/components/staff/skills-section";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -81,6 +80,7 @@ export function ProfileView({
         humanizeEnum(employment.role),
         humanizeEnum(employment.lineOfBusiness),
         humanizeEnum(employment.employmentType),
+        employment.isBillable ? "Billable" : "Non-billable",
       ].join(" · ")
     : null;
 
@@ -92,19 +92,24 @@ export function ProfileView({
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
         <div className="flex min-w-0 flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <h2 className="font-heading text-xl font-semibold tracking-tight">
-              {profile.name}
-            </h2>
-            {employment ? (
-              <Badge variant={employment.isBillable ? "default" : "secondary"}>
-                {employment.isBillable ? "Billable" : "Non-billable"}
-              </Badge>
-            ) : null}
-          </div>
-          {employmentSummary ? (
+          <h2 className="font-heading text-xl font-semibold tracking-tight">
+            {profile.name}
+          </h2>
+          {employmentSummary || profile.managerId ? (
             <span className="text-sm text-muted-foreground">
               {employmentSummary}
+              {profile.managerId ? (
+                <>
+                  {employmentSummary ? " · " : ""}
+                  Reports to{" "}
+                  <Link
+                    href={`/staff/${profile.managerId}`}
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    {profile.managerName}
+                  </Link>
+                </>
+              ) : null}
             </span>
           ) : null}
           <span className="text-sm text-muted-foreground">
@@ -113,17 +118,6 @@ export function ProfileView({
               ? ` · Joined ${formatDate(profile.joinDate)}`
               : ""}
           </span>
-          {profile.managerId ? (
-            <span className="text-sm text-muted-foreground">
-              Reports to{" "}
-              <Link
-                href={`/staff/${profile.managerId}`}
-                className="font-medium text-primary underline-offset-4 hover:underline"
-              >
-                {profile.managerName}
-              </Link>
-            </span>
-          ) : null}
         </div>
         <div className="ml-auto self-start">
           <HistorySheet entries={history} />
