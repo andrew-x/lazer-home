@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { opportunityHasProject } from "@/actions/crm/opportunityHasProject";
 import { secureActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
@@ -9,6 +10,7 @@ import {
   projectRoles,
   projects,
 } from "@/lib/db/schema";
+import { UserSafeActionError } from "@/lib/errors";
 import { createProjectSchema } from "./createProject.schema";
 
 /**
@@ -24,6 +26,15 @@ export const createProject = secureActionClient
   })
   .inputSchema(createProjectSchema)
   .action(async ({ parsedInput }) => {
+    // An opportunity has at most one project (enforced by the partial unique
+    // index on projects.opportunityId). Check first for a friendly message.
+    if (
+      parsedInput.opportunityId &&
+      (await opportunityHasProject(parsedInput.opportunityId))
+    ) {
+      throw new UserSafeActionError("This opportunity already has a project.");
+    }
+
     const projectId = generateId("proj");
 
     // Dedupe so a duplicate can't trip the junction unique index.

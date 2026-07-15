@@ -1,4 +1,4 @@
-import type { InferSelectModel } from "drizzle-orm";
+import { type InferSelectModel, sql } from "drizzle-orm";
 import {
   date,
   index,
@@ -8,6 +8,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { PROJECT_ROLE_TYPES } from "@/lib/project-role-type";
 import { DEFAULT_PROJECT_STATUS, PROJECT_STATUSES } from "@/lib/project-status";
@@ -50,9 +51,9 @@ export const projects = pgTable(
     // Shared/global enum (see `lineOfBusinessEnum`).
     lineOfBusiness: lineOfBusinessEnum().notNull(),
     // A project may originate from a CRM opportunity — optional, so a project
-    // can also be created standalone. `restrict`: an opportunity with live
-    // projects can't be deleted (mirrors companyId). One opportunity can have
-    // many projects; a project relates to at most one opportunity.
+    // can also be created standalone. `restrict`: an opportunity with a live
+    // project can't be deleted (mirrors companyId). An opportunity has at most
+    // one project; a project relates to at most one opportunity.
     opportunityId: text().references(() => opportunities.id, {
       onDelete: "restrict",
     }),
@@ -63,7 +64,16 @@ export const projects = pgTable(
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (t) => [index("projects_opportunity_idx").on(t.opportunityId)],
+  (t) => [
+    // At most one project per opportunity. Partial, because the column is
+    // nullable — standalone projects (null opportunityId) aren't constrained and
+    // can coexist. Also serves as the lookup index on the FK. The predicate uses
+    // the bare column name: Postgres rejects a table-qualified reference in a
+    // CREATE INDEX WHERE clause.
+    uniqueIndex("projects_opportunity_idx")
+      .on(t.opportunityId)
+      .where(sql`"opportunity_id" is not null`),
+  ],
 );
 
 // Delivery managers: many staff per project. Junction table following the CRM
