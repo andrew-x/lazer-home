@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { getManualOfMe } from "@/actions/responses/getManualOfMe";
 import { canEditStaff } from "@/actions/staff/canEditStaff";
 import { canViewCompensation } from "@/actions/staff/canViewCompensation";
 import { getStaffAvatar } from "@/actions/staff/getStaffAvatar";
@@ -26,11 +27,12 @@ export default async function StaffProfilePage({
 }) {
   const { id } = await params;
 
-  const [profile, pto, imageUrl, user] = await Promise.all([
+  const [profile, pto, imageUrl, user, manualOfMe] = await Promise.all([
     getStaffProfile(id),
     getStaffPto(id),
     getStaffAvatar(id),
     getCurrentUser(),
+    getManualOfMe(id),
   ]);
 
   if (!profile) notFound();
@@ -48,6 +50,7 @@ export default async function StaffProfilePage({
       staffId={id}
       imageUrl={imageUrl}
       profile={profile}
+      manualOfMe={manualOfMe}
       history={history}
       pto={pto}
       canEdit={canEdit}
