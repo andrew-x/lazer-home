@@ -386,6 +386,27 @@ export function OpportunityBoard({
               ))}
             </div>
           </div>
+        ) : unit.expandable ? (
+          // A collapsed multi-status group: wrap the merged column in the same
+          // bordered panel the expanded state uses, so it reads as a group that
+          // opens in place — not as a plain single-status column.
+          <div
+            key={unit.group.id}
+            className="flex shrink-0 flex-col gap-2 rounded-md border bg-muted/30 p-2"
+          >
+            <OpportunityBoardColumn
+              id={unit.column.id}
+              label={unit.column.label}
+              cards={visibleByColumnId.get(unit.column.id) ?? []}
+              showSubstatusBadge={unit.column.showSubstatusBadge}
+              canEdit={canEdit}
+              onOpenCard={canEdit ? openCard : undefined}
+              toggle={{
+                expanded: false,
+                onToggle: () => toggleGroup(unit.group.id),
+              }}
+            />
+          </div>
         ) : (
           <OpportunityBoardColumn
             key={unit.column.id}
@@ -395,14 +416,6 @@ export function OpportunityBoard({
             showSubstatusBadge={unit.column.showSubstatusBadge}
             canEdit={canEdit}
             onOpenCard={canEdit ? openCard : undefined}
-            toggle={
-              unit.expandable
-                ? {
-                    expanded: false,
-                    onToggle: () => toggleGroup(unit.group.id),
-                  }
-                : undefined
-            }
           />
         ),
       )}
