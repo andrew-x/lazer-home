@@ -7,7 +7,7 @@ import type {
   EntityRef,
   OpportunityDetail,
 } from "@/actions/crm/getOpportunity";
-import { getOpportunityDetail } from "@/actions/crm/getOpportunityDetail";
+import { loadOpportunityDetail } from "@/actions/crm/loadOpportunityDetail";
 import { searchContacts } from "@/actions/crm/searchContacts";
 import { searchStaff } from "@/actions/crm/searchStaff";
 import { updateOpportunity } from "@/actions/crm/updateOpportunity";
@@ -58,7 +58,7 @@ import { STATUS_SELECT_LABELS } from "./opportunity-display";
  * name. Below, an Info tab holds the remaining fields, each editing one at a time
  * in place (per-field confirm/cancel, saved via `updateOpportunity`), and a
  * Project plan tab for the single project that delivers the opportunity. Company
- * isn't editable here. Detail is loaded on open via `getOpportunityDetail` and
+ * isn't editable here. Detail is loaded on open via `loadOpportunityDetail` and
  * re-fetched after every save so the read views reflect it. The drawer only
  * mounts for `crm.edit` users (gated on the board), so editing is always allowed.
  */
@@ -73,7 +73,7 @@ export function OpportunityDetailSheet({
   onOpenChange: (open: boolean) => void;
   canCreateProject: boolean;
 }) {
-  const { execute: load, result, reset } = useAction(getOpportunityDetail);
+  const { execute: load, result, reset } = useAction(loadOpportunityDetail);
   const [detail, setDetail] = useState<OpportunityDetail | null>(null);
 
   useEffect(() => {

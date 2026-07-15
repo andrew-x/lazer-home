@@ -10,9 +10,9 @@ import { getOpportunity } from "./getOpportunity";
  * `crm.edit`: the drawer is edit-only, so this can't leak detail past the write
  * gate. Delegates to the server-only `getOpportunity` read.
  */
-export const getOpportunityDetail = secureActionClient
+export const loadOpportunityDetail = secureActionClient
   .metadata({
-    action: "get-opportunity-detail",
+    action: "load-opportunity-detail",
     permission: { crm: ["edit"] },
   })
   .inputSchema(z.object({ id: z.string().min(1) }))
