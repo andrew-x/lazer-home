@@ -13,6 +13,7 @@
       "!.next",
       "!dist",
       "!build",
+      "!drizzle/meta",
       "!settings.local.json"
     ]
   },
