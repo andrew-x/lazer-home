@@ -31,7 +31,18 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { normalizeEmploymentFacts } from "@/lib/employment";
-import { humanizeEnum } from "@/lib/format";
+import {
+  LINE_OF_BUSINESS_LABELS,
+  type LineOfBusiness,
+} from "@/lib/line-of-business";
+import {
+  BILLABLE_TYPE_LABELS,
+  type BillableType,
+  EMPLOYMENT_TYPE_LABELS,
+  type EmploymentType,
+  ROLE_LABELS,
+  type Role,
+} from "@/lib/staff-enums";
 import { cn } from "@/lib/utils";
 import { EditableTable, editDraft, useEditableRows } from "./editable-table";
 import { ALL, SelectFilter, SortHeader, TriStateFilter } from "./table-filters";
@@ -90,9 +101,12 @@ function formatValue(
   }
   if (field === "utilizationTarget") return `${value as number}%`;
   if (field === "billableType") {
-    return value ? humanizeEnum(value as string) : "None";
+    return value ? BILLABLE_TYPE_LABELS[value as BillableType] : "None";
   }
-  return humanizeEnum(value as string);
+  if (field === "role") return ROLE_LABELS[value as Role];
+  if (field === "employmentType")
+    return EMPLOYMENT_TYPE_LABELS[value as EmploymentType];
+  return LINE_OF_BUSINESS_LABELS[value as LineOfBusiness];
 }
 
 const clampPercent = (n: number) =>
@@ -118,12 +132,14 @@ function EnumCell({
   staffId,
   field,
   options,
+  labels,
   table,
   className,
 }: {
   staffId: string;
   field: "lineOfBusiness" | "role" | "employmentType";
   options: string[];
+  labels: Record<string, string>;
   table: TanstackTable<StaffEmploymentEditRow>;
   className?: string;
 }) {
@@ -142,13 +158,13 @@ function EnumCell({
         className={cn("w-36", className)}
       >
         <SelectValue>
-          {(current: string | null) => (current ? humanizeEnum(current) : "")}
+          {(current: string | null) => (current ? labels[current] : "")}
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {options.map((option) => (
           <SelectItem key={option} value={option}>
-            {humanizeEnum(option)}
+            {labels[option]}
           </SelectItem>
         ))}
       </SelectContent>
@@ -246,7 +262,7 @@ function BillableTypeCell({
     >
       {options.map((option) => (
         <ToggleGroupItem key={option} value={option}>
-          {humanizeEnum(option)}
+          {BILLABLE_TYPE_LABELS[option as BillableType]}
         </ToggleGroupItem>
       ))}
     </ToggleGroup>
@@ -355,6 +371,7 @@ export function BulkEditRoles({
             staffId={row.original.staffId}
             field="lineOfBusiness"
             options={lineOfBusinessOptions}
+            labels={LINE_OF_BUSINESS_LABELS}
             table={table}
             className="w-40"
           />
@@ -368,6 +385,7 @@ export function BulkEditRoles({
             staffId={row.original.staffId}
             field="role"
             options={roleOptions}
+            labels={ROLE_LABELS}
             table={table}
           />
         ),
@@ -380,6 +398,7 @@ export function BulkEditRoles({
             staffId={row.original.staffId}
             field="employmentType"
             options={employmentTypeOptions}
+            labels={EMPLOYMENT_TYPE_LABELS}
             table={table}
             className="w-32"
           />
@@ -471,12 +490,14 @@ export function BulkEditRoles({
             label="Line of business"
             value={lineOfBusiness}
             options={lineOfBusinessOptions}
+            labels={LINE_OF_BUSINESS_LABELS}
             onChange={setLineOfBusiness}
           />
           <SelectFilter
             label="Role"
             value={role}
             options={roleOptions}
+            labels={ROLE_LABELS}
             onChange={setRole}
           />
           <TriStateFilter

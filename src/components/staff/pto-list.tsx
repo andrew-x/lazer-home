@@ -4,7 +4,8 @@ import { useState } from "react";
 import type { PtoSpan } from "@/actions/staff/getStaffPto";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDate, humanizeEnum } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { PTO_TYPE_LABELS } from "@/lib/staff-enums";
 
 function formatRange(span: PtoSpan): string {
   return span.startDate === span.endDate
@@ -46,7 +47,7 @@ export function PtoList({
             <div className="flex flex-col">
               <span className="text-sm font-medium">{formatRange(span)}</span>
               <span className="text-sm text-muted-foreground">
-                {humanizeEnum(span.type)}
+                {PTO_TYPE_LABELS[span.type]}
               </span>
             </div>
             <div className="flex shrink-0 items-center gap-2">

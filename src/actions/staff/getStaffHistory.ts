@@ -4,7 +4,8 @@ import { desc, eq } from "drizzle-orm";
 import { type Currency, formatMoney } from "@/lib/currency";
 import { db } from "@/lib/db/db";
 import { staffEmployment } from "@/lib/db/schema";
-import { humanizeEnum } from "@/lib/format";
+import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
+import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff-enums";
 
 /**
  * The kinds of change in a person's history feed. Employment (which now carries
@@ -79,9 +80,9 @@ export async function getStaffHistory(
 
   for (const row of employment) {
     const summary = [
-      humanizeEnum(row.role),
-      humanizeEnum(row.lineOfBusiness),
-      humanizeEnum(row.employmentType),
+      ROLE_LABELS[row.role],
+      LINE_OF_BUSINESS_LABELS[row.lineOfBusiness],
+      EMPLOYMENT_TYPE_LABELS[row.employmentType],
       row.isBillable ? "Billable" : "Non-billable",
       // Comp is appended to the same entry, gated for authorized viewers only.
       ...(includeCompensation ? compParts(row) : []),

@@ -11,7 +11,6 @@ import {
   type CsvPlanBadge,
   csvPreviewSection,
 } from "@/components/admin/csv-import";
-import { humanizeEnum } from "@/lib/format";
 import { transformRows } from "@/lib/pto-import/transform";
 import type {
   ComparableField,
@@ -21,11 +20,13 @@ import type {
   PtoImportUpdate,
   SkippedRow,
 } from "@/lib/pto-import/types";
+import { PTO_TYPE_LABELS, type PtoType } from "@/lib/staff-enums";
 
 function formatValue(field: ComparableField, value: unknown): string {
   if (value === null || value === "") return "—";
   if (field === "isPending") return value ? "Pending" : "Approved";
-  if (field === "type" && typeof value === "string") return humanizeEnum(value);
+  if (field === "type" && typeof value === "string")
+    return PTO_TYPE_LABELS[value as PtoType];
   return String(value);
 }
 
@@ -36,7 +37,7 @@ const NEW_COLUMNS: ColumnDef<NormalizedPto>[] = [
   {
     accessorKey: "type",
     header: "Type",
-    cell: ({ getValue }) => humanizeEnum(getValue<string>()),
+    cell: ({ getValue }) => PTO_TYPE_LABELS[getValue<PtoType>()],
   },
   { accessorKey: "startDate", header: "Start" },
   { accessorKey: "endDate", header: "End" },
@@ -82,7 +83,7 @@ const DELETE_COLUMNS: ColumnDef<PtoDeletion>[] = [
   {
     accessorKey: "type",
     header: "Type",
-    cell: ({ getValue }) => humanizeEnum(getValue<string>()),
+    cell: ({ getValue }) => PTO_TYPE_LABELS[getValue<PtoType>()],
   },
   { accessorKey: "startDate", header: "Start" },
   { accessorKey: "endDate", header: "End" },

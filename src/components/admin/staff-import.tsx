@@ -12,7 +12,7 @@ import {
   csvPreviewSection,
 } from "@/components/admin/csv-import";
 import { Badge } from "@/components/ui/badge";
-import { humanizeEnum } from "@/lib/format";
+import { EMPLOYMENT_TYPE_LABELS, type EmploymentType } from "@/lib/staff-enums";
 import { transformRows } from "@/lib/staff-import/transform";
 import type {
   ComparableField,
@@ -35,7 +35,7 @@ function formatValue(field: ComparableField, value: unknown): string {
   if (field === "isActive" || field === "isBillable")
     return value ? "Yes" : "No";
   if (field === "employmentType" && typeof value === "string")
-    return humanizeEnum(value);
+    return EMPLOYMENT_TYPE_LABELS[value as EmploymentType];
   if (MONEY_FIELDS.has(field) && typeof value === "number")
     return new Intl.NumberFormat().format(value);
   return String(value);
@@ -80,7 +80,7 @@ const NEW_COLUMNS: ColumnDef<CreateRow>[] = [
   {
     accessorKey: "employmentType",
     header: "Type",
-    cell: ({ getValue }) => humanizeEnum(getValue<string>()),
+    cell: ({ getValue }) => EMPLOYMENT_TYPE_LABELS[getValue<EmploymentType>()],
   },
   {
     accessorKey: "isBillable",

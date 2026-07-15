@@ -29,12 +29,13 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { humanizeEnum } from "@/lib/format";
+import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
 import {
   matchesSkillFilter,
   type ProficiencyLevel,
   SKILL_CATEGORIES,
 } from "@/lib/skills";
+import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff-enums";
 
 const ALL = "ALL";
 
@@ -68,11 +69,13 @@ function SelectFilter({
   label,
   value,
   options,
+  labels,
   onChange,
 }: {
   label: string;
   value: string;
   options: string[];
+  labels: Record<string, string>;
   onChange: (value: string) => void;
 }) {
   return (
@@ -81,16 +84,14 @@ function SelectFilter({
       <Select value={value} onValueChange={(next) => onChange(next ?? ALL)}>
         <SelectTrigger aria-label={label} className="w-full">
           <SelectValue>
-            {(current: string) =>
-              current === ALL ? "All" : humanizeEnum(current)
-            }
+            {(current: string) => (current === ALL ? "All" : labels[current])}
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>All</SelectItem>
           {options.map((option) => (
             <SelectItem key={option} value={option}>
-              {humanizeEnum(option)}
+              {labels[option]}
             </SelectItem>
           ))}
         </SelectContent>
@@ -104,11 +105,13 @@ function SegmentedFilter({
   label,
   value,
   options,
+  labels,
   onChange,
 }: {
   label: string;
   value: string;
   options: string[];
+  labels: Record<string, string>;
   onChange: (value: string) => void;
 }) {
   return (
@@ -128,7 +131,7 @@ function SegmentedFilter({
         <ToggleGroupItem value={ALL}>All</ToggleGroupItem>
         {options.map((option) => (
           <ToggleGroupItem key={option} value={option}>
-            {humanizeEnum(option)}
+            {labels[option]}
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
@@ -288,18 +291,21 @@ export function StaffDirectory({
             label="Line of business"
             value={lineOfBusiness}
             options={lineOfBusinessOptions}
+            labels={LINE_OF_BUSINESS_LABELS}
             onChange={setLineOfBusiness}
           />
           <SelectFilter
             label="Role"
             value={role}
             options={roleOptions}
+            labels={ROLE_LABELS}
             onChange={setRole}
           />
           <SegmentedFilter
             label="Type"
             value={type}
             options={typeOptions}
+            labels={EMPLOYMENT_TYPE_LABELS}
             onChange={setType}
           />
           <div className="flex h-9 items-center gap-2 text-sm">

@@ -21,12 +21,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  formatDate,
-  formatTimestamp,
-  humanizeEnum,
-  initialsFor,
-} from "@/lib/format";
+import { formatDate, formatTimestamp, initialsFor } from "@/lib/format";
+import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
+import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff-enums";
 
 /** A profile URL row, or an em dash when absent. */
 function LinkRow({ label, url }: { label: string; url: string | null }) {
@@ -85,9 +82,9 @@ export function ProfileView({
 
   const employmentSummary = employment
     ? [
-        humanizeEnum(employment.role),
-        humanizeEnum(employment.lineOfBusiness),
-        humanizeEnum(employment.employmentType),
+        ROLE_LABELS[employment.role],
+        LINE_OF_BUSINESS_LABELS[employment.lineOfBusiness],
+        EMPLOYMENT_TYPE_LABELS[employment.employmentType],
         employment.isBillable ? "Billable" : "Non-billable",
       ].join(" · ")
     : null;
