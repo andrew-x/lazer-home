@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { OPPORTUNITY_STATUSES } from "@/actions/crm/createOpportunity.schema";
+import { OPPORTUNITY_STATUSES } from "@/lib/opportunity";
 import {
   computePosition,
   OPPORTUNITY_GROUPS,

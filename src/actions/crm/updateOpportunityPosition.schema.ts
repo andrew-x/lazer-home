@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { OPPORTUNITY_STATUSES } from "./createOpportunity.schema";
+import { OPPORTUNITY_STATUSES } from "@/lib/opportunity";
 
 /**
  * Move an opportunity on the kanban board: its (possibly new) status column and

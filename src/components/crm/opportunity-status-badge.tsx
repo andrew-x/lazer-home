@@ -1,5 +1,5 @@
-import type { OpportunityStatus } from "@/actions/crm/createOpportunity.schema";
 import { Badge } from "@/components/ui/badge";
+import type { OpportunityStatus } from "@/lib/opportunity";
 import { groupOfStatus } from "@/lib/opportunity-pipeline";
 
 /**
