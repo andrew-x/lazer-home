@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getContactsPage } from "@/actions/crm/getContactsPage";
 import { AddContactDialog } from "@/components/crm/add-contact-dialog";
 import { ContactsTable } from "@/components/crm/contacts-table";
-import { PaginationControls } from "@/components/crm/pagination-controls";
+import { PaginationControls } from "@/components/pagination-controls";
 import { getCurrentUser } from "@/lib/auth";
 import { parsePage } from "@/lib/pagination";
 import { userHasPermission } from "@/lib/permissions";
