@@ -79,7 +79,7 @@ function SelectFilter({
     <div className="flex flex-col gap-1.5">
       <FilterLabel>{label}</FilterLabel>
       <Select value={value} onValueChange={(next) => onChange(next ?? ALL)}>
-        <SelectTrigger aria-label={label} className="w-44">
+        <SelectTrigger aria-label={label} className="w-full">
           <SelectValue>
             {(current: string) =>
               current === ALL ? "All" : humanizeEnum(current)
@@ -154,7 +154,7 @@ function SkillsFilter({
         value={value}
         onValueChange={onChange}
       >
-        <ComboboxChips ref={anchor} className="w-72">
+        <ComboboxChips ref={anchor} className="w-full">
           {value.map((skill) => (
             <ComboboxChip key={skill} aria-label={skill}>
               {skill}
@@ -255,26 +255,10 @@ export function StaffDirectory({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-end gap-6">
-          <SelectFilter
-            label="Line of business"
-            value={lineOfBusiness}
-            options={lineOfBusinessOptions}
-            onChange={setLineOfBusiness}
-          />
-          <SelectFilter
-            label="Role"
-            value={role}
-            options={roleOptions}
-            onChange={setRole}
-          />
-          <SegmentedFilter
-            label="Type"
-            value={type}
-            options={typeOptions}
-            onChange={setType}
-          />
-          <SkillsFilter value={skills} onChange={setSkills} />
+        <div className="grid grid-cols-4 items-end gap-4">
+          <div className="col-span-3">
+            <SkillsFilter value={skills} onChange={setSkills} />
+          </div>
           {skills.length > 0 ? (
             <div className="flex flex-col gap-1.5">
               <FilterLabel>Minimum level</FilterLabel>
@@ -297,7 +281,27 @@ export function StaffDirectory({
               </ToggleGroup>
             </div>
           ) : null}
+        </div>
 
+        <div className="grid grid-cols-4 items-end gap-4">
+          <SelectFilter
+            label="Line of business"
+            value={lineOfBusiness}
+            options={lineOfBusinessOptions}
+            onChange={setLineOfBusiness}
+          />
+          <SelectFilter
+            label="Role"
+            value={role}
+            options={roleOptions}
+            onChange={setRole}
+          />
+          <SegmentedFilter
+            label="Type"
+            value={type}
+            options={typeOptions}
+            onChange={setType}
+          />
           <div className="flex h-9 items-center gap-2 text-sm">
             <Switch
               id={inactiveId}
