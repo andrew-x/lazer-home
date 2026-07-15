@@ -1,7 +1,7 @@
 import { IconExternalLink } from "@tabler/icons-react";
 import type { StaffPtoView } from "@/actions/staff/getStaffPto";
 import { PtoList } from "@/components/staff/pto-list";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -26,24 +26,21 @@ export function PtoSection({ pto }: { pto: StaffPtoView }) {
       <CardHeader>
         <CardTitle>Time off</CardTitle>
         <CardAction>
-          <Button
-            variant="ghost"
-            size="sm"
-            nativeButton={false}
-            render={
-              // Browser extensions (password managers, translators) mutate this
-              // interactive link before hydration; suppress the resulting mismatch.
-              <a
-                href={RIPPLING_TIME_OFF_URL}
-                target="_blank"
-                rel="noreferrer"
-                suppressHydrationWarning
-              >
-                Manage
-                <IconExternalLink />
-              </a>
-            }
-          />
+          {/*
+            A real anchor, not <Button render={<a>}>: this navigates to an
+            external page, so it's a link — not a role="button". Keeping the
+            faux-button semantics also gave extensions an interactive element to
+            mutate pre-hydration, which broke hydration here.
+          */}
+          <a
+            href={RIPPLING_TIME_OFF_URL}
+            target="_blank"
+            rel="noreferrer"
+            className={buttonVariants({ variant: "ghost", size: "sm" })}
+          >
+            Manage
+            <IconExternalLink />
+          </a>
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
