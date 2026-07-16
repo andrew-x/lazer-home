@@ -48,17 +48,18 @@ import {
   SOURCE_LABELS,
 } from "@/lib/opportunity";
 import { requiresProject } from "@/lib/opportunity-pipeline";
+import { CompanyCombobox } from "./company-combobox";
 import { CreateContactInlineDialog } from "./create-contact-inline-dialog";
 import { STATUS_SELECT_LABELS } from "./opportunity-display";
 
 /**
  * The opportunity detail drawer: a wide right-side sheet opened by clicking a
  * board card. The header carries the name (edited in place with confirm/cancel)
- * and the status (a direct-edit select that saves on change) over the company
- * name. Below, an Info tab holds the remaining fields, each editing one at a time
+ * and the status (a direct-edit select that saves on change). Below, an Info tab
+ * holds the remaining fields — including the company — each editing one at a time
  * in place (per-field confirm/cancel, saved via `updateOpportunity`), and a
- * Project plan tab for the single project that delivers the opportunity. Company
- * isn't editable here. Detail is loaded on open via `loadOpportunityDetail` and
+ * Project plan tab for the single project that delivers the opportunity. Detail
+ * is loaded on open via `loadOpportunityDetail` and
  * re-fetched after every save so the read views reflect it. The drawer only
  * mounts for `crm.edit` users (gated on the board), so editing is always allowed.
  */
@@ -175,6 +176,7 @@ function OpportunityDetailView({
         <TabsContent value="info" className="flex flex-col gap-4 pt-4">
           <LineOfBusinessField detail={detail} refresh={refresh} />
           <SourceField detail={detail} refresh={refresh} />
+          <CompanyField detail={detail} refresh={refresh} />
           <ContactsField detail={detail} refresh={refresh} />
           <OwnersField detail={detail} refresh={refresh} />
           <NextStepsField detail={detail} refresh={refresh} />
@@ -232,6 +234,7 @@ function detailToInput(detail: OpportunityDetail): UpdateOpportunityInput {
   return {
     id: detail.id,
     name: detail.name,
+    companyId: detail.company.id,
     lineOfBusiness: detail.lineOfBusiness,
     contactIds: detail.contacts.map((c) => c.id),
     ownerIds: detail.owners.map((o) => o.id),
@@ -308,19 +311,22 @@ function EntityNames({ items }: { items: EntityRef[] }) {
 
 /**
  * The drawer header: the opportunity name (edited in place via the same
- * confirm/cancel workflow as the Info fields) over the company name, with the
- * status as a direct-edit select on the right. A visually-hidden `SheetTitle`
- * keeps a stable accessible name for the dialog while the visible name field
- * swaps between read and edit modes.
+ * confirm/cancel workflow as the Info fields), with the status as a direct-edit
+ * select on the right. The company lives in the Info tab as its own editable
+ * field. A visually-hidden `SheetTitle` keeps a stable accessible name for the
+ * dialog while the visible name field swaps between read and edit modes; a
+ * visually-hidden `SheetDescription` satisfies the dialog's description slot.
  */
 function OpportunityHeader({ detail, refresh }: FieldProps) {
   return (
     <>
       <SheetTitle className="sr-only">{detail.name}</SheetTitle>
+      <SheetDescription className="sr-only">
+        Opportunity details for {detail.name}
+      </SheetDescription>
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <HeaderNameField detail={detail} refresh={refresh} />
-          <SheetDescription>{detail.company.name}</SheetDescription>
         </div>
         <HeaderStatusField detail={detail} refresh={refresh} />
       </div>
@@ -482,6 +488,35 @@ function OwnersField({ detail, refresh }: FieldProps) {
         searchAction={searchStaff}
         placeholder="Search staff…"
         invalid={Boolean(save.error)}
+      />
+    </InlineEditField>
+  );
+}
+
+function CompanyField({ detail, refresh }: FieldProps) {
+  const save = useInlineSave(detail, refresh);
+  const [draft, setDraft] = useState<EntityRef | null>(detail.company);
+  return (
+    <InlineEditField
+      label="Company"
+      display={detail.company.name}
+      editing={save.editing}
+      isSaving={save.isPending}
+      error={save.error}
+      onEdit={() => {
+        setDraft(detail.company);
+        save.open();
+      }}
+      onCancel={save.close}
+      // A cleared company fails the schema's required rule, surfacing inline.
+      onConfirm={() =>
+        save.commit({ companyId: draft?.id ?? "" }, ["companyId"])
+      }
+    >
+      <CompanyCombobox
+        value={draft?.id ?? null}
+        selectedName={draft?.name ?? null}
+        onChange={setDraft}
       />
     </InlineEditField>
   );
