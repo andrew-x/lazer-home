@@ -222,6 +222,11 @@ gate is the real boundary. See [permissions.md](./permissions.md).
   advancing an opportunity past Scoping ([ADR 0019](../decisions/0019-project-opportunity-link.md)).
 - **Staff** — delivery managers and (staffed) role staff are `staff` rows. Delivery-manager
   FKs cascade; a role's `staffId` is `restrict` and **nullable** (null ⇒ placeholder).
+  The **reverse read** (which projects a person is on) lives in the staff domain:
+  `getStaffProjects(staffId)` (`src/actions/staff/getStaffProjects.ts`) unions
+  `project_roles.staffId` + `project_delivery_managers.staffId` into one row per project
+  (name, company, status, relationship labels) for the profile's Projects sub-section —
+  the first staff→projects read in the app. See [staff-profiles.md](./staff-profiles.md).
 - **Allocations** — `project_roles` is the first concrete cut of the Allocation
   entity (see [allocations.md](./allocations.md), [ADR 0017](../decisions/0017-project-roles-as-first-allocation-cut.md)).
 - **Timesheets / billing** — projects will be the thing time is logged against and
