@@ -14,10 +14,7 @@ import {
   staff,
 } from "@/lib/db/schema";
 import type { LineOfBusiness } from "@/lib/line-of-business";
-import type {
-  OpportunitySource,
-  OpportunityStatus,
-} from "./createOpportunity.schema";
+import type { OpportunitySource, OpportunityStatus } from "@/lib/opportunity";
 
 /** A picked entity, shaped for the drawer's comboboxes. */
 export type EntityRef = { id: string; name: string };

@@ -4,17 +4,6 @@ import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
 import { OPPORTUNITY_SOURCES, OPPORTUNITY_STATUSES } from "@/lib/opportunity";
 import { optionalText } from "@/lib/text-schema";
 
-// The pipeline enums (and their types) live in `@/lib/opportunity` — a pure,
-// client-importable module owned below the actions layer, so the pgEnum, the
-// zod below, and the UI all derive from one source. Re-exported here for the
-// existing importers that reach for them via this schema module.
-export {
-  OPPORTUNITY_SOURCES,
-  OPPORTUNITY_STATUSES,
-  type OpportunitySource,
-  type OpportunityStatus,
-} from "@/lib/opportunity";
-
 /**
  * The field shape shared by create and update. Both build a `z.object` from
  * these fields (create adds `companyId`, update adds `id`) then apply

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getCompaniesPage } from "@/actions/crm/getCompaniesPage";
 import { AddCompanyDialog } from "@/components/crm/add-company-dialog";
 import { CompaniesTable } from "@/components/crm/companies-table";
-import { PaginationControls } from "@/components/crm/pagination-controls";
+import { PaginationControls } from "@/components/pagination-controls";
 import { getCurrentUser } from "@/lib/auth";
 import { parsePage } from "@/lib/pagination";
 import { userHasPermission } from "@/lib/permissions";

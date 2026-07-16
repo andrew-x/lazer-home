@@ -8,12 +8,12 @@ import {
 import { IconArrowsMaximize, IconArrowsMinimize } from "@tabler/icons-react";
 import type { OpportunityBoardCard } from "@/actions/crm/getOpportunitiesBoard";
 import { IconButton } from "@/components/icon-button";
+import { STATUS_LABELS } from "@/lib/opportunity";
 import { cn } from "@/lib/utils";
 import {
   OpportunityCardView,
   SortableOpportunityCard,
 } from "./opportunity-card";
-import { STATUS_LABELS } from "./opportunity-display";
 
 export type ColumnToggle = { expanded: boolean; onToggle: () => void };
 

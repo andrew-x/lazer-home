@@ -1,2 +1,0 @@
-ALTER TYPE "public"."pto_type" ADD VALUE 'COMPANY_RETREAT' BEFORE 'OTHER_LEAVE';--> statement-breakpoint
-ALTER TYPE "public"."pto_type" ADD VALUE 'RELIGIOUS_HOLIDAY' BEFORE 'OTHER_LEAVE';

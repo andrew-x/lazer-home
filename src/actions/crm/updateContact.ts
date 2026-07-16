@@ -5,8 +5,8 @@ import { revalidatePath } from "next/cache";
 import { secureActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
 import { contacts } from "@/lib/db/schema";
-import { isUniqueViolation } from "@/lib/db/unique-violation";
 import { UserSafeActionError } from "@/lib/errors";
+import { assertValidManager, mapContactEmailConflict } from "./contactChecks";
 import { updateContactSchema } from "./updateContact.schema";
 
 /**
@@ -26,26 +26,11 @@ export const updateContact = secureActionClient
   .action(async ({ parsedInput }) => {
     const { id } = parsedInput;
 
-    if (parsedInput.managerId !== null) {
-      if (parsedInput.managerId === id) {
-        throw new UserSafeActionError("A contact can't manage themselves.");
-      }
-      if (parsedInput.companyId === null) {
-        throw new UserSafeActionError(
-          "Set a company before choosing a manager.",
-        );
-      }
-      const [manager] = await db
-        .select({ companyId: contacts.companyId })
-        .from(contacts)
-        .where(eq(contacts.id, parsedInput.managerId))
-        .limit(1);
-      if (!manager || manager.companyId !== parsedInput.companyId) {
-        throw new UserSafeActionError(
-          "The manager must be a contact at the same company.",
-        );
-      }
-    }
+    await assertValidManager({
+      managerId: parsedInput.managerId,
+      companyId: parsedInput.companyId,
+      selfId: id,
+    });
 
     let updated: { id: string }[];
     try {
@@ -65,12 +50,7 @@ export const updateContact = secureActionClient
         .where(eq(contacts.id, id))
         .returning({ id: contacts.id });
     } catch (error) {
-      if (isUniqueViolation(error, "contacts_email_unique")) {
-        throw new UserSafeActionError(
-          "A contact with that email already exists.",
-        );
-      }
-      throw error;
+      mapContactEmailConflict(error);
     }
 
     if (updated.length === 0) {

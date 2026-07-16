@@ -95,7 +95,7 @@ Runtime and package manager are **Bun**. Linter/formatter is **Biome** (not ESLi
 
 - `bun run dev` — dev server · `bun run build` — production build (also type-checks)
 - `bun run check` — Biome lint + `tsc --noEmit` + `bun test` (pre-flight) · `bun run format` — Biome auto-fix
-- After schema changes: `bun run db:generate` → `bun run db:migrate` (`db:push`/`db:studio` for dev; `auth:generate` for Better Auth tables)
+- After schema changes: `bun run db:generate` → `bun run db:migrate` (`db:push`/`db:studio` for dev; `auth:generate` for Better Auth tables). **Then update `scripts/seed/` to match** — the synthetic-data seed (`bun run db:seed`, reads `DATABASE_URL`, wipes & reseeds every domain) imports the real Drizzle tables and enum sources, so a stale seed shows up as a `bun run check` failure. Keep it green when you touch the data model.
 - **Before claiming done:** run `bun run check`, plus `bun run build` for anything non-trivial.
 
 Area-specific conventions live in `.claude/rules/` (Claude Code) and the nested `src/**/AGENTS.md` files (Codex) — see _Agent runtimes_.

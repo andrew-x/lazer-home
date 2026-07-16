@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { getManualOfMe } from "@/actions/responses/getManualOfMe";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
 import { getStaffHistory } from "@/actions/staff/getStaffHistory";
 import { getStaffProfile } from "@/actions/staff/getStaffProfile";
@@ -23,10 +24,11 @@ export default async function ProfilePage() {
   if (!user || !staffId) notFound();
 
   // Own profile — always allowed to see own compensation.
-  const [profile, history, pto] = await Promise.all([
+  const [profile, history, pto, manualOfMe] = await Promise.all([
     getStaffProfile(staffId),
     getStaffHistory(staffId, true),
     getStaffPto(staffId),
+    getManualOfMe(staffId),
   ]);
   if (!profile) notFound();
 
@@ -35,6 +37,7 @@ export default async function ProfilePage() {
       staffId={staffId}
       imageUrl={user.image ?? null}
       profile={profile}
+      manualOfMe={manualOfMe}
       history={history}
       pto={pto}
       canEdit={true}

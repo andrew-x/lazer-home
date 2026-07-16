@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getProjectsPage } from "@/actions/projects/getProjectsPage";
-import { PaginationControls } from "@/components/crm/pagination-controls";
+import { PaginationControls } from "@/components/pagination-controls";
 import { AddProjectDialog } from "@/components/projects/add-project-dialog";
 import { ProjectsTable } from "@/components/projects/projects-table";
 import { getCurrentUser } from "@/lib/auth";

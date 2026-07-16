@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { RIPPLING_TIME_OFF_URL } from "@/lib/constants";
-import { humanizeEnum } from "@/lib/format";
+import { PTO_TYPE_LABELS } from "@/lib/staff-enums";
 
 /** How many past spans to show before collapsing the rest behind "Show more". */
 const PAST_COLLAPSE_AFTER = 4;
@@ -63,7 +63,7 @@ export function PtoSection({ pto }: { pto: StaffPtoView }) {
                         </span>
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {humanizeEnum(entry.type)}
+                        {PTO_TYPE_LABELS[entry.type]}
                       </span>
                     </div>
                   ))}

@@ -59,18 +59,25 @@ export function FilterLabel({ children }: { children: string }) {
   );
 }
 
-/** Single-select filter over a list of enum options, with an "All" escape. */
+/**
+ * Single-select filter over a list of enum options, with an "All" escape. Pass
+ * `labels` to render values through a single-source label map (e.g. the staff
+ * enums); without it, options fall back to `humanizeEnum`.
+ */
 export function SelectFilter({
   label,
   value,
   options,
+  labels,
   onChange,
 }: {
   label: string;
   value: string;
   options: readonly string[];
+  labels?: Record<string, string>;
   onChange: (value: string) => void;
 }) {
+  const display = (option: string) => labels?.[option] ?? humanizeEnum(option);
   return (
     <div className="flex flex-col gap-1.5">
       <FilterLabel>{label}</FilterLabel>
@@ -78,7 +85,7 @@ export function SelectFilter({
         <SelectTrigger aria-label={label} className="w-44">
           <SelectValue>
             {(current: string | null) =>
-              !current || current === ALL ? "All" : humanizeEnum(current)
+              !current || current === ALL ? "All" : display(current)
             }
           </SelectValue>
         </SelectTrigger>
@@ -86,7 +93,7 @@ export function SelectFilter({
           <SelectItem value={ALL}>All</SelectItem>
           {options.map((option) => (
             <SelectItem key={option} value={option}>
-              {humanizeEnum(option)}
+              {display(option)}
             </SelectItem>
           ))}
         </SelectContent>

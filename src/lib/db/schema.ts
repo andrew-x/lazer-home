@@ -11,6 +11,8 @@ export * from "./opportunities-schema";
 export * from "./performance-schema";
 // Projects domain (projects, delivery managers, roles).
 export * from "./projects-schema";
+// Survey responses domain (generic responses table).
+export * from "./responses-schema";
 // Staff profiles domain (staff, staff_employment, staff_pto + enums).
 export * from "./staff-schema";
 // Timesheets domain (timesheets, time_entries + enums).

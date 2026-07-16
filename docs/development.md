@@ -47,6 +47,14 @@ bun run format   # biome format --write  → auto-fix formatting
 - **Better Auth tables:** `bun run auth:generate` regenerates `src/lib/db/auth-schema.ts`; they live in our own schema/migrations, so re-run `db:generate` → `db:migrate` after.
 - `drizzle.config.ts` `casing: "snake_case"` MUST stay in sync with the runtime client in `src/lib/db/db.ts`.
 
+## Seeding synthetic data
+
+`bun run db:seed` (`scripts/seed.ts` + `scripts/seed/*`) **wipes every seedable table** (`TRUNCATE ... RESTART IDENTITY CASCADE`) and reinserts a coherent, reproducible dataset across all domains — ~42 staff in a 3-tier manager hierarchy (each with one `staff_employment`, some skills + PTO), an admin `user` linked to the staff profile for `andrew@lazertechnologies.com`, 20 companies / 40 contacts / 28 opportunities (spread across all 14 pipeline stages), 15 projects (some from closed-won opps, some with open roles), ~60 timesheets over recent weeks (draft + submitted, entries satisfying the project-XOR-category check), and 50 peer-feedback rows. Faker is seeded with a fixed value, so runs are deterministic.
+
+Safety rails: it reads `DATABASE_URL` from the env (Bun auto-loads `.env`), **refuses if the URL looks production-ish** (contains "prod") unless `--allow-prod`, and **prompts for `y`** unless `--yes`/`-y`. It owns its own `postgres` client (does not reuse the app singleton — a documented exception to the actions-layer / "never construct a new client" rules; see `scripts/seed/client.ts` and [architecture.md](./architecture.md#data-access--the-actions-layer-is-the-only-door-to-the-db)).
+
+**Drift guard:** the seed imports the real Drizzle tables and the `@/lib/*` enum-value sources directly, so a data-model change that outdates it surfaces as a `bun run check` (tsc) failure. **After any schema change, update `scripts/seed/` to match** and keep `check` green. `@faker-js/faker` is a devDependency.
+
 ## Modified Next.js
 
 This is a modified Next.js 16 build — see the [concrete deltas](./architecture.md#modified-nextjs-16--concrete-deltas) (async `params`/`cookies()`/`headers()`, `unstable_retry`, image `qualities`/`preload`, `redirect()` outside try/catch) and verify APIs against `node_modules/next/dist/docs/` before writing.

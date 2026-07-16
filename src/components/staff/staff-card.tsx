@@ -3,8 +3,10 @@ import type { StaffDirectoryEntry } from "@/actions/staff/getStaffDirectory";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { humanizeEnum, initialsFor } from "@/lib/format";
+import { initialsFor } from "@/lib/format";
+import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
 import { PROFICIENCY_LABELS } from "@/lib/skills";
+import { ROLE_LABELS } from "@/lib/staff-enums";
 import { cn } from "@/lib/utils";
 
 /**
@@ -19,9 +21,11 @@ export function StaffCard({
   entry: StaffDirectoryEntry;
   highlightedSkills?: string[];
 }) {
-  const subtitle = [entry.role, entry.lineOfBusiness]
-    .filter((value) => value !== null)
-    .map((value) => humanizeEnum(value))
+  const subtitle = [
+    entry.role && ROLE_LABELS[entry.role],
+    entry.lineOfBusiness && LINE_OF_BUSINESS_LABELS[entry.lineOfBusiness],
+  ]
+    .filter(Boolean)
     .join(" · ");
 
   const matchedSkills = highlightedSkills?.length

@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is an internal **Professional Services Automation (PSA) platform** for a software consultancy, spanning CRM, allocations, timesheets, staff profiles, and performance management. Built on [Next.js](https://nextjs.org).
 
 ## Getting Started
 
-First, run the development server:
+The runtime and package manager is [Bun](https://bun.sh). Start the development server:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Edit pages under `src/app`. The app auto-updates as you edit.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Development
 
-## Learn More
+- `bun run dev` — start the dev server
+- `bun run check` — pre-flight: Biome lint + `tsc --noEmit` + tests (run before pushing)
+- `bun run build` — production build (also type-checks)
+- `bun run db:seed` — populate the database with synthetic data (see below)
 
-To learn more about Next.js, take a look at the following resources:
+## Seeding synthetic data
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`bun run db:seed` fills the database with a coherent, reproducible fake dataset
+across every domain — staff (with a manager hierarchy, skills, and PTO), CRM
+companies and contacts, opportunities across all pipeline stages, projects,
+timesheets, and peer feedback. It reads `DATABASE_URL` from the environment (Bun
+auto-loads `.env`) and seeds an admin account for `andrew@lazertechnologies.com`
+so you can sign in to a fully-populated app.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**It wipes every seedable table first.** As a safeguard it refuses to run against
+a production-looking URL and prompts for confirmation:
 
-## Deploy on Vercel
+```bash
+bun run db:seed              # prompts before wiping the target database
+bun run db:seed --yes        # skip the confirmation (CI / scripted use)
+bun run db:seed --allow-prod # override the production-URL guard (careful!)
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The script (`scripts/seed/`) imports the real Drizzle schema and enum sources, so
+`bun run check` fails if it drifts from the data model — **update `scripts/seed/`
+after any schema change.**
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See `AGENTS.md` for conventions and `docs/README.md` for architecture and domain documentation.

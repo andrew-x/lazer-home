@@ -10,10 +10,7 @@ import {
   projects,
   staff,
 } from "@/lib/db/schema";
-import type {
-  OpportunitySource,
-  OpportunityStatus,
-} from "./createOpportunity.schema";
+import type { OpportunitySource, OpportunityStatus } from "@/lib/opportunity";
 
 export type CompanyOpportunity = {
   id: string;

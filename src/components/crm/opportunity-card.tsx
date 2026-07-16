@@ -6,8 +6,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { IconGripVertical } from "@tabler/icons-react";
 import type { OpportunityBoardCard } from "@/actions/crm/getOpportunitiesBoard";
 import { Badge } from "@/components/ui/badge";
+import { SOURCE_LABELS, STATUS_LABELS } from "@/lib/opportunity";
 import { cn } from "@/lib/utils";
-import { SOURCE_LABELS, STATUS_LABELS } from "./opportunity-display";
 
 // dnd-kit's `listeners` map; typed off `useSortable` so we don't reach into
 // the package's internal path.

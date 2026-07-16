@@ -17,13 +17,13 @@ import { IconArrowsMinimize, IconSearch } from "@tabler/icons-react";
 import { useAction } from "next-safe-action/hooks";
 import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
-import type { OpportunityStatus } from "@/actions/crm/createOpportunity.schema";
 import type { OpportunityBoardCard } from "@/actions/crm/getOpportunitiesBoard";
 import { updateOpportunityPosition } from "@/actions/crm/updateOpportunityPosition";
 import { IconButton } from "@/components/icon-button";
 import { AddProjectDialog } from "@/components/projects/add-project-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { type OpportunityStatus, STATUS_LABELS } from "@/lib/opportunity";
 import {
   computePosition,
   type DropTarget,
@@ -36,7 +36,6 @@ import {
 import { OpportunityBoardColumn } from "./opportunity-board-column";
 import { CardDragHandle, OpportunityCardView } from "./opportunity-card";
 import { OpportunityDetailSheet } from "./opportunity-detail-sheet";
-import { STATUS_LABELS } from "./opportunity-display";
 
 /** A status move waiting on a project being created for the opportunity. */
 type PendingMove = { id: string; status: OpportunityStatus; position: number };
