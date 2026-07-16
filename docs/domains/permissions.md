@@ -171,8 +171,8 @@ set. The metadata schema in `src/lib/action.ts` carries `role`, `permission`, an
 - **`src/actions/staff/canViewCompensation.ts`** — the comp-visibility decision
   point (mirrors `canEditStaff`). **`canViewCompensation(user, targetStaffId):
   Promise<boolean>`** — a user may **always** see their **own** compensation; seeing
-  anyone else's requires `staff.viewCompensation`. Because `HistorySheet` is a client
-  component, this gates comp both as a UI affordance (the profile comp card) *and* at
+  anyone else's requires `staff.viewCompensation`. Because history renders in a client
+  component (the profile's tabbed panel), this gates comp both as a UI affordance (the profile comp card) *and* at
   the read: there is **no separate `COMPENSATION` category** — comp amounts ride each
   `EMPLOYMENT` entry's summary, and when the flag is false `getStaffHistory` drops
   those amounts from the summary, so salary never leaves the server for an

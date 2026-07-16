@@ -19,8 +19,8 @@ import { updateOpportunitySchema } from "./updateOpportunity.schema";
 
 /**
  * Edit an opportunity and its people links (one transaction). Gated on
- * `crm.edit`. The company isn't editable here. The four people junctions are
- * replaced wholesale (delete + re-insert the id sets) — the same shape
+ * `crm.edit`. The four people junctions are replaced wholesale (delete +
+ * re-insert the id sets) — the same shape
  * `createOpportunity` writes. A move into a delivery stage requires a linked
  * project (see `requiresProject`), enforced here as well as in the UI.
  */
@@ -58,6 +58,7 @@ export const updateOpportunity = secureActionClient
         .update(opportunities)
         .set({
           name: parsedInput.name,
+          companyId: parsedInput.companyId,
           lineOfBusiness: parsedInput.lineOfBusiness,
           source: parsedInput.source,
           status: parsedInput.status,

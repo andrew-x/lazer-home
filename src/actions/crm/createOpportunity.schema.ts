@@ -6,11 +6,13 @@ import { optionalText } from "@/lib/text-schema";
 
 /**
  * The field shape shared by create and update. Both build a `z.object` from
- * these fields (create adds `companyId`, update adds `id`) then apply
- * `refineReferral`, so the two schemas can't drift.
+ * these fields (update adds `id`) then apply `refineReferral`, so the two
+ * schemas can't drift. Company is included here since both flows edit it.
  */
 export const opportunityBaseFields = {
   name: z.string().trim().min(1, "Name is required.").max(200),
+  // Company is required — every opportunity belongs to a company.
+  companyId: z.string().min(1, "Company is required."),
   lineOfBusiness: z.enum(LINE_OF_BUSINESS),
   contactIds: idList,
   ownerIds: idList,
@@ -54,8 +56,6 @@ export function refineReferral(
 export const createOpportunitySchema = z
   .object({
     ...opportunityBaseFields,
-    // Company is required — every opportunity belongs to a company.
-    companyId: z.string().min(1, "Company is required."),
   })
   .superRefine(refineReferral);
 
