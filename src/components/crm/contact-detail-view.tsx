@@ -22,6 +22,7 @@ import { contactName } from "@/lib/contact-name";
 import { humanizeEnum, initialsFor } from "@/lib/format";
 import { TabLabel, TableEmpty } from "./detail-parts";
 import { EditContactDialog } from "./edit-contact-dialog";
+import { InlineOwnerField } from "./inline-owner-field";
 import { OpportunityStatusBadge } from "./opportunity-status-badge";
 
 /** A label/value row in the details card; falls back to an em dash when empty. */
@@ -213,7 +214,13 @@ export function ContactDetailView({
               </InternalLink>
             ) : null}
           </DetailRow>
-          <DetailRow label="Owner">{contact.ownerName}</DetailRow>
+          <InlineOwnerField
+            kind="contact"
+            entityId={contact.id}
+            canEdit={canEdit}
+            ownerId={contact.ownerId}
+            ownerName={contact.ownerName}
+          />
         </CardContent>
       </Card>
 

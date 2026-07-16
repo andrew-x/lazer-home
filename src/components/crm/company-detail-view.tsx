@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { humanizeEnum } from "@/lib/format";
 import { TabLabel, TableEmpty } from "./detail-parts";
 import { EditCompanyDialog } from "./edit-company-dialog";
+import { InlineOwnerField } from "./inline-owner-field";
 import { OpportunityStatusBadge } from "./opportunity-status-badge";
 
 /**
@@ -54,9 +55,15 @@ export function CompanyDetailView({
           ) : (
             <span className="text-sm text-muted-foreground">No website</span>
           )}
-          <span className="text-sm text-muted-foreground">
-            Owner: {company.ownerName ?? "Unassigned"}
-          </span>
+          <div className="mt-1 max-w-xs">
+            <InlineOwnerField
+              kind="company"
+              entityId={company.id}
+              canEdit={canEdit}
+              ownerId={company.ownerId}
+              ownerName={company.ownerName}
+            />
+          </div>
         </div>
         {canEdit ? (
           <div className="ml-auto">
