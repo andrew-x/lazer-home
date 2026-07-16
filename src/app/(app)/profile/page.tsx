@@ -4,6 +4,7 @@ import { getManualOfMe } from "@/actions/responses/getManualOfMe";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
 import { getStaffHistory } from "@/actions/staff/getStaffHistory";
 import { getStaffProfile } from "@/actions/staff/getStaffProfile";
+import { getStaffProjects } from "@/actions/staff/getStaffProjects";
 import { getStaffPto } from "@/actions/staff/getStaffPto";
 import { ProfileView } from "@/components/staff/profile-view";
 import { getCurrentUser } from "@/lib/auth";
@@ -24,8 +25,9 @@ export default async function ProfilePage() {
   if (!user || !staffId) notFound();
 
   // Own profile — always allowed to see own compensation.
-  const [profile, history, pto, manualOfMe] = await Promise.all([
+  const [profile, projects, history, pto, manualOfMe] = await Promise.all([
     getStaffProfile(staffId),
+    getStaffProjects(staffId),
     getStaffHistory(staffId, true),
     getStaffPto(staffId),
     getManualOfMe(staffId),
@@ -37,6 +39,7 @@ export default async function ProfilePage() {
       staffId={staffId}
       imageUrl={user.image ?? null}
       profile={profile}
+      projects={projects}
       manualOfMe={manualOfMe}
       history={history}
       pto={pto}

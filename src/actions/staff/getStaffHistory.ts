@@ -47,9 +47,10 @@ function compParts(row: {
  *
  * Compensation is folded into the employment entry's summary (one entry per
  * effective-dated change, not a separate category). `includeCompensation` gates
- * whether those comp amounts are appended at all — `HistorySheet` is a client
- * component, so comp must be filtered here (at the read) rather than in the UI, or
- * it would ship to unauthorized clients. Pass the result of `canViewCompensation`.
+ * whether those comp amounts are appended at all — history renders in a client
+ * component (the profile's tabbed panel), so comp must be filtered here (at the
+ * read) rather than in the UI, or it would ship to unauthorized clients. Pass the
+ * result of `canViewCompensation`.
  */
 export async function getStaffHistory(
   staffId: string,
