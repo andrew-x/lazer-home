@@ -19,7 +19,6 @@ import {
   useComboboxAnchor,
 } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -56,11 +55,21 @@ const SKILL_GROUPS = SKILL_CATEGORIES.map((category) => ({
 }));
 
 /** Small uppercase caption that heads each filter control. */
-function FilterLabel({ children }: { children: string }) {
-  return (
-    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+function FilterLabel({
+  children,
+  htmlFor,
+}: {
+  children: string;
+  htmlFor?: string;
+}) {
+  const className =
+    "text-xs font-medium uppercase tracking-wide text-muted-foreground";
+  return htmlFor ? (
+    <label htmlFor={htmlFor} className={className}>
       {children}
-    </span>
+    </label>
+  ) : (
+    <span className={className}>{children}</span>
   );
 }
 
@@ -244,7 +253,7 @@ export function StaffDirectory({
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={searchId}>Name</Label>
+          <FilterLabel htmlFor={searchId}>Name</FilterLabel>
           <div className="relative">
             <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
