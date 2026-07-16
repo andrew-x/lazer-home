@@ -1,6 +1,6 @@
 # Frontend / UI
 
-**Status: built.** The authenticated UI shell, auth screens, and error/404/loading conventions exist, plus real domain pages: staff (directory + profiles), CRM (`/companies`, `/contacts`, `/opportunities`), projects (`/projects`), and peer feedback (`/feedback`). The home dashboard is still placeholder stat cards. Path-scoped working rules are in `.claude/rules/ui.md` (loads when you touch `src/components/**` or `src/app/**`) — read it before writing UI code; this doc is the architectural *why*.
+**Status: built.** The authenticated UI shell, auth screens, and error/404/loading conventions exist, plus real domain pages: staff (directory + profiles), CRM (`/companies`, `/contacts`, `/opportunities`), projects (`/projects`), peer feedback (`/feedback`), and the compensation analytics dashboard (`/performance`). The home dashboard is still placeholder stat cards. Path-scoped working rules are in `.claude/rules/ui.md` (loads when you touch `src/components/**` or `src/app/**`) — read it before writing UI code; this doc is the architectural *why*.
 
 ## Component library
 
@@ -33,16 +33,43 @@ A deliberate, editorial look that **avoids the generic AI-app aesthetic** (round
 
 The brand mark is `public/icon.svg` — **magenta** (`#FF00C5`) — exposed via `<LogoMark>` / `<Logo>` in `src/components/brand/logo.tsx`. The product name is `APP_NAME` ("Lazer Home") in `src/lib/constants.ts`. The magenta mark against the indigo UI accent is **intentional** — the logo is the brand, the indigo is the product chrome; don't "fix" the mismatch.
 
+### Charts (hand-rolled SVG — no charting library)
+
+Data viz is **hand-rolled inline `<svg>`**; **do not add a charting dependency**
+(no Recharts/visx/Chart.js/etc.). This is deliberate — a library's default look
+(rounded, shadowed, multi-color, boxed legends) fights the flat/editorial design
+language, and our charts are simple enough to draw directly. The first instance is
+the `/performance` distribution scatter (`src/components/performance/compensation-scatter.tsx`);
+**follow the same approach for future charts** rather than reaching for a library.
+
+Dataviz styling rules (consistent with the design language above):
+
+- **Thin marks, recessive gridlines.** Gridlines/axis baseline are hairlines
+  (`stroke-border`, `strokeWidth={1}`); the mark is small (`r={3.5}`).
+- **Indigo is the data-ink.** A single data series uses the **`--primary`** token
+  (`fill-primary`) — the one place data earns the accent. Keep it to one series; a
+  single-series chart needs **no legend** (the `<figcaption>` caption names the
+  metric).
+- **Detail via native `<title>`.** Per-mark hover/label is a `<title>` child of the
+  element — no tooltip library, and it doubles as the accessible label (with a
+  `role="img"` + `aria-label` on the `<svg>`).
+- **Non-zero baseline is OK for scatters.** Dots carry no area-from-zero meaning
+  (unlike bars), so padding the domain off zero to keep the spread legible is
+  honest. Don't do this for bar charts.
+- **Fixed `viewBox`, fluid width.** Draw in a fixed viewBox coordinate space that
+  scales to the container (`className="h-auto w-full"`), and use
+  `vectorEffect="non-scaling-stroke"` so hairlines stay crisp at any width.
+
 ## Routing & auth gating
 
 Route groups split public from authenticated, and **route protection lives in a layout, not middleware** — consistent with the project's deliberate no-middleware stance (see ADR-0006).
 
-- `src/app/(app)/**` — authenticated pages. `(app)/layout.tsx` is an async Server Component that calls `getCurrentUser()` and `redirect("/login")` when there's no session, **then** `getCurrentStaff(user)` and redirects any non-`ok` status to the single `/profile-setup` route (status is `ok` = active staff record with employment — see [flows.md](./flows.md)). Every page under `(app)` is gated by this two-step check.
+- `src/app/(app)/**` — authenticated pages. `(app)/layout.tsx` is an async Server Component that calls `getCurrentUser()` and `redirect("/login")` when there's no session, **then** `getCurrentStaff(user)` and redirects any non-`ok` status to the single `/profile-setup` route (status is `ok` = active staff record with employment — see [flows.md](./flows.md)). Every page under `(app)` is gated by this two-step check. The layout also computes **`visibleNavHrefs`** (see *App shell & sidebar* → permission-aware nav) and threads it into `AppShell`.
 - `src/app/(onboarding)/**` — the post-login **block** screen for authenticated users who can't enter the app yet: a single `profile-setup/page.tsx` that resolves `getCurrentStaff` itself and shows different title/body for the `incomplete` vs `not_setup` cases (same screen). There is **no group `layout.tsx`** — the page self-gates like `/login`: it redirects unauthenticated users to `/login` and bounces `ok` users back to `/` so a fixed-up profile is never stuck here. The screen uses `OnboardingNotice` (`src/components/auth/onboarding-notice.tsx`) — a login-styled full-screen notice (logo + title + message + `SignOutButton`).
 - `src/app/(auth)/**` — public pages (currently only `/login`, which redirects to `/` if already signed in).
 - The old default `src/app/page.tsx` was deleted; the home dashboard is now `(app)/page.tsx` served at `/`.
 
-Pages today: `/login` (landing + Google button), `/` (home dashboard with placeholder stat cards), `/staff` ("Browse staff" — searchable/filterable directory of everyone) and `/staff/[id]` (a person's profile), `/profile` ("My profile" — your own staff profile, same presentation as `/staff/[id]`), `/companies` ("Companies" — the CRM company list, see below) and `/companies/[id]` (a company's detail page), `/contacts` ("Contacts" — the CRM people list, see below) and `/contacts/[id]` (a contact's detail page), `/opportunities` (the CRM pipeline kanban board, see below), `/projects` (client engagements + staffing, see below), `/feedback` (peer feedback — two-tab list + `/feedback/new` give-feedback page + `/feedback/[id]` detail, see [performance.md](./domains/performance.md)), `/settings` (account info synced from Google + sign out), `/profile-setup` (the single onboarding block screen, two messages), plus the localhost-only `/admin` surface (see below). `NAV_ITEMS` (`src/components/app-shell/nav.ts`) has **nine entries**: Home (`IconHome`), My profile → `/profile` (`IconUser`), Staff (`IconUsers`), Companies → `/companies` (`IconBuildingSkyscraper`), Contacts → `/contacts` (`IconAddressBook`), Opportunities → `/opportunities` (`IconTargetArrow`), Projects → `/projects` (`IconBriefcase`), Feedback → `/feedback` (`IconMessageHeart`), Settings (`IconSettings`). Admin is **not** in `NAV_ITEMS` but **does** appear in the sidebar footer as a **conditional, localhost-only** entry (`IconTool` → `/admin`): `app-sidebar.tsx` renders it only when its `isLocal` prop is true (see the app-shell section below), so it's visible when developing locally and absent in any non-loopback deployment.
+Pages today: `/login` (landing + Google button), `/` (home dashboard with placeholder stat cards), `/staff` ("Browse staff" — searchable/filterable directory of everyone) and `/staff/[id]` (a person's profile), `/profile` ("My profile" — your own staff profile, same presentation as `/staff/[id]`), `/companies` ("Companies" — the CRM company list, see below) and `/companies/[id]` (a company's detail page), `/contacts` ("Contacts" — the CRM people list, see below) and `/contacts/[id]` (a contact's detail page), `/opportunities` (the CRM pipeline kanban board, see below), `/projects` (client engagements + staffing, see below), `/feedback` (peer feedback — two-tab list + `/feedback/new` give-feedback page + `/feedback/[id]` detail, see [performance.md](./domains/performance.md)), `/performance` (compensation & headcount analytics — `staff.viewCompensation`-gated, `notFound()`s others; see [performance.md](./domains/performance.md)), `/settings` (account info synced from Google + sign out), `/profile-setup` (the single onboarding block screen, two messages), plus the localhost-only `/admin` surface (see below). `NAV_ITEMS` (`src/components/app-shell/nav.ts`, the source of truth) currently has **eleven entries**: Home (`IconHome`), My profile → `/profile` (`IconUser`), Staff (`IconUsers`), Companies → `/companies` (`IconBuildingSkyscraper`), Contacts → `/contacts` (`IconAddressBook`), Opportunities → `/opportunities` (`IconTargetArrow`), Projects → `/projects` (`IconBriefcase`), Timesheets → `/timesheets` (`IconClock`), Performance → `/performance` (`IconChartBar`, **permission-gated** on `staff.viewCompensation` — see *App shell & sidebar*), Feedback → `/feedback` (`IconMessageHeart`), Settings (`IconSettings`). Admin is **not** in `NAV_ITEMS` but **does** appear in the sidebar footer as a **conditional, localhost-only** entry (`IconTool` → `/admin`): `app-sidebar.tsx` renders it only when its `isLocal` prop is true (see the app-shell section below), so it's visible when developing locally and absent in any non-loopback deployment.
 
 ### `/admin` — localhost-only tooling surface
 
@@ -144,14 +171,16 @@ The app's **first drill-down detail views**. Both are Server Components that `aw
 
 `src/components/app-shell/`:
 
-- `app-shell.tsx` — Client Component; wraps `SidebarProvider` and renders the sidebar plus the page content in a padded (`p-4 md:p-6`) `<div>`. **There is no global header bar** — the old `<header>` showing a `titleForPath(pathname)` page title was removed, so `AppShell` no longer reads `usePathname()`. Each page owns its own in-page `<h2>` title (and sets the browser-tab title via `export const metadata`). It sets `defaultOpen={false}` so the sidebar starts **collapsed as a floating icon island**. Takes an **`isLocal`** prop and passes it straight through to `AppSidebar`. (`TooltipProvider` is no longer here — it now lives in the root layout; see below.)
-- `app-sidebar.tsx` — the sidebar itself; uses `<Sidebar variant="floating" collapsible="icon">` (floating icon rail), `size-5` icons. The open/close **toggle lives in its footer** — a `SidebarMenuButton` (Tabler `IconLayoutSidebar`) calling `useSidebar().toggleSidebar` (label toggles Expand/Collapse). It also takes an **`isLocal`** prop that drives the **localhost-only Admin footer entry** (`IconTool` → `/admin`, rendered only when `isLocal`). The prop originates in the server `(app)/layout.tsx`, which computes `await isLocalhost()` (`src/lib/admin.ts`) and threads it **server-layout → `AppShell` → `AppSidebar`** — the same loopback-host boundary that gates the `/admin` segment itself, so the nav affordance and the segment agree.
+- `app-shell.tsx` — Client Component; wraps `SidebarProvider` and renders the sidebar plus the page content in a padded (`p-4 md:p-6`) `<div>`. **There is no global header bar** — the old `<header>` showing a `titleForPath(pathname)` page title was removed, so `AppShell` no longer reads `usePathname()`. Each page owns its own in-page `<h2>` title (and sets the browser-tab title via `export const metadata`). It sets `defaultOpen={false}` so the sidebar starts **collapsed as a floating icon island**. Takes **`isLocal`** and **`visibleNavHrefs`** props and passes them straight through to `AppSidebar`. (`TooltipProvider` is no longer here — it now lives in the root layout; see below.)
+- `app-sidebar.tsx` — the sidebar itself; uses `<Sidebar variant="floating" collapsible="icon">` (floating icon rail), `size-5` icons. The open/close **toggle lives in its footer** — a `SidebarMenuButton` (Tabler `IconLayoutSidebar`) calling `useSidebar().toggleSidebar` (label toggles Expand/Collapse). It renders only the `NAV_ITEMS` whose href is in the **`visibleNavHrefs`** prop (the permission-aware nav filter — see *Add a nav item* → permission-gated). It also takes an **`isLocal`** prop that drives the **localhost-only Admin footer entry** (`IconTool` → `/admin`, rendered only when `isLocal`). The prop originates in the server `(app)/layout.tsx`, which computes `await isLocalhost()` (`src/lib/admin.ts`) and threads it **server-layout → `AppShell` → `AppSidebar`** — the same loopback-host boundary that gates the `/admin` segment itself, so the nav affordance and the segment agree.
 - `nav-user.tsx` — the user dropdown in the sidebar footer.
 - `nav.ts` — the nav source of truth (no JSX, so it's importable anywhere).
 
 Collapsed nav items get tooltips automatically via `SidebarMenuButton`'s `tooltip` prop (set to `item.title`).
 
 **Add a nav item:** edit `NAV_ITEMS` in `src/components/app-shell/nav.ts` (`{ title, href, icon }` with a **Tabler** icon, typed as Tabler's `Icon`). It drives the sidebar entries; `isActivePath()` (also in `nav.ts`) highlights the active one. Nothing else to touch. (There's no longer a `titleForPath` helper — the page-title header was removed.)
+
+**Permission-gated nav items.** A `NavItem` may carry an optional **`permission?: PermissionCheck`**. The server `(app)/layout.tsx` evaluates each item against the current user via `userHasPermission` and builds **`visibleNavHrefs: string[]`** (the hrefs the user may see), threading it **server layout → `AppShell` → `AppSidebar`**. The sidebar renders only items whose href is in that set. **Only serializable hrefs cross the server→client boundary** — the icon components stay client-side, so we can't just filter the item objects on the server. This is a **generic, reusable gate** for any future protected page (the Performance item uses `permission: { staff: ["viewCompensation"] }`). It's an **affordance only** — hiding the link is not the security boundary; the page itself must still gate (`/performance` `notFound()`s unauthorized users and its read re-checks `requirePermission`). Mirrors the localhost-only Admin footer entry's server-threaded pattern.
 
 ## Icon-only buttons (tooltip convention)
 
