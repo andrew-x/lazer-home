@@ -21,11 +21,25 @@ import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { isActivePath, NAV_ITEMS } from "./nav";
 
-export function AppSidebar({ isLocal = false }: { isLocal?: boolean }) {
+export function AppSidebar({
+  isLocal = false,
+  visibleNavHrefs,
+}: {
+  isLocal?: boolean;
+  // Hrefs the current user may see (permission-filtered by the layout). When
+  // omitted, every item shows — the icon components stay imported here so they
+  // never have to cross the server→client boundary.
+  visibleNavHrefs?: string[];
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const { toggleSidebar, state } = useSidebar();
   const [signingOut, setSigningOut] = useState(false);
+
+  const visible = visibleNavHrefs && new Set(visibleNavHrefs);
+  const navItems = visible
+    ? NAV_ITEMS.filter((item) => visible.has(item.href))
+    : NAV_ITEMS;
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -53,7 +67,7 @@ export function AppSidebar({ isLocal = false }: { isLocal?: boolean }) {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu className="gap-2">
-              {NAV_ITEMS.map((item) => {
+              {navItems.map((item) => {
                 const active = isActivePath(item.href, pathname);
                 return (
                   <SidebarMenuItem key={item.href}>
