@@ -1,19 +1,22 @@
-import { IconPencil } from "@tabler/icons-react";
+import { IconExternalLink, IconPencil } from "@tabler/icons-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { ManualOfMeEntry } from "@/actions/responses/getManualOfMe";
 import type { HistoryEntry } from "@/actions/staff/getStaffHistory";
 import type { StaffProfile } from "@/actions/staff/getStaffProfile";
+import type { StaffProjectSummary } from "@/actions/staff/getStaffProjects";
 import type { StaffPtoView } from "@/actions/staff/getStaffPto";
 import { CompensationSection } from "@/components/staff/compensation-section";
 import { EditClientIntroDialog } from "@/components/staff/edit-client-intro-dialog";
 import { EditLinksDialog } from "@/components/staff/edit-links-dialog";
 import { EditResumeDialog } from "@/components/staff/edit-resume-dialog";
-import { HistorySheet } from "@/components/staff/history-sheet";
+import { HistoryTimeline } from "@/components/staff/history-timeline";
 import { ManualOfMeSection } from "@/components/staff/manual-of-me-section";
-import { PtoSection } from "@/components/staff/pto-section";
+import { PtoContent } from "@/components/staff/pto-section";
 import { SkillsSection } from "@/components/staff/skills-section";
+import { StaffProjectsSection } from "@/components/staff/staff-projects-section";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -21,6 +24,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RIPPLING_TIME_OFF_URL } from "@/lib/constants";
 import { formatDate, formatTimestamp, initialsFor } from "@/lib/format";
 import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
 import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff-enums";
@@ -35,7 +40,7 @@ function LinkRow({ label, url }: { label: string; url: string | null }) {
           href={url}
           target="_blank"
           rel="noreferrer"
-          className="text-right font-medium text-primary underline-offset-4 hover:underline"
+          className="min-w-0 truncate text-right font-medium text-primary underline-offset-4 hover:underline"
         >
           {url}
         </a>
@@ -46,15 +51,52 @@ function LinkRow({ label, url }: { label: string; url: string | null }) {
   );
 }
 
+/** A labelled fact in the left-rail meta card (small uppercase label + value). */
+function MetaRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+      <span className="text-sm">{children}</span>
+    </div>
+  );
+}
+
+/** A titled block inside a tab: heading row (with optional action) + content. */
+function TabSection({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex min-h-8 items-center justify-between gap-4">
+        <h3 className="font-heading text-base font-medium leading-snug">
+          {title}
+        </h3>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 /**
- * Read view of a staff member's profile: identity header, links, client intro,
- * time off, and history. Links and intro are editable by any signed-in user for
- * now (see the browse-staff spec). Shared by `/profile` (self) and `/staff/[id]`.
+ * Read view of a staff member's profile: a left rail (identity, links,
+ * compensation) beside a tabbed right column (overview, manual of me, resume,
+ * history). Links, intro, skills and résumé are editable when `canEdit`. Shared
+ * by `/profile` (self) and `/staff/[id]`.
  */
 export function ProfileView({
   staffId,
   imageUrl,
   profile,
+  projects,
   manualOfMe,
   history,
   pto,
@@ -64,6 +106,8 @@ export function ProfileView({
   staffId: string;
   imageUrl: string | null;
   profile: StaffProfile;
+  /** Projects this person is staffed on or delivery-manages. */
+  projects: StaffProjectSummary[];
   /** This person's Manual of Me answers, in question order (unanswered → null). */
   manualOfMe: ManualOfMeEntry[];
   history: HistoryEntry[];
@@ -90,181 +134,237 @@ export function ProfileView({
     : null;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <header className="flex items-center gap-4">
-        <Avatar className="size-12">
-          {imageUrl ? <AvatarImage src={imageUrl} alt={profile.name} /> : null}
-          <AvatarFallback>{initials}</AvatarFallback>
-        </Avatar>
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <h2 className="font-heading text-xl font-semibold tracking-tight">
-            {profile.name}
-          </h2>
-          {employmentSummary || profile.managerId ? (
-            <span className="text-sm text-muted-foreground">
-              {employmentSummary}
+    <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[20rem_1fr] lg:items-start">
+      {/* Left rail: identity, links, compensation. */}
+      <div className="flex flex-col gap-6">
+        <Card>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
+              <Avatar className="size-14">
+                {imageUrl ? (
+                  <AvatarImage src={imageUrl} alt={profile.name} />
+                ) : null}
+                <AvatarFallback>{initials}</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col gap-0.5">
+                <h2 className="font-heading text-xl font-semibold tracking-tight">
+                  {profile.name}
+                </h2>
+                {employmentSummary ? (
+                  <span className="text-sm text-muted-foreground">
+                    {employmentSummary}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <MetaRow label="Email">{profile.email}</MetaRow>
+              {profile.joinDate ? (
+                <MetaRow label="Joined">{formatDate(profile.joinDate)}</MetaRow>
+              ) : null}
               {profile.managerId ? (
-                <>
-                  {employmentSummary ? " · " : ""}
-                  Reports to{" "}
+                <MetaRow label="Reports to">
                   <Link
                     href={`/staff/${profile.managerId}`}
                     className="font-medium text-primary underline-offset-4 hover:underline"
                   >
                     {profile.managerName}
                   </Link>
-                </>
+                </MetaRow>
               ) : null}
-            </span>
-          ) : null}
-          <span className="text-sm text-muted-foreground">
-            {profile.email}
-            {profile.joinDate
-              ? ` · Joined ${formatDate(profile.joinDate)}`
-              : ""}
-          </span>
-        </div>
-        <div className="ml-auto self-start">
-          <HistorySheet entries={history} />
-        </div>
-      </header>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Links</CardTitle>
-          {canEdit ? (
-            <CardAction>
-              <EditLinksDialog
-                staffId={staffId}
-                links={{
-                  linkedinUrl: profile.linkedinUrl,
-                  githubUrl: profile.githubUrl,
-                  portfolioUrl: profile.portfolioUrl,
-                }}
-              />
-            </CardAction>
-          ) : null}
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          <LinkRow label="LinkedIn" url={profile.linkedinUrl} />
-          <LinkRow label="GitHub" url={profile.githubUrl} />
-          <LinkRow label="Portfolio" url={profile.portfolioUrl} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Client intro</CardTitle>
-          {canEdit ? (
-            <CardAction>
-              <EditClientIntroDialog
-                staffId={staffId}
-                clientIntro={profile.clientIntro}
-              />
-            </CardAction>
-          ) : null}
-        </CardHeader>
-        <CardContent>
-          {profile.clientIntro ? (
-            <p className="text-sm whitespace-pre-wrap">{profile.clientIntro}</p>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No client intro yet.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Manual of Me</CardTitle>
-          {canEdit ? (
-            <CardAction>
-              <Button
-                variant="ghost"
-                size="sm"
-                nativeButton={false}
-                render={<Link href={`/staff/${staffId}/manual-of-me`} />}
-              >
-                <IconPencil />
-                {manualOfMeAnswered > 0 ? "Edit" : "Fill out"}
-              </Button>
-            </CardAction>
-          ) : null}
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <ManualOfMeSection entries={manualOfMe} />
-          {manualOfMeAnswered > 0 ? (
-            <p className="text-xs text-muted-foreground">
-              {manualOfMeAnswered} of {manualOfMe.length} answered
-            </p>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Resume</CardTitle>
-          <CardAction>
-            <EditResumeDialog staffId={staffId} resume={profile.resume} />
-          </CardAction>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          {profile.resume ? (
-            <>
-              <p className="text-sm whitespace-pre-wrap">{profile.resume}</p>
-              {profile.resumeUpdatedAt ? (
-                <p className="text-xs text-muted-foreground">
-                  Updated {formatTimestamp(profile.resumeUpdatedAt)}
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">No resume yet.</p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Skills</CardTitle>
-          {canEdit ? (
-            <CardAction>
-              <Button
-                variant="ghost"
-                size="sm"
-                nativeButton={false}
-                render={<Link href={`/staff/${staffId}/skills`} />}
-              >
-                <IconPencil />
-                Edit
-              </Button>
-            </CardAction>
-          ) : null}
-        </CardHeader>
-        <CardContent>
-          <SkillsSection skills={profile.skills} />
-        </CardContent>
-      </Card>
-
-      {canViewCompensation ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Compensation</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CompensationSection
-              base={employment?.base ?? null}
-              hourlyRate={employment?.hourlyRate ?? null}
-              guaranteedBonus={employment?.guaranteedBonus ?? null}
-              discretionaryBonus={employment?.discretionaryBonus ?? null}
-              currency={employment?.currency ?? null}
-            />
+            </div>
           </CardContent>
         </Card>
-      ) : null}
 
-      {pto ? <PtoSection pto={pto} /> : null}
+        <Card>
+          <CardHeader>
+            <CardTitle>Links</CardTitle>
+            {canEdit ? (
+              <CardAction>
+                <EditLinksDialog
+                  staffId={staffId}
+                  links={{
+                    linkedinUrl: profile.linkedinUrl,
+                    githubUrl: profile.githubUrl,
+                    portfolioUrl: profile.portfolioUrl,
+                  }}
+                />
+              </CardAction>
+            ) : null}
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <LinkRow label="LinkedIn" url={profile.linkedinUrl} />
+            <LinkRow label="GitHub" url={profile.githubUrl} />
+            <LinkRow label="Portfolio" url={profile.portfolioUrl} />
+          </CardContent>
+        </Card>
+
+        {canViewCompensation ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Compensation</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CompensationSection
+                base={employment?.base ?? null}
+                hourlyRate={employment?.hourlyRate ?? null}
+                guaranteedBonus={employment?.guaranteedBonus ?? null}
+                discretionaryBonus={employment?.discretionaryBonus ?? null}
+                currency={employment?.currency ?? null}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
+      </div>
+
+      {/* Right column: tabbed detail. */}
+      <Card>
+        <CardContent>
+          <Tabs defaultValue="overview">
+            <TabsList variant="line" className="mb-4">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="manual-of-me">Manual of Me</TabsTrigger>
+              <TabsTrigger value="resume">Resume</TabsTrigger>
+              <TabsTrigger value="history">History</TabsTrigger>
+            </TabsList>
+
+            <TabsContent
+              value="overview"
+              className="flex flex-col [&>section:not(:first-child)]:mt-8 [&>section:not(:first-child)]:border-t [&>section:not(:first-child)]:border-border [&>section:not(:first-child)]:pt-8"
+            >
+              <TabSection
+                title="Skills"
+                action={
+                  canEdit ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      nativeButton={false}
+                      render={<Link href={`/staff/${staffId}/skills`} />}
+                    >
+                      <IconPencil />
+                      Edit
+                    </Button>
+                  ) : undefined
+                }
+              >
+                <SkillsSection skills={profile.skills} />
+              </TabSection>
+
+              <TabSection
+                title="Client intro"
+                action={
+                  canEdit ? (
+                    <EditClientIntroDialog
+                      staffId={staffId}
+                      clientIntro={profile.clientIntro}
+                    />
+                  ) : undefined
+                }
+              >
+                {profile.clientIntro ? (
+                  <p className="text-sm whitespace-pre-wrap">
+                    {profile.clientIntro}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No client intro yet.
+                  </p>
+                )}
+              </TabSection>
+
+              <TabSection title="Projects">
+                <StaffProjectsSection projects={projects} />
+              </TabSection>
+
+              {pto ? (
+                <TabSection
+                  title="Time off"
+                  action={
+                    // A real anchor, not <Button render={<a>}>: this navigates
+                    // to an external page, so it's a link, not a role="button".
+                    <a
+                      href={RIPPLING_TIME_OFF_URL}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={buttonVariants({
+                        variant: "ghost",
+                        size: "sm",
+                      })}
+                    >
+                      Manage
+                      <IconExternalLink />
+                    </a>
+                  }
+                >
+                  <PtoContent pto={pto} />
+                </TabSection>
+              ) : null}
+            </TabsContent>
+
+            <TabsContent value="manual-of-me">
+              <TabSection
+                title="Manual of Me"
+                action={
+                  canEdit ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      nativeButton={false}
+                      render={<Link href={`/staff/${staffId}/manual-of-me`} />}
+                    >
+                      <IconPencil />
+                      {manualOfMeAnswered > 0 ? "Edit" : "Fill out"}
+                    </Button>
+                  ) : undefined
+                }
+              >
+                <div className="flex flex-col gap-3">
+                  <ManualOfMeSection entries={manualOfMe} />
+                  {manualOfMeAnswered > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      {manualOfMeAnswered} of {manualOfMe.length} answered
+                    </p>
+                  ) : null}
+                </div>
+              </TabSection>
+            </TabsContent>
+
+            <TabsContent value="resume">
+              <TabSection
+                title="Resume"
+                action={
+                  <EditResumeDialog staffId={staffId} resume={profile.resume} />
+                }
+              >
+                {profile.resume ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm whitespace-pre-wrap">
+                      {profile.resume}
+                    </p>
+                    {profile.resumeUpdatedAt ? (
+                      <p className="text-xs text-muted-foreground">
+                        Updated {formatTimestamp(profile.resumeUpdatedAt)}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No resume yet.
+                  </p>
+                )}
+              </TabSection>
+            </TabsContent>
+
+            <TabsContent value="history">
+              <TabSection title="History">
+                <HistoryTimeline entries={history} />
+              </TabSection>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }

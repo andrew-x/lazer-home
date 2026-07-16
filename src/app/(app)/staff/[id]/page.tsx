@@ -6,6 +6,7 @@ import { canViewCompensation } from "@/actions/staff/canViewCompensation";
 import { getStaffAvatar } from "@/actions/staff/getStaffAvatar";
 import { getStaffHistory } from "@/actions/staff/getStaffHistory";
 import { getStaffProfile } from "@/actions/staff/getStaffProfile";
+import { getStaffProjects } from "@/actions/staff/getStaffProjects";
 import { getStaffPto } from "@/actions/staff/getStaffPto";
 import { ProfileView } from "@/components/staff/profile-view";
 import { getCurrentUser } from "@/lib/auth";
@@ -27,13 +28,15 @@ export default async function StaffProfilePage({
 }) {
   const { id } = await params;
 
-  const [profile, pto, imageUrl, user, manualOfMe] = await Promise.all([
-    getStaffProfile(id),
-    getStaffPto(id),
-    getStaffAvatar(id),
-    getCurrentUser(),
-    getManualOfMe(id),
-  ]);
+  const [profile, projects, pto, imageUrl, user, manualOfMe] =
+    await Promise.all([
+      getStaffProfile(id),
+      getStaffProjects(id),
+      getStaffPto(id),
+      getStaffAvatar(id),
+      getCurrentUser(),
+      getManualOfMe(id),
+    ]);
 
   if (!profile) notFound();
 
@@ -42,7 +45,7 @@ export default async function StaffProfilePage({
     ? await Promise.all([canEditStaff(user, id), canViewCompensation(user, id)])
     : [false, false];
 
-  // Comp entries are gated at the read (HistorySheet is a client component).
+  // Comp entries are gated at the read (history renders in a client component).
   const history = await getStaffHistory(id, canViewComp);
 
   return (
@@ -50,6 +53,7 @@ export default async function StaffProfilePage({
       staffId={id}
       imageUrl={imageUrl}
       profile={profile}
+      projects={projects}
       manualOfMe={manualOfMe}
       history={history}
       pto={pto}

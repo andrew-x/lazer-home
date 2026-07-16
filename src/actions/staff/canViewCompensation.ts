@@ -13,8 +13,8 @@ import { userHasPermission } from "@/lib/permissions";
  * requires the `staff.viewCompensation` permission (finance/manager/admin).
  *
  * Used both as a UI affordance (pages render the comp card / history entries only
- * when true) and — because `HistorySheet` is a client component — as the gate on
- * which comp data leaves the server at all (see getStaffHistory).
+ * when true) and — because history renders in a client component — as the gate
+ * on which comp data leaves the server at all (see getStaffHistory).
  */
 export async function canViewCompensation(
   user: { id: string; role?: string | null },
