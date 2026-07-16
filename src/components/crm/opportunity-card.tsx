@@ -14,7 +14,7 @@ import { SOURCE_LABELS, STATUS_LABELS } from "./opportunity-display";
 type DragListeners = ReturnType<typeof useSortable>["listeners"];
 
 const HANDLE_CLASS =
-  "flex shrink-0 items-center justify-center border-r bg-muted/40 px-1.5 text-muted-foreground";
+  "flex shrink-0 items-center justify-center border-r bg-muted/40 px-0.5 text-muted-foreground";
 
 /**
  * The full-height grip rail on the left edge of a card. Interactive (a real

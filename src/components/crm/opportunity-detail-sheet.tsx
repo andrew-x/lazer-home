@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -76,9 +75,6 @@ export function OpportunityDetailSheet({
       <SheetContent className="w-full gap-0 overflow-y-auto data-[side=right]:sm:max-w-lg">
         <SheetHeader>
           <SheetTitle>{detail?.name ?? "Opportunity"}</SheetTitle>
-          <SheetDescription>
-            {detail?.company.name ?? "Loading…"}
-          </SheetDescription>
         </SheetHeader>
         {detail ? (
           <EditForm
@@ -181,7 +177,11 @@ function EditForm({
       onSubmit={handleSubmit(onSubmit)}
       className="flex flex-col gap-4 overflow-y-auto px-4 pb-4"
     >
-      <OpportunityFields form={form} idPrefix="opp-edit" />
+      <OpportunityFields
+        form={form}
+        idPrefix="opp-edit"
+        companyName={detail.company.name}
+      />
 
       <div className="flex flex-col gap-2 border-t pt-4">
         <div className="flex items-center justify-between">

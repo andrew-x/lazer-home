@@ -89,16 +89,20 @@ export const OPPORTUNITY_FIELD_FOR_ISSUE = {
  * may extend `OpportunityFieldValues`); internally narrowed to the shared shape,
  * since these controls only touch the shared fields. `companySlot` is rendered
  * just after the name field — the add dialog passes its company picker there; the
- * edit drawer omits it. `idPrefix` keeps element ids unique across instances.
+ * edit drawer omits it. `companyName`, when set, renders a read-only Company field
+ * above Contacts — the drawer uses it since company isn't editable there.
+ * `idPrefix` keeps element ids unique across instances.
  */
 export function OpportunityFields<TValues extends OpportunityFieldValues>({
   form,
   idPrefix,
   companySlot,
+  companyName,
 }: {
   form: UseFormReturn<TValues>;
   idPrefix: string;
   companySlot?: ReactNode;
+  companyName?: string;
 }) {
   // Narrow once: callers may pass a superset form (create adds company fields),
   // but every control below binds only the shared `OpportunityFieldValues`.
@@ -149,6 +153,12 @@ export function OpportunityFields<TValues extends OpportunityFieldValues>({
           )}
         />
       </FormField>
+
+      {companyName ? (
+        <FormField label="Company">
+          <p className="text-sm">{companyName}</p>
+        </FormField>
+      ) : null}
 
       <Controller
         control={control}
