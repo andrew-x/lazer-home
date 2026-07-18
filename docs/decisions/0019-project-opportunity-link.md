@@ -1,6 +1,41 @@
-# 0019 — Project ↔ Opportunity link: optional FK on `projects`, `restrict` (now 1:1)
+# 0019 — Project ↔ Opportunity link: FK now on `opportunities`, `restrict` (many-to-one)
 
-**Status:** accepted · 2026-07-09 · **amended 2026-07-15** (1:N → one project per opportunity)
+**Status:** accepted · 2026-07-09 · **amended 2026-07-15** (1:N → one project per opportunity) · **amended 2026-07-18** (link inverted onto `opportunities.projectId`, many opps → one project)
+
+## Amendment (2026-07-18): the link inverted — it now lives on `opportunities.projectId`, many-to-one
+
+**The FK moved sides and the cardinality flipped.** The link no longer lives on
+`projects.opportunityId` (removed, along with its partial unique index
+`projects_opportunity_idx`). It now lives on **`opportunities.projectId`** — a nullable FK
+→ `projects` with **`onDelete: "restrict"`**, indexed `opportunities_project_idx`
+(`src/lib/db/opportunities-schema.ts`). Migration `drizzle/0002_loud_sister_grimm.sql`
+(the second incremental migration on top of the squashed baseline `0000_light_shape.sql`,
+after `0001_wonderful_thing.sql`'s CRM entries) adds the column + index, **backfills**
+it from the old `projects.opportunity_id` (`UPDATE opportunities SET project_id FROM projects
+WHERE projects.opportunity_id = opportunities.id`), then drops the old column. The two schema
+files now import each other via lazy `() => Table.id` refs (ESM-safe).
+
+This makes the relationship **many opportunities → one project** (the reverse of the
+2026-07-15 "one project per opportunity"): **a project can be built up from several
+opportunities** — an original deal plus later extensions / change requests — while an
+opportunity still has **at most one** project (a single-valued FK, not a junction). The
+partial unique index is gone precisely because uniqueness now sits naturally on the
+single-valued FK column (each opportunity row holds one `projectId`); there's nothing to
+make conditionally-unique.
+
+**The same-company invariant is now server-enforced** (finally closing the gap this ADR and
+[ADR 0024](./0024-opportunity-project-handoff-and-placeholder-roles.md) both deferred). The
+new `associateOpportunityProject` action rejects a project whose `companyId` differs from the
+opportunity's, and its picker (`searchProjects`) is company-scoped structurally. `createProject`
+still creates same-company by construction (it sets the opportunity's `projectId` on a project
+it just created for a locked company).
+
+Why invert: the planner ([ADR 0031](./0031-opportunity-project-planner-and-role-status.md))
+made a project a shared delivery vehicle several deals feed into, which the project-side FK
+couldn't express. Reads got simpler too: `hasProject` on the board and `project` in the
+drawer are now plain column reads off the opportunity, not a reverse lookup / grouped query.
+Everything below describing `projects.opportunityId` is the **superseded** prior shape; read
+it as history.
 
 ## Amendment (2026-07-15): tightened to one project per opportunity
 
