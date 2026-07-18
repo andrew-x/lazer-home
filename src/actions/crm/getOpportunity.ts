@@ -16,6 +16,8 @@ import {
 } from "@/lib/db/schema";
 import type { LineOfBusiness } from "@/lib/line-of-business";
 import type { OpportunitySource, OpportunityStatus } from "@/lib/opportunity";
+import type { EntryView } from "./entryViews";
+import { getOpportunityEntries } from "./entryViews";
 
 /** A picked entity, shaped for the drawer's comboboxes. */
 export type EntityRef = { id: string; name: string };
@@ -27,12 +29,15 @@ export type OpportunityDetail = {
   lineOfBusiness: LineOfBusiness;
   source: OpportunitySource;
   status: OpportunityStatus;
-  nextSteps: string | null;
   contacts: EntityRef[];
   owners: EntityRef[];
   sourceContacts: EntityRef[];
   sourceStaff: EntityRef[];
   projects: EntityRef[];
+  /** Timestamped notes, newest first. */
+  notes: EntryView[];
+  /** Timestamped next steps, newest first. */
+  nextSteps: EntryView[];
 };
 
 const contactName = contactNameSql(contacts);
@@ -55,7 +60,6 @@ export async function getOpportunity(
       lineOfBusiness: opportunities.lineOfBusiness,
       source: opportunities.source,
       status: opportunities.status,
-      nextSteps: opportunities.nextSteps,
     })
     .from(opportunities)
     .innerJoin(companies, eq(opportunities.companyId, companies.id))
@@ -64,41 +68,45 @@ export async function getOpportunity(
 
   if (!base) return null;
 
-  const [contactRows, ownerRows, srcContactRows, srcStaffRows, projectRows] =
-    await Promise.all([
-      db
-        .select({ id: contacts.id, name: contactName })
-        .from(opportunityContacts)
-        .innerJoin(contacts, eq(opportunityContacts.contactId, contacts.id))
-        .where(eq(opportunityContacts.opportunityId, id))
-        .orderBy(asc(contacts.firstName)),
-      db
-        .select({ id: staff.id, name: staff.name })
-        .from(opportunityOwners)
-        .innerJoin(staff, eq(opportunityOwners.staffId, staff.id))
-        .where(eq(opportunityOwners.opportunityId, id))
-        .orderBy(asc(staff.name)),
-      db
-        .select({ id: contacts.id, name: contactName })
-        .from(opportunitySourceContacts)
-        .innerJoin(
-          contacts,
-          eq(opportunitySourceContacts.contactId, contacts.id),
-        )
-        .where(eq(opportunitySourceContacts.opportunityId, id))
-        .orderBy(asc(contacts.firstName)),
-      db
-        .select({ id: staff.id, name: staff.name })
-        .from(opportunitySourceStaff)
-        .innerJoin(staff, eq(opportunitySourceStaff.staffId, staff.id))
-        .where(eq(opportunitySourceStaff.opportunityId, id))
-        .orderBy(asc(staff.name)),
-      db
-        .select({ id: projects.id, name: projects.name })
-        .from(projects)
-        .where(eq(projects.opportunityId, id))
-        .orderBy(asc(projects.createdAt)),
-    ]);
+  const [
+    contactRows,
+    ownerRows,
+    srcContactRows,
+    srcStaffRows,
+    projectRows,
+    entries,
+  ] = await Promise.all([
+    db
+      .select({ id: contacts.id, name: contactName })
+      .from(opportunityContacts)
+      .innerJoin(contacts, eq(opportunityContacts.contactId, contacts.id))
+      .where(eq(opportunityContacts.opportunityId, id))
+      .orderBy(asc(contacts.firstName)),
+    db
+      .select({ id: staff.id, name: staff.name })
+      .from(opportunityOwners)
+      .innerJoin(staff, eq(opportunityOwners.staffId, staff.id))
+      .where(eq(opportunityOwners.opportunityId, id))
+      .orderBy(asc(staff.name)),
+    db
+      .select({ id: contacts.id, name: contactName })
+      .from(opportunitySourceContacts)
+      .innerJoin(contacts, eq(opportunitySourceContacts.contactId, contacts.id))
+      .where(eq(opportunitySourceContacts.opportunityId, id))
+      .orderBy(asc(contacts.firstName)),
+    db
+      .select({ id: staff.id, name: staff.name })
+      .from(opportunitySourceStaff)
+      .innerJoin(staff, eq(opportunitySourceStaff.staffId, staff.id))
+      .where(eq(opportunitySourceStaff.opportunityId, id))
+      .orderBy(asc(staff.name)),
+    db
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(eq(projects.opportunityId, id))
+      .orderBy(asc(projects.createdAt)),
+    getOpportunityEntries(id),
+  ]);
 
   return {
     id: base.id,
@@ -107,11 +115,12 @@ export async function getOpportunity(
     lineOfBusiness: base.lineOfBusiness,
     source: base.source,
     status: base.status,
-    nextSteps: base.nextSteps,
     contacts: contactRows,
     owners: ownerRows,
     sourceContacts: srcContactRows,
     sourceStaff: srcStaffRows,
     projects: projectRows,
+    notes: entries.notes,
+    nextSteps: entries.nextSteps,
   };
 }

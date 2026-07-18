@@ -20,6 +20,7 @@ import {
   TableEmpty,
 } from "./detail-parts";
 import { EditContactDialog } from "./edit-contact-dialog";
+import { EntryLog } from "./entry-log";
 import { InlineOwnerField } from "./inline-owner-field";
 import { OpportunityStatusBadge } from "./opportunity-status-badge";
 
@@ -169,6 +170,26 @@ export function ContactDetailView({
         </>
       }
     >
+      <DetailSection title="Next steps" count={contact.nextSteps.length}>
+        <EntryLog
+          variant="contact"
+          parentId={contact.id}
+          kind="next_step"
+          entries={contact.nextSteps}
+          canEdit={canEdit}
+        />
+      </DetailSection>
+
+      <DetailSection title="Notes" count={contact.notes.length}>
+        <EntryLog
+          variant="contact"
+          parentId={contact.id}
+          kind="note"
+          entries={contact.notes}
+          canEdit={canEdit}
+        />
+      </DetailSection>
+
       <DetailSection title="Opportunities" count={opportunityCount}>
         <div className="flex flex-col gap-5">
           <OpportunityGroup

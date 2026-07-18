@@ -49,7 +49,6 @@ export const updateOpportunity = secureActionClient
           lineOfBusiness: parsedInput.lineOfBusiness,
           source: parsedInput.source,
           status: parsedInput.status,
-          nextSteps: parsedInput.nextSteps,
         })
         .where(eq(opportunities.id, id))
         .returning({ id: opportunities.id });

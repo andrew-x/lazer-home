@@ -67,9 +67,6 @@ export const updateOpportunityField = secureActionClient
           lineOfBusiness: parsedInput.lineOfBusiness,
         });
         break;
-      case "nextSteps":
-        await setOpportunity(db, { nextSteps: parsedInput.nextSteps });
-        break;
       case "status":
         await assertOpportunityTransitionAllowed(id, parsedInput.status);
         await setOpportunity(db, { status: parsedInput.status });

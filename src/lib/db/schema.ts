@@ -3,9 +3,9 @@
 
 // Better Auth tables (user, session, account, verification).
 export * from "./auth-schema";
-// CRM domain (companies, contacts).
+// CRM domain (companies, contacts, contact notes/next-step entries).
 export * from "./crm-schema";
-// CRM sales pipeline (opportunities + junction tables).
+// CRM sales pipeline (opportunities + junction tables + opportunity entries).
 export * from "./opportunities-schema";
 // Performance domain (peer feedback + rating enum).
 export * from "./performance-schema";

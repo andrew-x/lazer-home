@@ -91,6 +91,14 @@ export function OpportunityCardView({
       <span className="text-xs text-muted-foreground">
         {card.ownerNames.length > 0 ? card.ownerNames.join(", ") : "—"}
       </span>
+      {card.nextStep ? (
+        <span className="mt-0.5 flex items-baseline gap-1.5 border-t pt-1.5 text-xs">
+          <span className="shrink-0 font-medium text-muted-foreground">
+            Next:
+          </span>
+          <span className="line-clamp-2 text-foreground">{card.nextStep}</span>
+        </span>
+      ) : null}
     </>
   );
 
