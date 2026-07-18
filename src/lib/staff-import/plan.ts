@@ -1,8 +1,9 @@
 import "server-only";
-import { desc, inArray, sql } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { firstPerKey } from "@/lib/collections";
 import { db } from "@/lib/db/db";
 import { staff, staffEmployment } from "@/lib/db/schema";
+import { latestEmploymentFirst } from "@/lib/staff-employment";
 import {
   buildManagerEmailIndex,
   type ManagerResolutionReason,
@@ -147,10 +148,7 @@ export async function computeImportPlan(
           })
           .from(staffEmployment)
           .where(inArray(staffEmployment.staffId, staffIds))
-          .orderBy(
-            desc(staffEmployment.effectiveFromDate),
-            desc(staffEmployment.createdAt),
-          )
+          .orderBy(...latestEmploymentFirst)
       : [],
   ]);
 

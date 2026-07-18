@@ -8,6 +8,13 @@
 import type { ReactNode } from "react";
 import { EmptyCell } from "@/components/empty-cell";
 import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 /**
  * Two-column detail page: a fixed-width meta sidebar beside the main column of
@@ -116,13 +123,47 @@ export function DetailSection({
 }
 
 /**
- * The empty-state note shown inside a bordered table container when a
- * collection has no rows — mirrors the list tables' "No … yet" placeholder.
+ * A bordered list table for a detail section: a header row of the given column
+ * labels, then the caller's `<TableRow>` body cells. The shared shape behind the
+ * company/contact detail tables — only the columns and row cells differ, so those
+ * stay with each caller while this owns the border + table scaffold. Use
+ * {@link TableEmpty} for the no-rows state (headers are dropped when empty, as the
+ * detail views do).
+ */
+export function DetailTable({
+  headers,
+  children,
+}: {
+  headers: string[];
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {headers.map((header) => (
+              <TableHead key={header}>{header}</TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>{children}</TableBody>
+      </Table>
+    </div>
+  );
+}
+
+/**
+ * The no-rows state for a detail section: the same bordered container as
+ * {@link DetailTable}, holding a centered "No … yet" note in place of a table.
+ * Mirrors the list tables' empty placeholder.
  */
 export function TableEmpty({ children }: { children: string }) {
   return (
-    <p className="px-2 py-8 text-center text-sm text-muted-foreground">
-      {children}
-    </p>
+    <div className="rounded-md border">
+      <p className="px-2 py-8 text-center text-sm text-muted-foreground">
+        {children}
+      </p>
+    </div>
   );
 }

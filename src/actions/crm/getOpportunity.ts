@@ -1,6 +1,7 @@
 import "server-only";
 
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
+import { contactNameSql } from "@/actions/shared/contactName";
 import { db } from "@/lib/db/db";
 import {
   companies,
@@ -34,7 +35,7 @@ export type OpportunityDetail = {
   projects: EntityRef[];
 };
 
-const contactName = sql<string>`${contacts.firstName} || ' ' || ${contacts.lastName}`;
+const contactName = contactNameSql(contacts);
 
 /**
  * The full detail for one opportunity — its core fields, company, the four

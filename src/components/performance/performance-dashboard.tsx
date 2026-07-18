@@ -4,6 +4,7 @@ import { IconClock, IconCoin, IconUsers } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import type { CompensationRecord } from "@/actions/staff/getCompensationSummaryData";
 import type { ExchangeRates } from "@/actions/staff/getExchangeRates";
+import { ALL, FilterLabel, SegmentedFilter } from "@/components/form/filters";
 import { CompensationScatter } from "@/components/performance/compensation-scatter";
 import { StatCard } from "@/components/performance/stat-card";
 import {
@@ -22,12 +23,6 @@ import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
 import { computeByRole, type StatRow } from "@/lib/performance-stats";
 import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff-enums";
 
-/** A normalized per-person row: stat fields plus the name for the scatter tooltip. */
-type Person = StatRow & { name: string };
-
-/** Sentinel for "no filter" — a segmented control can't hold an empty value. */
-const ALL = "ALL";
-
 /** Only CAD and USD are offered as display currencies. */
 const DISPLAY_CURRENCIES = [
   "CAD",
@@ -39,58 +34,6 @@ type FilterOptions = {
   role: string[];
   employmentType: string[];
 };
-
-/** Uppercase caption above a filter control (matches the app's filter styling). */
-function FilterLabel({ children }: { children: string }) {
-  return (
-    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-      {children}
-    </span>
-  );
-}
-
-/**
- * A single-select segmented control with a leading "All" option. Wrapped in an
- * `overflow-x-auto` box so a wide group (e.g. the 9 roles) scrolls on narrow
- * viewports instead of forcing the page to.
- */
-function SegmentedFilter({
-  label,
-  value,
-  options,
-  labels,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: readonly string[];
-  labels?: Record<string, string>;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <FilterLabel>{label}</FilterLabel>
-      <div className="max-w-full overflow-x-auto">
-        <ToggleGroup
-          variant="outline"
-          spacing={0}
-          aria-label={label}
-          value={[value]}
-          onValueChange={(values) => {
-            if (values.length > 0) onChange(values[0]);
-          }}
-        >
-          <ToggleGroupItem value={ALL}>All</ToggleGroupItem>
-          {options.map((option) => (
-            <ToggleGroupItem key={option} value={option}>
-              {labels?.[option] ?? option}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      </div>
-    </div>
-  );
-}
 
 export function PerformanceDashboard({
   records,
@@ -116,10 +59,9 @@ export function PerformanceDashboard({
     );
 
     // Normalize every person's comp (base + guaranteed bonus) and hourly rate to
-    // the selected display currency before aggregating. Carries `name` for the
-    // scatter tooltip; the extra field is ignored by the stats helpers.
-    const people: Person[] = filtered.map((r) => ({
-      name: r.name,
+    // the selected display currency before aggregating. Rows are anonymous — the
+    // server strips identity, so there is nothing here to key a point back to.
+    const people: StatRow[] = filtered.map((r) => ({
       role: r.role,
       comp: convert(
         r.base + r.guaranteedBonus,
@@ -152,10 +94,9 @@ export function PerformanceDashboard({
   const range = (min: number | null, max: number | null) =>
     min == null || max == null ? "—" : `${money(min)} – ${money(max)}`;
 
-  const chartData = rows.map((r) => ({
-    name: r.name,
-    value: chartMetric === "comp" ? r.comp : r.hourly,
-  }));
+  const chartValues = rows.map((r) =>
+    chartMetric === "comp" ? r.comp : r.hourly,
+  );
   const chartCaption = `${
     chartMetric === "comp" ? "Total compensation" : "Hourly rate"
   } per staff member (n = ${overall.headcount}), sorted low → high`;
@@ -323,7 +264,7 @@ export function PerformanceDashboard({
               </ToggleGroup>
             </div>
             <CompensationScatter
-              data={chartData}
+              values={chartValues}
               formatValue={money}
               caption={chartCaption}
             />

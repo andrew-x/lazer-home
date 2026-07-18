@@ -1,6 +1,6 @@
 import "server-only";
 
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 import { firstPerKey } from "@/lib/collections";
 import type { Currency } from "@/lib/currency";
@@ -14,6 +14,7 @@ import {
   staffEmployment,
 } from "@/lib/db/schema";
 import { requirePermission } from "@/lib/permissions";
+import { latestEmploymentFirst } from "@/lib/staff-employment";
 
 /**
  * The filter dimensions offered by the performance dashboard, sourced from the
@@ -27,16 +28,15 @@ export const performanceFilterOptions = {
 };
 
 /**
- * One compensation record per active staff member: the person's name, the
- * dimensions the dashboard filters/groups by, and the raw amounts (in each
- * person's own currency). Carries the name so the dashboard's per-dot tooltip can
- * identify who a point is — NOT a new exposure: the viewer already holds
- * `staff.viewCompensation`, which shows each person's name alongside their comp on
- * the staff profile pages, so the name↔comp mapping is already available to them.
- * Still carries no id/email (nothing here needs them).
+ * One compensation record per active staff member: the dimensions the dashboard
+ * filters/groups by, and the raw amounts (in each person's own currency).
+ * **Anonymized — carries no identity (no name/id/email).** Identity never leaves
+ * the server: the dashboard filters, normalizes, and aggregates these rows, and
+ * the distribution scatter plots them without labels. If a future breakdown needs
+ * to filter or group by an identity-linked attribute, do that server-side *before*
+ * building the row — the record that ships to the client stays anonymous.
  */
 export type CompensationRecord = {
-  name: string;
   lineOfBusiness: StaffEmployment["lineOfBusiness"];
   role: StaffEmployment["role"];
   employmentType: StaffEmployment["employmentType"];
@@ -61,13 +61,14 @@ export async function getCompensationSummaryData(): Promise<
   const user = await getCurrentUser();
   requirePermission(user ?? { role: null }, { staff: ["viewCompensation"] });
 
-  // Active staff only — inactive people don't count toward headcount/pay. Their
-  // names key the tooltip; a staffId missing from this map is inactive → skipped.
+  // Active staff only — inactive people don't count toward headcount/pay. We read
+  // just the id set (never names): a staffId absent from this set is inactive →
+  // skipped. Deliberately no identity is assembled server-side.
   const activeStaff = await db
-    .select({ id: staff.id, name: staff.name })
+    .select({ id: staff.id })
     .from(staff)
     .where(eq(staff.isActive, true));
-  const nameById = new Map(activeStaff.map((s) => [s.id, s.name]));
+  const activeStaffIds = new Set(activeStaff.map((s) => s.id));
 
   // Read every employment row newest-first, then keep the latest per staff member
   // in JS (two queries, no N+1) — same pattern as getStaffDirectory. Project only
@@ -84,19 +85,14 @@ export async function getCompensationSummaryData(): Promise<
       currency: staffEmployment.currency,
     })
     .from(staffEmployment)
-    .orderBy(
-      desc(staffEmployment.effectiveFromDate),
-      desc(staffEmployment.createdAt),
-    );
+    .orderBy(...latestEmploymentFirst);
 
   const latestByStaff = firstPerKey(employmentRows, (row) => row.staffId);
 
   const records: CompensationRecord[] = [];
   for (const [staffId, row] of latestByStaff) {
-    const name = nameById.get(staffId);
-    if (name === undefined) continue; // inactive (or no staff row) → skip
+    if (!activeStaffIds.has(staffId)) continue; // inactive (or no staff row) → skip
     records.push({
-      name,
       lineOfBusiness: row.lineOfBusiness,
       role: row.role,
       employmentType: row.employmentType,

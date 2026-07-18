@@ -12,8 +12,7 @@ import {
   opportunitySourceStaff,
 } from "@/lib/db/schema";
 import { UserSafeActionError } from "@/lib/errors";
-import { requiresProject } from "@/lib/opportunity-pipeline";
-import { opportunityHasProject } from "./opportunityHasProject";
+import { assertOpportunityTransitionAllowed } from "./assertOpportunityTransitionAllowed";
 import { writeOpportunityLinks } from "./opportunityLinks";
 import { updateOpportunitySchema } from "./updateOpportunity.schema";
 
@@ -31,25 +30,13 @@ export const updateOpportunity = secureActionClient
   })
   .inputSchema(updateOpportunitySchema)
   .action(async ({ parsedInput }) => {
-    // The delivery-stage project rule only bites on a *transition* into a stage
-    // that requires one — editing name/owners/next-steps on an opportunity
-    // already in such a stage must not be blocked. Only enforce when the status
-    // actually changes into a requiring stage without a linked project.
-    const [current] = await db
-      .select({ status: opportunities.status })
-      .from(opportunities)
-      .where(eq(opportunities.id, parsedInput.id))
-      .limit(1);
-    if (
-      current &&
-      parsedInput.status !== current.status &&
-      requiresProject(parsedInput.status) &&
-      !(await opportunityHasProject(parsedInput.id))
-    ) {
-      throw new UserSafeActionError(
-        "Create a project for this opportunity before moving it to Allocating or later.",
-      );
-    }
+    // Delivery stages require a linked project (ADR 0024) — enforced through the
+    // shared, transition-based invariant so it only bites on a genuine move into
+    // a requiring stage, not on unrelated edits within one.
+    await assertOpportunityTransitionAllowed(
+      parsedInput.id,
+      parsedInput.status,
+    );
 
     const { id } = parsedInput;
 

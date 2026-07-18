@@ -1,7 +1,9 @@
 import "server-only";
 
+import { z } from "zod";
 import { CURRENCY, type Currency } from "@/lib/currency";
 import { AED_PER_USD, FALLBACK_USD_RATES } from "@/lib/fx";
+import { logger } from "@/lib/logger";
 
 /**
  * USD-based exchange rates for the compensation dashboard's currency toggle.
@@ -15,11 +17,28 @@ export type ExchangeRates = {
   stale: boolean;
 };
 
-/** Shape of the frankfurter.dev `/latest` response we consume. */
-type FrankfurterResponse = {
-  date: string;
-  rates: Record<string, number>;
-};
+/**
+ * Runtime schema for the frankfurter.dev `/latest` response — the one external
+ * payload we validate at the trust boundary (all other network data already flows
+ * through Zod). `date` must be a real `YYYY-MM-DD` calendar date and every quoted
+ * `rate` a finite, POSITIVE number; a malformed body fails `safeParse` and drops us
+ * onto the stale fallback rather than poisoning the conversion table.
+ */
+const frankfurterResponseSchema = z.object({
+  date: z.string().refine((value) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    // Reject non-existent dates (e.g. 2024-02-30, which Date would roll forward).
+    const parsed = new Date(`${value}T00:00:00Z`);
+    return (
+      !Number.isNaN(parsed.getTime()) &&
+      parsed.toISOString().slice(0, 10) === value
+    );
+  }, "expected a real YYYY-MM-DD date"),
+  rates: z.record(
+    z.string(),
+    z.number().refine(Number.isFinite, "must be finite").positive(),
+  ),
+});
 
 const FRANKFURTER_URL = "https://api.frankfurter.dev/v1/latest?base=USD";
 
@@ -41,7 +60,16 @@ export async function getExchangeRates(): Promise<ExchangeRates> {
     });
     if (!res.ok) throw new Error(`frankfurter responded ${res.status}`);
 
-    const data = (await res.json()) as FrankfurterResponse;
+    // Validate the untrusted body before trusting any field. A parse failure
+    // throws into the catch below, joining the same stale/fallback path as a
+    // network error — never surfaced to the user.
+    const parsed = frankfurterResponseSchema.safeParse(await res.json());
+    if (!parsed.success) {
+      throw new Error(
+        `frankfurter response failed validation: ${parsed.error.message}`,
+      );
+    }
+    const data = parsed.data;
     // frankfurter omits the base currency from `rates`; add USD, and the pegged
     // AED it never quotes.
     const raw: Record<string, number> = {
@@ -63,7 +91,9 @@ export async function getExchangeRates(): Promise<ExchangeRates> {
 
     return { rates, asOf: data.date, stale: false };
   } catch (error) {
-    console.error("getExchangeRates: falling back to hardcoded rates", error);
+    logger.warn("exchange_rates_fallback", {
+      message: error instanceof Error ? error.message : String(error),
+    });
     return { rates: FALLBACK_USD_RATES, asOf: "unavailable", stale: true };
   }
 }

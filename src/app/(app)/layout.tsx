@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
+import { getCurrentStaffAccess } from "@/actions/staff/getCurrentStaffAccess";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { NAV_ITEMS } from "@/components/app-shell/nav";
 import { isLocalhost } from "@/lib/admin";
 import { getCurrentUser } from "@/lib/auth";
 import { userHasPermission } from "@/lib/permissions";
-import { getCurrentStaff } from "@/lib/staff";
 
 export default async function AppLayout({
   children,
@@ -15,7 +15,7 @@ export default async function AppLayout({
   if (!user) redirect("/login");
 
   // Gate on an active staff record (see /profile-setup for the block screen).
-  const staffAccess = await getCurrentStaff(user);
+  const staffAccess = await getCurrentStaffAccess(user);
   if (staffAccess.status !== "ok") redirect("/profile-setup");
 
   // Permission-gated nav items are hidden from users who lack the capability.

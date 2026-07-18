@@ -10,16 +10,24 @@ export function GoogleSignInButton() {
 
   async function handleSignIn() {
     setLoading(true);
-    const { error } = await authClient.signIn.social({
-      provider: "google",
-      callbackURL: "/",
-    });
-    // On success the browser is redirected to Google, so we only handle errors.
-    if (error) {
+    // On success the browser is redirected to Google, so we intentionally keep
+    // the loading state and only reset it on failure — a handled `{ error }` or
+    // a rejected request (e.g. network error). No `finally`: it would clear the
+    // loading state on the success path and flip the button back mid-redirect.
+    try {
+      const { error } = await authClient.signIn.social({
+        provider: "google",
+        callbackURL: "/",
+      });
+      if (error) {
+        setLoading(false);
+        toast.error(
+          error.message ?? "Could not start sign-in. Please try again.",
+        );
+      }
+    } catch {
       setLoading(false);
-      toast.error(
-        error.message ?? "Could not start sign-in. Please try again.",
-      );
+      toast.error("Could not start sign-in. Please try again.");
     }
   }
 

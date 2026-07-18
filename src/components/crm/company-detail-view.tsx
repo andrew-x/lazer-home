@@ -1,23 +1,18 @@
 import { IconBuilding } from "@tabler/icons-react";
 import { Fragment } from "react";
 import type { CompanyDetail } from "@/actions/crm/getCompanyDetail";
+import { MailLink, PhoneLink } from "@/components/contact-link";
 import { EmptyCell } from "@/components/empty-cell";
 import { ExternalLink } from "@/components/external-link";
 import { InternalLink } from "@/components/internal-link";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { humanizeEnum } from "@/lib/format";
 import {
   DetailIdentity,
   DetailLayout,
   DetailSection,
+  DetailTable,
   MetaField,
   SidebarSection,
   TableEmpty,
@@ -90,53 +85,31 @@ export function CompanyDetailView({
           title="Opportunities"
           count={company.opportunities.length}
         >
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Stage</TableHead>
-                  <TableHead>Source</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {company.opportunities.map((opportunity) => (
-                  <TableRow key={opportunity.id}>
-                    <TableCell className="font-medium">
-                      {opportunity.name}
-                    </TableCell>
-                    <TableCell>
-                      <OpportunityStatusBadge status={opportunity.status} />
-                    </TableCell>
-                    <TableCell>{humanizeEnum(opportunity.source)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <DetailTable headers={["Name", "Stage", "Source"]}>
+            {company.opportunities.map((opportunity) => (
+              <TableRow key={opportunity.id}>
+                <TableCell className="font-medium">
+                  {opportunity.name}
+                </TableCell>
+                <TableCell>
+                  <OpportunityStatusBadge status={opportunity.status} />
+                </TableCell>
+                <TableCell>{humanizeEnum(opportunity.source)}</TableCell>
+              </TableRow>
+            ))}
+          </DetailTable>
         </DetailSection>
       )}
 
       {company.projects.length > 0 && (
         <DetailSection title="Projects" count={company.projects.length}>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {company.projects.map((project) => (
-                  <TableRow key={project.id}>
-                    <TableCell className="font-medium">
-                      {project.name}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <DetailTable headers={["Name"]}>
+            {company.projects.map((project) => (
+              <TableRow key={project.id}>
+                <TableCell className="font-medium">{project.name}</TableCell>
+              </TableRow>
+            ))}
+          </DetailTable>
         </DetailSection>
       )}
 
@@ -145,40 +118,30 @@ export function CompanyDetailView({
           title="Referred opportunities"
           count={company.referredOpportunities.length}
         >
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Opportunity</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Stage</TableHead>
-                  <TableHead>Referred by</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {company.referredOpportunities.map((opportunity) => (
-                  <TableRow key={opportunity.id}>
-                    <TableCell className="font-medium">
-                      {opportunity.name}
-                    </TableCell>
-                    <TableCell>
-                      <InternalLink
-                        href={`/companies/${opportunity.clientCompanyId}`}
-                      >
-                        {opportunity.clientCompanyName}
-                      </InternalLink>
-                    </TableCell>
-                    <TableCell>
-                      <OpportunityStatusBadge status={opportunity.status} />
-                    </TableCell>
-                    <TableCell>
-                      <ReferrerLinks referrers={opportunity.referrers} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <DetailTable
+            headers={["Opportunity", "Client", "Stage", "Referred by"]}
+          >
+            {company.referredOpportunities.map((opportunity) => (
+              <TableRow key={opportunity.id}>
+                <TableCell className="font-medium">
+                  {opportunity.name}
+                </TableCell>
+                <TableCell>
+                  <InternalLink
+                    href={`/companies/${opportunity.clientCompanyId}`}
+                  >
+                    {opportunity.clientCompanyName}
+                  </InternalLink>
+                </TableCell>
+                <TableCell>
+                  <OpportunityStatusBadge status={opportunity.status} />
+                </TableCell>
+                <TableCell>
+                  <ReferrerLinks referrers={opportunity.referrers} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </DetailTable>
         </DetailSection>
       )}
 
@@ -187,88 +150,51 @@ export function CompanyDetailView({
           title="Referred projects"
           count={company.referredProjects.length}
         >
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Project</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Referred by</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {company.referredProjects.map((project) => (
-                  <TableRow key={project.id}>
-                    <TableCell className="font-medium">
-                      {project.name}
-                    </TableCell>
-                    <TableCell>
-                      <InternalLink
-                        href={`/companies/${project.clientCompanyId}`}
-                      >
-                        {project.clientCompanyName}
-                      </InternalLink>
-                    </TableCell>
-                    <TableCell>
-                      <ReferrerLinks referrers={project.referrers} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <DetailTable headers={["Project", "Client", "Referred by"]}>
+            {company.referredProjects.map((project) => (
+              <TableRow key={project.id}>
+                <TableCell className="font-medium">{project.name}</TableCell>
+                <TableCell>
+                  <InternalLink href={`/companies/${project.clientCompanyId}`}>
+                    {project.clientCompanyName}
+                  </InternalLink>
+                </TableCell>
+                <TableCell>
+                  <ReferrerLinks referrers={project.referrers} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </DetailTable>
         </DetailSection>
       )}
 
       <DetailSection title="Contacts" count={company.contacts.length}>
-        <div className="rounded-md border">
-          {company.contacts.length === 0 ? (
-            <TableEmpty>No contacts at this company yet.</TableEmpty>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {company.contacts.map((contact) => (
-                  <TableRow key={contact.id}>
-                    <TableCell className="font-medium">
-                      <InternalLink href={`/contacts/${contact.id}`}>
-                        {contact.name}
-                      </InternalLink>
-                    </TableCell>
-                    <TableCell>{contact.role ?? <EmptyCell />}</TableCell>
-                    <TableCell>
-                      <a
-                        href={`mailto:${contact.email}`}
-                        className="text-primary underline-offset-4 hover:underline"
-                      >
-                        {contact.email}
-                      </a>
-                    </TableCell>
-                    <TableCell>
-                      {contact.phone ? (
-                        <a
-                          href={`tel:${contact.phone}`}
-                          className="text-primary underline-offset-4 hover:underline"
-                        >
-                          {contact.phone}
-                        </a>
-                      ) : (
-                        <EmptyCell />
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
+        {company.contacts.length === 0 ? (
+          <TableEmpty>No contacts at this company yet.</TableEmpty>
+        ) : (
+          <DetailTable headers={["Name", "Role", "Email", "Phone"]}>
+            {company.contacts.map((contact) => (
+              <TableRow key={contact.id}>
+                <TableCell className="font-medium">
+                  <InternalLink href={`/contacts/${contact.id}`}>
+                    {contact.name}
+                  </InternalLink>
+                </TableCell>
+                <TableCell>{contact.role ?? <EmptyCell />}</TableCell>
+                <TableCell>
+                  <MailLink email={contact.email} />
+                </TableCell>
+                <TableCell>
+                  {contact.phone ? (
+                    <PhoneLink phone={contact.phone} />
+                  ) : (
+                    <EmptyCell />
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </DetailTable>
+        )}
       </DetailSection>
     </DetailLayout>
   );

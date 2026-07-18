@@ -12,6 +12,7 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import { TIMESHEET_CATEGORY } from "@/lib/timesheet-category";
+import { TIMESHEET_STATUSES } from "@/lib/timesheet-status";
 import { projects } from "./projects-schema";
 import { staff } from "./staff-schema";
 
@@ -27,9 +28,11 @@ import { staff } from "./staff-schema";
 
 // --- Enums -----------------------------------------------------------------
 
+// Draft→submitted lifecycle. Values live in `@/lib/timesheet-status` (a pure
+// module) so this pgEnum, the read types, and the UI labels share one source of
+// truth.
 export const timesheetStatusEnum = pgEnum("timesheet_status", [
-  "draft",
-  "submitted",
+  ...TIMESHEET_STATUSES,
 ]);
 
 // Non-billable buckets. Values live in `@/lib/timesheet-category` (a pure module)
@@ -102,4 +105,3 @@ export const timeEntries = pgTable(
 // --- Row types -------------------------------------------------------------
 
 export type Timesheet = InferSelectModel<typeof timesheets>;
-export type TimeEntry = InferSelectModel<typeof timeEntries>;

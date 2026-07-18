@@ -23,6 +23,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   PROFICIENCY_LABELS,
   PROFICIENCY_LEVELS,
   type ProficiencyLevel,
@@ -236,14 +241,21 @@ function SelectedChip({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <button
-        type="button"
-        aria-label={`Remove ${skill.name}`}
-        onClick={onRemove}
-        className="inline-flex size-4 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
-      >
-        <IconX className="size-3" />
-      </button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              aria-label={`Remove ${skill.name}`}
+              onClick={onRemove}
+              className="inline-flex size-4 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+            >
+              <IconX className="size-3" />
+            </button>
+          }
+        />
+        <TooltipContent>Remove</TooltipContent>
+      </Tooltip>
     </span>
   );
 }

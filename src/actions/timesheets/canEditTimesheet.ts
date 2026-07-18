@@ -1,9 +1,7 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { ownStaffId } from "@/actions/staff/ownStaffId";
 import type { ActionAuthorize } from "@/lib/action";
-import { db } from "@/lib/db/db";
-import { staff } from "@/lib/db/schema";
 import { UserSafeActionError } from "@/lib/errors";
 import { userHasPermission } from "@/lib/permissions";
 import { isWithinEditWindow } from "@/lib/timesheet-week";
@@ -31,13 +29,7 @@ export async function canEditTimesheet(
   // A normal user is confined to their own record within the edit window.
   if (!isWithinEditWindow(target.weekStartDate)) return false;
 
-  const [own] = await db
-    .select({ id: staff.id })
-    .from(staff)
-    .where(eq(staff.userId, user.id))
-    .limit(1);
-
-  return own?.id === target.staffId;
+  return (await ownStaffId(user.id)) === target.staffId;
 }
 
 /**

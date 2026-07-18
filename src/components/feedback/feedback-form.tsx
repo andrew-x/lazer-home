@@ -228,7 +228,7 @@ export function FeedbackForm() {
         label="Message to recipient (optional)"
         htmlFor="feedback-message"
         error={errors.messageToRecipient?.message}
-        className="rounded border border-primary/40 bg-primary/5 p-3"
+        className="rounded border bg-muted/50 p-3"
       >
         <p className="-mt-1 mb-1.5 text-xs text-muted-foreground">
           This is the <span className="font-medium text-foreground">only</span>{" "}

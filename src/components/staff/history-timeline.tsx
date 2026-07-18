@@ -12,8 +12,9 @@ const CATEGORY_LABEL: Record<HistoryCategory, string> = {
 
 /**
  * A category-agnostic timeline of profile changes, newest first. Entries are
- * fetched server-side and passed in (the actions layer owns the read); this
- * stays presentational, so new categories need no change here.
+ * fetched server-side and passed in (the actions layer owns the read). It stays
+ * presentational — a new history category needs only a `CATEGORY_LABEL` entry
+ * here, with no other structural change (ADR 0011).
  */
 export function HistoryTimeline({ entries }: { entries: HistoryEntry[] }) {
   if (entries.length === 0) {

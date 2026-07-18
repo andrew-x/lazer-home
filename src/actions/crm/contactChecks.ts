@@ -1,3 +1,5 @@
+import "server-only";
+
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/db";
 import { contacts } from "@/lib/db/schema";

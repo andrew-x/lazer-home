@@ -17,6 +17,7 @@ import {
 } from "@/actions/admin/bulkEditEmployment.schema";
 import { commitBulkEditEmployment } from "@/actions/admin/commitBulkEditEmployment";
 import type { StaffEmploymentEditRow } from "@/actions/staff/getStaffEmploymentForEdit";
+import { ALL, SelectFilter, TriStateFilter } from "@/components/form/filters";
 import { Badge } from "@/components/ui/badge";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
@@ -31,21 +32,16 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { normalizeEmploymentFacts } from "@/lib/employment";
-import {
-  LINE_OF_BUSINESS_LABELS,
-  type LineOfBusiness,
-} from "@/lib/line-of-business";
+import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
 import {
   BILLABLE_TYPE_LABELS,
   type BillableType,
   EMPLOYMENT_TYPE_LABELS,
-  type EmploymentType,
   ROLE_LABELS,
-  type Role,
 } from "@/lib/staff-enums";
 import { cn } from "@/lib/utils";
 import { EditableTable, editDraft, useEditableRows } from "./editable-table";
-import { ALL, SelectFilter, SortHeader, TriStateFilter } from "./table-filters";
+import { SortHeader } from "./table-filters";
 
 /**
  * The editable employment facts, kept aligned with the read row's types. Keyed
@@ -92,21 +88,29 @@ function pickEditable(row: StaffEmploymentEditRow): EditableValues {
   };
 }
 
-function formatValue(
-  field: keyof EditableValues,
-  value: EditableValues[keyof EditableValues],
+/**
+ * Per-field formatters for the confirm-diff dialog. Keyed by field so each entry
+ * receives that field's exact value type — the map must cover every editable
+ * field (exhaustive), and the `as Role`/`as BillableType`/`as number` casts of
+ * the old `if`-chain disappear.
+ */
+const VALUE_FORMATTERS: {
+  [K in keyof EditableValues]: (value: EditableValues[K]) => string;
+} = {
+  lineOfBusiness: (value) => LINE_OF_BUSINESS_LABELS[value],
+  role: (value) => ROLE_LABELS[value],
+  employmentType: (value) => EMPLOYMENT_TYPE_LABELS[value],
+  isBillable: (value) => (value ? "Yes" : "No"),
+  isManagement: (value) => (value ? "Yes" : "No"),
+  utilizationTarget: (value) => `${value}%`,
+  billableType: (value) => (value ? BILLABLE_TYPE_LABELS[value] : "None"),
+};
+
+function formatValue<K extends keyof EditableValues>(
+  field: K,
+  value: EditableValues[K],
 ): string {
-  if (field === "isBillable" || field === "isManagement") {
-    return value ? "Yes" : "No";
-  }
-  if (field === "utilizationTarget") return `${value as number}%`;
-  if (field === "billableType") {
-    return value ? BILLABLE_TYPE_LABELS[value as BillableType] : "None";
-  }
-  if (field === "role") return ROLE_LABELS[value as Role];
-  if (field === "employmentType")
-    return EMPLOYMENT_TYPE_LABELS[value as EmploymentType];
-  return LINE_OF_BUSINESS_LABELS[value as LineOfBusiness];
+  return VALUE_FORMATTERS[field](value);
 }
 
 const clampPercent = (n: number) =>

@@ -116,8 +116,10 @@ export type ComparableSnapshot = {
   employmentType: EmploymentType | null;
   isBillable: boolean | null;
   utilizationTarget: number | null;
-  // Compensation. Carried forward when a CSV cell is blank so a partial re-sync
-  // never clears it (see plan.ts).
+  // Compensation on the current record (null when the matched staff has no
+  // employment row yet). Comp is required on every import row and compared /
+  // replaced straight from `incoming` — there is NO carry-forward on the import
+  // path (ADR 0020; only bulk-edit carries comp forward).
   base: number | null;
   hourlyRate: number | null;
   guaranteedBonus: number | null;

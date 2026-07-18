@@ -1,3 +1,5 @@
+import "server-only";
+
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db/db";
 import { staff, staffEmployment } from "@/lib/db/schema";
@@ -14,7 +16,9 @@ export type StaffAccessStatus =
   | { status: "not_setup" };
 
 /**
- * Resolve the staff record for a signed-in user and decide app access.
+ * Resolve the staff record for a signed-in user and decide app access. Lives in
+ * the actions layer per ADR 0010 (all `db` access goes through `src/actions/**`);
+ * the `(app)` layout and `/profile-setup` call it during SSR.
  *
  * Matching: prefer the staff row already linked by `userId`; otherwise fall
  * back to the active staff row with a matching email and link it (auto-link on
@@ -22,7 +26,7 @@ export type StaffAccessStatus =
  * write is guarded on `userId IS NULL`, so it fires at most once per person and
  * concurrent logins are harmless.
  */
-export async function getCurrentStaff(user: {
+export async function getCurrentStaffAccess(user: {
   id: string;
   email: string;
 }): Promise<StaffAccessStatus> {

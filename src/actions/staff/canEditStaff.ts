@@ -1,11 +1,9 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
 import type { ActionAuthorize } from "@/lib/action";
-import { db } from "@/lib/db/db";
-import { staff } from "@/lib/db/schema";
 import { UserSafeActionError } from "@/lib/errors";
 import { userHasPermission } from "@/lib/permissions";
+import { ownStaffId } from "./ownStaffId";
 
 /**
  * Can this user edit the given staff member's profile? The single decision point
@@ -26,13 +24,7 @@ export async function canEditStaff(
   if (userHasPermission(user, { staff: ["edit"] })) return true;
 
   // Otherwise the target must be the caller's own linked staff record.
-  const [own] = await db
-    .select({ id: staff.id })
-    .from(staff)
-    .where(eq(staff.userId, user.id))
-    .limit(1);
-
-  return own?.id === targetStaffId;
+  return (await ownStaffId(user.id)) === targetStaffId;
 }
 
 /**

@@ -36,49 +36,31 @@ import { parseIsoDate } from "@/lib/format";
 import {
   TIMESHEET_CATEGORY,
   TIMESHEET_CATEGORY_LABELS,
-  type TimesheetCategory,
 } from "@/lib/timesheet-category";
+import {
+  autofillProjectHours,
+  buildPayload,
+  buildRows,
+  CATEGORY_PREFIX,
+  PROJECT_PREFIX,
+  parseHours,
+  type Row,
+  targetKey,
+} from "@/lib/timesheet-grid";
+import type { TimesheetStatus } from "@/lib/timesheet-status";
 import { isWeekend } from "@/lib/timesheet-week";
 import { cn } from "@/lib/utils";
-
-/** A grid row: one target (project or category) with a value per weekday. */
-type Row = {
-  key: string;
-  label: string;
-  sublabel: string | null;
-  projectId: string | null;
-  category: TimesheetCategory | null;
-  hours: Record<string, string>;
-};
 
 type Props = {
   staffId: string;
   weekStartDate: string;
   weekDays: string[];
-  status: "draft" | "submitted";
+  status: TimesheetStatus;
   initialEntries: TimesheetEntryView[];
   projects: SelectableProject[];
   /** Whether this viewer may edit this week (own + in window, or the capability). */
   canEdit: boolean;
 };
-
-const PROJECT_PREFIX = "project:";
-const CATEGORY_PREFIX = "category:";
-
-function targetKey(
-  projectId: string | null,
-  category: TimesheetCategory | null,
-): string {
-  return projectId
-    ? `${PROJECT_PREFIX}${projectId}`
-    : `${CATEGORY_PREFIX}${category}`;
-}
-
-/** Parse a cell's raw text into non-negative hours (blank / invalid → 0). */
-function parseHours(raw: string | undefined): number {
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : 0;
-}
 
 /** "Mon 14" style column header for a weekday. */
 function dayHeader(date: string): { weekday: string; day: string } {
@@ -89,43 +71,6 @@ function dayHeader(date: string): { weekday: string; day: string } {
     ),
     day: String(jsDate.getDate()),
   };
-}
-
-/** Group the flat entries into one row per target, preserving stable ordering. */
-function buildRows(
-  entries: TimesheetEntryView[],
-  categoryOrder: readonly TimesheetCategory[],
-): Row[] {
-  const byKey = new Map<string, Row>();
-  for (const e of entries) {
-    const key = targetKey(e.projectId, e.category);
-    let row = byKey.get(key);
-    if (!row) {
-      row = {
-        key,
-        label:
-          e.projectName ??
-          (e.category ? TIMESHEET_CATEGORY_LABELS[e.category] : "—"),
-        sublabel: e.projectId ? e.companyName : "Non-billable",
-        projectId: e.projectId,
-        category: e.category,
-        hours: {},
-      };
-      byKey.set(key, row);
-    }
-    row.hours[e.date] = String(e.hours);
-  }
-  const rows = [...byKey.values()];
-  // A category row's rank in the canonical order (project rows never reach here).
-  const categoryRank = (category: TimesheetCategory | null) =>
-    category ? categoryOrder.indexOf(category) : -1;
-  // Projects (alpha) first, then non-billable categories in their canonical order.
-  return rows.sort((a, b) => {
-    if (a.projectId && b.projectId) return a.label.localeCompare(b.label);
-    if (a.projectId) return -1;
-    if (b.projectId) return 1;
-    return categoryRank(a.category) - categoryRank(b.category);
-  });
 }
 
 export function TimesheetWeek({
@@ -141,6 +86,9 @@ export function TimesheetWeek({
   const [rows, setRows] = useState<Row[]>(() =>
     buildRows(initialEntries, TIMESHEET_CATEGORY),
   );
+  // Save-then-submit relay: Submit first saves the grid, then this flag tells
+  // saveAction.onSuccess to chain into submitAction (a ref, not state, so the
+  // in-flight callback reads the latest value without re-rendering).
   const submitAfterSave = useRef(false);
 
   const locked = status === "submitted";
@@ -203,25 +151,6 @@ export function TimesheetWeek({
     setRows((prev) => prev.filter((row) => row.key !== rowKey));
   }
 
-  /**
-   * Hours to prefill a newly-added PROJECT row with: each weekday's remaining
-   * capacity (8h minus what's already logged that day), so a project soaks up
-   * unallocated weekday time. Weekends stay blank. Non-billable rows get nothing.
-   */
-  function autofillProjectHours(): Record<string, string> {
-    const filled: Record<string, string> = {};
-    for (const date of weekDays) {
-      if (isWeekend(date)) continue;
-      const used = rows.reduce(
-        (sum, row) => sum + parseHours(row.hours[date]),
-        0,
-      );
-      const remaining = DAILY_HOUR_CAP - used;
-      if (remaining > 0) filled[date] = String(remaining);
-    }
-    return filled;
-  }
-
   function addTarget(value: string) {
     if (value.startsWith(PROJECT_PREFIX)) {
       const id = value.slice(PROJECT_PREFIX.length);
@@ -237,7 +166,7 @@ export function TimesheetWeek({
           sublabel: project.companyName,
           projectId: id,
           category: null,
-          hours: autofillProjectHours(),
+          hours: autofillProjectHours(rows, weekDays, DAILY_HOUR_CAP),
         },
       ]);
     } else if (value.startsWith(CATEGORY_PREFIX)) {
@@ -260,29 +189,14 @@ export function TimesheetWeek({
     }
   }
 
-  function buildPayload() {
-    const entries = rows.flatMap((row) =>
-      weekDays
-        .map((date) => ({ date, hours: parseHours(row.hours[date]) }))
-        .filter((cell) => cell.hours > 0)
-        .map((cell) => ({
-          date: cell.date,
-          projectId: row.projectId,
-          category: row.category,
-          hours: cell.hours,
-        })),
-    );
-    return { staffId, weekStartDate, entries };
-  }
-
   function handleSave() {
     submitAfterSave.current = false;
-    saveAction.execute(buildPayload());
+    saveAction.execute(buildPayload(rows, weekDays, staffId, weekStartDate));
   }
 
   function handleSubmit() {
     submitAfterSave.current = true;
-    saveAction.execute(buildPayload());
+    saveAction.execute(buildPayload(rows, weekDays, staffId, weekStartDate));
   }
 
   const usedKeys = new Set(rows.map((r) => r.key));

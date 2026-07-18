@@ -1,9 +1,10 @@
 import "server-only";
 
-import { asc, desc } from "drizzle-orm";
+import { asc } from "drizzle-orm";
 import { firstPerKey } from "@/lib/collections";
 import { db } from "@/lib/db/db";
 import { type StaffEmployment, staff, staffEmployment } from "@/lib/db/schema";
+import { latestEmploymentFirst } from "@/lib/staff-employment";
 
 /**
  * One editable row per staff member for the admin bulk-edit-roles table:
@@ -45,7 +46,7 @@ export async function getStaffEmploymentForEdit(): Promise<
     .orderBy(asc(staff.name));
 
   // Read every employment row newest-first, then keep the latest per staff in JS
-  // (effectiveFromDate desc, createdAt desc tiebreak — ADR 0007).
+  // (see `latestEmploymentFirst` — ADR 0007 effective-dating tiebreak).
   const employmentRows = await db
     .select({
       id: staffEmployment.id,
@@ -60,10 +61,7 @@ export async function getStaffEmploymentForEdit(): Promise<
       isManagement: staffEmployment.isManagement,
     })
     .from(staffEmployment)
-    .orderBy(
-      desc(staffEmployment.effectiveFromDate),
-      desc(staffEmployment.createdAt),
-    );
+    .orderBy(...latestEmploymentFirst);
 
   const latestByStaff = firstPerKey(employmentRows, (row) => row.staffId);
 

@@ -1,7 +1,8 @@
 import "server-only";
 
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { cache } from "react";
+import { contactNameSql } from "@/actions/shared/contactName";
 import { db } from "@/lib/db/db";
 import {
   companies,
@@ -78,7 +79,7 @@ export type CompanyDetail = {
   contacts: CompanyContact[];
 };
 
-const contactName = sql<string>`${contacts.firstName} || ' ' || ${contacts.lastName}`;
+const contactName = contactNameSql(contacts);
 
 /**
  * Collapse referral rows shaped `{ id, …, referrerId, referrerName }` — one per

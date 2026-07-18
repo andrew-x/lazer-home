@@ -1,8 +1,9 @@
 import "server-only";
 
-import { asc, eq, inArray, sql } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { cache } from "react";
+import { contactNameSql } from "@/actions/shared/contactName";
 import { db } from "@/lib/db/db";
 import {
   companies,
@@ -81,9 +82,7 @@ export const getContactDetail = cache(
         companyId: contacts.companyId,
         companyName: companies.name,
         managerId: contacts.managerId,
-        managerName: sql<
-          string | null
-        >`${managers.firstName} || ' ' || ${managers.lastName}`,
+        managerName: contactNameSql<string | null>(managers),
         ownerId: contacts.ownerId,
         ownerName: staff.name,
       })

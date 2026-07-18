@@ -55,11 +55,18 @@ export function EntityMultiCombobox({
 
   // Keep already-selected items in the list so they render their selected
   // (checkmark) state even when absent from the current search results.
+  //
+  // Gate the search results on the current query: `useAction` drops out-of-order
+  // responses when a *new* `execute` supersedes an older one, but clearing the
+  // input calls `reset()` (not `execute`), which doesn't invalidate an in-flight
+  // request — so a search still running when the field is cleared would resolve
+  // and repopulate stale results. Ignoring results while the query is empty
+  // keeps them from coming back after a clear.
   const items = useMemo(() => {
-    const results = result.data ?? [];
+    const results = query.trim() === "" ? [] : (result.data ?? []);
     const missing = value.filter((v) => !results.some((r) => r.id === v.id));
     return [...missing, ...results];
-  }, [result.data, value]);
+  }, [query, result.data, value]);
 
   return (
     <Combobox

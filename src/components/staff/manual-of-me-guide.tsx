@@ -55,71 +55,104 @@ export function ManualOfMeGuide({
   savedRef.current = saved;
   const stepRef = useRef(step);
   stepRef.current = step;
+  // A drain is in flight (only one save runs at a time), plus the set of
+  // question indexes with unsaved edits waiting to be persisted. The queue is
+  // what keeps rapid multi-question navigation from dropping an intermediate
+  // answer: every dirty question is enqueued and the drain loop runs until the
+  // set is empty, instead of an in-flight save turning a later edit into a
+  // silent no-op.
   const savingRef = useRef(false);
+  const dirtyRef = useRef<Set<number>>(new Set());
+  const drainRef = useRef<Promise<boolean> | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { executeAsync } = useAction(upsertResponse);
 
   /**
-   * Persist question `i` if its value changed since the last save. Serialized
-   * via `savingRef`: only one save runs at a time, and on completion we re-check
-   * for fresh edits (to `i` or, if `i` is no longer current, to the current
-   * step) and flush those too. The "saved" indicator only lights up when the
-   * field still matches what we sent — so typing-through-a-save never shows a
-   * stale ✓.
+   * Persist every question with unsaved edits, one at a time. The current step
+   * is saved first (so its "Saving…/Saved" indicator reflects the live save);
+   * an edit that lands mid-save re-queues its question, and a failed save
+   * re-queues and stops the loop (the next edit/blur/navigation retries). The
+   * "saved" indicator only lights up when the field still matches what we sent,
+   * so typing-through-a-save never shows a stale ✓. Returns `false` if any save
+   * failed, so Finish can refuse to navigate away from unsaved work.
+   */
+  const drain = useCallback(async (): Promise<boolean> => {
+    savingRef.current = true;
+    let ok = true;
+    try {
+      while (dirtyRef.current.size > 0) {
+        // Prefer the current step; otherwise take any dirty question.
+        let i = stepRef.current;
+        if (!dirtyRef.current.has(i)) {
+          const next = dirtyRef.current.values().next();
+          if (next.done) break;
+          i = next.value;
+        }
+        dirtyRef.current.delete(i);
+
+        const value = answersRef.current[i];
+        const trimmed = value.trim();
+        // Edited back to the saved value before we got here — nothing to do.
+        if (trimmed === savedRef.current[i]) continue;
+
+        if (i === stepRef.current) setSaveState("saving");
+        const res = await executeAsync({
+          staffId,
+          questionId: entries[i].id,
+          textResponse: value,
+        }).catch(() => null);
+
+        if (res?.data?.ok) {
+          setSaved((current) => {
+            const next = [...current];
+            next[i] = trimmed;
+            return next;
+          });
+          savedRef.current = savedRef.current.map((v, idx) =>
+            idx === i ? trimmed : v,
+          );
+          // Changed again while this save was in flight → dirty once more.
+          if (answersRef.current[i].trim() !== trimmed) dirtyRef.current.add(i);
+          if (i === stepRef.current) {
+            setSaveState(
+              answersRef.current[i].trim() === savedRef.current[i]
+                ? "saved"
+                : "saving",
+            );
+          }
+        } else {
+          // Leave it queued so a later edit/blur/navigation retries it.
+          dirtyRef.current.add(i);
+          if (i === stepRef.current) setSaveState("error");
+          ok = false;
+          break;
+        }
+      }
+    } finally {
+      savingRef.current = false;
+    }
+    return ok;
+  }, [entries, executeAsync, staffId]);
+
+  /**
+   * Queue question `i` (if it has unsaved edits) and ensure the drain loop is
+   * running. When a drain is already in flight we return it — the just-queued
+   * question is picked up before it finishes — so callers can fire-and-forget
+   * (`void flush(i)`) or await the promise to know everything is persisted.
+   * Never rejects.
    */
   const flush = useCallback(
-    async (i: number) => {
-      if (savingRef.current) return;
-      const value = answersRef.current[i];
-      const trimmed = value.trim();
-      if (trimmed === savedRef.current[i]) return;
-
-      savingRef.current = true;
-      if (i === stepRef.current) setSaveState("saving");
-
-      const res = await executeAsync({
-        staffId,
-        questionId: entries[i].id,
-        textResponse: value,
-      }).catch(() => null);
-
-      savingRef.current = false;
-
-      if (res?.data?.ok) {
-        setSaved((current) => {
-          const next = [...current];
-          next[i] = trimmed;
-          return next;
-        });
-        savedRef.current = savedRef.current.map((v, idx) =>
-          idx === i ? trimmed : v,
-        );
-        const stillCurrent = i === stepRef.current;
-        const unchanged = answersRef.current[i].trim() === trimmed;
-        if (stillCurrent) setSaveState(unchanged ? "saved" : "saving");
-
-        // If edits landed mid-save, decide what to re-flush: the current step
-        // wins if the user has since typed on it; otherwise re-flush the
-        // just-saved question `i` if it changed again; else nothing is dirty.
-        const nextDirtyStep = (): number | null => {
-          const currentStep = stepRef.current;
-          if (
-            answersRef.current[currentStep].trim() !==
-            savedRef.current[currentStep]
-          ) {
-            return currentStep;
-          }
-          if (!unchanged) return i;
-          return null;
-        };
-        const dirtyStep = nextDirtyStep();
-        if (dirtyStep !== null) void flush(dirtyStep);
-      } else if (i === stepRef.current) {
-        setSaveState("error");
+    (i: number): Promise<boolean> => {
+      if (answersRef.current[i].trim() !== savedRef.current[i]) {
+        dirtyRef.current.add(i);
       }
+      if (savingRef.current) return drainRef.current ?? Promise.resolve(true);
+      if (dirtyRef.current.size === 0) return Promise.resolve(true);
+      drainRef.current = drain();
+      return drainRef.current;
     },
-    [entries, executeAsync, staffId],
+    [drain],
   );
 
   // Debounced autosave while typing on the current step.
@@ -160,9 +193,16 @@ export function ManualOfMeGuide({
     if (saveState !== "idle") setSaveState("idle");
   }
 
-  function finish() {
+  async function finish() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    void flush(stepRef.current);
+    // Unlike the best-effort saves elsewhere, Finish must not lose a last-second
+    // keystroke: await the full drain and stay put (surfacing the error) rather
+    // than navigating away from unsaved work.
+    const ok = await flush(stepRef.current);
+    if (!ok) {
+      setSaveState("error");
+      return;
+    }
     router.push(`/staff/${staffId}`);
   }
 

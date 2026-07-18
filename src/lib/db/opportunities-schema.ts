@@ -145,11 +145,3 @@ export const opportunitySourceStaff = pgTable(
 // --- Row types -------------------------------------------------------------
 
 export type Opportunity = InferSelectModel<typeof opportunities>;
-export type OpportunityContact = InferSelectModel<typeof opportunityContacts>;
-export type OpportunityOwner = InferSelectModel<typeof opportunityOwners>;
-export type OpportunitySourceContact = InferSelectModel<
-  typeof opportunitySourceContacts
->;
-export type OpportunitySourceStaff = InferSelectModel<
-  typeof opportunitySourceStaff
->;

@@ -12,6 +12,10 @@ import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
 import { ISO_DATE } from "@/lib/date-schema";
 import { formatDate, formatIsoDate, parseIsoDate } from "@/lib/format";
+import {
+  DEFAULT_TIMESHEET_STATUS,
+  TIMESHEET_STATUS_LABELS,
+} from "@/lib/timesheet-status";
 import { getWeekDays, getWeekStart } from "@/lib/timesheet-week";
 
 export const metadata: Metadata = { title: "Timesheet" };
@@ -72,7 +76,7 @@ export default async function TimesheetWeekPage({
 
   // The viewer's own timesheet always resolves (an empty draft when unsaved).
   const sheet = timesheet ?? {
-    status: "draft" as const,
+    status: DEFAULT_TIMESHEET_STATUS,
     submittedAt: null,
     entries: [],
   };
@@ -87,7 +91,7 @@ export default async function TimesheetWeekPage({
           </h2>
         </div>
         <Badge variant={sheet.status === "submitted" ? "secondary" : "outline"}>
-          {sheet.status === "submitted" ? "Submitted" : "Draft"}
+          {TIMESHEET_STATUS_LABELS[sheet.status]}
         </Badge>
       </header>
 

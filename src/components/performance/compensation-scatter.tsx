@@ -17,37 +17,35 @@ const PLOT_WIDTH = PLOT_RIGHT - PLOT_LEFT;
 const PLOT_HEIGHT = PLOT_BOTTOM - PLOT_TOP;
 const TICK_COUNT = 5;
 
-type Datum = { value: number; name: string };
 type Point = {
   id: number;
   cx: number;
   cy: number;
   value: number;
-  name: string;
 };
 
 /**
  * A single-series scatter of one numeric measure across staff, sorted ascending.
- * Each dot is one person; the x position is just their rank (1..n, ticks hidden),
- * so the eye reads the distribution's shape. Values arrive already normalized to
- * the display currency; `formatValue` handles axis + tooltip formatting. Hovering
- * a dot names the person and shows their value.
+ * Each dot is one (anonymous) person; the x position is just their rank (1..n,
+ * ticks hidden), so the eye reads the distribution's shape. Values arrive already
+ * normalized to the display currency; `formatValue` handles axis + tooltip
+ * formatting. The data carries no identity — hovering a dot shows only its value.
  */
 export function CompensationScatter({
-  data,
+  values,
   formatValue,
   caption,
 }: {
-  data: Datum[];
+  values: number[];
   formatValue: (value: number) => string;
   caption: string;
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
 
   const { points, ticks, yOf } = useMemo(() => {
-    const sorted = [...data].sort((a, b) => a.value - b.value);
-    const min = sorted[0]?.value ?? 0;
-    const max = sorted[sorted.length - 1]?.value ?? 0;
+    const sorted = [...values].sort((a, b) => a - b);
+    const min = sorted[0] ?? 0;
+    const max = sorted[sorted.length - 1] ?? 0;
 
     // Pad the domain so extremes don't sit on the frame. Scatter dots (unlike
     // bars) carry no area-from-zero meaning, so a non-zero baseline is honest and
@@ -70,16 +68,15 @@ export function CompensationScatter({
         ? PLOT_LEFT + PLOT_WIDTH / 2
         : PLOT_LEFT + (index / (sorted.length - 1)) * PLOT_WIDTH;
 
-    const points: Point[] = sorted.map((d, i) => ({
+    const points: Point[] = sorted.map((value, i) => ({
       id: i,
       cx: xOf(i),
-      cy: yOf(d.value),
-      value: d.value,
-      name: d.name,
+      cy: yOf(value),
+      value,
     }));
 
     return { points, ticks, yOf };
-  }, [data]);
+  }, [values]);
 
   const active = hovered != null ? points[hovered] : null;
 
@@ -131,7 +128,7 @@ export function CompensationScatter({
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* One dot per staff member; hover names the person */}
+        {/* One dot per staff member; hover shows the value (no identity) */}
         {points.map((p) => {
           const isActive = hovered === p.id;
           return (
@@ -146,7 +143,7 @@ export function CompensationScatter({
               onMouseEnter={() => setHovered(p.id)}
               onMouseLeave={() => setHovered(null)}
             >
-              <title>{`${p.name}: ${formatValue(p.value)}`}</title>
+              <title>{formatValue(p.value)}</title>
             </circle>
           );
         })}
@@ -156,7 +153,7 @@ export function CompensationScatter({
           <ScatterTooltip
             x={active.cx}
             y={active.cy}
-            label={`${active.name} · ${formatValue(active.value)}`}
+            label={formatValue(active.value)}
           />
         )}
       </svg>

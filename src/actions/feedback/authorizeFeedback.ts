@@ -1,6 +1,7 @@
 import "server-only";
 
 import { and, eq } from "drizzle-orm";
+import { ownStaffId } from "@/actions/staff/ownStaffId";
 import type { ActionAuthorize } from "@/lib/action";
 import { db } from "@/lib/db/db";
 import { staff } from "@/lib/db/schema";
@@ -19,15 +20,11 @@ export async function canGiveFeedback(
   targetStaffId: string,
 ): Promise<boolean> {
   // Caller must be active staff.
-  const [caller] = await db
-    .select({ id: staff.id })
-    .from(staff)
-    .where(and(eq(staff.userId, user.id), eq(staff.isActive, true)))
-    .limit(1);
-  if (!caller) return false;
+  const callerId = await ownStaffId(user.id, { activeOnly: true });
+  if (!callerId) return false;
 
   // No self-feedback.
-  if (caller.id === targetStaffId) return false;
+  if (callerId === targetStaffId) return false;
 
   // Target must be active staff.
   const [target] = await db

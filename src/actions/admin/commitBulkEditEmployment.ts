@@ -1,6 +1,6 @@
 "use server";
 
-import { desc, eq, type InferInsertModel, inArray } from "drizzle-orm";
+import { eq, type InferInsertModel, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { publicActionClient } from "@/lib/action";
 import { assertLocalhost } from "@/lib/admin";
@@ -9,6 +9,7 @@ import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import { staff, staffEmployment } from "@/lib/db/schema";
 import { UserSafeActionError } from "@/lib/errors";
+import { latestEmploymentFirst } from "@/lib/staff-employment";
 import {
   bulkEditEmploymentSchema,
   FACT_FIELDS,
@@ -71,10 +72,7 @@ export const commitBulkEditEmployment = publicActionClient
           })
           .from(staffEmployment)
           .where(inArray(staffEmployment.staffId, staffIds))
-          .orderBy(
-            desc(staffEmployment.effectiveFromDate),
-            desc(staffEmployment.createdAt),
-          ),
+          .orderBy(...latestEmploymentFirst),
         db
           .select({ id: staff.id, name: staff.name })
           .from(staff)

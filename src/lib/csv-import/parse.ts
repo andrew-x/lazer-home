@@ -1,4 +1,4 @@
-import { ISO_DATE } from "@/lib/date-schema";
+import { ISO_DATE, isCalendarDate } from "@/lib/date-schema";
 import type { ParsedDate, RawRow } from "./types";
 
 /**
@@ -24,18 +24,22 @@ export function getField(row: RawRow, header: string): string {
 
 const US_DATE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
 
-/** Parse common Rippling date formats to "YYYY-MM-DD"; blank → null. */
+/**
+ * Parse common Rippling date formats to "YYYY-MM-DD"; blank → null. Rejects
+ * impossible calendar dates (e.g. 2/30/2026) via the shared `isCalendarDate`
+ * round-trip, so a bad cell fails the import rather than silently rolling over.
+ */
 export function parseDate(input: string): ParsedDate {
   const value = input.trim();
   if (!value) return { ok: true, value: null };
-  if (ISO_DATE.test(value)) return { ok: true, value };
+  if (ISO_DATE.test(value)) {
+    return isCalendarDate(value) ? { ok: true, value } : { ok: false };
+  }
   const match = US_DATE.exec(value);
   if (match) {
     const [, month, day, year] = match;
-    return {
-      ok: true,
-      value: `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`,
-    };
+    const iso = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    return isCalendarDate(iso) ? { ok: true, value: iso } : { ok: false };
   }
   return { ok: false };
 }

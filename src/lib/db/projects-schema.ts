@@ -138,7 +138,4 @@ export const projectRoles = pgTable(
 // --- Row types -------------------------------------------------------------
 
 export type Project = InferSelectModel<typeof projects>;
-export type ProjectDeliveryManager = InferSelectModel<
-  typeof projectDeliveryManagers
->;
 export type ProjectRole = InferSelectModel<typeof projectRoles>;

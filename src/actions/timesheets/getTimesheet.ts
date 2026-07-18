@@ -7,6 +7,7 @@ import { db } from "@/lib/db/db";
 import { companies, projects, timeEntries, timesheets } from "@/lib/db/schema";
 import { userHasPermission } from "@/lib/permissions";
 import type { TimesheetCategory } from "@/lib/timesheet-category";
+import type { TimesheetStatus } from "@/lib/timesheet-status";
 
 /** One logged row, with the project/company names resolved for display. */
 export type TimesheetEntryView = {
@@ -20,7 +21,7 @@ export type TimesheetEntryView = {
 };
 
 export type TimesheetView = {
-  status: "draft" | "submitted";
+  status: TimesheetStatus;
   submittedAt: Date | null;
   entries: TimesheetEntryView[];
 };

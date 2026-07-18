@@ -1,5 +1,6 @@
 import { IconBrandLinkedin } from "@tabler/icons-react";
 import type { ContactRow } from "@/actions/crm/getContactsPage";
+import { MailLink, PhoneLink } from "@/components/contact-link";
 import { EmptyCell } from "@/components/empty-cell";
 import { ExternalLink } from "@/components/external-link";
 import { InternalLink } from "@/components/internal-link";
@@ -43,21 +44,11 @@ export function ContactsTable({ rows }: { rows: ContactRow[] }) {
               </InternalLink>
             </TableCell>
             <TableCell>
-              <a
-                href={`mailto:${contact.email}`}
-                className="text-primary underline-offset-4 hover:underline"
-              >
-                {contact.email}
-              </a>
+              <MailLink email={contact.email} />
             </TableCell>
             <TableCell>
               {contact.phone ? (
-                <a
-                  href={`tel:${contact.phone}`}
-                  className="text-primary underline-offset-4 hover:underline"
-                >
-                  {contact.phone}
-                </a>
+                <PhoneLink phone={contact.phone} />
               ) : (
                 <EmptyCell />
               )}

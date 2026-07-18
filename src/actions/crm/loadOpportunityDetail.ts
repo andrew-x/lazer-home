@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { secureActionClient } from "@/lib/action";
+import { id } from "@/lib/id-schema";
 import { getOpportunity } from "./getOpportunity";
 
 /**
@@ -15,5 +16,5 @@ export const loadOpportunityDetail = secureActionClient
     action: "load-opportunity-detail",
     permission: { crm: ["edit"] },
   })
-  .inputSchema(z.object({ id: z.string().min(1) }))
+  .inputSchema(z.object({ id }))
   .action(({ parsedInput }) => getOpportunity(parsedInput.id));

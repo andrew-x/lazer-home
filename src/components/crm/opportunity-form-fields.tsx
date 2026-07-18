@@ -27,12 +27,15 @@ import { ContactsComboboxField } from "./contacts-combobox-field";
 import { STATUS_SELECT_LABELS } from "./opportunity-display";
 
 /**
- * The react-hook-form value shape shared by the add-opportunity dialog and the
- * detail-drawer edit form. The add form extends it with `companyId`/`companyName`
- * (company isn't editable in the drawer); both bind these fields identically, so
- * the field UI, the values→input mapper, and the server-issue field map all live
- * here and can't drift — mirrors how `CompanyFields` serves the add + inline
- * company forms.
+ * The react-hook-form value shape for the add-opportunity dialog's fields. The
+ * dialog's form is a superset — it adds `companyId`/`companyName` for its company
+ * picker — which is why `OpportunityFields` below is generic over the caller's
+ * form type. Keeping the field UI, the values→input mapper, and the server-issue
+ * field map together here means they can't drift — mirrors how `CompanyFields`
+ * serves the add + inline company forms.
+ *
+ * The add-opportunity dialog is the sole caller: the detail drawer edits each
+ * field inline (`opportunity-detail-sheet.tsx`) and does not use this component.
  */
 export type OpportunityFieldValues = {
   name: string;
@@ -67,10 +70,10 @@ export function opportunityValuesToInput(values: OpportunityFieldValues) {
 
 /**
  * Base map from a server-schema issue path to its form field, covering the
- * fields both schemas share. Each dialog spreads this and adds its own key
- * (`companyId` → company field on create; `id` → `name` fallback on update),
- * typing the final object by `keyof <Schema>Input` so a new schema field can't
- * silently drop its errors.
+ * fields the create schema shares with this form. The add dialog spreads this
+ * and adds its own key (`companyId` → the company field), typing the final
+ * object by `keyof CreateOpportunityInput` so a new schema field can't silently
+ * drop its errors.
  */
 export const OPPORTUNITY_FIELD_FOR_ISSUE = {
   name: "name",
@@ -85,11 +88,13 @@ export const OPPORTUNITY_FIELD_FOR_ISSUE = {
 } satisfies Record<string, keyof OpportunityFieldValues>;
 
 /**
- * The shared opportunity form fields. Generic over the caller's form type (which
- * may extend `OpportunityFieldValues`); internally narrowed to the shared shape,
- * since these controls only touch the shared fields. `companySlot` is rendered
- * just after the name field — the add dialog passes its company picker there; the
- * edit drawer omits it. `idPrefix` keeps element ids unique across instances.
+ * The add-opportunity dialog's form fields. Generic over the caller's form type
+ * only to bridge react-hook-form's invariance: the dialog's form is a superset
+ * (it adds `companyId`/`companyName`), and `UseFormReturn` isn't assignable
+ * across differing value shapes, so the prop is widened here and narrowed once
+ * internally to the shared shape these controls actually bind. `companySlot` is
+ * rendered just after the name field — the dialog passes its company picker
+ * there. `idPrefix` keeps element ids unique across instances.
  */
 export function OpportunityFields<TValues extends OpportunityFieldValues>({
   form,
@@ -100,8 +105,8 @@ export function OpportunityFields<TValues extends OpportunityFieldValues>({
   idPrefix: string;
   companySlot?: ReactNode;
 }) {
-  // Narrow once: callers may pass a superset form (create adds company fields),
-  // but every control below binds only the shared `OpportunityFieldValues`.
+  // Narrow once: the sole caller passes a superset form (it adds company
+  // fields), but every control below binds only the shared `OpportunityFieldValues`.
   const {
     register,
     control,

@@ -1,14 +1,15 @@
 import { z } from "zod";
+import { MAX_PDF_BASE64_CHARS, PDF_TOO_LARGE_MESSAGE } from "@/lib/pdf-upload";
 
 /**
  * A PDF to extract resume text from. `fileBase64` is the raw PDF bytes,
- * base64-encoded with no `data:` prefix. ~8 MB of base64 ≈ a ~6 MB PDF, which
- * sits under the configured server-action body limit; reject anything larger
- * server-side as a backstop to the client's own size check.
+ * base64-encoded with no `data:` prefix. The size ceiling is derived from the
+ * shared raw-byte limit (`@/lib/pdf-upload`) so it can't drift from the client's
+ * own check; reject anything larger server-side as a backstop.
  */
 export const parseResumePdfSchema = z.object({
   fileBase64: z
     .string()
     .min(1, "No file provided.")
-    .max(8_000_000, "That PDF is too large. Keep it under ~6 MB."),
+    .max(MAX_PDF_BASE64_CHARS, PDF_TOO_LARGE_MESSAGE),
 });

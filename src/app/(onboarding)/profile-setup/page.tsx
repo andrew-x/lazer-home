@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { getCurrentStaffAccess } from "@/actions/staff/getCurrentStaffAccess";
 import { OnboardingNotice } from "@/components/auth/onboarding-notice";
 import { getCurrentUser } from "@/lib/auth";
-import { getCurrentStaff } from "@/lib/staff";
 
 export const metadata: Metadata = { title: "Profile setup" };
 
@@ -15,7 +15,7 @@ export default async function ProfileSetupPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const staffAccess = await getCurrentStaff(user);
+  const staffAccess = await getCurrentStaffAccess(user);
   if (staffAccess.status === "ok") redirect("/");
 
   if (staffAccess.status === "incomplete") {

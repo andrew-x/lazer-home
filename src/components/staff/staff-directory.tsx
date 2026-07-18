@@ -3,6 +3,12 @@
 import { IconSearch } from "@tabler/icons-react";
 import { useId, useMemo, useState } from "react";
 import type { StaffDirectoryEntry } from "@/actions/staff/getStaffDirectory";
+import {
+  ALL,
+  FilterLabel,
+  SegmentedFilter,
+  SelectFilter,
+} from "@/components/form/filters";
 import { StaffCard } from "@/components/staff/staff-card";
 import {
   Combobox,
@@ -19,13 +25,6 @@ import {
   useComboboxAnchor,
 } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
@@ -35,8 +34,6 @@ import {
   SKILL_CATEGORIES,
 } from "@/lib/skills";
 import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff-enums";
-
-const ALL = "ALL";
 
 /** Sentinel min-level meaning "any proficiency" — imposes no level constraint. */
 const ANY_LEVEL = "ANY";
@@ -53,100 +50,6 @@ const SKILL_GROUPS = SKILL_CATEGORIES.map((category) => ({
   value: category.name,
   items: [...category.skills],
 }));
-
-/** Small uppercase caption that heads each filter control. */
-function FilterLabel({
-  children,
-  htmlFor,
-}: {
-  children: string;
-  htmlFor?: string;
-}) {
-  const className =
-    "text-xs font-medium uppercase tracking-wide text-muted-foreground";
-  return htmlFor ? (
-    <label htmlFor={htmlFor} className={className}>
-      {children}
-    </label>
-  ) : (
-    <span className={className}>{children}</span>
-  );
-}
-
-/** A labelled select filter with a leading "All" option. */
-function SelectFilter({
-  label,
-  value,
-  options,
-  labels,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  labels: Record<string, string>;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <FilterLabel>{label}</FilterLabel>
-      <Select value={value} onValueChange={(next) => onChange(next ?? ALL)}>
-        <SelectTrigger aria-label={label} className="w-full">
-          <SelectValue>
-            {(current: string) => (current === ALL ? "All" : labels[current])}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL}>All</SelectItem>
-          {options.map((option) => (
-            <SelectItem key={option} value={option}>
-              {labels[option]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
-
-/** A connected single-select button group with a leading "All" segment. */
-function SegmentedFilter({
-  label,
-  value,
-  options,
-  labels,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  labels: Record<string, string>;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <FilterLabel>{label}</FilterLabel>
-      <ToggleGroup
-        variant="outline"
-        spacing={0}
-        aria-label={label}
-        value={[value]}
-        // Single-select: ignore the empty array Base UI emits when the active
-        // segment is pressed again, so one segment is always selected.
-        onValueChange={(values) => {
-          if (values.length > 0) onChange(values[0]);
-        }}
-      >
-        <ToggleGroupItem value={ALL}>All</ToggleGroupItem>
-        {options.map((option) => (
-          <ToggleGroupItem key={option} value={option}>
-            {labels[option]}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-    </div>
-  );
-}
 
 /** A grouped, searchable multi-select of catalogue skills, shown as chips. */
 function SkillsFilter({
@@ -302,6 +205,7 @@ export function StaffDirectory({
             options={lineOfBusinessOptions}
             labels={LINE_OF_BUSINESS_LABELS}
             onChange={setLineOfBusiness}
+            triggerClassName="w-full"
           />
           <SelectFilter
             label="Role"
@@ -309,6 +213,7 @@ export function StaffDirectory({
             options={roleOptions}
             labels={ROLE_LABELS}
             onChange={setRole}
+            triggerClassName="w-full"
           />
           <SegmentedFilter
             label="Type"

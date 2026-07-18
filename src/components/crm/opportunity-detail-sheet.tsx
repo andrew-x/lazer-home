@@ -10,11 +10,11 @@ import type {
 import { loadOpportunityDetail } from "@/actions/crm/loadOpportunityDetail";
 import { searchContacts } from "@/actions/crm/searchContacts";
 import { searchStaff } from "@/actions/crm/searchStaff";
-import { updateOpportunity } from "@/actions/crm/updateOpportunity";
+import { updateOpportunityField } from "@/actions/crm/updateOpportunityField";
 import {
-  type UpdateOpportunityInput,
-  updateOpportunitySchema,
-} from "@/actions/crm/updateOpportunity.schema";
+  type UpdateOpportunityFieldInput,
+  updateOpportunityFieldSchema,
+} from "@/actions/crm/updateOpportunityField.schema";
 import {
   EntityMultiCombobox,
   type EntityOption,
@@ -57,7 +57,8 @@ import { STATUS_SELECT_LABELS } from "./opportunity-display";
  * board card. The header carries the name (edited in place with confirm/cancel)
  * and the status (a direct-edit select that saves on change). Below, an Info tab
  * holds the remaining fields — including the company — each editing one at a time
- * in place (per-field confirm/cancel, saved via `updateOpportunity`), and a
+ * in place (per-field confirm/cancel, each saved via a field-scoped
+ * `updateOpportunityField` write), and a
  * Project plan tab for the single project that delivers the opportunity. Detail
  * is loaded on open via `loadOpportunityDetail` and
  * re-fetched after every save so the read views reflect it. The drawer only
@@ -229,40 +230,38 @@ function OpportunityDetailView({
 
 type FieldProps = { detail: OpportunityDetail; refresh: () => void };
 
-/** The full update input for an opportunity, straight from its loaded detail. */
-function detailToInput(detail: OpportunityDetail): UpdateOpportunityInput {
-  return {
-    id: detail.id,
-    name: detail.name,
-    companyId: detail.company.id,
-    lineOfBusiness: detail.lineOfBusiness,
-    contactIds: detail.contacts.map((c) => c.id),
-    ownerIds: detail.owners.map((o) => o.id),
-    source: detail.source,
-    sourceContactIds: detail.sourceContacts.map((c) => c.id),
-    sourceStaffIds: detail.sourceStaff.map((s) => s.id),
-    nextSteps: detail.nextSteps ?? "",
-    status: detail.status,
-  };
-}
+/**
+ * One field's edit payload — a `updateOpportunityField` variant minus the `id`,
+ * which `commit` fills from the loaded detail. A distributive `Omit` so it stays
+ * a discriminated union (each variant keeps only its own keys).
+ */
+type FieldEdit = UpdateOpportunityFieldInput extends infer T
+  ? T extends { id: string }
+    ? Omit<T, "id">
+    : never
+  : never;
 
 /**
  * Per-field edit state + save. Each field owns its own instance so pending and
- * error are isolated. `commit` sends the *whole* record with just the field's
- * slice overridden — reusing the existing full-form `updateOpportunity` (its
- * referral and delivery-stage rules keep working) — and closes the field on
- * success. A client-side `safeParse` surfaces the field's own validation message
- * before the round-trip; `fail` lets a field report a guard failure directly.
+ * error are isolated. `commit` sends *only* the changed field's slice via the
+ * field-scoped `updateOpportunityField` — so a save never clobbers a concurrent
+ * edit to another field or needlessly rewrites the other people junctions — and
+ * closes the field on success. A client-side `safeParse` surfaces the field's
+ * own validation message before the round-trip; `fail` lets a field report a
+ * guard failure directly.
  */
 function useInlineSave(detail: OpportunityDetail, refresh: () => void) {
   const [editing, setEditing] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
-  const { execute, result, isPending, reset } = useAction(updateOpportunity, {
-    onSuccess: () => {
-      setEditing(false);
-      refresh();
+  const { execute, result, isPending, reset } = useAction(
+    updateOpportunityField,
+    {
+      onSuccess: () => {
+        setEditing(false);
+        refresh();
+      },
     },
-  });
+  );
 
   return {
     editing,
@@ -279,20 +278,16 @@ function useInlineSave(detail: OpportunityDetail, refresh: () => void) {
       setEditing(false);
     },
     fail: (message: string) => setClientError(message),
-    commit: (
-      overrides: Partial<UpdateOpportunityInput>,
-      issueFields: (keyof UpdateOpportunityInput)[],
-    ) => {
+    commit: (edit: FieldEdit) => {
       setClientError(null);
-      const parsed = updateOpportunitySchema.safeParse({
-        ...detailToInput(detail),
-        ...overrides,
+      const parsed = updateOpportunityFieldSchema.safeParse({
+        ...edit,
+        id: detail.id,
       });
       if (!parsed.success) {
-        const issue =
-          parsed.error.issues.find((i) =>
-            issueFields.includes(i.path[0] as keyof UpdateOpportunityInput),
-          ) ?? parsed.error.issues[0];
+        // The payload only carries this field's keys, so any issue is this
+        // field's — surface the first.
+        const issue = parsed.error.issues[0];
         setClientError(issue?.message ?? "Please check this value.");
         return;
       }
@@ -352,7 +347,7 @@ function HeaderNameField({ detail, refresh }: FieldProps) {
           />
           <IconButton
             label="Save name"
-            onClick={() => save.commit({ name: draft }, ["name"])}
+            onClick={() => save.commit({ field: "name", name: draft })}
             loading={save.isPending}
           >
             <IconCheck />
@@ -408,7 +403,7 @@ function HeaderStatusField({ detail, refresh }: FieldProps) {
       );
       return;
     }
-    save.commit({ status: next }, ["status"]);
+    save.commit({ field: "status", status: next });
   };
 
   return (
@@ -446,9 +441,10 @@ function LineOfBusinessField({ detail, refresh }: FieldProps) {
       }}
       onCancel={save.close}
       onConfirm={() =>
-        save.commit({ lineOfBusiness: draft as LineOfBusiness }, [
-          "lineOfBusiness",
-        ])
+        save.commit({
+          field: "lineOfBusiness",
+          lineOfBusiness: draft as LineOfBusiness,
+        })
       }
     >
       <EnumSelect
@@ -479,7 +475,7 @@ function OwnersField({ detail, refresh }: FieldProps) {
       }}
       onCancel={save.close}
       onConfirm={() =>
-        save.commit({ ownerIds: draft.map((o) => o.id) }, ["ownerIds"])
+        save.commit({ field: "owners", ownerIds: draft.map((o) => o.id) })
       }
     >
       <EntityMultiCombobox
@@ -510,7 +506,7 @@ function CompanyField({ detail, refresh }: FieldProps) {
       onCancel={save.close}
       // A cleared company fails the schema's required rule, surfacing inline.
       onConfirm={() =>
-        save.commit({ companyId: draft?.id ?? "" }, ["companyId"])
+        save.commit({ field: "companyId", companyId: draft?.id ?? "" })
       }
     >
       <CompanyCombobox
@@ -549,7 +545,7 @@ function ContactsField({ detail, refresh }: FieldProps) {
       }}
       onCancel={save.close}
       onConfirm={() =>
-        save.commit({ contactIds: draft.map((c) => c.id) }, ["contactIds"])
+        save.commit({ field: "contacts", contactIds: draft.map((c) => c.id) })
       }
     >
       <EntityMultiCombobox
@@ -631,19 +627,17 @@ function SourceField({ detail, refresh }: FieldProps) {
         save.close();
       }}
       onConfirm={() =>
-        save.commit(
-          {
-            source: source as OpportunitySource,
-            // Referral entities only apply to their matching source.
-            sourceStaffIds:
-              source === "staff_referral" ? sourceStaff.map((s) => s.id) : [],
-            sourceContactIds:
-              source === "contact_referral"
-                ? sourceContacts.map((c) => c.id)
-                : [],
-          },
-          ["source", "sourceStaffIds", "sourceContactIds"],
-        )
+        save.commit({
+          field: "source",
+          source: source as OpportunitySource,
+          // Referral entities only apply to their matching source.
+          sourceStaffIds:
+            source === "staff_referral" ? sourceStaff.map((s) => s.id) : [],
+          sourceContactIds:
+            source === "contact_referral"
+              ? sourceContacts.map((c) => c.id)
+              : [],
+        })
       }
     >
       <div className="flex flex-col gap-2">
@@ -713,7 +707,7 @@ function NextStepsField({ detail, refresh }: FieldProps) {
         save.open();
       }}
       onCancel={save.close}
-      onConfirm={() => save.commit({ nextSteps: draft }, ["nextSteps"])}
+      onConfirm={() => save.commit({ field: "nextSteps", nextSteps: draft })}
     >
       <Textarea
         value={draft}

@@ -1,11 +1,12 @@
 import "server-only";
 
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { cache } from "react";
 import { db } from "@/lib/db/db";
 import { type StaffEmployment, staff, staffEmployment } from "@/lib/db/schema";
 import type { StaffSkill } from "@/lib/skills";
+import { latestEmploymentFirst } from "@/lib/staff-employment";
 
 /**
  * A staff member's profile plus their latest employment facts. `employment` is
@@ -73,8 +74,7 @@ export const getStaffProfile = cache(
 
     if (!profile) return null;
 
-    // Latest employment row wins: effective date, then createdAt for same-day ties
-    // (ADR 0007 — staff employment effective-dating).
+    // Latest employment row wins (ADR 0007 — staff employment effective-dating).
     const [employment] = await db
       .select({
         lineOfBusiness: staffEmployment.lineOfBusiness,
@@ -89,10 +89,7 @@ export const getStaffProfile = cache(
       })
       .from(staffEmployment)
       .where(eq(staffEmployment.staffId, staffId))
-      .orderBy(
-        desc(staffEmployment.effectiveFromDate),
-        desc(staffEmployment.createdAt),
-      )
+      .orderBy(...latestEmploymentFirst)
       .limit(1);
 
     return { ...profile, employment: employment ?? null };

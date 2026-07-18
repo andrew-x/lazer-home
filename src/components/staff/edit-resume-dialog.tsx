@@ -12,10 +12,7 @@ import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
 import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-
-// Client-side guard so we never POST a payload over the server-action body
-// limit (8mb of base64 ≈ ~6 MB raw). Matches the server-side backstop.
-const MAX_PDF_BYTES = 6 * 1024 * 1024;
+import { MAX_PDF_BYTES, PDF_TOO_LARGE_MESSAGE } from "@/lib/pdf-upload";
 
 /** Read a File's bytes as base64 (no `data:` prefix). */
 function fileToBase64(file: File): Promise<string> {
@@ -106,7 +103,7 @@ function ResumeForm({
     event.target.value = "";
     if (!file) return;
     if (file.size > MAX_PDF_BYTES) {
-      setUploadError("That PDF is too large. Keep it under ~6 MB.");
+      setUploadError(PDF_TOO_LARGE_MESSAGE);
       return;
     }
     let fileBase64: string;

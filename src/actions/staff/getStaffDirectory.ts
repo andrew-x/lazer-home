@@ -1,6 +1,6 @@
 import "server-only";
 
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { firstPerKey } from "@/lib/collections";
 import { db } from "@/lib/db/db";
 import {
@@ -14,6 +14,7 @@ import {
   user,
 } from "@/lib/db/schema";
 import type { StaffSkill } from "@/lib/skills";
+import { latestEmploymentFirst } from "@/lib/staff-employment";
 
 /**
  * The values offered by the directory's filter dropdowns, sourced from the DB
@@ -72,10 +73,7 @@ export async function getStaffDirectory(): Promise<StaffDirectoryEntry[]> {
       isBillable: staffEmployment.isBillable,
     })
     .from(staffEmployment)
-    .orderBy(
-      desc(staffEmployment.effectiveFromDate),
-      desc(staffEmployment.createdAt),
-    );
+    .orderBy(...latestEmploymentFirst);
 
   // Rows are newest-first, so the first one seen per staffId is the latest.
   const latestByStaff = firstPerKey(employmentRows, (row) => row.staffId);

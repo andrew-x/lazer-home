@@ -1,10 +1,11 @@
 import "server-only";
 
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { type Currency, formatMoney } from "@/lib/currency";
 import { db } from "@/lib/db/db";
 import { staffEmployment } from "@/lib/db/schema";
 import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
+import { latestEmploymentFirst } from "@/lib/staff-employment";
 import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff-enums";
 
 /**
@@ -74,10 +75,7 @@ export async function getStaffHistory(
     })
     .from(staffEmployment)
     .where(eq(staffEmployment.staffId, staffId))
-    .orderBy(
-      desc(staffEmployment.effectiveFromDate),
-      desc(staffEmployment.createdAt),
-    );
+    .orderBy(...latestEmploymentFirst);
 
   for (const row of employment) {
     const summary = [

@@ -5,9 +5,7 @@ import { revalidatePath } from "next/cache";
 import { secureActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
 import { opportunities } from "@/lib/db/schema";
-import { UserSafeActionError } from "@/lib/errors";
-import { requiresProject } from "@/lib/opportunity-pipeline";
-import { opportunityHasProject } from "./opportunityHasProject";
+import { assertOpportunityTransitionAllowed } from "./assertOpportunityTransitionAllowed";
 import { updateOpportunityPositionSchema } from "./updateOpportunityPosition.schema";
 
 /**
@@ -23,25 +21,14 @@ export const updateOpportunityPosition = secureActionClient
   })
   .inputSchema(updateOpportunityPositionSchema)
   .action(async ({ parsedInput }) => {
-    // Delivery stages require a linked project (see `requiresProject`). Enforced
-    // here too — not just in the UI — so the rule can't be bypassed. Only fire
-    // on a genuine move *into* a requiring stage, so reordering a card within a
-    // delivery column (status unchanged) isn't blocked.
-    const [current] = await db
-      .select({ status: opportunities.status })
-      .from(opportunities)
-      .where(eq(opportunities.id, parsedInput.id))
-      .limit(1);
-    if (
-      current &&
-      parsedInput.status !== current.status &&
-      requiresProject(parsedInput.status) &&
-      !(await opportunityHasProject(parsedInput.id))
-    ) {
-      throw new UserSafeActionError(
-        "Create a project for this opportunity before moving it to Allocating or later.",
-      );
-    }
+    // Delivery stages require a linked project (ADR 0024) — enforced here too,
+    // not just in the UI, so a card can't be dragged into a delivery stage
+    // without one by hitting the action directly. Transition-based, so an
+    // intra-column reorder (status unchanged) isn't blocked.
+    await assertOpportunityTransitionAllowed(
+      parsedInput.id,
+      parsedInput.status,
+    );
 
     await db
       .update(opportunities)

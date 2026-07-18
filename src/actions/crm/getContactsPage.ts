@@ -1,7 +1,8 @@
 import "server-only";
 
-import { asc, count, eq, sql } from "drizzle-orm";
+import { asc, count, eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { contactNameSql } from "@/actions/shared/contactName";
 import { db } from "@/lib/db/db";
 import { companies, contacts } from "@/lib/db/schema";
 import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/pagination";
@@ -47,9 +48,7 @@ export async function getContactsPage(
       companyName: companies.name,
       linkedinUrl: contacts.linkedinUrl,
       managerId: contacts.managerId,
-      managerName: sql<
-        string | null
-      >`${managers.firstName} || ' ' || ${managers.lastName}`,
+      managerName: contactNameSql<string | null>(managers),
     })
     .from(contacts)
     .leftJoin(companies, eq(contacts.companyId, companies.id))

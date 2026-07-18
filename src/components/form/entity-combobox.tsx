@@ -56,11 +56,18 @@ export function EntityCombobox({
 
   // Keep the selected item in the list even when it's absent from the current
   // results, so its label and selected state render correctly.
+  //
+  // Gate the search results on the current query: `useAction` drops out-of-order
+  // responses when a *new* `execute` supersedes an older one, but clearing the
+  // input calls `reset()` (not `execute`), which doesn't invalidate an in-flight
+  // request — so a search still running when the field is cleared would resolve
+  // and repopulate stale results. Ignoring results while the query is empty
+  // keeps them from coming back after a clear.
   const items = useMemo(() => {
-    const results = result.data ?? [];
+    const results = query.trim() === "" ? [] : (result.data ?? []);
     if (!value || results.some((r) => r.id === value.id)) return results;
     return [value, ...results];
-  }, [result.data, value]);
+  }, [query, result.data, value]);
 
   return (
     <Combobox

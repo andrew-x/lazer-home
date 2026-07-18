@@ -2,8 +2,7 @@
 
 import { IconLayoutSidebar, IconLogout, IconTool } from "@tabler/icons-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { LogoMark, LogoWordmark } from "@/components/brand/logo";
 import {
   Sidebar,
@@ -17,7 +16,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { authClient } from "@/lib/auth-client";
+import { useSignOut } from "@/hooks/useSignOut";
 import { cn } from "@/lib/utils";
 import { isActivePath, NAV_ITEMS } from "./nav";
 
@@ -32,21 +31,13 @@ export function AppSidebar({
   visibleNavHrefs?: string[];
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { toggleSidebar, state } = useSidebar();
-  const [signingOut, setSigningOut] = useState(false);
+  const { signOut, isSigningOut } = useSignOut();
 
   const visible = visibleNavHrefs && new Set(visibleNavHrefs);
   const navItems = visible
     ? NAV_ITEMS.filter((item) => visible.has(item.href))
     : NAV_ITEMS;
-
-  async function handleSignOut() {
-    setSigningOut(true);
-    await authClient.signOut();
-    router.replace("/login");
-    router.refresh();
-  }
 
   return (
     <Sidebar variant="floating" collapsible="icon">
@@ -116,12 +107,12 @@ export function AppSidebar({
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
-              onClick={handleSignOut}
-              disabled={signingOut}
+              onClick={signOut}
+              disabled={isSigningOut}
               tooltip="Sign out"
             >
               <IconLogout />
-              <span>{signingOut ? "Signing out…" : "Sign out"}</span>
+              <span>{isSigningOut ? "Signing out…" : "Sign out"}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

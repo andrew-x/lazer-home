@@ -1,9 +1,7 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
-import { db } from "@/lib/db/db";
-import { staff } from "@/lib/db/schema";
 import { userHasPermission } from "@/lib/permissions";
+import { ownStaffId } from "./ownStaffId";
 
 /**
  * Can this user see the given staff member's compensation? The single decision
@@ -24,11 +22,5 @@ export async function canViewCompensation(
   if (userHasPermission(user, { staff: ["viewCompensation"] })) return true;
 
   // Otherwise the target must be the caller's own linked staff record.
-  const [own] = await db
-    .select({ id: staff.id })
-    .from(staff)
-    .where(eq(staff.userId, user.id))
-    .limit(1);
-
-  return own?.id === targetStaffId;
+  return (await ownStaffId(user.id)) === targetStaffId;
 }

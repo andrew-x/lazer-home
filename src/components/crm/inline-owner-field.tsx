@@ -19,6 +19,10 @@ import { InlineEditField } from "@/components/form/inline-edit-field";
  * contact's manager rule on an unrelated change. Those actions `revalidatePath`
  * their detail route, so the server-rendered display refreshes on success (no
  * manual refetch).
+ *
+ * Company and contact differ only in which owner-only action they bind; the two
+ * schemas are identical (`{ id, ownerId }`), so `kind` just selects the action
+ * and a single `OwnerField` drives the picker for both.
  */
 type InlineOwnerFieldProps = {
   kind: "company" | "contact";
@@ -28,42 +32,38 @@ type InlineOwnerFieldProps = {
   ownerName: string | null;
 };
 
-export function InlineOwnerField({
-  kind,
+export function InlineOwnerField({ kind, ...props }: InlineOwnerFieldProps) {
+  const action = kind === "company" ? updateCompanyOwner : updateContactOwner;
+  return <OwnerField action={action} {...props} />;
+}
+
+function OwnerField({
+  action,
   entityId,
   canEdit,
   ownerId,
   ownerName,
-}: InlineOwnerFieldProps) {
+}: Omit<InlineOwnerFieldProps, "kind"> & {
+  action: typeof updateCompanyOwner | typeof updateContactOwner;
+}) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<EntityOption | null>(
     ownerId ? { id: ownerId, name: ownerName ?? ownerId } : null,
   );
 
-  const onSuccess = () => setEditing(false);
-  // Both hooks run so the picker's action stays fixed for the field's lifetime;
-  // `active` selects this entity's action, and `confirm` calls the concrete one
-  // (a single ternary-derived `execute` can't be typed against either input).
-  const companyAction = useAction(updateCompanyOwner, { onSuccess });
-  const contactAction = useAction(updateContactOwner, { onSuccess });
-  const active = kind === "company" ? companyAction : contactAction;
+  const owner = useAction(action, { onSuccess: () => setEditing(false) });
 
   const open = () => {
     setDraft(ownerId ? { id: ownerId, name: ownerName ?? ownerId } : null);
-    active.reset();
+    owner.reset();
     setEditing(true);
   };
   const cancel = () => {
-    active.reset();
+    owner.reset();
     setEditing(false);
   };
   const confirm = () => {
-    const nextOwnerId = draft?.id ?? null;
-    if (kind === "company") {
-      companyAction.execute({ id: entityId, ownerId: nextOwnerId });
-    } else {
-      contactAction.execute({ id: entityId, ownerId: nextOwnerId });
-    }
+    owner.execute({ id: entityId, ownerId: draft?.id ?? null });
   };
 
   return (
@@ -74,8 +74,8 @@ export function InlineOwnerField({
       }
       editing={editing}
       canEdit={canEdit}
-      isSaving={active.isPending}
-      error={active.result.serverError}
+      isSaving={owner.isPending}
+      error={owner.result.serverError}
       onEdit={open}
       onCancel={cancel}
       onConfirm={confirm}
@@ -85,7 +85,7 @@ export function InlineOwnerField({
         onChange={setDraft}
         searchAction={searchStaff}
         placeholder="Search staff…"
-        invalid={Boolean(active.result.serverError)}
+        invalid={Boolean(owner.result.serverError)}
       />
     </InlineEditField>
   );
