@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { getRatingsSummaryData } from "@/actions/performance/getRatingsSummaryData";
 import {
   getCompensationSummaryData,
   performanceFilterOptions,
@@ -20,8 +21,13 @@ export default async function PerformancePage() {
     notFound();
   }
 
-  const [records, rates] = await Promise.all([
+  // Staff levels are stricter — manager/admin only (not finance). Fetch them only
+  // for those who may see them; the dashboard hides the Levels section otherwise.
+  const canViewLevels = userHasPermission(user, { ratings: ["view"] });
+
+  const [records, ratingRecords, rates] = await Promise.all([
     getCompensationSummaryData(),
+    canViewLevels ? getRatingsSummaryData() : Promise.resolve(undefined),
     getExchangeRates(),
   ]);
 
@@ -32,12 +38,13 @@ export default async function PerformancePage() {
           Performance
         </h2>
         <p className="text-muted-foreground">
-          Headcount and compensation across the team, by role.
+          Headcount, compensation, and levels across the team.
         </p>
       </div>
 
       <PerformanceDashboard
         records={records}
+        ratingRecords={ratingRecords}
         rates={rates}
         filterOptions={performanceFilterOptions}
       />

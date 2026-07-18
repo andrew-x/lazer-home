@@ -2,10 +2,12 @@
 
 import { IconClock, IconCoin, IconUsers } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
+import type { RatingRecord } from "@/actions/performance/getRatingsSummaryData";
 import type { CompensationRecord } from "@/actions/staff/getCompensationSummaryData";
 import type { ExchangeRates } from "@/actions/staff/getExchangeRates";
 import { ALL, FilterLabel, SegmentedFilter } from "@/components/form/filters";
 import { CompensationScatter } from "@/components/performance/compensation-scatter";
+import { LevelsSection } from "@/components/performance/levels-section";
 import { StatCard } from "@/components/performance/stat-card";
 import {
   Table,
@@ -37,10 +39,18 @@ type FilterOptions = {
 
 export function PerformanceDashboard({
   records,
+  ratingRecords,
   rates,
   filterOptions,
 }: {
   records: CompensationRecord[];
+  /**
+   * Per-active-staff level records for the Levels section. Provided only to
+   * `ratings.view` holders (managers/admins); when omitted the section is hidden
+   * (e.g. finance sees compensation only). Shares this dashboard's filters +
+   * currency, so there are no separate tabs.
+   */
+  ratingRecords?: RatingRecord[];
   rates: ExchangeRates;
   filterOptions: FilterOptions;
 }) {
@@ -271,6 +281,19 @@ export function PerformanceDashboard({
           </div>
         </>
       )}
+
+      {/* Staff levels — same filters + currency, manager/admin only (no tabs). */}
+      {ratingRecords ? (
+        <LevelsSection
+          records={ratingRecords}
+          rates={rates}
+          roleOrder={filterOptions.role}
+          lineOfBusiness={lineOfBusiness}
+          role={role}
+          employmentType={employmentType}
+          currency={currency}
+        />
+      ) : null}
     </div>
   );
 }

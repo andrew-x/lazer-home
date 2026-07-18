@@ -14,7 +14,7 @@
  */
 import { createSeedDb, describeTarget, looksProduction } from "./seed/client";
 import { seedCrm } from "./seed/crm";
-import { seedFeedback } from "./seed/performance";
+import { seedFeedback, seedRatings } from "./seed/performance";
 import { seedProjects } from "./seed/projects";
 import { seedOpportunities } from "./seed/sales";
 import { seedStaff } from "./seed/staff";
@@ -64,6 +64,7 @@ async function main() {
     const projects = await seedProjects(db, companies, opportunities, staff);
     const timesheets = await seedTimesheets(db, staff, projects);
     const feedbackCount = await seedFeedback(db, staff);
+    const ratingsCount = await seedRatings(db, staff);
 
     console.log("\n✅ Done. Row counts:");
     console.table({
@@ -75,6 +76,7 @@ async function main() {
       timesheets: timesheets.timesheets,
       timeEntries: timesheets.entries,
       feedback: feedbackCount,
+      ratings: ratingsCount,
     });
     console.log(
       "\n   Sign in with Google as andrew@lazertechnologies.com (admin).\n",

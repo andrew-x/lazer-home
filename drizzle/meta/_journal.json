@@ -8,6 +8,13 @@
       "when": 1784122749694,
       "tag": "0000_light_shape",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784408364512,
+      "tag": "0001_wakeful_wallop",
+      "breakpoints": true
     }
   ]
 }
