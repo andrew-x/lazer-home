@@ -1,11 +1,12 @@
 import "server-only";
 
-import { asc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { cache } from "react";
 import { contactNameSql } from "@/actions/shared/contactName";
 import { db } from "@/lib/db/db";
 import {
   companies,
+  contactEntries,
   contacts,
   opportunities,
   opportunitySourceContacts,
@@ -32,6 +33,10 @@ export type CompanyContact = {
   role: string | null;
   email: string;
   phone: string | null;
+  /** Body of the contact's most recent next-step entry, or null if none. */
+  nextStep: string | null;
+  /** When that next step was logged (epoch millis), or null. */
+  nextStepAt: number | null;
 };
 
 /**
@@ -139,6 +144,19 @@ export const getCompanyDetail = cache(
 
     if (!base) return null;
 
+    // Latest next-step per contact (see getContactsPage for the DISTINCT ON
+    // rationale), left-joined onto the company's contacts below.
+    const latestNextStep = db
+      .selectDistinctOn([contactEntries.contactId], {
+        contactId: contactEntries.contactId,
+        body: contactEntries.body,
+        createdAt: contactEntries.createdAt,
+      })
+      .from(contactEntries)
+      .where(eq(contactEntries.kind, "next_step"))
+      .orderBy(contactEntries.contactId, desc(contactEntries.createdAt))
+      .as("latest_next_step");
+
     const [
       opportunityRows,
       projectRows,
@@ -220,8 +238,11 @@ export const getCompanyDetail = cache(
           role: contacts.role,
           email: contacts.email,
           phone: contacts.phone,
+          nextStep: latestNextStep.body,
+          nextStepAt: latestNextStep.createdAt,
         })
         .from(contacts)
+        .leftJoin(latestNextStep, eq(latestNextStep.contactId, contacts.id))
         .where(eq(contacts.companyId, id))
         .orderBy(asc(contacts.lastName), asc(contacts.firstName)),
     ]);
@@ -232,7 +253,10 @@ export const getCompanyDetail = cache(
       projects: projectRows,
       referredOpportunities: groupReferrals(referredOpportunityRows),
       referredProjects: groupReferrals(referredProjectRows),
-      contacts: contactRows,
+      contacts: contactRows.map((row) => ({
+        ...row,
+        nextStepAt: row.nextStepAt ? row.nextStepAt.getTime() : null,
+      })),
     };
   },
 );

@@ -15,6 +15,8 @@ import {
   staff,
 } from "@/lib/db/schema";
 import type { OpportunitySource, OpportunityStatus } from "@/lib/opportunity";
+import type { EntryView } from "./entryViews";
+import { getContactEntries } from "./entryViews";
 
 export type ContactOpportunity = {
   id: string;
@@ -52,6 +54,10 @@ export type ContactDetail = {
   involvedOpportunities: ContactOpportunity[];
   /** Projects that grew out of an opportunity this contact referred. */
   referredProjects: ContactProject[];
+  /** Timestamped notes, newest first. */
+  notes: EntryView[];
+  /** Timestamped next steps, newest first. */
+  nextSteps: EntryView[];
 };
 
 /**
@@ -106,7 +112,7 @@ export const getContactDetail = cache(
       companyName: companies.name,
     };
 
-    const [referredOpportunities, involvedAll] = await Promise.all([
+    const [referredOpportunities, involvedAll, entries] = await Promise.all([
       db
         .select(opportunitySelection)
         .from(opportunitySourceContacts)
@@ -127,6 +133,7 @@ export const getContactDetail = cache(
         .innerJoin(companies, eq(opportunities.companyId, companies.id))
         .where(eq(opportunityContacts.contactId, id))
         .orderBy(asc(opportunities.name)),
+      getContactEntries(id),
     ]);
 
     // A contact can be both source and named-contact on the same deal; show it
@@ -155,6 +162,8 @@ export const getContactDetail = cache(
       referredOpportunities,
       involvedOpportunities,
       referredProjects,
+      notes: entries.notes,
+      nextSteps: entries.nextSteps,
     };
   },
 );

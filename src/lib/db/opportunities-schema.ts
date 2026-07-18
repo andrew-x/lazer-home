@@ -9,7 +9,7 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import { OPPORTUNITY_SOURCES, OPPORTUNITY_STATUSES } from "@/lib/opportunity";
-import { companies, contacts } from "./crm-schema";
+import { companies, contacts, crmEntryKind } from "./crm-schema";
 import { lineOfBusinessEnum, staff } from "./staff-schema";
 
 // ---------------------------------------------------------------------------
@@ -46,8 +46,6 @@ export const opportunities = pgTable(
     // opportunity defaults to the same line of business. Shared/global enum
     // (see `lineOfBusinessEnum`).
     lineOfBusiness: lineOfBusinessEnum().notNull(),
-    // Free-text "what happens next" note.
-    nextSteps: text(),
     // Manual kanban ordering: a global fractional index. Cards in a column
     // (a status or a collapsed group) sort by `position` asc; a drag writes the
     // midpoint between its new neighbors, so a move updates just this one row.
@@ -142,6 +140,36 @@ export const opportunitySourceStaff = pgTable(
   ],
 );
 
+// Timestamped notes & next steps for an opportunity — the pipeline counterpart
+// to `contactEntries` (see crm-schema.ts). Shares the `crm_entry_kind` enum;
+// cascade FK so entries die with the deal. Author = staff, set-null on removal.
+export const opportunityEntries = pgTable(
+  "opportunity_entries",
+  {
+    id: text().primaryKey(),
+    opportunityId: text()
+      .notNull()
+      .references(() => opportunities.id, { onDelete: "cascade" }),
+    kind: crmEntryKind().notNull(),
+    body: text().notNull(),
+    authorStaffId: text().references(() => staff.id, { onDelete: "set null" }),
+
+    createdAt: timestamp().defaultNow().notNull(),
+    updatedAt: timestamp()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    index("opportunity_entries_opp_kind_created_idx").on(
+      t.opportunityId,
+      t.kind,
+      t.createdAt,
+    ),
+  ],
+);
+
 // --- Row types -------------------------------------------------------------
 
 export type Opportunity = InferSelectModel<typeof opportunities>;
+export type OpportunityEntry = InferSelectModel<typeof opportunityEntries>;

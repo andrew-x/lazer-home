@@ -1,8 +1,5 @@
-import { IconBrandLinkedin } from "@tabler/icons-react";
 import type { ContactRow } from "@/actions/crm/getContactsPage";
-import { MailLink, PhoneLink } from "@/components/contact-link";
 import { EmptyCell } from "@/components/empty-cell";
-import { ExternalLink } from "@/components/external-link";
 import { InternalLink } from "@/components/internal-link";
 import {
   Table,
@@ -12,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatShortDate } from "@/lib/format";
 
 export function ContactsTable({ rows }: { rows: ContactRow[] }) {
   if (rows.length === 0) {
@@ -27,12 +25,9 @@ export function ContactsTable({ rows }: { rows: ContactRow[] }) {
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
-          <TableHead>Email</TableHead>
-          <TableHead>Phone</TableHead>
-          <TableHead>Role</TableHead>
           <TableHead>Company</TableHead>
-          <TableHead>Manager</TableHead>
-          <TableHead>LinkedIn</TableHead>
+          <TableHead>Role</TableHead>
+          <TableHead>Next steps</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -44,17 +39,6 @@ export function ContactsTable({ rows }: { rows: ContactRow[] }) {
               </InternalLink>
             </TableCell>
             <TableCell>
-              <MailLink email={contact.email} />
-            </TableCell>
-            <TableCell>
-              {contact.phone ? (
-                <PhoneLink phone={contact.phone} />
-              ) : (
-                <EmptyCell />
-              )}
-            </TableCell>
-            <TableCell>{contact.role ?? <EmptyCell />}</TableCell>
-            <TableCell>
               {contact.companyId && contact.companyName ? (
                 <InternalLink href={`/companies/${contact.companyId}`}>
                   {contact.companyName}
@@ -63,16 +47,17 @@ export function ContactsTable({ rows }: { rows: ContactRow[] }) {
                 <EmptyCell />
               )}
             </TableCell>
-            <TableCell>{contact.managerName ?? <EmptyCell />}</TableCell>
+            <TableCell>{contact.role ?? <EmptyCell />}</TableCell>
             <TableCell>
-              {contact.linkedinUrl ? (
-                <ExternalLink
-                  href={contact.linkedinUrl}
-                  className="inline-flex items-center gap-1"
-                >
-                  <IconBrandLinkedin className="size-4" />
-                  Profile
-                </ExternalLink>
+              {contact.nextStep ? (
+                <span className="flex flex-col gap-0.5">
+                  <span className="line-clamp-2">{contact.nextStep}</span>
+                  {contact.nextStepAt ? (
+                    <span className="text-xs text-muted-foreground">
+                      {formatShortDate(new Date(contact.nextStepAt))}
+                    </span>
+                  ) : null}
+                </span>
               ) : (
                 <EmptyCell />
               )}

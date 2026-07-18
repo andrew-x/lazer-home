@@ -2,7 +2,6 @@ import { z } from "zod";
 import { idList } from "@/lib/id-schema";
 import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
 import { OPPORTUNITY_SOURCES, OPPORTUNITY_STATUSES } from "@/lib/opportunity";
-import { optionalText } from "@/lib/text-schema";
 
 /**
  * The field shape shared by create and update. Both build a `z.object` from
@@ -19,8 +18,6 @@ export const opportunityBaseFields = {
   source: z.enum(OPPORTUNITY_SOURCES),
   sourceContactIds: idList,
   sourceStaffIds: idList,
-  // Empty/whitespace → null; otherwise trimmed.
-  nextSteps: optionalText(2000),
   status: z.enum(OPPORTUNITY_STATUSES),
 };
 
