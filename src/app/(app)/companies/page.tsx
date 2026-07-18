@@ -26,7 +26,7 @@ export default async function CompaniesPage({
   const canEdit = user ? userHasPermission(user, { crm: ["edit"] }) : false;
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-10">
+    <div className="mx-auto flex max-w-7xl flex-col gap-10">
       <header>
         <h2 className="font-heading text-xl font-semibold tracking-tight">
           Companies

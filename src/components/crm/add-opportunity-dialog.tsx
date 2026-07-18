@@ -34,7 +34,6 @@ const DEFAULT_VALUES: OpportunityFormValues = {
   source: "",
   sourceContacts: [],
   sourceStaff: [],
-  nextSteps: "",
   status: "lead",
 };
 

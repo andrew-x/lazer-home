@@ -10,7 +10,6 @@ import {
 import { EnumSelect } from "@/components/form/enum-select";
 import { FormField } from "@/components/form/form-field";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   LINE_OF_BUSINESS,
   LINE_OF_BUSINESS_LABELS,
@@ -45,7 +44,6 @@ export type OpportunityFieldValues = {
   source: OpportunitySource | "";
   sourceContacts: EntityOption[];
   sourceStaff: EntityOption[];
-  nextSteps: string;
   status: OpportunityStatus | "";
 };
 
@@ -63,7 +61,6 @@ export function opportunityValuesToInput(values: OpportunityFieldValues) {
     source: values.source,
     sourceContactIds: values.sourceContacts.map((c) => c.id),
     sourceStaffIds: values.sourceStaff.map((s) => s.id),
-    nextSteps: values.nextSteps,
     status: values.status,
   };
 }
@@ -83,7 +80,6 @@ export const OPPORTUNITY_FIELD_FOR_ISSUE = {
   source: "source",
   sourceContactIds: "sourceContacts",
   sourceStaffIds: "sourceStaff",
-  nextSteps: "nextSteps",
   status: "status",
 } satisfies Record<string, keyof OpportunityFieldValues>;
 
@@ -254,14 +250,6 @@ export function OpportunityFields<TValues extends OpportunityFieldValues>({
               onValueChange={field.onChange}
             />
           )}
-        />
-      </FormField>
-
-      <FormField label="Next steps" htmlFor={`${idPrefix}-next-steps`}>
-        <Textarea
-          id={`${idPrefix}-next-steps`}
-          placeholder="What happens next?"
-          {...register("nextSteps")}
         />
       </FormField>
     </>

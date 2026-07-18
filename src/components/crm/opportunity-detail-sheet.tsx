@@ -34,7 +34,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import {
   LINE_OF_BUSINESS,
   LINE_OF_BUSINESS_LABELS,
@@ -50,6 +49,7 @@ import {
 import { requiresProject } from "@/lib/opportunity-pipeline";
 import { CompanyCombobox } from "./company-combobox";
 import { CreateContactInlineDialog } from "./create-contact-inline-dialog";
+import { EntryLog } from "./entry-log";
 import { STATUS_SELECT_LABELS } from "./opportunity-display";
 
 /**
@@ -171,6 +171,7 @@ function OpportunityDetailView({
       <Tabs defaultValue="info">
         <TabsList variant="line">
           <TabsTrigger value="info">Info</TabsTrigger>
+          <TabsTrigger value="notes">Notes</TabsTrigger>
           <TabsTrigger value="project-plan">Project plan</TabsTrigger>
         </TabsList>
 
@@ -180,7 +181,41 @@ function OpportunityDetailView({
           <CompanyField detail={detail} refresh={refresh} />
           <ContactsField detail={detail} refresh={refresh} />
           <OwnersField detail={detail} refresh={refresh} />
-          <NextStepsField detail={detail} refresh={refresh} />
+        </TabsContent>
+
+        <TabsContent value="notes" className="flex flex-col gap-6 pt-4">
+          <section className="flex flex-col gap-3">
+            <h3 className="text-sm font-medium">
+              Next steps{" "}
+              <span className="text-muted-foreground">
+                {detail.nextSteps.length}
+              </span>
+            </h3>
+            <EntryLog
+              variant="opportunity"
+              parentId={detail.id}
+              kind="next_step"
+              entries={detail.nextSteps}
+              canEdit
+              onChanged={refresh}
+            />
+          </section>
+          <section className="flex flex-col gap-3">
+            <h3 className="text-sm font-medium">
+              Notes{" "}
+              <span className="text-muted-foreground">
+                {detail.notes.length}
+              </span>
+            </h3>
+            <EntryLog
+              variant="opportunity"
+              parentId={detail.id}
+              kind="note"
+              entries={detail.notes}
+              canEdit
+              onChanged={refresh}
+            />
+          </section>
         </TabsContent>
 
         <TabsContent value="project-plan" className="flex flex-col gap-3 pt-4">
@@ -682,38 +717,6 @@ function SourceField({ detail, refresh }: FieldProps) {
           </>
         ) : null}
       </div>
-    </InlineEditField>
-  );
-}
-
-function NextStepsField({ detail, refresh }: FieldProps) {
-  const save = useInlineSave(detail, refresh);
-  const [draft, setDraft] = useState(detail.nextSteps ?? "");
-  return (
-    <InlineEditField
-      label="Next steps"
-      display={
-        detail.nextSteps ? (
-          <span className="whitespace-pre-wrap">{detail.nextSteps}</span>
-        ) : (
-          <span className="text-muted-foreground">None</span>
-        )
-      }
-      editing={save.editing}
-      isSaving={save.isPending}
-      error={save.error}
-      onEdit={() => {
-        setDraft(detail.nextSteps ?? "");
-        save.open();
-      }}
-      onCancel={save.close}
-      onConfirm={() => save.commit({ field: "nextSteps", nextSteps: draft })}
-    >
-      <Textarea
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        placeholder="What happens next?"
-      />
     </InlineEditField>
   );
 }

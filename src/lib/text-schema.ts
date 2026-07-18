@@ -32,3 +32,15 @@ export const optionalTrimmedText = (max: number, message?: string) =>
     .trim()
     .max(max, message)
     .transform((value) => (value === "" ? null : value));
+
+/**
+ * Mandatory free-text field: trimmed, non-empty, and capped at `max`. Blank or
+ * whitespace-only input is rejected. Use where a value is genuinely required and
+ * must survive as a non-null string (e.g. a note or next-step entry body).
+ */
+export const requiredText = (max: number, message?: string) =>
+  z
+    .string()
+    .trim()
+    .min(1, message ?? "Required")
+    .max(max, message);

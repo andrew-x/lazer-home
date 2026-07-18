@@ -50,7 +50,6 @@ export const createOpportunity = secureActionClient
         lineOfBusiness: parsedInput.lineOfBusiness,
         source: parsedInput.source,
         status: parsedInput.status,
-        nextSteps: parsedInput.nextSteps,
         position: (maxPosition ?? 0) + 1,
       });
 

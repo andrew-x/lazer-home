@@ -1,10 +1,11 @@
 import "server-only";
 
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/db";
 import {
   companies,
   opportunities,
+  opportunityEntries,
   opportunityOwners,
   projects,
   staff,
@@ -26,6 +27,10 @@ export type OpportunityBoardCard = {
   // Epoch millis — the client sorts by (position, createdAt) to match the
   // server's tie-break so a tied position never flips order between renders.
   createdAt: number;
+  /** Body of the most recent next-step entry, or null if none. */
+  nextStep: string | null;
+  /** When that next step was logged (epoch millis), or null. */
+  nextStepAt: number | null;
 };
 
 /**
@@ -35,6 +40,22 @@ export type OpportunityBoardCard = {
  * owner-name query (no N+1).
  */
 export async function getOpportunitiesBoard(): Promise<OpportunityBoardCard[]> {
+  // Latest next-step per opportunity (see getContactsPage for the DISTINCT ON
+  // rationale): one row per opportunity, newest `next_step` first.
+  const latestNextStep = db
+    .selectDistinctOn([opportunityEntries.opportunityId], {
+      opportunityId: opportunityEntries.opportunityId,
+      body: opportunityEntries.body,
+      createdAt: opportunityEntries.createdAt,
+    })
+    .from(opportunityEntries)
+    .where(eq(opportunityEntries.kind, "next_step"))
+    .orderBy(
+      opportunityEntries.opportunityId,
+      desc(opportunityEntries.createdAt),
+    )
+    .as("latest_next_step");
+
   const baseRows = await db
     .select({
       id: opportunities.id,
@@ -45,9 +66,15 @@ export async function getOpportunitiesBoard(): Promise<OpportunityBoardCard[]> {
       status: opportunities.status,
       position: opportunities.position,
       createdAt: opportunities.createdAt,
+      nextStep: latestNextStep.body,
+      nextStepAt: latestNextStep.createdAt,
     })
     .from(opportunities)
     .innerJoin(companies, eq(opportunities.companyId, companies.id))
+    .leftJoin(
+      latestNextStep,
+      eq(latestNextStep.opportunityId, opportunities.id),
+    )
     .orderBy(asc(opportunities.position), asc(opportunities.createdAt));
 
   // Resolve owner names and project links for all cards in two grouped queries
@@ -86,6 +113,7 @@ export async function getOpportunitiesBoard(): Promise<OpportunityBoardCard[]> {
   return baseRows.map((r) => ({
     ...r,
     createdAt: r.createdAt.getTime(),
+    nextStepAt: r.nextStepAt ? r.nextStepAt.getTime() : null,
     ownerNames: ownersByOpportunity.get(r.id) ?? [],
     hasProject: withProject.has(r.id),
   }));
