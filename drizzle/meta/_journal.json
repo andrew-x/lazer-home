@@ -15,6 +15,13 @@
       "when": 1784396385467,
       "tag": "0001_wonderful_thing",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784409759551,
+      "tag": "0002_loud_sister_grimm",
+      "breakpoints": true
     }
   ]
 }

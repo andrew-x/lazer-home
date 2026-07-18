@@ -1,11 +1,13 @@
 "use server";
 
+import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { opportunityHasProject } from "@/actions/crm/opportunityHasProject";
 import { secureActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import {
+  opportunities,
   projectDeliveryManagers,
   projectRoles,
   projects,
@@ -26,12 +28,11 @@ export const createProject = secureActionClient
   })
   .inputSchema(createProjectSchema)
   .action(async ({ parsedInput }) => {
-    // An opportunity has at most one project (enforced by the partial unique
-    // index on projects.opportunityId). Check first for a friendly message.
-    if (
-      parsedInput.opportunityId &&
-      (await opportunityHasProject(parsedInput.opportunityId))
-    ) {
+    const { opportunityId } = parsedInput;
+
+    // An opportunity has at most one project. Check first for a friendly
+    // message ahead of setting `opportunities.projectId`.
+    if (opportunityId && (await opportunityHasProject(opportunityId))) {
       throw new UserSafeActionError("This opportunity already has a project.");
     }
 
@@ -47,8 +48,40 @@ export const createProject = secureActionClient
         companyId: parsedInput.companyId,
         lineOfBusiness: parsedInput.lineOfBusiness,
         status: parsedInput.status,
-        opportunityId: parsedInput.opportunityId ?? null,
       });
+
+      // Link the opportunity to this new project (the CRM → delivery link now
+      // lives on `opportunities`). The `is null` predicate makes this the
+      // atomic guard for "one project per opportunity" now that a mutable
+      // column, not a unique index, holds the link: a concurrent create that
+      // linked first leaves 0 rows updated here, so this one throws and its
+      // whole project insert rolls back — no orphaned project.
+      if (opportunityId) {
+        const [linked] = await tx
+          .update(opportunities)
+          .set({ projectId })
+          .where(
+            and(
+              eq(opportunities.id, opportunityId),
+              isNull(opportunities.projectId),
+            ),
+          )
+          .returning({ id: opportunities.id });
+        if (!linked) {
+          // 0 rows: either the opportunity vanished or it was linked
+          // concurrently. Disambiguate for a precise message.
+          const [current] = await tx
+            .select({ projectId: opportunities.projectId })
+            .from(opportunities)
+            .where(eq(opportunities.id, opportunityId))
+            .limit(1);
+          throw new UserSafeActionError(
+            current
+              ? "This opportunity already has a project."
+              : "That opportunity no longer exists.",
+          );
+        }
+      }
 
       if (deliveryManagerIds.length > 0) {
         await tx.insert(projectDeliveryManagers).values(
@@ -67,6 +100,9 @@ export const createProject = secureActionClient
             projectId,
             // Null ⇒ placeholder/open position.
             staffId: role.staffId ?? null,
+            // Tag roles created from an opportunity with it (provenance). They
+            // start tentative (schema default); auto-confirm when the deal wins.
+            opportunityId: opportunityId ?? null,
             name: role.name,
             roleType: role.roleType,
             startDate: role.startDate,

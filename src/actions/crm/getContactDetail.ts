@@ -143,17 +143,22 @@ export const getContactDetail = cache(
       (o) => !referredIds.has(o.id),
     );
 
+    // The deal this contact referred reached delivery and became a project.
+    // The link now lives on `opportunities.projectId` (many opps → one
+    // project), so join through opportunities and dedupe by project id — two
+    // referred deals could share one project.
     const referredProjects = referredIds.size
       ? await db
-          .select({
+          .selectDistinct({
             id: projects.id,
             name: projects.name,
             companyId: projects.companyId,
             companyName: companies.name,
           })
           .from(projects)
+          .innerJoin(opportunities, eq(opportunities.projectId, projects.id))
           .innerJoin(companies, eq(projects.companyId, companies.id))
-          .where(inArray(projects.opportunityId, [...referredIds]))
+          .where(inArray(opportunities.id, [...referredIds]))
           .orderBy(asc(projects.name))
       : [];
 

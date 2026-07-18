@@ -1,48 +1,19 @@
 import { z } from "zod";
-import { dateString } from "@/lib/date-schema";
 import { idList, optionalId } from "@/lib/id-schema";
 import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
-import { PROJECT_ROLE_TYPES } from "@/lib/project-role-type";
 import { DEFAULT_PROJECT_STATUS, PROJECT_STATUSES } from "@/lib/project-status";
-import { optionalText } from "@/lib/text-schema";
+import { projectRoleSchema } from "./projectRole.schema";
 
 /**
  * Validation for creating a project. A pure, client-importable module (no
  * `db`/drizzle) so the create form's resolver and the server action share one
- * schema. Line-of-business values come from `@/lib/line-of-business` and role
- * types from `@/lib/project-role-type` — the same sources the pgEnums are built
- * from. Line of business is a project-level field (not per-role). See
- * docs/domains/projects.md.
+ * schema. Line-of-business values come from `@/lib/line-of-business`; the
+ * per-role rules live in the shared `projectRole.schema`. Line of business is a
+ * project-level field (not per-role). See docs/domains/projects.md.
  */
 
-/**
- * A single staffing line on a project. `staffId` is optional — a role can be a
- * *placeholder* (an open position defined before it's staffed), identified by
- * its `roleType` and optional `name`. Dates and hours are always required. Line
- * of business lives on the project, not the role.
- */
-export const projectRoleSchema = z
-  .object({
-    // Optional: absent ⇒ placeholder/open position.
-    staffId: optionalId,
-    // Optional label, e.g. "Senior Backend Engineer".
-    name: optionalText(200),
-    roleType: z.enum(PROJECT_ROLE_TYPES),
-    startDate: dateString,
-    endDate: dateString,
-    // Daily hours; allows half-days. Defaults to a full 8-hour day.
-    hoursPerDay: z.coerce
-      .number()
-      .positive("Enter hours greater than 0.")
-      .max(24, "A day has at most 24 hours.")
-      .default(8),
-  })
-  .refine((role) => role.endDate >= role.startDate, {
-    path: ["endDate"],
-    message: "End date must be on or after the start date.",
-  });
-
-export type ProjectRoleInput = z.input<typeof projectRoleSchema>;
+// Re-export so existing importers (the create-project form) keep one import site.
+export { type ProjectRoleInput, projectRoleSchema } from "./projectRole.schema";
 
 export const createProjectSchema = z.object({
   name: z.string().trim().min(1, "Name is required.").max(200),

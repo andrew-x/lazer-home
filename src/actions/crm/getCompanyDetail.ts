@@ -227,7 +227,7 @@ export const getCompanyDetail = cache(
           opportunities,
           eq(opportunitySourceContacts.opportunityId, opportunities.id),
         )
-        .innerJoin(projects, eq(projects.opportunityId, opportunities.id))
+        .innerJoin(projects, eq(opportunities.projectId, projects.id))
         .innerJoin(companies, eq(projects.companyId, companies.id))
         .where(eq(contacts.companyId, id))
         .orderBy(asc(projects.name)),

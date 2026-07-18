@@ -1,6 +1,6 @@
 "use client";
 
-import { IconCheck, IconPencil, IconPlus, IconX } from "@tabler/icons-react";
+import { IconCheck, IconPencil, IconX } from "@tabler/icons-react";
 import { useAction } from "next-safe-action/hooks";
 import { useCallback, useEffect, useState } from "react";
 import type {
@@ -22,7 +22,6 @@ import {
 import { EnumSelect } from "@/components/form/enum-select";
 import { InlineEditField } from "@/components/form/inline-edit-field";
 import { IconButton } from "@/components/icon-button";
-import { AddProjectDialog } from "@/components/projects/add-project-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -51,6 +50,7 @@ import { CompanyCombobox } from "./company-combobox";
 import { CreateContactInlineDialog } from "./create-contact-inline-dialog";
 import { EntryLog } from "./entry-log";
 import { STATUS_SELECT_LABELS } from "./opportunity-display";
+import { OpportunityProjectPlan } from "./opportunity-project-plan";
 
 /**
  * The opportunity detail drawer: a wide right-side sheet opened by clicking a
@@ -102,7 +102,7 @@ export function OpportunityDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         showCloseButton={false}
-        className="w-full gap-0 data-[side=right]:sm:max-w-3xl"
+        className="w-full gap-0 data-[side=right]:sm:max-w-[64rem]"
       >
         {/* Close handle as a tab on the drawer's left edge, clear of the header's
             status control. It's a child of the (non-scrolling) popup so it can
@@ -163,9 +163,6 @@ function OpportunityDetailView({
   canCreateProject: boolean;
   refresh: () => void;
 }) {
-  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
-  const linkedProject = detail.projects[0];
-
   return (
     <div className="flex flex-col gap-4 px-4 pb-4">
       <Tabs defaultValue="info">
@@ -218,47 +215,17 @@ function OpportunityDetailView({
           </section>
         </TabsContent>
 
-        <TabsContent value="project-plan" className="flex flex-col gap-3 pt-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Project</span>
-            {canCreateProject && !linkedProject ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setProjectDialogOpen(true)}
-              >
-                <IconPlus />
-                Create project
-              </Button>
-            ) : null}
-          </div>
-          {linkedProject ? (
-            <div className="rounded-md border p-3 text-sm font-medium">
-              {linkedProject.name}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No project yet. A project is required once this opportunity
-              reaches Allocating.
-            </p>
-          )}
+        <TabsContent value="project-plan" className="pt-4">
+          <OpportunityProjectPlan
+            opportunityId={detail.id}
+            company={detail.company}
+            lineOfBusiness={detail.lineOfBusiness}
+            canManage={canCreateProject}
+            // Refresh the drawer's own detail so the status guard sees the link.
+            onProjectLinked={refresh}
+          />
         </TabsContent>
       </Tabs>
-
-      <AddProjectDialog
-        open={projectDialogOpen}
-        onOpenChange={setProjectDialogOpen}
-        // Launched from within the drawer (a Base UI dialog), so force its own
-        // backdrop to blur the drawer behind it.
-        forceMountOverlay
-        opportunityId={detail.id}
-        defaultCompanyId={detail.company.id}
-        defaultCompanyName={detail.company.name}
-        defaultLineOfBusiness={detail.lineOfBusiness}
-        lockCompany
-        onCreated={refresh}
-      />
     </div>
   );
 }
@@ -428,7 +395,7 @@ function HeaderNameField({ detail, refresh }: FieldProps) {
  */
 function HeaderStatusField({ detail, refresh }: FieldProps) {
   const save = useInlineSave(detail, refresh);
-  const hasProject = detail.projects.length > 0;
+  const hasProject = detail.project !== null;
 
   const handleChange = (next: OpportunityStatus | "") => {
     if (!next || next === detail.status) return;
