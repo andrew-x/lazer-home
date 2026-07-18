@@ -38,9 +38,12 @@ The brand mark is `public/icon.svg` — **magenta** (`#FF00C5`) — exposed via 
 Data viz is **hand-rolled inline `<svg>`**; **do not add a charting dependency**
 (no Recharts/visx/Chart.js/etc.). This is deliberate — a library's default look
 (rounded, shadowed, multi-color, boxed legends) fights the flat/editorial design
-language, and our charts are simple enough to draw directly. The first instance is
-the `/performance` distribution scatter (`src/components/performance/compensation-scatter.tsx`);
-**follow the same approach for future charts** rather than reaching for a library.
+language, and our charts are simple enough to draw directly. Two instances live on
+`/performance`: the distribution **scatter** (`compensation-scatter.tsx`, in the
+compensation section) and the level-distribution **bar chart**
+(`level-distribution-bar-chart.tsx`, in the staff-levels section — both on the one
+dashboard). **Follow the same approach for future charts** rather than reaching for
+a library.
 
 Dataviz styling rules (consistent with the design language above):
 
@@ -55,7 +58,11 @@ Dataviz styling rules (consistent with the design language above):
   `role="img"` + `aria-label` on the `<svg>`).
 - **Non-zero baseline is OK for scatters.** Dots carry no area-from-zero meaning
   (unlike bars), so padding the domain off zero to keep the spread legible is
-  honest. Don't do this for bar charts.
+  honest. **Bar charts must start at a zero baseline** — bar area encodes the value,
+  so a clipped baseline lies (the level-distribution bar chart enforces this).
+- **Interaction stays lightweight.** The scatter's per-dot detail is a native
+  `<title>`; the bar chart adds a small hover-tooltip bubble (its own SVG `<rect>` +
+  `<text>`, clamped inside the plot) — still no tooltip library.
 - **Fixed `viewBox`, fluid width.** Draw in a fixed viewBox coordinate space that
   scales to the container (`className="h-auto w-full"`), and use
   `vectorEffect="non-scaling-stroke"` so hairlines stay crisp at any width.

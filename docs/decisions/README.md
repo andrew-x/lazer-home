@@ -38,6 +38,7 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0027](./0027-timesheet-weekly-model-and-edit-window.md) | Timesheets: per-day weekly model, whole-week replace, ±1-week edit window | accepted |
 | [0028](./0028-generic-responses-table-app-validated-question-ids.md) | Generic `responses` table keyed by (staff, question); question ids validated in app code, not a pgEnum | accepted |
 | [0029](./0029-external-fx-rates-and-currency-normalization.md) | External FX rates (frankfurter.dev), USD-cross-rate conversion, never-throw fallback — first live external API call | accepted |
+| [0030](./0030-staff-rating-levels-effective-dated-manager-only.md) | Staff rating levels (L0–L4): effective-dated, nullable, manager/admin-only with no self-view | accepted |
 
 > **0012 is intentionally absent** (the log jumps 0011 → 0013). It was a short-lived
 > ADR documenting the *open staff-edit gap pending RBAC*; it was **withdrawn** once
