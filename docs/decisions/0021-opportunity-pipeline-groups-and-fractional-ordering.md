@@ -23,7 +23,7 @@ stays a **single flat `pgEnum` (`opportunity_status`)** of 14 leaf values. The
 group structure lives only in the pure module `src/lib/opportunity-pipeline.ts`
 (`OPPORTUNITY_GROUPS`), which maps ordered groups → their substatuses. The leaf
 tuple (`OPPORTUNITY_STATUSES`) remains the single source of truth in
-`src/actions/crm/createOpportunity.schema.ts`, in **strict pipeline order** (array
+`src/lib/opportunity.ts`, in **strict pipeline order** (array
 index === pipeline position); the `pgEnum` derives from it (ADR 0016). A
 **module-load assertion** (plus `opportunity-pipeline.test.ts`) enforces that
 `OPPORTUNITY_GROUPS` flattened equals `OPPORTUNITY_STATUSES` in the same order, so

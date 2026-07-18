@@ -18,7 +18,9 @@ migration `drizzle/0026_rich_the_captain.sql`). See [ADR 0027](../decisions/0027
 
 - **`timesheets`** — one person's week. `id` (prefix `ts`), `staffId` → `staff.id`
   (cascade), **`weekStartDate`** (`date`, the ISO **Monday** of the week), `status`
-  (`timesheet_status` enum: `draft` | `submitted`, default `draft`), `submittedAt`
+  (`timesheet_status` enum: `draft` | `submitted`, default `draft` — the pgEnum is
+  **built from** the pure client-safe `src/lib/timesheet-status.ts` tuple/labels, one
+  source for the enum, read types, and UI, like `timesheet-category.ts`), `submittedAt`
   (nullable timestamp — stamped on submit, cleared on reopen), timestamps.
   **`unique(staffId, weekStartDate)`** (one sheet per person per week) + index on
   `staffId`. The row is created **lazily** on first save/submit — an unsaved week
@@ -67,6 +69,9 @@ The UX is **browse, then edit** — there is no week-arrow navigation.
   (`src/app/(app)/timesheets/[week]/page.tsx`) — the weekly grid
   (`src/components/timesheets/timesheet-week.tsx`): one row per target (project or
   bucket), a hours cell per **weekday**, per-day column totals with a cap warning. The
+  grid's pure totals math (per-day / per-row / week sums) lives in
+  `src/lib/timesheet-grid.ts` (+`.test.ts`), extracted from the component so it's unit-tested
+  independently of rendering. The
   status badge + week range live in the edit-page header; the grid itself carries no
   navigation. The `[week]` param is any date in the target week, normalized to its
   ISO-Monday key. **`saveTimesheet`** does a **whole-week transactional replace**:

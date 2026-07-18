@@ -76,5 +76,3 @@ external service is down.
   off the wire (the read is already anonymized).
 - **Hardcoding all rates** — rejected: comp figures would silently go stale; the
   hardcoded table is kept only as the failure fallback, flagged `stale`.
-</content>
-</invoke>

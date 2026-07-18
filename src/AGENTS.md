@@ -48,7 +48,7 @@ Aim for a distinctive, editorial look — not the default rounded/shadowed AI-ap
 - **Cursor:** a global base rule gives buttons and ARIA-interactive elements `cursor-pointer` — don't add `cursor-pointer` per component.
 - Use **semantic classes** (`bg-primary`, `text-muted-foreground`, `border`) — never raw hex / `indigo-600`. Conditional classes via `cn()` from `@/lib/utils`.
 - The login page is deliberately **minimal** (logo + name + one button); keep auth/marketing surfaces uncluttered.
-- Brand: mark is `/public/icon.svg` (`<LogoMark>` / `<Logo>` in `src/components/brand/`). Product name is `APP_NAME` in `src/lib/constants.ts`.
+- Brand: mark is `/public/icon.svg` (`<LogoMark>` / `<LogoWordmark>` in `src/components/brand/`). Product name is `APP_NAME` in `src/lib/constants.ts`.
 
 ## App structure & navigation
 

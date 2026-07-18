@@ -28,4 +28,3 @@ Use **shadcn** (copy-in, not a dependency) on **Base UI** primitives, with the *
 - **shadcn on Radix (the classic stack)** — rejected for `base-nova`'s Base UI foundation; the team chose the newer preset. Cost: `render` vs `asChild` is a gotcha for anyone with Radix muscle memory.
 - **A packaged design system (e.g. MUI/Mantine as a dependency)** — rejected: we want to own and patch primitives without fighting a library's opinions, and to keep the bundle lean.
 - **Dark mode now** — deferred: no requirement; the tokens leave the door open if it's ever decided.
-</content>

@@ -38,7 +38,9 @@ delivery, allocations, timesheets, and billing.
   the CRM → delivery link, **at most one project per opportunity** (a project relates to at
   most one opportunity, and now an opportunity to at most one project). Enforced by a
   **partial unique index** `projects_opportunity_idx` (`uniqueIndex(...).where("opportunity_id
-  is not null")`, migration `drizzle/0030_white_raider.sql`) — partial because the column is
+  is not null")` — defined in `src/lib/db/projects-schema.ts`; see the baseline
+  `drizzle/0000_light_shape.sql`, which carries the `CREATE UNIQUE INDEX ... WHERE
+  "opportunity_id" is not null`) — partial because the column is
   nullable, so standalone (null-FK) projects aren't constrained and can coexist; it also
   serves as the FK lookup index. The predicate uses the **bare** column name (Postgres
   rejects a table-qualified reference in a `CREATE INDEX ... WHERE`). Optional so a project
@@ -87,17 +89,14 @@ delivery, allocations, timesheets, and billing.
   `project_roles`), barrelled by `src/lib/db/schema.ts`; imports `opportunities` from
   `./opportunities-schema` (opportunities were split out of `crm-schema.ts` —
   [ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
-  Migrations `drizzle/0015_premium_vertigo.sql`, `drizzle/0017_amused_corsair.sql` (adds the
-  `projects.opportunityId` FK + index), `drizzle/0023_eager_demogoblin.sql` (adds the
-  `project_role_type` enum; makes `project_roles.staff_id` nullable; adds `name` +
-  `role_type`, backfilling existing rows to `ENGINEER` via a temporary default that's then
-  dropped), and `drizzle/0024_harsh_diamondback.sql` (adds `projects.line_of_business` —
-  backfilled to `CORE` via a temporary default then dropped, so it's NOT NULL with no
-  default — **and drops `project_roles.line_of_business`**), and
-  `drizzle/0028_glossy_dorian_gray.sql` (adds the `project_status` enum + `projects.status`
-  column, NOT NULL default `tentative`), and `drizzle/0030_white_raider.sql` (drops the old
-  non-unique `projects_opportunity_idx` and recreates it as a **partial unique index** on
-  `opportunity_id WHERE opportunity_id is not null` — one project per opportunity).
+  **Migrations were squashed into a single baseline `drizzle/0000_light_shape.sql`** (the
+  incremental per-feature migrations no longer exist), so the schema files are the source of
+  truth for the current shape. That baseline already encodes everything the projects domain
+  relies on: the `projects.opportunityId` FK, the `project_role_type` + `project_status`
+  enums, a nullable `project_roles.staff_id` with `name`/`role_type` (and **no**
+  `project_roles.line_of_business` — line of business lives on `projects`), and the
+  **partial unique** `projects_opportunity_idx` on `opportunity_id WHERE opportunity_id is
+  not null` (one project per opportunity).
 - **Shared status module** — `src/lib/project-status.ts` exports the `PROJECT_STATUSES`
   tuple (`tentative`/`confirmed`/`paused`/`cancelled`), the `ProjectStatus` type,
   `DEFAULT_PROJECT_STATUS` (`tentative`), and `PROJECT_STATUS_LABELS`. A **pure,

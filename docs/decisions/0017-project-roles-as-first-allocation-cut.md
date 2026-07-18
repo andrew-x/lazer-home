@@ -84,4 +84,3 @@ established for the opportunity enums.
   needs it; flagged here so it isn't forgotten.
 - **`unique(projectId, staffId)`** — rejected: a person legitimately holds multiple
   lines on one project (different periods / role types).
-</content>

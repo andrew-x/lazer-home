@@ -139,5 +139,3 @@ an unrelated field change doesn't count.
 - **Carry the manager as a resolved `staff.id` through the plan.** Rejected: create-ids
   don't exist until commit, so a ripplingId is the only stable cross-batch reference; the
   single-statement batched insert is what makes intra-batch self-FKs resolve.
-</content>
-</invoke>

@@ -1,4 +1,4 @@
-# 0008 — Localhost-only admin area, gated by host (not auth), outside `(app)`
+# 0008 — Localhost-only admin area, gated by env + host (not auth), outside `(app)`
 
 **Status:** accepted · 2026-06-15
 
@@ -11,14 +11,18 @@ Staff need to get into the system before anyone can use it, and the first tool f
 A separate **admin area** at `src/app/admin/**`, with two deliberate properties:
 
 - **Outside the `(app)` route group.** It does not inherit the auth + staff-record gate, so it can run before any staff exist.
-- **The security boundary is the request host, not auth.** `src/lib/admin.ts` exposes `isLocalhost()` / `assertLocalhost()`, which compare the `host` header (port-stripped, lowercased) against a loopback allowlist (`localhost`, `127.0.0.1`, `[::1]`/`::1`). `admin/layout.tsx` calls `isLocalhost()` and `notFound()`s the whole segment for non-local requests (404, not a redirect — the area is invisible remotely). The two admin server actions use `publicActionClient` + `assertLocalhost()` — **not** `secureActionClient` — for the same bootstrapping reason. Enforced server-side only; never trusted from the client.
+- **The security boundary is a two-part local-only gate, not auth.** `src/lib/admin.ts` exposes `isLocalhost()` / `assertLocalhost()` with two layers:
+  - **Primary, unspoofable lock — `NODE_ENV === "production"` refuses outright** (`src/lib/admin.ts:21`), before the host is ever consulted. A real deployment can never reach admin regardless of headers.
+  - **Defense-in-depth — loopback host check.** In non-production, the request must also arrive over a loopback host: the `host` header (port-stripped, lowercased) is checked against a loopback allowlist (`localhost`, `127.0.0.1`, `[::1]`/`::1`), catching e.g. a dev server bound to a LAN address.
+
+  `admin/layout.tsx` calls `isLocalhost()` and `notFound()`s the whole segment for non-local requests (404, not a redirect — the area is invisible remotely). The two admin server actions use `publicActionClient` + `assertLocalhost()` — **not** `secureActionClient` — for the same bootstrapping reason. Enforced server-side only; never trusted from the client.
 
 The area is reachable by **direct URL only** (no sidebar nav entry), since it isn't part of the authenticated shell.
 
 ## Consequences
 
 - The importer works on a developer's machine against the configured DB with zero auth setup — the intended "seed the system" path.
-- **The gate is only as strong as the `host` header in this deployment topology.** It assumes a real deployment is never served over a loopback host and that the host header reaching the server is trustworthy (no proxy rewriting it to `localhost`). For a single-tenant internal app run locally for seeding, that's acceptable; if admin ever needs to run somewhere remote, this must be revisited (add real authz, don't loosen the host check).
+- **The `NODE_ENV` production gate closes the host-header-spoofing risk this ADR originally carried.** Because a production build refuses admin *before* the host is consulted, a proxy or client rewriting the `host` to `localhost` can't reach admin in a real deployment — the earlier "only as strong as the host header" concern no longer applies. The loopback check runs only in non-production, where it's belt-and-suspenders. If admin ever needs to run somewhere genuinely remote (a non-production deployment), this must still be revisited — add real authz, don't loosen the gates.
 - Admin actions bypass the route-level authz layer entirely — every admin action **must** call `assertLocalhost()` itself. There's no middleware doing it for them.
 - **Update (manage-users):** `assertLocalhost()` remains the universal boundary, but the "`publicActionClient`, never `secureActionClient`" claim above is now only true for the seeding tools (importers + bulk-editor). `commitUserChanges` *adds* `secureActionClient` + `role: "admin"` on top of `assertLocalhost()` because it mutates through the Better Auth admin API, which requires the caller to be an admin (and lets a ban revoke sessions). So that one tool isn't bootstrapping-free — it needs a pre-existing admin. See [permissions.md](../domains/permissions.md).
 - Splitting from `(app)` means the admin area has its own minimal chrome (`admin/layout.tsx`), separate from `AppShell`.

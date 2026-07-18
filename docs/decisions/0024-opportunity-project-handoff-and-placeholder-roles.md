@@ -98,5 +98,3 @@ drawer flips the card's state and the board stops re-prompting to create a dupli
   is deliberate. A toast pointing to the right role is the correct nudge.
 - **Client-only enforcement.** Rejected: the requirement is a real invariant, so both
   status-mutating actions check it server-side; the client block is just UX.
-</content>
-</invoke>

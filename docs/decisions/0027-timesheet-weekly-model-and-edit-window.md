@@ -1,4 +1,4 @@
-# 0025 — Timesheets: per-day weekly model, whole-week replace, and the ±1-week edit window
+# 0027 — Timesheets: per-day weekly model, whole-week replace, and the ±1-week edit window
 
 **Status:** accepted · 2026-07-13
 
@@ -93,4 +93,3 @@ sync in v1.
 - **Syncing the PTO bucket with `staff_pto`** — deferred: the two are populated by
   different actors (self-logged vs. Rippling import) and reconciling them is its own
   design problem.
-</content>

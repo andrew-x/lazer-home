@@ -84,5 +84,3 @@ the default so they stay NOT NULL with no default) and drops
   practice; NOT NULL with a `CORE` backfill is the honest shape.
 - **Leave opportunities in `crm-schema.ts`.** Rejected: the file was doing too much;
   a focused per-area file matches `staff-schema`/`projects-schema`.
-</content>
-</invoke>

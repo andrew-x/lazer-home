@@ -13,7 +13,7 @@ The obvious fix — "make reads `'use server'` actions too" — is wrong for SSR
 **The actions layer (`src/actions/**`) is the single entry point for all DB access.** Pages, layouts, and components — including SSR Server Components — never import `db` or query Drizzle directly; they call into the actions layer.
 
 - **Mutations** → next-safe-action actions, exactly as ADR 0004 (`'use server'`, `secureActionClient`, etc.).
-- **Reads** (including SSR) → a plain **server-only** async function in the domain folder: `import "server-only"` at the top, named `get<Thing>.ts` (first example: `src/actions/staff/getMyProfile.ts`). **Not** a `'use server'` action — see Context. It resolves the current user internally (`getCurrentUser`) and filters by ownership (`where staff.userId = user.id`) so results are **inherently scoped**; a caller cannot widen them. It exports its return type; the page `await`s it directly and renders.
+- **Reads** (including SSR) → a plain **server-only** async function in the domain folder: `import "server-only"` at the top, named `get<Thing>.ts` (e.g. `src/actions/staff/getStaffProfile.ts`). **Not** a `'use server'` action — see Context. A read either resolves the current user internally *or* takes an explicit target id its caller has already authorized (the profile reads now take a `staffId`, gated at the page level — see [ADR 0011](./0011-category-agnostic-history-feed.md)); either way column projection and domain rules live in one place. It exports its return type; the page `await`s it directly and renders.
 
 This keeps the same property ADR 0004 bought for writes: one place to authorize, project columns, and apply domain rules (e.g. the [ADR 0007](./0007-staff-employment-effective-dating.md) latest-employment ordering) — now for reads too.
 
@@ -22,17 +22,17 @@ This keeps the same property ADR 0004 bought for writes: one place to authorize,
 - **Framework wiring** — the Better Auth Drizzle adapter in `src/lib/auth.ts`.
 - **Pure compute helpers an action delegates to** — e.g. `src/lib/*-import/plan.ts`, reached only through an action, never from a page.
 
-**One known straggler:** `getCurrentStaff` in `src/lib/staff.ts` is called straight from the `(app)` layout (not via the actions layer). It predates this convention; fold it into the actions layer when next touched.
+**The former straggler is resolved.** `getCurrentStaff` (once in `src/lib/staff.ts`, called straight from the `(app)` layout) now lives in the actions layer as `getCurrentStaffAccess` (`src/actions/staff/getCurrentStaffAccess.ts`); `src/lib/staff.ts` is deleted. The `(app)` layout and `/profile-setup` call the actions-layer function.
 
 ## Consequences
 
-- The `/profile` page was refactored to call `getMyProfile()` instead of querying Drizzle; ownership filtering and the latest-employment ordering moved into the read function.
+- The `/profile` page was refactored off direct Drizzle queries into the actions layer; it now calls `getStaffProfile` / `getStaffHistory` / `getStaffProjects` / `getStaffPto` (each taking a `staffId`), with column projection and the latest-employment ordering living in the read functions. (The original `getMyProfile.ts` was self-scoped; the #33 redesign generalized these reads to any `staffId` gated at the page level — see [ADR 0011](./0011-category-agnostic-history-feed.md).)
 - A future session writing an SSR read has an unambiguous pattern: `get<Thing>.ts`, `import "server-only"`, resolve user inside, export the type — not a `'use server'` action.
-- Ownership becomes structural, not per-page diligence: the read function scopes by `userId`, so a page literally cannot ask for someone else's data.
+- Where a read scopes to the current user internally, ownership is structural, not per-page diligence: the read cannot be asked for someone else's data. (The profile reads later traded this for page-level gating so a manager/peer can view another person — see [ADR 0011](./0011-category-agnostic-history-feed.md); reads that resolve the user internally still keep the structural property.)
 - Codified in `.claude/rules/server-actions.md` and `.claude/rules/database.md` ("`db` is imported only from `src/actions/**`").
 
 ## Alternatives considered
 
 - **Reads as `'use server'` actions** — rejected: the `{ data, serverError }` envelope and re-run session checks are awkward and redundant for SSR Server Components (see Context).
 - **Pages query Drizzle directly** (the prior state) — rejected: scatters ownership/projection/ordering across page files; the easy path stops being the safe one.
-- **A separate `src/queries/**` tree** — rejected: splitting reads and writes for the same domain across two trees fragments the domain; co-locating `getMyProfile.ts` beside the staff mutations keeps a domain's data access in one folder.
+- **A separate `src/queries/**` tree** — rejected: splitting reads and writes for the same domain across two trees fragments the domain; co-locating `getStaffProfile.ts` beside the staff mutations keeps a domain's data access in one folder.

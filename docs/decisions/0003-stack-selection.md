@@ -12,7 +12,7 @@ The platform was greenfield with DB, ORM, auth, and UI all explicitly left open 
 
 - **Postgres** (relational, multi-entity model fits) accessed via the **postgres-js** driver (`postgres` pkg) — **plain Postgres, NOT Neon.**
 - **Drizzle** ORM + drizzle-kit migrations, `casing: "snake_case"`.
-- **better-auth** (admin plugin + email/password; Google OAuth optional behind env).
+- **better-auth** (admin plugin + email/password; Google OAuth optional behind env). *(Email/password was later disabled in favour of Google-only auth — see [0006](./0006-google-only-auth-and-layout-gating.md).)*
 - **next-safe-action v8** for the mutation layer (see [0004](./0004-action-layer.md)).
 - **react-hook-form** + `@hookform/resolvers` + **zod v4** (+ drizzle-zod) for forms/validation.
 - **Tailwind v4** + `clsx` + `tailwind-merge` (`cn`) for styling.

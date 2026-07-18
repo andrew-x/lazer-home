@@ -1,4 +1,4 @@
-# 0017 — Skills stored inline (jsonb) from a hardcoded catalogue, not a normalized table
+# 0018 — Skills stored inline (jsonb) from a hardcoded catalogue, not a normalized table
 
 **Status:** accepted · 2026-07-08
 

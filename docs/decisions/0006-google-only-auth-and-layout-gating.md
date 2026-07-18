@@ -14,7 +14,7 @@ This is an internal tool for Lazer staff — everyone already has a company Goog
 
 **Route protection lives in the `(app)` layout, not middleware.** `src/app/(app)/layout.tsx` is an async Server Component that does `const user = await getCurrentUser(); if (!user) redirect("/login")` before rendering `<AppShell>`. Public pages live in the separate `(auth)` route group. This continues the project's deliberate **no-middleware** posture (the same reason `env.ts` skips `import "server-only"` and auth runs through a catch-all route, not edge middleware).
 
-**A valid Google session is necessary but not sufficient — the app also gates on a usable staff record** (added after the staff schema landed). Anyone with a company Google account can authenticate, but only people we've provisioned a staff record for should reach the app. So after the session check the `(app)` layout calls `getCurrentStaff(user)` (`src/lib/staff.ts`) and admits only `ok`:
+**A valid Google session is necessary but not sufficient — the app also gates on a usable staff record** (added after the staff schema landed). Anyone with a company Google account can authenticate, but only people we've provisioned a staff record for should reach the app. So after the session check the `(app)` layout calls `getCurrentStaffAccess(user)` (`src/actions/staff/getCurrentStaffAccess.ts` — originally `getCurrentStaff` in `src/lib/staff.ts`, since folded into the actions layer per [ADR 0010](./0010-actions-layer-owns-db-access.md)) and admits only `ok`:
 
 - **`ok`** — active `staff` row (`isActive = true`) with ≥1 `staff_employment` row → enter the app.
 - **`not_setup`** — no active staff row matched → `redirect("/profile-setup")`.
@@ -37,4 +37,3 @@ The status is a **discriminated union** so callers must handle each case. Becaus
 - **Next.js middleware for route protection** — rejected to keep the no-middleware approach: gating in a Server Component layout keeps auth logic colocated with the routes it guards, runs in the same runtime as the rest of the app, and avoids an edge/runtime split. The route-group boundary makes "what's public" explicit in the file tree.
 - **Keep email/password enabled too** — rejected for an internal, all-Google-account user base: more attack surface and support burden for no benefit.
 - **Per-page auth checks** — rejected: duplicative and easy to forget on a new page; the layout makes the secure path the default.
-</content>

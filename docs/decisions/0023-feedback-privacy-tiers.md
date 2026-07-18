@@ -82,4 +82,3 @@ the limited recipient view is future work.
   three fixed tiers; role + projection covers it without schema machinery.
 - **Relationship-based review (only *my reports'* feedback).** Not possible — there
   is no reporting graph in this codebase; review is necessarily role-scoped.
-</content>
