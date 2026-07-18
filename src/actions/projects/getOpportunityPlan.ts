@@ -2,7 +2,13 @@ import "server-only";
 
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db/db";
-import { opportunities, projectRoles, projects, staff } from "@/lib/db/schema";
+import {
+  opportunities,
+  projectDeliveryManagers,
+  projectRoles,
+  projects,
+  staff,
+} from "@/lib/db/schema";
 import type { LineOfBusiness } from "@/lib/line-of-business";
 import type { ProjectRoleStatus } from "@/lib/project-role-status";
 import type { ProjectRoleType } from "@/lib/project-role-type";
@@ -29,6 +35,8 @@ export type PlanProject = {
   name: string;
   status: ProjectStatus;
   lineOfBusiness: LineOfBusiness;
+  /** The staff who run this project, resolved for display and editing. */
+  deliveryManagers: { id: string; name: string }[];
 };
 
 export type OpportunityPlan = {
@@ -80,6 +88,14 @@ export async function getOpportunityPlan(
     return { project: null, roles: [], timeline: null, roleCount: 0 };
   }
 
+  // The project's delivery managers, resolved to names for display/editing.
+  const deliveryManagers = await db
+    .select({ id: staff.id, name: staff.name })
+    .from(projectDeliveryManagers)
+    .innerJoin(staff, eq(projectDeliveryManagers.staffId, staff.id))
+    .where(eq(projectDeliveryManagers.projectId, projectRow.id))
+    .orderBy(asc(staff.name));
+
   // All roles for the project in one query. Left join staff (staffId is
   // nullable — placeholders survive).
   const roles: PlanRole[] = await db
@@ -113,7 +129,7 @@ export async function getOpportunityPlan(
   }
 
   return {
-    project: projectRow,
+    project: { ...projectRow, deliveryManagers },
     roles,
     timeline,
     roleCount: roles.length,

@@ -6,6 +6,7 @@ import {
   IconLayoutList,
   IconPencil,
   IconPlus,
+  IconUsers,
 } from "@tabler/icons-react";
 import { useAction } from "next-safe-action/hooks";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -19,11 +20,14 @@ import { extendProjectRole } from "@/actions/projects/extendProjectRole";
 import { extendProjectRoleSchema } from "@/actions/projects/extendProjectRole.schema";
 import type {
   OpportunityPlan,
+  PlanProject,
   PlanRole,
 } from "@/actions/projects/getOpportunityPlan";
 import { loadOpportunityPlan } from "@/actions/projects/loadOpportunityPlan";
 import { searchProjects } from "@/actions/projects/searchProjects";
 import { searchStaff } from "@/actions/projects/searchStaff";
+import { updateProject } from "@/actions/projects/updateProject";
+import { updateProjectSchema } from "@/actions/projects/updateProject.schema";
 import { updateProjectRole } from "@/actions/projects/updateProjectRole";
 import { updateProjectRoleSchema } from "@/actions/projects/updateProjectRole.schema";
 import {
@@ -31,7 +35,10 @@ import {
   type IssueTarget,
 } from "@/components/form/apply-server-issues";
 import { EntityCombobox } from "@/components/form/entity-combobox";
-import type { EntityOption } from "@/components/form/entity-multi-combobox";
+import {
+  EntityMultiCombobox,
+  type EntityOption,
+} from "@/components/form/entity-multi-combobox";
 import { EnumSelect } from "@/components/form/enum-select";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
 import { FormField } from "@/components/form/form-field";
@@ -48,7 +55,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { parseIsoDate } from "@/lib/format";
-import type { LineOfBusiness } from "@/lib/line-of-business";
+import {
+  LINE_OF_BUSINESS,
+  LINE_OF_BUSINESS_LABELS,
+  type LineOfBusiness,
+} from "@/lib/line-of-business";
 import {
   buildPlannerRows,
   buildWeekColumns,
@@ -61,7 +72,11 @@ import {
   PROJECT_ROLE_TYPES,
   type ProjectRoleType,
 } from "@/lib/project-role-type";
-import { PROJECT_STATUS_LABELS } from "@/lib/project-status";
+import {
+  PROJECT_STATUS_LABELS,
+  PROJECT_STATUSES,
+  type ProjectStatus,
+} from "@/lib/project-status";
 import { cn } from "@/lib/utils";
 
 type CompanyRef = { id: string; name: string };
@@ -253,6 +268,7 @@ function PlanEditor({
     { mode: "create" } | { mode: "edit"; role: PlanRole } | null
   >(null);
   const [extendOpen, setExtendOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const weekColumns = useMemo(() => buildWeekColumns(plan.roles), [plan.roles]);
   const rows = useMemo(
@@ -271,19 +287,50 @@ function PlanEditor({
   return (
     <div className="flex flex-col gap-4">
       {/* Summary */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard
-          label="Timeline"
-          value={lengthWeeks ? `${lengthWeeks} wk` : "—"}
-          hint={plan.project ? PROJECT_STATUS_LABELS[plan.project.status] : ""}
-          icon={IconCalendarStats}
-        />
-        <StatCard
-          label="Roles"
-          value={String(plan.roleCount)}
-          icon={IconLayoutList}
-        />
-        <StatCard label="Project" value={plan.project?.name ?? "—"} />
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-medium">Summary</span>
+          {canManage && plan.project ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setEditOpen(true)}
+            >
+              <IconPencil />
+              Edit project
+            </Button>
+          ) : null}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Timeline"
+            value={lengthWeeks ? `${lengthWeeks} wk` : "—"}
+            hint={
+              plan.project ? PROJECT_STATUS_LABELS[plan.project.status] : ""
+            }
+            icon={IconCalendarStats}
+          />
+          <StatCard
+            label="Roles"
+            value={String(plan.roleCount)}
+            icon={IconLayoutList}
+          />
+          <StatCard
+            label="Delivery manager"
+            value={deliveryManagerLabel(plan.project?.deliveryManagers ?? [])}
+            icon={IconUsers}
+          />
+          <StatCard
+            label="Project"
+            value={plan.project?.name ?? "—"}
+            hint={
+              plan.project
+                ? LINE_OF_BUSINESS_LABELS[plan.project.lineOfBusiness]
+                : ""
+            }
+          />
+        </div>
       </div>
 
       {/* Planner grid */}
@@ -351,13 +398,33 @@ function PlanEditor({
           }}
         />
       ) : null}
+
+      {editOpen && plan.project ? (
+        <EditProjectDialog
+          project={plan.project}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => {
+            setEditOpen(false);
+            onChanged();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
 
+/** The comma-joined delivery-manager names for the summary card, or "—". */
+function deliveryManagerLabel(
+  managers: { id: string; name: string }[],
+): string {
+  return managers.length ? managers.map((m) => m.name).join(", ") : "—";
+}
+
 /** The block style for a week cell, by the covering segment's state. */
 function segmentClass(segment: RoleSegment): string {
-  if (segment.editable) return "bg-secondary border border-border";
+  // This deal's editable segments carry the indigo accent so they stand out
+  // from the neutral-grey read-only blocks and the empty (unallocated) cells.
+  if (segment.editable) return "bg-primary";
   if (segment.status === "confirmed") return "bg-foreground/25";
   return "bg-foreground/10"; // tentative, from another opportunity
 }
@@ -487,7 +554,7 @@ function PlannerLegend() {
   return (
     <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
       <span className="flex items-center gap-1">
-        <span className="size-3 rounded-none border border-border bg-secondary" />
+        <span className="size-3 rounded-none bg-primary" />
         This deal (editable)
       </span>
       <span className="flex items-center gap-1">
@@ -499,6 +566,178 @@ function PlannerLegend() {
         Other deal
       </span>
     </div>
+  );
+}
+
+// --- Edit project dialog ----------------------------------------------------
+
+type EditProjectFormValues = {
+  name: string;
+  lineOfBusiness: LineOfBusiness;
+  status: ProjectStatus;
+  deliveryManagers: EntityOption[];
+};
+
+const EDIT_PROJECT_ISSUE_FIELDS: Record<
+  string,
+  IssueTarget<EditProjectFormValues>
+> = {
+  name: "name",
+  lineOfBusiness: "lineOfBusiness",
+  status: "status",
+  deliveryManagerIds: "deliveryManagers",
+  // Server-controlled; never a form field.
+  projectId: "name",
+};
+
+/**
+ * Edit the project's top-level fields — name, line of business, status, and
+ * delivery managers. Roles are managed separately by the planner grid below, so
+ * they're absent here. Gated by the caller on `canManage` (`projects.edit`).
+ */
+function EditProjectDialog({
+  project,
+  onClose,
+  onSaved,
+}: {
+  project: PlanProject;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const {
+    control,
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors },
+  } = useForm<EditProjectFormValues>({
+    defaultValues: {
+      name: project.name,
+      lineOfBusiness: project.lineOfBusiness,
+      status: project.status,
+      deliveryManagers: project.deliveryManagers.map((m) => ({
+        id: m.id,
+        name: m.name,
+      })),
+    },
+  });
+
+  const update = useAction(updateProject, {
+    onSuccess: () => {
+      toast.success("Project updated.");
+      onSaved();
+    },
+    onError: ({ error }) =>
+      toast.error(error.serverError ?? "Couldn't update the project."),
+  });
+
+  const onSubmit = (values: EditProjectFormValues) => {
+    const parsed = updateProjectSchema.safeParse({
+      projectId: project.id,
+      name: values.name,
+      lineOfBusiness: values.lineOfBusiness,
+      status: values.status,
+      deliveryManagerIds: values.deliveryManagers.map((d) => d.id),
+    });
+    if (!parsed.success) {
+      applyServerIssues(setError, parsed.error, EDIT_PROJECT_ISSUE_FIELDS);
+      return;
+    }
+    update.execute(parsed.data);
+  };
+
+  return (
+    <FormDialog
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      forceMountOverlay
+      title="Edit project"
+      description="Update the project's name, line of business, status, and delivery managers. Roles are edited in the planner below."
+      contentClassName="max-h-[85vh] overflow-y-auto sm:max-w-lg"
+    >
+      {() => (
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+          <FormField
+            label="Name"
+            htmlFor="edit-project-name"
+            error={errors.name?.message}
+          >
+            <Input
+              id="edit-project-name"
+              aria-invalid={Boolean(errors.name)}
+              {...register("name")}
+            />
+          </FormField>
+
+          <div className="flex gap-3">
+            <FormField
+              label="Line of business"
+              error={errors.lineOfBusiness?.message}
+              className="flex-1"
+            >
+              <Controller
+                control={control}
+                name="lineOfBusiness"
+                render={({ field, fieldState }) => (
+                  <EnumSelect
+                    options={LINE_OF_BUSINESS}
+                    labels={LINE_OF_BUSINESS_LABELS}
+                    placeholder="Select a line of business"
+                    value={field.value}
+                    invalid={Boolean(fieldState.error)}
+                    onValueChange={field.onChange}
+                  />
+                )}
+              />
+            </FormField>
+            <FormField
+              label="Status"
+              error={errors.status?.message}
+              className="flex-1"
+            >
+              <Controller
+                control={control}
+                name="status"
+                render={({ field, fieldState }) => (
+                  <EnumSelect
+                    options={PROJECT_STATUSES}
+                    labels={PROJECT_STATUS_LABELS}
+                    placeholder="Select a status"
+                    value={field.value}
+                    invalid={Boolean(fieldState.error)}
+                    onValueChange={field.onChange}
+                  />
+                )}
+              />
+            </FormField>
+          </div>
+
+          <FormField label="Delivery managers">
+            <Controller
+              control={control}
+              name="deliveryManagers"
+              render={({ field, fieldState }) => (
+                <EntityMultiCombobox
+                  value={field.value}
+                  onChange={field.onChange}
+                  searchAction={searchStaff}
+                  placeholder="Search staff…"
+                  invalid={Boolean(fieldState.error)}
+                />
+              )}
+            />
+          </FormField>
+
+          <FormDialogFooter
+            serverError={update.result.serverError}
+            submitLabel="Save"
+            loading={update.isPending}
+          />
+        </form>
+      )}
+    </FormDialog>
   );
 }
 
@@ -797,6 +1036,7 @@ function ExtendDialog({
     register,
     handleSubmit,
     setError,
+    setValue,
     formState: { errors },
   } = useForm<ExtendFormValues>({
     defaultValues: {
@@ -847,7 +1087,14 @@ function ExtendDialog({
               render={({ field }) => (
                 <Select
                   value={field.value || null}
-                  onValueChange={field.onChange}
+                  onValueChange={(next) => {
+                    field.onChange(next);
+                    // Continue the allocation seamlessly: default the new
+                    // segment's start to where the source role ends. Still
+                    // editable afterward.
+                    const source = roles.find((r) => r.id === next);
+                    if (source) setValue("startDate", source.endDate);
+                  }}
                 >
                   <SelectTrigger aria-label="Role to extend">
                     <SelectValue placeholder="Select a role" />

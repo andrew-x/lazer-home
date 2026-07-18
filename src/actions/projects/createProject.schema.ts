@@ -28,8 +28,10 @@ export const createProjectSchema = z.object({
   // Optional CRM opportunity this project delivers.
   opportunityId: optionalId,
   deliveryManagerIds: idList,
-  // A project must be staffed with at least one role at creation.
-  roles: z.array(projectRoleSchema).min(1, "Add at least one role."),
+  // Roles and delivery managers are optional at creation — the create form
+  // collects only name + line of business, and they're added afterward in the
+  // project planner. Defaults to none.
+  roles: z.array(projectRoleSchema).default([]),
 });
 
 export type CreateProjectInput = z.input<typeof createProjectSchema>;
