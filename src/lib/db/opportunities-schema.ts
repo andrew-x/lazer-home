@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { OPPORTUNITY_SOURCES, OPPORTUNITY_STATUSES } from "@/lib/opportunity";
 import { companies, contacts, crmEntryKind } from "./crm-schema";
+import { projects } from "./projects-schema";
 import { lineOfBusinessEnum, staff } from "./staff-schema";
 
 // ---------------------------------------------------------------------------
@@ -50,6 +51,14 @@ export const opportunities = pgTable(
     // (a status or a collapsed group) sort by `position` asc; a drag writes the
     // midpoint between its new neighbors, so a move updates just this one row.
     position: doublePrecision().notNull().default(0),
+    // The project that delivers this opportunity — the CRM → delivery link.
+    // Nullable (an opportunity may not have a project yet) and **many-to-one**:
+    // a project can be built up from several opportunities (an original deal
+    // plus later extensions / change requests). `restrict`: a project referenced
+    // by any opportunity can't be deleted (there's no project-delete flow yet).
+    // This inverts the earlier `projects.opportunityId` 1:1 link — see
+    // docs/decisions/0019 and 0024.
+    projectId: text().references(() => projects.id, { onDelete: "restrict" }),
 
     createdAt: timestamp().defaultNow().notNull(),
     updatedAt: timestamp()
@@ -57,7 +66,10 @@ export const opportunities = pgTable(
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (t) => [index("opportunities_status_position_idx").on(t.status, t.position)],
+  (t) => [
+    index("opportunities_status_position_idx").on(t.status, t.position),
+    index("opportunities_project_idx").on(t.projectId),
+  ],
 );
 
 // Junction tables link an opportunity to its people. Surrogate `text` PK (repo

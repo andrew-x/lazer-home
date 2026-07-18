@@ -27,6 +27,13 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
     history-as-rows. See [projects.md](./projects.md),
     [ADR 0017](../decisions/0017-project-roles-as-first-allocation-cut.md), and
     [ADR 0024](../decisions/0024-opportunity-project-handoff-and-placeholder-roles.md).
+  - **Soft vs. hard is now modelled.** A role carries a **`status`** (`tentative` →
+    `confirmed`) plus an **`opportunityId`** provenance FK. A role planned against an
+    opportunity is `tentative` (soft — editable in that opportunity's planner) and
+    **auto-confirms** (hard — locked) when the opportunity is won. This is the first concrete
+    answer to the soft/hard question below, still as a **status flag on simple rows**, not
+    effective-dated history. See [projects.md](./projects.md) and
+    [ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md).
 
 ## Key flows
 
@@ -43,5 +50,8 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
 ## Open questions
 
 - Capacity unit: percentage, hours/week, or both?
-- Soft (tentative) vs. hard (confirmed) allocations?
-- How are conflicts/over-allocation surfaced and resolved?
+- ~~Soft (tentative) vs. hard (confirmed) allocations?~~ **Resolved** — a role's `status`
+  (`tentative` → `confirmed`, auto-confirmed on the opportunity's win) models exactly this.
+  See [ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md).
+- How are conflicts/over-allocation surfaced and resolved? (The planner shows one project's
+  roles per person, but nothing yet sums a person's load *across* projects.)

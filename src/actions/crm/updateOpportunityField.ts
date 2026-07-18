@@ -7,6 +7,7 @@ import { db } from "@/lib/db/db";
 import { opportunities } from "@/lib/db/schema";
 import { UserSafeActionError } from "@/lib/errors";
 import { assertOpportunityTransitionAllowed } from "./assertOpportunityTransitionAllowed";
+import { confirmRolesOnWon } from "./confirmRolesOnWon";
 import {
   replaceOpportunityContacts,
   replaceOpportunityOwners,
@@ -67,10 +68,25 @@ export const updateOpportunityField = secureActionClient
           lineOfBusiness: parsedInput.lineOfBusiness,
         });
         break;
-      case "status":
+      case "status": {
         await assertOpportunityTransitionAllowed(id, parsedInput.status);
-        await setOpportunity(db, { status: parsedInput.status });
+        const nextStatus = parsedInput.status;
+        await db.transaction(async (tx) => {
+          // Capture the prior status to detect a genuine move into `closed_won`.
+          const [before] = await tx
+            .select({ status: opportunities.status })
+            .from(opportunities)
+            .where(eq(opportunities.id, id))
+            .limit(1);
+          if (!before) {
+            throw new UserSafeActionError("That opportunity no longer exists.");
+          }
+          await setOpportunity(tx, { status: nextStatus });
+          // Won locks this opportunity's tentative roles (same transaction).
+          await confirmRolesOnWon(tx, id, nextStatus, before.status);
+        });
         break;
+      }
       case "contacts":
         await db.transaction(async (tx) => {
           await setOpportunity(tx, { updatedAt: new Date() });

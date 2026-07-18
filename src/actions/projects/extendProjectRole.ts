@@ -1,0 +1,84 @@
+"use server";
+
+import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { secureActionClient } from "@/lib/action";
+import { db } from "@/lib/db/db";
+import { generateId } from "@/lib/db/ids";
+import { opportunities, projectRoles } from "@/lib/db/schema";
+import { UserSafeActionError } from "@/lib/errors";
+import { extendProjectRoleSchema } from "./extendProjectRole.schema";
+
+/**
+ * Extend an existing role — the planner's "add to an existing role + staff
+ * allocation". Reads the source role's staff/type/name and inserts a **new**
+ * tentative segment (its own `project_roles` row sharing the `staffId`) tagged
+ * with this opportunity; the planner groups shared-staff rows into one person
+ * line, so the extension shows as another block on that person's row. Gated on
+ * `projects.edit`.
+ *
+ * The source role may be confirmed or from another opportunity (extending
+ * someone's allocation), but must live on **this opportunity's** project — you
+ * can only extend within the project you're planning against.
+ */
+export const extendProjectRole = secureActionClient
+  .metadata({
+    action: "extend-project-role",
+    permission: { projects: ["edit"] },
+  })
+  .inputSchema(extendProjectRoleSchema)
+  .action(async ({ parsedInput }) => {
+    const { sourceRoleId, opportunityId } = parsedInput;
+
+    const newRoleId = generateId("proj-role");
+
+    await db.transaction(async (tx) => {
+      const [opportunity] = await tx
+        .select({ projectId: opportunities.projectId })
+        .from(opportunities)
+        .where(eq(opportunities.id, opportunityId))
+        .limit(1);
+      if (!opportunity?.projectId) {
+        throw new UserSafeActionError(
+          "Associate or create a project for this opportunity first.",
+        );
+      }
+
+      const [source] = await tx
+        .select({
+          projectId: projectRoles.projectId,
+          staffId: projectRoles.staffId,
+          name: projectRoles.name,
+          roleType: projectRoles.roleType,
+        })
+        .from(projectRoles)
+        .where(eq(projectRoles.id, sourceRoleId))
+        .limit(1);
+      if (!source) {
+        throw new UserSafeActionError("That role no longer exists.");
+      }
+      if (source.projectId !== opportunity.projectId) {
+        throw new UserSafeActionError(
+          "You can only extend a role on this opportunity's project.",
+        );
+      }
+
+      await tx.insert(projectRoles).values({
+        id: newRoleId,
+        projectId: opportunity.projectId,
+        opportunityId,
+        status: "tentative",
+        // Share the source role's person and identity — this is a continuation.
+        staffId: source.staffId,
+        name: source.name,
+        roleType: source.roleType,
+        startDate: parsedInput.startDate,
+        endDate: parsedInput.endDate,
+        hoursPerDay: parsedInput.hoursPerDay,
+      });
+    });
+
+    revalidatePath("/opportunities");
+    revalidatePath("/projects");
+    return { id: newRoleId };
+  });

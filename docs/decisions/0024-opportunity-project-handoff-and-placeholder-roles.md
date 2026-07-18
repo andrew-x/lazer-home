@@ -1,6 +1,28 @@
 # 0024 — Opportunity → Project handoff: delivery-stage project requirement + placeholder roles
 
-**Status:** accepted · 2026-07-10
+**Status:** accepted · 2026-07-10 · **amended 2026-07-18** (link inverted; same-company invariant now enforced; roles gained provenance + status)
+
+## Amendment (2026-07-18): the link inverted, and the handoff got richer
+
+Three things this ADR left as written have since changed — see
+[ADR 0019](./0019-project-opportunity-link.md) and
+[ADR 0031](./0031-opportunity-project-planner-and-role-status.md):
+
+- **The link inverted.** The handoff no longer sets `projects.opportunityId` (removed). It
+  sets **`opportunities.projectId`** — and the relationship is now **many opportunities → one
+  project** (a project can be built up from several deals). `createProject` writes the new
+  opportunity's `projectId` inside its transaction (`.returning()`-guarded so a vanished
+  opportunity rolls the whole create back); a **second** entry point, `associateOpportunityProject`,
+  links an opportunity to an **existing** project. `getOpportunitiesBoard`'s `hasProject` and
+  the drawer's linked-project read are now plain column reads off the opportunity.
+- **The same-company invariant is now enforced server-side.** `associateOpportunityProject`
+  rejects a cross-company project, and `searchProjects` is company-scoped — so the "still not
+  enforced" caveat below is **resolved**.
+- **Roles gained provenance + status.** `createProject` now tags each created role with its
+  originating `opportunityId` and (via schema default) status `tentative`; the auto-confirm-on-won
+  flip and the planner UI are [ADR 0031](./0031-opportunity-project-planner-and-role-status.md).
+
+Everything below describing `projects.opportunityId` is the **superseded** prior shape.
 
 ## Context
 
