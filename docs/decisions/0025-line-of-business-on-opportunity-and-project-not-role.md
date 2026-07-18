@@ -53,7 +53,11 @@ from `./staff-schema`; `projects-schema.ts` imports `opportunities` from it; the
 
 **4. A project must have at least one role.** `createProjectSchema.roles` is now
 `.min(1, "Add at least one role.")` (was `.default([])`); the add-project form seeds
-one empty role row so the requirement is obvious.
+one empty role row so the requirement is obvious. **(Later reverted — see
+[ADR 0031](./0031-opportunity-project-planner-and-role-status.md).** Once roles gained a
+tentative→confirmed lifecycle and full CRUD in the opportunity planner, project creation was
+simplified to name + company + line of business, and `roles` went back to `.default([])`:
+a project starts role-less and is staffed in the planner afterward.)
 
 **Migration `drizzle/0024_harsh_diamondback.sql`** adds the two `line_of_business`
 columns (backfilling existing rows to `CORE` via a temporary default, then dropping
@@ -66,9 +70,10 @@ the default so they stay NOT NULL with no default) and drops
   superseded:** `project_roles` no longer carries `lineOfBusiness`. The rest of that
   ADR (roles as simple non-effective-dated rows, the FK/index conventions, nullable
   `staffId` placeholders, `roleType`) stands.
-- Existing opportunities and projects were all backfilled to `CORE`; there's no edit
-  UI for a *project's* line of business yet (no project edit flow exists), and an
-  *opportunity's* is editable via the detail sheet.
+- Existing opportunities and projects were all backfilled to `CORE`. A *project's* line of
+  business is now editable via the planner's Edit-project dialog (`updateProject`, added later —
+  see [ADR 0031](./0031-opportunity-project-planner-and-role-status.md)); an *opportunity's* is
+  editable via the detail sheet.
 - One deal / one engagement = one practice. If a project ever legitimately spans
   practices, this would need revisiting — deliberately not supported now.
 

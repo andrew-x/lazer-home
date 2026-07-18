@@ -1,7 +1,8 @@
 # Domain: Projects
 
 **Status: growing.** Projects data, reads, a create flow, and the `/projects` page all
-exist (project create + read only — no project edit/delete), plus **role CRUD via the
+exist. Projects are **create + top-level edit** (`updateProject` edits name, line of business,
+status, and delivery managers — no company edit, no delete), plus **role CRUD via the
 opportunity planner**. This is the **hub linking CRM to delivery** and the first concrete
 cut of the proposed **Allocation** concept (`project_roles`).
 
@@ -19,10 +20,15 @@ projects (no opportunity, staffed roles) still work. Roles now carry a **plannin
 (`tentative` → `confirmed`) and an **`opportunityId` provenance FK**, edited through the
 opportunity drawer's **weekly Gantt-like planner** ([ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md)).
 A project carries a **required, project-level line of business** (the shared enum, defaulted
-from its originating opportunity — no longer a per-role field), and creating one requires
-**at least one role** ([ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
-A project also carries a **lifecycle `status`** (`tentative`/`confirmed`/`paused`/`cancelled`,
-defaulting to `tentative`) — settable at create but **not yet editable afterward** (no project edit flow).
+from its originating opportunity — no longer a per-role field)
+([ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
+**Project creation is deliberately minimal** — the create dialog collects only **name,
+company, and line of business**; roles and delivery managers are added **afterward in the
+planner** (creation no longer requires a role). A project also carries a **lifecycle `status`**
+(`tentative`/`confirmed`/`paused`/`cancelled`, defaulting to `tentative`) — set to `tentative`
+at create and **editable afterward** via the planner's "Edit project" dialog
+(`updateProject`), which also edits the project's name, line of business, and delivery
+managers.
 
 ## Purpose
 
@@ -40,8 +46,8 @@ delivery, allocations, timesheets, and billing.
   **required `status`** (`projectStatusEnum`: `tentative`/`confirmed`/`paused`/`cancelled`,
   **NOT NULL, DB default `tentative`** — where the project sits in its lifecycle; its tuple +
   labels live in the pure, client-importable `src/lib/project-status.ts`, mirroring
-  `line-of-business.ts`. Set at create; **no edit flow yet** so it's effectively fixed after
-  creation),
+  `line-of-business.ts`. Defaults to `tentative` at create and is **editable afterward** via
+  the planner's Edit-project dialog (`updateProject`)),
   **The CRM → delivery link no longer lives here** — `projects.opportunityId` and its
   partial unique index were **removed** in the inversion. The link is now
   **`opportunities.projectId`** (nullable FK → `projects`, **`onDelete: restrict`**, indexed
@@ -158,16 +164,31 @@ delivery, allocations, timesheets, and billing.
     rolls the whole create back), then bulk-inserts delivery-manager junction rows (deduped)
     and role rows — each tagged with the `opportunityId` (provenance) and created `tentative`
     (schema default), a null `staffId` ⇒ placeholder. Revalidates **both** `/projects` and
-    `/opportunities` (a linked project changes the board's `hasProject`).
+    `/opportunities` (a linked project changes the board's `hasProject`). **The action still
+    accepts `roles`/`deliveryManagerIds`, but both now default to empty** — the create form
+    sends none (they're added later in the planner), so in practice a fresh project starts
+    role-less with no delivery managers.
+  - `updateProject.ts` (+ `.schema.ts`) — **new**, gated `projects.edit` (mirrors
+    `createProject`). Edits a project's **top-level fields only** — `name`, `lineOfBusiness`,
+    `status`, and delivery managers — from the planner's Edit-project dialog. One
+    `db.transaction`: updates the `projects` row, then **reconciles delivery managers with
+    set-semantics** (delete all this project's `project_delivery_managers` rows, re-insert the
+    deduped selection). **Roles are not touched here** — they have their own per-role planner
+    actions. Revalidates `/projects` and `/opportunities` (a project's status/line of business
+    shows on the opportunity planner too). This is the app's **first project-edit path**;
+    role-level edits on a project are still only reachable via the tentative-role planner.
   - `createProject.schema.ts` — the shared zod schema (pure, client-importable). Its per-role
     shape is now the shared **`projectRole.schema.ts`** (`projectRoleFields` + the
     `endOnOrAfterStart` refinement), reused by `createProjectRole`/`updateProjectRole` too so
     the field rules live in one place. **`lineOfBusiness` required top-level**; a **`status`**
-    (`z.enum(PROJECT_STATUSES).default("tentative")`); optional `opportunityId`; **`roles`
-    requires at least one**. Per role: `staffId` optional (absent ⇒ placeholder), optional
-    `name`, required `roleType`, required dates/hours (`endDate >= startDate`; hours coerced,
-    positive, ≤24). **`status`/`opportunityId` on a role are server-controlled, not in this
-    input schema.**
+    (`z.enum(PROJECT_STATUSES).default("tentative")`); optional `opportunityId`;
+    `deliveryManagerIds` defaults to empty; **`roles` defaults to empty** (`z.array(...)
+    .default([])` — no longer `.min(1)`, so a project no longer needs a role at creation). Per
+    role: `staffId` optional (absent ⇒ placeholder), optional `name`, required `roleType`,
+    required dates/hours (`endDate >= startDate`; hours coerced, positive, ≤24).
+    **`status`/`opportunityId` on a role are server-controlled, not in this input schema.**
+    `updateProject.schema.ts` is a sibling: `projectId` + `name` + `lineOfBusiness` + `status`
+    (all required) + `deliveryManagerIds` — no roles.
   - **Role CRUD (planner) — all gated `projects.edit`.** `createProjectRole` (adds a fresh
     tentative role/open position to the opportunity's project), `updateProjectRole` (edits an
     existing role's fields), `deleteProjectRole` (removes one), `extendProjectRole` (inserts a
@@ -186,9 +207,11 @@ delivery, allocations, timesheets, and billing.
     this **closes** the long-deferred "same-company invariant is UI-only" gap
     ([ADR 0019](../decisions/0019-project-opportunity-link.md)).
   - `getOpportunityPlan.ts` — **server-only** read backing the planner: the opportunity's
-    project meta plus **every** role on it (across all opportunities), each carrying `status` +
-    `opportunityId` so the client renders this opportunity's tentative roles editable and
-    everything else (confirmed, or other opportunities') greyed. Also returns the overall
+    project meta (including **`deliveryManagers: {id,name}[]`**, a follow-up query joining
+    `project_delivery_managers` → `staff` — surfaced on the planner's summary and prefilled into
+    the Edit-project dialog) plus **every** role on it (across all opportunities), each carrying
+    `status` + `opportunityId` so the client renders this opportunity's tentative roles editable
+    and everything else (confirmed, or other opportunities') greyed. Also returns the overall
     timeline span and role count. Null only if the opportunity is unknown; no-project ⇒ empty
     plan.
   - `loadOpportunityPlan.ts` — the **interactive-read** `'use server'` wrapper (like
@@ -218,13 +241,12 @@ delivery, allocations, timesheets, and billing.
   managers, Roles count — Status rendered by `project-status-badge.tsx`, a small
   `ProjectStatusBadge` mapping each status to a `Badge` variant: confirmed=default,
   tentative=secondary, paused=outline, cancelled=destructive) and `add-project-dialog.tsx`
-  (create form with a project-level line-of-business `EnumSelect` near the company field,
-  a **Status `EnumSelect`** pre-selected to `Tentative` — so a project can be created
-  already-confirmed/paused/cancelled — plus a `useFieldArray` roles
-  repeater **seeded with one empty role** so the "at least one role" requirement is
-  obvious; each role row picks a **role type**, an optional staff member — blank ⇒
-  placeholder — an optional name, dates, and hours, but **no line of business** — that's
-  set once at the project level).
+  (a **deliberately minimal** create form collecting **only name, company, and a project-level
+  line-of-business `EnumSelect`** — no status picker, no delivery-manager field, and **no roles
+  repeater**. Status defaults to `tentative` and delivery managers/roles default to none
+  server-side; all three are added afterward in the planner. The dialog's `FIELD_FOR_ISSUE`
+  map still covers `status`/`deliveryManagerIds`/`roles` as harmless fallbacks so a schema
+  field can't silently drop errors).
   **`AddProjectDialog` is parameterized** so one component serves three call sites: props
   `opportunityId`, `defaultCompanyId`/`defaultCompanyName`, `lockCompany` (pin the company
   to the opportunity's), **`defaultLineOfBusiness`** (pre-fills the project's line of
@@ -242,21 +264,29 @@ delivery, allocations, timesheets, and billing.
   non-query search arguments like a `companyId` scope) that both `CompanyCombobox`
   and `ManagerComboboxField` wrap — see [../ui.md](../ui.md).
 - **Opportunity planner UI** — `src/components/crm/opportunity-project-plan.tsx` renders the
-  opportunity drawer's **Project plan** tab as a **weekly Gantt-like planner**: summary
-  StatCards (timeline length in weeks, role count) over a grid of roles × week columns (rows
-  grouped by person; a filled cell = role active that week). This opportunity's tentative roles
-  are **editable** (click a block to edit, Add role, Extend a role); confirmed roles and roles
-  from other opportunities render **greyed/read-only**. The empty state offers **associate an
-  existing project** (`searchProjects` picker → `associateOpportunityProject`) or **create a
-  new one** (`AddProjectDialog`). All write controls gated on `projects.edit`. The drawer sheet
-  was widened to `sm:max-w-[64rem]`. Grid math is the pure `project-planner-grid.ts` (above).
+  opportunity drawer's **Project plan** tab as a **weekly Gantt-like planner** — effectively the
+  project editor. A **summary** header shows the project's line of business, a **Delivery
+  manager** card (from `getOpportunityPlan`'s `deliveryManagers`), and an **"Edit project"**
+  button opening an **edit dialog** wired to the new `updateProject` action (name, line of
+  business, status, delivery managers — roles are edited in the grid below, not here). Below
+  that, summary StatCards (timeline length in weeks, role count) over a grid of roles × week
+  columns (rows grouped by person; a filled cell = role active that week). This opportunity's
+  tentative roles are **editable** (click a block to edit, Add role, Extend a role); confirmed
+  roles and roles from other opportunities render **greyed/read-only**. The editable "this
+  deal" blocks use the indigo **`bg-primary`** accent (recolored from `bg-secondary`) so they
+  stand out against the read-only grey blocks and empty cells; the legend swatch matches. The
+  empty state offers **associate an existing project** (`searchProjects` picker →
+  `associateOpportunityProject`) or **create a new one** (`AddProjectDialog`). All write
+  controls gated on `projects.edit`. The drawer sheet was widened to `sm:max-w-[64rem]`. Grid
+  math is the pure `project-planner-grid.ts` (above).
 
 ## Authorization
 
 **Reads are open** — any signed-in user can browse all projects (the `(app)` gate is
 the boundary). **All project writes** are gated by a single flat capability (no
 ownership dimension): **`projects.edit`**, granted to `delivery-manager`, `manager`,
-`admin`. It covers creating projects and their staffing, **all planner role CRUD**
+`admin`. It covers creating projects and their staffing, **editing a project's top-level
+fields** (`updateProject`), **all planner role CRUD**
 (`createProjectRole`/`updateProjectRole`/`deleteProjectRole`/`extendProjectRole`),
 **associating an opportunity to an existing project** (`associateOpportunityProject` — a
 delivery decision even though it writes an `opportunities` column), and the type-ahead pickers
@@ -268,11 +298,13 @@ clean). See [permissions.md](./permissions.md).
 
 ## Key flows
 
-- **Create a project + staff it** (built) — pick a company, set the project's **line of
-  business**, add delivery managers, add **at least one** role line (role type + optional
-  staff + optional name + date range + hours/day — no per-role line of business). Leaving
-  staff blank creates a **placeholder / open position**. One transaction writes it all.
-  Create only today.
+- **Create a project, then staff it** (built) — creation is minimal: pick a company and set
+  the project's **line of business** (name too). The project starts `tentative` with **no roles
+  and no delivery managers**. Staffing then happens **in the planner** (the opportunity
+  drawer's Project plan tab): add role lines (role type + optional staff + optional name + date
+  range + hours/day — no per-role line of business; leaving staff blank creates a **placeholder
+  / open position**) and edit the project's name/status/line of business/delivery managers via
+  the Edit-project dialog (`updateProject`).
 - **Opportunity → Project handoff** (built) — an opportunity gets a project by **creating one
   from it** (setting `opportunities.projectId`) or **associating an existing one**
   (`associateOpportunityProject`). Create entry points: the opportunity **detail drawer** and
@@ -315,28 +347,30 @@ clean). See [permissions.md](./permissions.md).
 
 ## Open questions / not yet built
 
-- **Project edit/delete** — projects are still create + read only (their `status`, company,
-  etc. can't be changed post-create); **roles** now have full CRUD via the planner. The
-  `onDelete: restrict` on `projects.companyId`, `opportunities.projectId`, and
-  `project_roles.staffId` means a company-, project-, or staff-delete flow must handle live
-  references. (Deleting an opportunity is `set null` on `project_roles.opportunityId` — the
-  role survives but loses provenance.)
+- **Project edit is top-level-only; no delete** — `updateProject` now edits a project's
+  **name, line of business, status, and delivery managers** (via the planner), and **roles**
+  have full CRUD via the planner. Still **not editable**: the project's **company** (the FK is
+  fixed after create), and there is **no project-delete flow**. The `onDelete: restrict` on
+  `projects.companyId`, `opportunities.projectId`, and `project_roles.staffId` means a
+  company-, project-, or staff-delete flow must handle live references. (Deleting an opportunity
+  is `set null` on `project_roles.opportunityId` — the role survives but loses provenance.)
 - ~~**Same-company invariant is UI-only**~~ **Resolved** — `associateOpportunityProject`
   enforces project.companyId == opportunity.companyId server-side, `searchProjects` is
   company-scoped, and `createProject` is same-company by construction. See
   [ADR 0019](../decisions/0019-project-opportunity-link.md).
-- **Placeholder roles can only be edited via the opportunity planner** — a null-`staffId` role
-  can be staffed/edited through the drawer's planner while it's **tentative and this
-  opportunity's**, but there's no project-side edit flow, so a **confirmed** role (or one on a
-  standalone project with no opportunity) can't be changed.
-- **Status can't be changed after creation** — `status` is set at create and displayed,
-  but there is **no `updateProject` action or edit form**, so a project is stuck in its
-  creation status (a project can't move `tentative` → `confirmed`, be paused, or cancelled).
-  Comes with the project edit flow.
+- **Roles can only be edited via the opportunity planner** — a role (placeholder or staffed)
+  can be edited through the drawer's planner only while it's **tentative and this
+  opportunity's**, so a **confirmed** role (or one on a standalone project with no opportunity,
+  or one owned by a different opportunity) can't be changed. `updateProject` edits project-level
+  fields but never roles.
+- ~~**Status can't be changed after creation**~~ **Resolved** — `updateProject` (planner
+  Edit-project dialog) now moves a project between `tentative`/`confirmed`/`paused`/`cancelled`
+  (and edits name, line of business, and delivery managers). What remains unchanged post-create
+  is the project's **company**.
 - **Roles are simple rows, not effective-dated history** — a role's dates/hours are
   edited in place (once edit exists), not versioned like `staff_employment`. See
   [ADR 0017](../decisions/0017-project-roles-as-first-allocation-cut.md). Full
   capacity planning (over/under-allocation, conflicts, forecast vs. actuals) is still
   in the Allocations domain's open questions.
-- No budget/value, no rates. (A lifecycle `status` now exists — see above — but no
-  richer pipeline/stage model, and no way to change it post-create yet.)
+- No budget/value, no rates. (A lifecycle `status` exists and is now editable post-create via
+  `updateProject` — see above — but there's no richer pipeline/stage model.)

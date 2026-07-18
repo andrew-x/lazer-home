@@ -76,9 +76,11 @@ edit-only drawer; the underlying `getOpportunityPlan` is a server-only read. No 
   sharing the source role's `staffId`/`name`/`roleType`; the planner groups shared-staff rows
   into one person line. The source may be confirmed or from another opportunity (you're
   extending *someone's* allocation), but must live on this opportunity's project.
-- **A confirmed role can't be edited from the planner.** There is still no project-side edit
-  flow, so once a deal is won its roles are effectively frozen until such a flow exists — the
-  same gap as project `status` (see [projects.md](../domains/projects.md) open questions).
+- **A confirmed role can't be edited from the planner.** The planner scopes role edits to this
+  opportunity's own *tentative* roles, so once a deal is won its roles are effectively frozen —
+  there is no project-side role-edit flow. (Project-level fields *are* now editable post-create
+  via `updateProject`, but that never touches roles — see [projects.md](../domains/projects.md)
+  open questions.)
 - **`project_roles.opportunityId` is `set null`.** Deleting the originating opportunity keeps
   the role (its `projectId` still holds it) but loses the provenance — the role then reads as
   greyed/un-owned in any planner.

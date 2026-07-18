@@ -78,9 +78,11 @@ established for the opportunity enums.
 - **A pure junction + a separate allocation table** — rejected as premature; the role
   line *is* the allocation for this slice, so one data-carrying table is simpler.
 - **Effective-dated `project_roles` from day one** (history-as-rows like
-  `staff_employment`) — rejected for scope: the feature is create + read only, there's
-  no re-planning UI yet, and history-as-rows adds real complexity (latest-per-key
-  reads, in-place-vs-new-row commit branching). Deferred until the Allocations domain
-  needs it; flagged here so it isn't forgotten.
+  `staff_employment`) — rejected for scope: history-as-rows adds real complexity
+  (latest-per-key reads, in-place-vs-new-row commit branching). Deferred until the Allocations
+  domain needs it; flagged here so it isn't forgotten. **(Still deferred:** roles later gained
+  a re-planning UI — the opportunity planner — and full CRUD, but stayed **mutable status-flag
+  rows, not effective-dated history**, per
+  [ADR 0031](./0031-opportunity-project-planner-and-role-status.md).)
 - **`unique(projectId, staffId)`** — rejected: a person legitimately holds multiple
   lines on one project (different periods / role types).
