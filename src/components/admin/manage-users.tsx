@@ -1,11 +1,7 @@
 "use client";
 
 import { IconSearch } from "@tabler/icons-react";
-import type {
-  ColumnDef,
-  SortingState,
-  Table as TanstackTable,
-} from "@tanstack/react-table";
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
 import { useMemo, useState } from "react";
@@ -23,7 +19,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { humanizeEnum } from "@/lib/format";
 import { type AppRole, ROLE_SLUGS } from "@/lib/permissions";
-import { EditableTable, editDraft, useEditableRows } from "./editable-table";
+import {
+  EditableTable,
+  useEditableDraft,
+  useEditableRows,
+} from "./editable-table";
 import {
   ALL,
   FilterLabel,
@@ -64,14 +64,8 @@ function formatValue(
 
 // --- Cell editors ----------------------------------------------------------
 
-function RoleCell({
-  userId,
-  table,
-}: {
-  userId: string;
-  table: TanstackTable<UserAdminRow>;
-}) {
-  const meta = editDraft(table);
+function RoleCell({ userId }: { userId: string }) {
+  const meta = useEditableDraft<EditableValues>();
   const value = meta.valuesFor(userId).role;
   return (
     <Select
@@ -81,11 +75,9 @@ function RoleCell({
       }}
     >
       <SelectTrigger size="sm" aria-label="Role" className="w-44">
-        <SelectValue>
-          {(current: string | null) =>
-            current ? humanizeEnum(current) : "Set role"
-          }
-        </SelectValue>
+        {/* Label from the draft value we control, not Base UI's store-derived
+            render arg (see edit-levels / editable-table for why). */}
+        <SelectValue>{value ? humanizeEnum(value) : "Set role"}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {ROLE_SLUGS.map((option) => (
@@ -98,14 +90,8 @@ function RoleCell({
   );
 }
 
-function BannedCell({
-  userId,
-  table,
-}: {
-  userId: string;
-  table: TanstackTable<UserAdminRow>;
-}) {
-  const meta = editDraft(table);
+function BannedCell({ userId }: { userId: string }) {
+  const meta = useEditableDraft<EditableValues>();
   const checked = meta.valuesFor(userId).banned;
   return (
     <Switch
@@ -187,16 +173,12 @@ export function ManageUsers({ users }: { users: UserAdminRow[] }) {
       {
         accessorKey: "role",
         header: ({ column }) => <SortHeader column={column}>Role</SortHeader>,
-        cell: ({ row, table }) => (
-          <RoleCell userId={row.original.id} table={table} />
-        ),
+        cell: ({ row }) => <RoleCell userId={row.original.id} />,
       },
       {
         accessorKey: "banned",
         header: ({ column }) => <SortHeader column={column}>Banned</SortHeader>,
-        cell: ({ row, table }) => (
-          <BannedCell userId={row.original.id} table={table} />
-        ),
+        cell: ({ row }) => <BannedCell userId={row.original.id} />,
       },
     ],
     [],
