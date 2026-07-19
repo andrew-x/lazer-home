@@ -78,9 +78,11 @@ else. Defense in depth. Matrix, `permissions.test.ts`, and
 
 ### Surfaced as a section on the single `/performance` dashboard — no tabs
 
-The levels analytics render **inline on the existing `/performance` page**, below
+The levels **analytics** render **inline on the existing `/performance` page**, below
 the compensation section, via `levels-section.tsx` (`LevelsSection`) — **not** a
-separate route, **not** a tab bar, **not** a new sidebar entry. The two views are
+separate route, **not** a tab bar, **not** a new sidebar entry of their own. (The
+levels *editor* is a different matter — it later gained a sidebar link as the "Edit
+levels" child of the Performance submenu; see below.) The two views are
 close cousins (both workforce analytics over the same active-staff /
 latest-employment base, same currency toggle + FX), so rather than duplicate a
 filter/currency bar per view they share **one** control bar: `PerformanceDashboard`
@@ -88,8 +90,10 @@ owns the filter + currency state and passes the chosen values to `LevelsSection`
 props. The server page fetches the levels data only for `ratings.view` holders and
 passes it as the optional `ratingRecords` prop; `LevelsSection` renders **only when
 that prop is present**, so finance sees compensation only. The edit table stays at
-`/performance/levels/edit` (`ratings.edit`), linked from the section's "Edit levels"
-button; its "back" link points to `/performance`. (An earlier iteration used a
+`/performance/levels/edit` (`ratings.edit`), reached via the **Performance sidebar
+submenu** ("Edit levels" child); its "back" link points to `/performance`. (The
+original in-section "Edit levels" button was later removed in favor of that submenu
+link — see [ui.md](../ui.md) → *App shell & sidebar*.) (An earlier iteration used a
 cross-route `performance-tabs.tsx` bar and a standalone `/performance/levels`
 dashboard route; both were removed in favor of the merged single-page layout.)
 

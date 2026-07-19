@@ -6,13 +6,17 @@ import {
   getCoreRowModel,
   getSortedRowModel,
   type OnChangeFn,
-  type RowData,
   type SortingState,
-  type TableMeta,
-  type Table as TanstackTable,
   useReactTable,
 } from "@tanstack/react-table";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,44 +38,41 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * TanStack `table.options.meta` shape shared by the editable cell editors: they
- * read the current draft value for a row and push patches back into the draft.
+ * The draft-editing handles shared by the cell editors (provided via
+ * {@link EditableDraftContext}, read with {@link useEditableDraft}): read the
+ * current draft value for a row and push patches back into the draft.
  */
 export type EditableTableMeta<TValues> = {
   valuesFor: (id: string) => TValues;
   update: (id: string, patch: Partial<TValues>) => void;
 };
 
-// Teach TanStack about the draft-editing handles an EditableTable stashes on
-// `table.meta`, so the cell editors get a typed `table.options.meta` with zero
-// per-site casts. The tracked draft values (`TValues`) are always a subset
-// (Pick) of the row `TData` with identical field types, so typing the handles
-// against `TData` gives cells exact per-field types; `update`'s `Pick<TData, K>`
-// lets a cell push a single field without a computed-key cast.
-declare module "@tanstack/react-table" {
-  interface TableMeta<TData extends RowData> {
-    /** Current draft values for a row (a subset of the row's fields). */
-    valuesFor: (id: string) => TData;
-    /** Merge a patch of editable field(s) into a row's draft. */
-    update: <K extends keyof TData>(id: string, patch: Pick<TData, K>) => void;
-  }
-}
+/**
+ * Draft-editing handles for the cell editors, delivered via React Context — NOT
+ * TanStack's `table.options.meta`. This is deliberate and load-bearing: TanStack
+ * memoizes `cell.getContext()` on `[table, column, row, cell]`, all referentially
+ * stable while the row `data` is unchanged, and `flexRender` passes that memoized
+ * object straight into the cell element. So when only the draft changes (the draft
+ * lives OUTSIDE the row `data`), the cell element's props are referentially equal
+ * to last render and React bails out of re-rendering the cell — the editor keeps
+ * showing the pre-change value. A context read re-renders consumers on every draft
+ * change, bypassing that bailout. See the Provider in {@link EditableTable}.
+ */
+const EditableDraftContext = createContext<EditableTableMeta<unknown> | null>(
+  null,
+);
 
 /**
- * Read the draft-editing handles an {@link EditableTable} stashes on
- * `table.meta` (see the module augmentation above). `meta` is always set by
- * `EditableTable`, so a missing one is a wiring bug — fail loudly rather than
- * thread `undefined` through every cell editor. Lets cells read a fully-typed
- * meta with no cast at the call site.
+ * Read the current draft-editing handles inside a cell editor. Must be rendered
+ * within an {@link EditableTable} (which provides the context); a missing provider
+ * is a wiring bug, so fail loudly rather than thread `undefined` through cells.
  */
-export function editDraft<TData extends RowData>(
-  table: TanstackTable<TData>,
-): TableMeta<TData> {
-  const meta = table.options.meta;
+export function useEditableDraft<TValues>(): EditableTableMeta<TValues> {
+  const meta = useContext(EditableDraftContext);
   if (!meta) {
-    throw new Error("EditableTable: table.options.meta was not provided.");
+    throw new Error("useEditableDraft must be used within an EditableTable.");
   }
-  return meta;
+  return meta as EditableTableMeta<TValues>;
 }
 
 export type UseEditableRows<TRow, TValues> = {
@@ -222,10 +223,6 @@ export function EditableTable<TRow, TValues>({
     onSortingChange,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    // `meta` is typed against the row (`TData`) via the module augmentation, but
-    // the hook tracks the editable subset (`TValues`, always a Pick of the row).
-    // Bridge the two here so cells read exact per-field types with no per-site cast.
-    meta: meta as unknown as TableMeta<TRow>,
   });
 
   // Close the dialog once nothing is left to confirm (successful save or
@@ -240,7 +237,7 @@ export function EditableTable<TRow, TValues>({
   };
 
   return (
-    <>
+    <EditableDraftContext.Provider value={meta as EditableTableMeta<unknown>}>
       {/* Table */}
       <div className="overflow-x-auto rounded-md border">
         <Table>
@@ -373,6 +370,6 @@ export function EditableTable<TRow, TValues>({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </EditableDraftContext.Provider>
   );
 }

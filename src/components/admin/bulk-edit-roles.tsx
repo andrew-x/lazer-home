@@ -1,11 +1,7 @@
 "use client";
 
 import { IconSearch } from "@tabler/icons-react";
-import type {
-  ColumnDef,
-  SortingState,
-  Table as TanstackTable,
-} from "@tanstack/react-table";
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
@@ -40,7 +36,11 @@ import {
   ROLE_LABELS,
 } from "@/lib/staff-enums";
 import { cn } from "@/lib/utils";
-import { EditableTable, editDraft, useEditableRows } from "./editable-table";
+import {
+  EditableTable,
+  useEditableDraft,
+  useEditableRows,
+} from "./editable-table";
 import { SortHeader } from "./table-filters";
 
 /**
@@ -137,17 +137,15 @@ function EnumCell({
   field,
   options,
   labels,
-  table,
   className,
 }: {
   staffId: string;
   field: "lineOfBusiness" | "role" | "employmentType";
   options: string[];
   labels: Record<string, string>;
-  table: TanstackTable<StaffEmploymentEditRow>;
   className?: string;
 }) {
-  const meta = editDraft(table);
+  const meta = useEditableDraft<EditableValues>();
   const value = meta.valuesFor(staffId)[field];
   return (
     <Select
@@ -161,9 +159,10 @@ function EnumCell({
         aria-label={FIELD_LABELS[field]}
         className={cn("w-36", className)}
       >
-        <SelectValue>
-          {(current: string | null) => (current ? labels[current] : "")}
-        </SelectValue>
+        {/* Label from the draft value we control, not Base UI's store-derived
+            `<SelectValue>` render arg — that lags a parent re-render and leaves
+            the trigger showing the pre-change value (mirrors the edit-levels fix). */}
+        <SelectValue>{value ? labels[value] : ""}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {options.map((option) => (
@@ -179,13 +178,11 @@ function EnumCell({
 function SwitchCell({
   staffId,
   field,
-  table,
 }: {
   staffId: string;
   field: "isBillable" | "isManagement";
-  table: TanstackTable<StaffEmploymentEditRow>;
 }) {
-  const meta = editDraft(table);
+  const meta = useEditableDraft<EditableValues>();
   const checked = meta.valuesFor(staffId)[field];
   return (
     <Switch
@@ -196,14 +193,8 @@ function SwitchCell({
   );
 }
 
-function UtilizationCell({
-  staffId,
-  table,
-}: {
-  staffId: string;
-  table: TanstackTable<StaffEmploymentEditRow>;
-}) {
-  const meta = editDraft(table);
+function UtilizationCell({ staffId }: { staffId: string }) {
+  const meta = useEditableDraft<EditableValues>();
   const values = meta.valuesFor(staffId);
   const disabled = !values.isBillable;
   return (
@@ -243,13 +234,11 @@ function UtilizationCell({
 function BillableTypeCell({
   staffId,
   options,
-  table,
 }: {
   staffId: string;
   options: string[];
-  table: TanstackTable<StaffEmploymentEditRow>;
 }) {
-  const meta = editDraft(table);
+  const meta = useEditableDraft<EditableValues>();
   const value = meta.valuesFor(staffId).billableType;
   return (
     <ToggleGroup
@@ -370,13 +359,12 @@ export function BulkEditRoles({
         header: ({ column }) => (
           <SortHeader column={column}>Line of business</SortHeader>
         ),
-        cell: ({ row, table }) => (
+        cell: ({ row }) => (
           <EnumCell
             staffId={row.original.staffId}
             field="lineOfBusiness"
             options={lineOfBusinessOptions}
             labels={LINE_OF_BUSINESS_LABELS}
-            table={table}
             className="w-40"
           />
         ),
@@ -384,26 +372,24 @@ export function BulkEditRoles({
       {
         accessorKey: "role",
         header: ({ column }) => <SortHeader column={column}>Role</SortHeader>,
-        cell: ({ row, table }) => (
+        cell: ({ row }) => (
           <EnumCell
             staffId={row.original.staffId}
             field="role"
             options={roleOptions}
             labels={ROLE_LABELS}
-            table={table}
           />
         ),
       },
       {
         accessorKey: "employmentType",
         header: ({ column }) => <SortHeader column={column}>Type</SortHeader>,
-        cell: ({ row, table }) => (
+        cell: ({ row }) => (
           <EnumCell
             staffId={row.original.staffId}
             field="employmentType"
             options={employmentTypeOptions}
             labels={EMPLOYMENT_TYPE_LABELS}
-            table={table}
             className="w-32"
           />
         ),
@@ -413,12 +399,8 @@ export function BulkEditRoles({
         header: ({ column }) => (
           <SortHeader column={column}>Management</SortHeader>
         ),
-        cell: ({ row, table }) => (
-          <SwitchCell
-            staffId={row.original.staffId}
-            field="isManagement"
-            table={table}
-          />
+        cell: ({ row }) => (
+          <SwitchCell staffId={row.original.staffId} field="isManagement" />
         ),
       },
       {
@@ -426,12 +408,8 @@ export function BulkEditRoles({
         header: ({ column }) => (
           <SortHeader column={column}>Billable</SortHeader>
         ),
-        cell: ({ row, table }) => (
-          <SwitchCell
-            staffId={row.original.staffId}
-            field="isBillable"
-            table={table}
-          />
+        cell: ({ row }) => (
+          <SwitchCell staffId={row.original.staffId} field="isBillable" />
         ),
       },
       {
@@ -439,20 +417,17 @@ export function BulkEditRoles({
         header: ({ column }) => (
           <SortHeader column={column}>Utilization</SortHeader>
         ),
-        cell: ({ row, table }) => (
-          <UtilizationCell staffId={row.original.staffId} table={table} />
-        ),
+        cell: ({ row }) => <UtilizationCell staffId={row.original.staffId} />,
       },
       {
         accessorKey: "billableType",
         header: ({ column }) => (
           <SortHeader column={column}>Billable type</SortHeader>
         ),
-        cell: ({ row, table }) => (
+        cell: ({ row }) => (
           <BillableTypeCell
             staffId={row.original.staffId}
             options={billableTypeOptions}
-            table={table}
           />
         ),
       },

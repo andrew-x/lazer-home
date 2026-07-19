@@ -26,7 +26,11 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
-      <body>
+      {/* Browser extensions (e.g. ColorZilla's `cz-shortcut-listen`, Grammarly)
+          inject attributes onto <body> before hydration; suppress the resulting
+          attribute-only mismatch. Scoped to <body>'s own attributes — children
+          still hydrate normally. */}
+      <body suppressHydrationWarning>
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster richColors position="top-right" />
       </body>
