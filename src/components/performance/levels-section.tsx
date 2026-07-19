@@ -1,14 +1,12 @@
 "use client";
 
-import { IconPencil, IconStar, IconUserQuestion } from "@tabler/icons-react";
-import Link from "next/link";
+import { IconStar, IconUserQuestion } from "@tabler/icons-react";
 import { useMemo } from "react";
 import type { RatingRecord } from "@/actions/performance/getRatingsSummaryData";
 import type { ExchangeRates } from "@/actions/staff/getExchangeRates";
 import { ALL } from "@/components/form/filters";
 import { LevelDistributionBarChart } from "@/components/performance/level-distribution-bar-chart";
 import { StatCard } from "@/components/performance/stat-card";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -128,20 +126,11 @@ export function LevelsSection({
 
   return (
     <section className="flex flex-col gap-6 border-t pt-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="font-heading text-lg font-semibold">Levels</h3>
-          <p className="text-sm text-muted-foreground">
-            Overall staff levels (L0–L4). Visible to managers and admins only.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          render={<Link href="/performance/levels/edit" />}
-        >
-          <IconPencil className="size-4" />
-          Edit levels
-        </Button>
+      <div>
+        <h3 className="font-heading text-lg font-semibold">Levels</h3>
+        <p className="text-sm text-muted-foreground">
+          Overall staff levels (L0–L4). Visible to managers and admins only.
+        </p>
       </div>
 
       {total === 0 ? (

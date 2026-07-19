@@ -258,7 +258,10 @@ compensation portion of the dashboard.
   The edit page `/performance/levels/edit/page.tsx` → `edit-levels.tsx` reuses the
   shared `EditableTable`/`useEditableRows` batch pattern (a level dropdown per active
   staff, save-on-dirty bar, confirm-diff dialog) and offers **name search + role +
-  line-of-business filters**; its "back" link points to `/performance`.
+  line-of-business filters**; its "back" link points to `/performance`. It's reached
+  from the **Performance sidebar submenu** ("Edit levels", gated on `ratings.edit`),
+  not from a button on the dashboard — the former in-section "Edit levels" button was
+  removed (see [ui.md](../ui.md) → *App shell & sidebar* → Submenus).
 
 ### One dashboard, no tabs
 
@@ -267,8 +270,10 @@ There is **no tab bar and no separate levels route**. `/performance` fetches
 `PerformanceDashboard` as the optional `ratingRecords` prop; the dashboard renders
 `<LevelsSection>` (after the compensation section, sharing its filter/currency
 state) **only when that prop is present**. So managers/admins see comp **and**
-levels on one page; finance sees comp only. Levels have **no separate sidebar
-entry**. (The earlier design — a cross-route `performance-tabs.tsx` bar and a
+levels on one page; finance sees comp only. The levels **analytics** have **no
+separate sidebar entry** (they live inline on `/performance`); only the levels
+**editor** is a sidebar link, as the "Edit levels" child of the Performance submenu
+(`ratings.edit`-gated — see [ui.md](../ui.md)). (The earlier design — a cross-route `performance-tabs.tsx` bar and a
 standalone `/performance/levels` dashboard — was removed; see
 [ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md).)
 
