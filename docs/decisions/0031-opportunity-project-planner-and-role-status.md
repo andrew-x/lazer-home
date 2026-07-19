@@ -37,7 +37,8 @@ opportunity created the role*. Both are **server-controlled provenance, never us
 (the shared `projectRole.schema.ts` excludes them). Status values live in the pure,
 client-importable `src/lib/project-role-status.ts` (`PROJECT_ROLE_STATUSES`,
 `DEFAULT_PROJECT_ROLE_STATUS`, `PROJECT_ROLE_STATUS_LABELS`) — the same single-source pattern
-as `project-status.ts` / `project-role-type.ts`. Migration `drizzle/0002_loud_sister_grimm.sql`.
+as `project-status.ts` / `project-role-type.ts`. (The migration that added these columns has since
+been **folded into the squashed baseline** `drizzle/0000_lethal_rictor.sql`.)
 
 - **Tentative** = a role being planned against an opportunity; editable in that opportunity's
   planner.

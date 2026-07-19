@@ -8,6 +8,7 @@ import { ExternalLink } from "@/components/external-link";
 import { InternalLink } from "@/components/internal-link";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { contactName } from "@/lib/contact-name";
 import { humanizeEnum, initialsFor } from "@/lib/format";
 import {
@@ -22,6 +23,7 @@ import {
 import { EditContactDialog } from "./edit-contact-dialog";
 import { EntryLog } from "./entry-log";
 import { InlineOwnerField } from "./inline-owner-field";
+import { InlineRelationshipStrengthField } from "./inline-relationship-strength-field";
 import { OpportunityStatusBadge } from "./opportunity-status-badge";
 
 /** Opportunities as a table; each names and links through to its company. */
@@ -92,11 +94,11 @@ function ProjectTable({ rows }: { rows: ContactProject[] }) {
 
 /**
  * Read view of a contact: a meta sidebar (identity, contact methods, employer,
- * manager — all optional — and the inline owner) beside stacked sections for
- * their CRM footprint. The Opportunities section separates deals they referred
- * from ones they're merely involved in; the Projects section shows work that
- * grew out of the deals they referred (contacts don't attach to projects
- * directly).
+ * manager — all optional — plus the inline relationship-strength rating and
+ * owner) beside two tabs — Activity (next steps + notes) and Opportunities. The
+ * Opportunities section separates deals they referred from ones they're merely
+ * involved in; the Projects section shows work that grew out of the deals they
+ * referred (contacts don't attach to projects directly).
  */
 export function ContactDetailView({
   contact,
@@ -159,6 +161,14 @@ export function ContactDetailView({
           </SidebarSection>
 
           <SidebarSection>
+            <InlineRelationshipStrengthField
+              contactId={contact.id}
+              canEdit={canEdit}
+              strength={contact.relationshipStrength}
+            />
+          </SidebarSection>
+
+          <SidebarSection>
             <InlineOwnerField
               kind="contact"
               entityId={contact.id}
@@ -170,50 +180,64 @@ export function ContactDetailView({
         </>
       }
     >
-      <DetailSection title="Next steps" count={contact.nextSteps.length}>
-        <EntryLog
-          variant="contact"
-          parentId={contact.id}
-          kind="next_step"
-          entries={contact.nextSteps}
-          canEdit={canEdit}
-        />
-      </DetailSection>
+      <Tabs defaultValue="activity">
+        <TabsList variant="line" className="mb-4">
+          <TabsTrigger value="activity">Activity</TabsTrigger>
+          <TabsTrigger value="opportunities">Opportunities</TabsTrigger>
+        </TabsList>
 
-      <DetailSection title="Notes" count={contact.notes.length}>
-        <EntryLog
-          variant="contact"
-          parentId={contact.id}
-          kind="note"
-          entries={contact.notes}
-          canEdit={canEdit}
-        />
-      </DetailSection>
+        <TabsContent value="activity" className="flex flex-col gap-12">
+          <DetailSection title="Next steps" count={contact.nextSteps.length}>
+            <EntryLog
+              variant="contact"
+              parentId={contact.id}
+              kind="next_step"
+              entries={contact.nextSteps}
+              canEdit={canEdit}
+            />
+          </DetailSection>
 
-      <DetailSection title="Opportunities" count={opportunityCount}>
-        <div className="flex flex-col gap-5">
-          <OpportunityGroup
-            title="Referred by this contact"
-            rows={contact.referredOpportunities}
-            empty="This contact hasn't referred any opportunities."
-          />
-          <OpportunityGroup
-            title="Also involved in"
-            rows={contact.involvedOpportunities}
-            empty="Not named on any other opportunities."
-          />
-        </div>
-      </DetailSection>
+          <DetailSection title="Notes" count={contact.notes.length}>
+            <EntryLog
+              variant="contact"
+              parentId={contact.id}
+              kind="note"
+              entries={contact.notes}
+              canEdit={canEdit}
+            />
+          </DetailSection>
+        </TabsContent>
 
-      <DetailSection title="Projects" count={contact.referredProjects.length}>
-        {contact.referredProjects.length === 0 ? (
-          <TableEmpty>
-            No projects yet from the opportunities this contact referred.
-          </TableEmpty>
-        ) : (
-          <ProjectTable rows={contact.referredProjects} />
-        )}
-      </DetailSection>
+        <TabsContent value="opportunities" className="flex flex-col gap-8">
+          <DetailSection title="Opportunities" count={opportunityCount}>
+            <div className="flex flex-col gap-5">
+              <OpportunityGroup
+                title="Referred by this contact"
+                rows={contact.referredOpportunities}
+                empty="This contact hasn't referred any opportunities."
+              />
+              <OpportunityGroup
+                title="Also involved in"
+                rows={contact.involvedOpportunities}
+                empty="Not named on any other opportunities."
+              />
+            </div>
+          </DetailSection>
+
+          <DetailSection
+            title="Projects"
+            count={contact.referredProjects.length}
+          >
+            {contact.referredProjects.length === 0 ? (
+              <TableEmpty>
+                No projects yet from the opportunities this contact referred.
+              </TableEmpty>
+            ) : (
+              <ProjectTable rows={contact.referredProjects} />
+            )}
+          </DetailSection>
+        </TabsContent>
+      </Tabs>
     </DetailLayout>
   );
 }

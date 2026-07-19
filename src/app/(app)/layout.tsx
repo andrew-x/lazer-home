@@ -20,10 +20,15 @@ export default async function AppLayout({
 
   // Permission-gated nav items are hidden from users who lack the capability.
   // Evaluated here (we have the user) and passed to the client sidebar as plain
-  // hrefs, so the icon components never cross the server→client boundary.
-  const visibleNavHrefs = NAV_ITEMS.filter(
-    (item) => !item.permission || userHasPermission(user, item.permission),
-  ).map((item) => item.href);
+  // hrefs, so the icon components never cross the server→client boundary. Submenu
+  // sub-items are gated independently and contribute their own hrefs.
+  const visibleNavHrefs = NAV_ITEMS.flatMap((item) => {
+    if (item.permission && !userHasPermission(user, item.permission)) return [];
+    const childHrefs = (item.children ?? [])
+      .filter((c) => !c.permission || userHasPermission(user, c.permission))
+      .map((c) => c.href);
+    return [item.href, ...childHrefs];
+  });
 
   return (
     <AppShell isLocal={await isLocalhost()} visibleNavHrefs={visibleNavHrefs}>

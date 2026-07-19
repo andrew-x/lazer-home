@@ -46,6 +46,7 @@ export const updateContact = secureActionClient
           linkedinUrl: parsedInput.linkedinUrl,
           managerId: parsedInput.managerId,
           ownerId: parsedInput.ownerId,
+          relationshipStrength: parsedInput.relationshipStrength,
         })
         .where(eq(contacts.id, id))
         .returning({ id: contacts.id });

@@ -1,6 +1,6 @@
 {
-  "id": "a3f1c2d4-5e6b-47a8-9c0d-1e2f3a4b5c6d",
-  "prevId": "2ce75d89-b424-456c-9b9e-e316f6da9dcc",
+  "id": "2ce75d89-b424-456c-9b9e-e316f6da9dcc",
+  "prevId": "906c8f46-f833-4af8-9601-2fff6292e955",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -605,6 +605,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "relationship_strength": {
+          "name": "relationship_strength",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -1663,8 +1669,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "description": {
-          "name": "description",
+        "name": {
+          "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": false

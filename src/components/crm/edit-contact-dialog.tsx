@@ -17,10 +17,11 @@ import { ContactFields } from "./contact-fields";
 import { ManagerComboboxField } from "./manager-combobox-field";
 
 /** The "Edit" button + dialog for a contact's fields, employer and manager.
- * Owner is edited in place on the page (`InlineOwnerField`), not here — but
- * `ownerId` stays in the form defaults so this full-record save round-trips it
- * unchanged. Mirrors `AddContactDialog` (same field layout and the same
- * company→manager dependency), seeded from the loaded detail. */
+ * Owner and relationship strength are edited in place on the page
+ * (`InlineOwnerField` / `InlineRelationshipStrengthField`), not here — but both
+ * stay in the form defaults so this full-record save round-trips them unchanged.
+ * Mirrors `AddContactDialog` (same field layout and the same company→manager
+ * dependency), seeded from the loaded detail. */
 export function EditContactDialog({ contact }: { contact: ContactDetail }) {
   return (
     <FormDialog
@@ -72,6 +73,7 @@ function ContactForm({
           linkedinUrl: contact.linkedinUrl ?? "",
           managerId: contact.managerId,
           ownerId: contact.ownerId,
+          relationshipStrength: contact.relationshipStrength,
         },
       },
     },

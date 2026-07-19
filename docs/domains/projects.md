@@ -117,13 +117,16 @@ delivery, allocations, timesheets, and billing.
 
 - **Schema** — `src/lib/db/projects-schema.ts` (`projects`, `project_delivery_managers`,
   `project_roles`), barrelled by `src/lib/db/schema.ts`; imports `opportunities` from
-  `./opportunities-schema`. **Schema files are the source of truth for the current shape**;
-  the drizzle history was squashed to a single baseline (`drizzle/0000_lethal_rictor.sql`),
-  with two incremental migrations on top. `drizzle/0001_gray_corsair.sql` applied
+  `./opportunities-schema` (opportunities were split out of `crm-schema.ts` —
+  [ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
+  **Schema files are the source of truth for the current shape**; the drizzle history was
+  squashed into a single baseline (`drizzle/0000_lethal_rictor.sql`) more than once, with
+  three incremental migrations now on top — two of which touch this domain.
+  `drizzle/0002_gray_corsair.sql` applied
   [ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md): it **adds**
   the `paused`/`cancelled` values to `project_role_status`, **adds** `project_roles.line_of_business`
   (backfilled from the parent project, then set NOT NULL), then **drops** `projects.status` +
-  `projects.line_of_business` and the `project_status` type. `drizzle/0002_gifted_kylun.sql` then
+  `projects.line_of_business` and the `project_status` type. `drizzle/0003_gifted_kylun.sql` then
   **renames** the role's optional label column `project_roles.name` → `description` (a single
   `RENAME COLUMN`; still nullable text, max 200 in the schema). The projects domain now relies on:
   the `project_role_type` + (four-state) `project_role_status` enums, a nullable

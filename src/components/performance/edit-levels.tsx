@@ -1,11 +1,7 @@
 "use client";
 
 import { IconSearch } from "@tabler/icons-react";
-import type {
-  ColumnDef,
-  SortingState,
-  Table as TanstackTable,
-} from "@tanstack/react-table";
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
@@ -15,7 +11,7 @@ import type { StaffRatingEditRow } from "@/actions/performance/getStaffRatingsFo
 import { saveStaffEvaluation } from "@/actions/performance/saveStaffEvaluation";
 import {
   EditableTable,
-  editDraft,
+  useEditableDraft,
   useEditableRows,
 } from "@/components/admin/editable-table";
 import { SortHeader } from "@/components/admin/table-filters";
@@ -66,14 +62,8 @@ function formatValue(_field: keyof EditableValues, value: string) {
 }
 
 /** L0–L4 + "No rating", as a Base UI Select bound directly to the row's draft. */
-function LevelCell({
-  staffId,
-  table,
-}: {
-  staffId: string;
-  table: TanstackTable<StaffRatingEditRow>;
-}) {
-  const meta = editDraft(table);
+function LevelCell({ staffId }: { staffId: string }) {
+  const meta = useEditableDraft<EditableValues>();
   const value = meta.valuesFor(staffId).level;
   return (
     <Select
@@ -83,9 +73,10 @@ function LevelCell({
       }}
     >
       <SelectTrigger size="sm" aria-label="Level" className="w-32">
-        <SelectValue>
-          {(current: string | null) => (current ? levelLabel(current) : "")}
-        </SelectValue>
+        {/* Label from the draft value we control directly (not Base UI's
+            store-derived render arg) — simplest correct source now that the cell
+            re-renders on every draft change via useEditableDraft's context. */}
+        <SelectValue>{levelLabel(value)}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={UNRATED_SELECT_VALUE}>No rating</SelectItem>
@@ -193,9 +184,7 @@ export function EditLevels({ rows }: { rows: StaffRatingEditRow[] }) {
       {
         accessorKey: "level",
         header: ({ column }) => <SortHeader column={column}>Level</SortHeader>,
-        cell: ({ row, table }) => (
-          <LevelCell staffId={row.original.staffId} table={table} />
-        ),
+        cell: ({ row }) => <LevelCell staffId={row.original.staffId} />,
       },
     ],
     [],
