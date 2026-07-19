@@ -14,8 +14,10 @@ import { updateContactEntry } from "@/actions/crm/updateContactEntry";
 import { updateOpportunityEntry } from "@/actions/crm/updateOpportunityEntry";
 import { IconButton } from "@/components/icon-button";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { formatDateTime } from "@/lib/format";
+import { formatShortDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 type EntryLogProps = {
   /** Which parent the entries hang off — selects the action set. */
@@ -55,6 +57,59 @@ const COPY: Record<
  * ownership — any editor may amend any entry). Both parents share this component;
  * `variant` picks the matching action set.
  */
+/**
+ * The composer/edit control for one entry, sized to its kind: a multi-line
+ * `Textarea` for notes, a single-line `Input` for next steps. On a next-step
+ * input, Enter submits (`onEnter`); the notes textarea leaves Enter to insert a
+ * newline. Keeps both call sites (compose + inline edit) rendering the same
+ * kind-appropriate control.
+ */
+function EntryInput({
+  isNote,
+  value,
+  onChange,
+  onEnter,
+  maxLength,
+  placeholder,
+  autoFocus,
+}: {
+  isNote: boolean;
+  value: string;
+  onChange: (value: string) => void;
+  onEnter?: () => void;
+  maxLength: number;
+  placeholder?: string;
+  autoFocus?: boolean;
+}) {
+  if (isNote) {
+    return (
+      <Textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        rows={3}
+        autoFocus={autoFocus}
+      />
+    );
+  }
+  return (
+    <Input
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          onEnter?.();
+        }
+      }}
+      placeholder={placeholder}
+      maxLength={maxLength}
+      autoFocus={autoFocus}
+    />
+  );
+}
+
 export function EntryLog({
   variant,
   parentId,
@@ -71,6 +126,9 @@ export function EntryLog({
 
   const copy = COPY[kind];
   const maxLength = maxLengthForKind(kind);
+  // Notes are longer, reflective prose (a multi-line textarea); next steps are
+  // short, one-line intentions (a single-line input).
+  const isNote = kind === "note";
 
   const refresh = () => {
     onChanged?.();
@@ -137,12 +195,13 @@ export function EntryLog({
     <div className="flex flex-col gap-4">
       {canEdit ? (
         <div className="flex flex-col gap-2">
-          <Textarea
+          <EntryInput
+            isNote={isNote}
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={setDraft}
+            onEnter={submitAdd}
             placeholder={copy.placeholder}
             maxLength={maxLength}
-            rows={kind === "note" ? 3 : 2}
           />
           <div className="flex items-center justify-between gap-3">
             {add.result.serverError ? (
@@ -174,17 +233,23 @@ export function EntryLog({
             return (
               <li
                 key={entry.id}
-                className="flex flex-col gap-1.5 border-l-2 pl-3"
+                className="group flex flex-col gap-1.5 border-l-2 pl-3"
               >
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">
-                    {entry.authorName ?? "Unknown"}
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span>{formatShortDate(new Date(entry.createdAt))}</span>
+                  {/* Author (and any edited marker) is secondary — revealed only
+                      on hover/focus so the timeline reads by date. */}
+                  <span className="opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                    · {entry.authorName ?? "Unknown"}
+                    {entry.editedAt ? " · edited" : null}
                   </span>
-                  <span>·</span>
-                  <span>{formatDateTime(new Date(entry.createdAt))}</span>
-                  {entry.editedAt ? <span>· edited</span> : null}
                   {canEdit && !editing ? (
-                    <span className="ml-auto flex items-center gap-0.5">
+                    <span
+                      className={cn(
+                        "ml-auto flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100",
+                        deletingId === entry.id && "opacity-100",
+                      )}
+                    >
                       <IconButton
                         label="Edit entry"
                         onClick={() => startEdit(entry)}
@@ -207,11 +272,12 @@ export function EntryLog({
 
                 {editing ? (
                   <div className="flex flex-col gap-2">
-                    <Textarea
+                    <EntryInput
+                      isNote={isNote}
                       value={editDraft}
-                      onChange={(event) => setEditDraft(event.target.value)}
+                      onChange={setEditDraft}
+                      onEnter={submitEdit}
                       maxLength={maxLength}
-                      rows={kind === "note" ? 3 : 2}
                       autoFocus
                     />
                     {update.result.serverError ? (

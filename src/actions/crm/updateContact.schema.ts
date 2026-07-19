@@ -23,6 +23,7 @@ export const updateContactSchema = createUpdateSchema(contacts)
     linkedinUrl: true,
     managerId: true,
     ownerId: true,
+    relationshipStrength: true,
   })
   .extend({
     ...contactFields,

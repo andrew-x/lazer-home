@@ -1,12 +1,12 @@
 import { IconBuilding } from "@tabler/icons-react";
 import { Fragment } from "react";
 import type { CompanyDetail } from "@/actions/crm/getCompanyDetail";
-import { MailLink, PhoneLink } from "@/components/contact-link";
 import { EmptyCell } from "@/components/empty-cell";
 import { ExternalLink } from "@/components/external-link";
 import { InternalLink } from "@/components/internal-link";
 import { Badge } from "@/components/ui/badge";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatShortDate, humanizeEnum } from "@/lib/format";
 import {
   DetailIdentity,
@@ -23,10 +23,10 @@ import { OpportunityStatusBadge } from "./opportunity-status-badge";
 
 /**
  * Read view of a company: a meta sidebar (identity, website, and the inline
- * owner) beside stacked sections for everything that hangs off it — pipeline
- * opportunities, delivery projects, and the people who work there. Contacts link
- * through to their own detail page (the company's people directory);
- * opportunities and projects have no detail page yet, so they render as rows.
+ * owner) beside two tabs — Contacts (the company's people directory, linking
+ * through to each contact's detail page) and Opportunities & Projects (its
+ * pipeline, delivery work, and referred deals/projects). Opportunities and
+ * projects have no detail page yet, so they render as rows.
  */
 export function CompanyDetailView({
   company,
@@ -35,6 +35,12 @@ export function CompanyDetailView({
   company: CompanyDetail;
   canEdit: boolean;
 }) {
+  const hasPipeline =
+    company.opportunities.length > 0 ||
+    company.projects.length > 0 ||
+    company.referredOpportunities.length > 0 ||
+    company.referredProjects.length > 0;
+
   return (
     <DetailLayout
       sidebar={
@@ -80,138 +86,153 @@ export function CompanyDetailView({
         </>
       }
     >
-      {company.opportunities.length > 0 && (
-        <DetailSection
-          title="Opportunities"
-          count={company.opportunities.length}
-        >
-          <DetailTable headers={["Name", "Stage", "Source"]}>
-            {company.opportunities.map((opportunity) => (
-              <TableRow key={opportunity.id}>
-                <TableCell className="font-medium">
-                  {opportunity.name}
-                </TableCell>
-                <TableCell>
-                  <OpportunityStatusBadge status={opportunity.status} />
-                </TableCell>
-                <TableCell>{humanizeEnum(opportunity.source)}</TableCell>
-              </TableRow>
-            ))}
-          </DetailTable>
-        </DetailSection>
-      )}
+      <Tabs defaultValue="contacts">
+        <TabsList variant="line" className="mb-4">
+          <TabsTrigger value="contacts">Contacts</TabsTrigger>
+          <TabsTrigger value="pipeline">
+            Opportunities &amp; Projects
+          </TabsTrigger>
+        </TabsList>
 
-      {company.projects.length > 0 && (
-        <DetailSection title="Projects" count={company.projects.length}>
-          <DetailTable headers={["Name"]}>
-            {company.projects.map((project) => (
-              <TableRow key={project.id}>
-                <TableCell className="font-medium">{project.name}</TableCell>
-              </TableRow>
-            ))}
-          </DetailTable>
-        </DetailSection>
-      )}
-
-      {company.referredOpportunities.length > 0 && (
-        <DetailSection
-          title="Referred opportunities"
-          count={company.referredOpportunities.length}
-        >
-          <DetailTable
-            headers={["Opportunity", "Client", "Stage", "Referred by"]}
-          >
-            {company.referredOpportunities.map((opportunity) => (
-              <TableRow key={opportunity.id}>
-                <TableCell className="font-medium">
-                  {opportunity.name}
-                </TableCell>
-                <TableCell>
-                  <InternalLink
-                    href={`/companies/${opportunity.clientCompanyId}`}
-                  >
-                    {opportunity.clientCompanyName}
-                  </InternalLink>
-                </TableCell>
-                <TableCell>
-                  <OpportunityStatusBadge status={opportunity.status} />
-                </TableCell>
-                <TableCell>
-                  <ReferrerLinks referrers={opportunity.referrers} />
-                </TableCell>
-              </TableRow>
-            ))}
-          </DetailTable>
-        </DetailSection>
-      )}
-
-      {company.referredProjects.length > 0 && (
-        <DetailSection
-          title="Referred projects"
-          count={company.referredProjects.length}
-        >
-          <DetailTable headers={["Project", "Client", "Referred by"]}>
-            {company.referredProjects.map((project) => (
-              <TableRow key={project.id}>
-                <TableCell className="font-medium">{project.name}</TableCell>
-                <TableCell>
-                  <InternalLink href={`/companies/${project.clientCompanyId}`}>
-                    {project.clientCompanyName}
-                  </InternalLink>
-                </TableCell>
-                <TableCell>
-                  <ReferrerLinks referrers={project.referrers} />
-                </TableCell>
-              </TableRow>
-            ))}
-          </DetailTable>
-        </DetailSection>
-      )}
-
-      <DetailSection title="Contacts" count={company.contacts.length}>
-        {company.contacts.length === 0 ? (
-          <TableEmpty>No contacts at this company yet.</TableEmpty>
-        ) : (
-          <DetailTable
-            headers={["Name", "Role", "Email", "Phone", "Next steps"]}
-          >
-            {company.contacts.map((contact) => (
-              <TableRow key={contact.id}>
-                <TableCell className="font-medium">
-                  <InternalLink href={`/contacts/${contact.id}`}>
-                    {contact.name}
-                  </InternalLink>
-                </TableCell>
-                <TableCell>{contact.role ?? <EmptyCell />}</TableCell>
-                <TableCell>
-                  <MailLink email={contact.email} />
-                </TableCell>
-                <TableCell>
-                  {contact.phone ? (
-                    <PhoneLink phone={contact.phone} />
-                  ) : (
-                    <EmptyCell />
-                  )}
-                </TableCell>
-                <TableCell>
-                  {contact.nextStep ? (
-                    <span className="flex flex-col gap-0.5">
-                      <span className="line-clamp-2">{contact.nextStep}</span>
-                      {contact.nextStepAt ? (
-                        <span className="text-xs text-muted-foreground">
-                          {formatShortDate(new Date(contact.nextStepAt))}
+        <TabsContent value="contacts">
+          <DetailSection title="Contacts" count={company.contacts.length}>
+            {company.contacts.length === 0 ? (
+              <TableEmpty>No contacts at this company yet.</TableEmpty>
+            ) : (
+              <DetailTable headers={["Name", "Role", "Next steps"]}>
+                {company.contacts.map((contact) => (
+                  <TableRow key={contact.id}>
+                    <TableCell className="font-medium">
+                      <InternalLink href={`/contacts/${contact.id}`}>
+                        {contact.name}
+                      </InternalLink>
+                    </TableCell>
+                    <TableCell>{contact.role ?? <EmptyCell />}</TableCell>
+                    <TableCell>
+                      {contact.nextStep ? (
+                        <span className="flex flex-col gap-0.5">
+                          <span className="line-clamp-2">
+                            {contact.nextStep}
+                          </span>
+                          {contact.nextStepAt ? (
+                            <span className="text-xs text-muted-foreground">
+                              {formatShortDate(new Date(contact.nextStepAt))}
+                            </span>
+                          ) : null}
                         </span>
-                      ) : null}
-                    </span>
-                  ) : (
-                    <EmptyCell />
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </DetailTable>
-        )}
-      </DetailSection>
+                      ) : (
+                        <EmptyCell />
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </DetailTable>
+            )}
+          </DetailSection>
+        </TabsContent>
+
+        <TabsContent value="pipeline" className="flex flex-col gap-8">
+          {hasPipeline ? null : (
+            <TableEmpty>
+              Nothing in the pipeline for this company yet.
+            </TableEmpty>
+          )}
+
+          {company.opportunities.length > 0 && (
+            <DetailSection
+              title="Opportunities"
+              count={company.opportunities.length}
+            >
+              <DetailTable headers={["Name", "Stage", "Source"]}>
+                {company.opportunities.map((opportunity) => (
+                  <TableRow key={opportunity.id}>
+                    <TableCell className="font-medium">
+                      {opportunity.name}
+                    </TableCell>
+                    <TableCell>
+                      <OpportunityStatusBadge status={opportunity.status} />
+                    </TableCell>
+                    <TableCell>{humanizeEnum(opportunity.source)}</TableCell>
+                  </TableRow>
+                ))}
+              </DetailTable>
+            </DetailSection>
+          )}
+
+          {company.projects.length > 0 && (
+            <DetailSection title="Projects" count={company.projects.length}>
+              <DetailTable headers={["Name"]}>
+                {company.projects.map((project) => (
+                  <TableRow key={project.id}>
+                    <TableCell className="font-medium">
+                      {project.name}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </DetailTable>
+            </DetailSection>
+          )}
+
+          {company.referredOpportunities.length > 0 && (
+            <DetailSection
+              title="Referred opportunities"
+              count={company.referredOpportunities.length}
+            >
+              <DetailTable
+                headers={["Opportunity", "Client", "Stage", "Referred by"]}
+              >
+                {company.referredOpportunities.map((opportunity) => (
+                  <TableRow key={opportunity.id}>
+                    <TableCell className="font-medium">
+                      {opportunity.name}
+                    </TableCell>
+                    <TableCell>
+                      <InternalLink
+                        href={`/companies/${opportunity.clientCompanyId}`}
+                      >
+                        {opportunity.clientCompanyName}
+                      </InternalLink>
+                    </TableCell>
+                    <TableCell>
+                      <OpportunityStatusBadge status={opportunity.status} />
+                    </TableCell>
+                    <TableCell>
+                      <ReferrerLinks referrers={opportunity.referrers} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </DetailTable>
+            </DetailSection>
+          )}
+
+          {company.referredProjects.length > 0 && (
+            <DetailSection
+              title="Referred projects"
+              count={company.referredProjects.length}
+            >
+              <DetailTable headers={["Project", "Client", "Referred by"]}>
+                {company.referredProjects.map((project) => (
+                  <TableRow key={project.id}>
+                    <TableCell className="font-medium">
+                      {project.name}
+                    </TableCell>
+                    <TableCell>
+                      <InternalLink
+                        href={`/companies/${project.clientCompanyId}`}
+                      >
+                        {project.clientCompanyName}
+                      </InternalLink>
+                    </TableCell>
+                    <TableCell>
+                      <ReferrerLinks referrers={project.referrers} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </DetailTable>
+            </DetailSection>
+          )}
+        </TabsContent>
+      </Tabs>
     </DetailLayout>
   );
 }

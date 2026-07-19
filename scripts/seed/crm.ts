@@ -54,6 +54,9 @@ export async function seedCrm(db: SeedDb, staff: Staff[]): Promise<CrmResult> {
       linkedinUrl: chance(0.5) ? faker.internet.url() : null,
       managerId: null,
       ownerId: chance(0.7) ? faker.helpers.arrayElement(staff).id : null,
+      relationshipStrength: chance(0.85)
+        ? faker.helpers.arrayElement([1, 2, 3, 4, 5])
+        : null,
     });
     const peers = byCompany.get(company.id) ?? [];
     peers.push(id);

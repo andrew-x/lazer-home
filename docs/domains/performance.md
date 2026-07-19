@@ -25,8 +25,9 @@ once (no unique `(from, to)` constraint).
 ### Entity — `feedback` (`src/lib/db/performance-schema.ts`)
 
 The performance domain's first table (barrelled by `src/lib/db/schema.ts`; the
-migration history was squashed into a single baseline `drizzle/0000_light_shape.sql`,
-so read the schema file for the definitive shape rather than a per-feature migration):
+migration history has been squashed into a single baseline more than once — the current
+one is `drizzle/0000_lethal_rictor.sql` — so read the schema file for the definitive
+shape rather than a per-feature migration):
 
 - **`fromStaffId` / `toStaffId`** — giver and recipient, both FK → `staff.id`,
   both **`onDelete: cascade`** (feedback is meaningless without both people).
