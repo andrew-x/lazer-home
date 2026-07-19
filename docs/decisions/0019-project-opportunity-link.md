@@ -8,11 +8,11 @@
 `projects.opportunityId` (removed, along with its partial unique index
 `projects_opportunity_idx`). It now lives on **`opportunities.projectId`** — a nullable FK
 → `projects` with **`onDelete: "restrict"`**, indexed `opportunities_project_idx`
-(`src/lib/db/opportunities-schema.ts`). Migration `drizzle/0002_loud_sister_grimm.sql`
-(the second incremental migration on top of the squashed baseline `0000_light_shape.sql`,
-after `0001_wonderful_thing.sql`'s CRM entries) adds the column + index, **backfills**
+(`src/lib/db/opportunities-schema.ts`). The migration that made this change (since **folded into
+the squashed baseline** `drizzle/0000_lethal_rictor.sql` — the drizzle history has been squashed
+more than once, so don't chase per-feature filenames) added the column + index, **backfilled**
 it from the old `projects.opportunity_id` (`UPDATE opportunities SET project_id FROM projects
-WHERE projects.opportunity_id = opportunities.id`), then drops the old column. The two schema
+WHERE projects.opportunity_id = opportunities.id`), then dropped the old column. The two schema
 files now import each other via lazy `() => Table.id` refs (ESM-safe).
 
 This makes the relationship **many opportunities → one project** (the reverse of the

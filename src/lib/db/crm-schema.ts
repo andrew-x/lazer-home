@@ -3,6 +3,7 @@ import {
   type AnyPgColumn,
   boolean,
   index,
+  integer,
   pgEnum,
   pgTable,
   text,
@@ -60,6 +61,11 @@ export const contacts = pgTable("contacts", {
   // unassigned or once the staff row is removed (set-null, like the other
   // optional FKs). Owner = staff, matching `companies.ownerId`.
   ownerId: text().references(() => staff.id, { onDelete: "set null" }),
+  // How strong our relationship with this contact is, on a 1–5 scale (1 New /
+  // Unestablished … 5 Champion / Trusted Partner — see `@/lib/relationship-
+  // strength`). Null when not yet rated. Edited inline (stars) on the contact
+  // page via `updateContactRelationshipStrength`.
+  relationshipStrength: integer(),
 
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp()

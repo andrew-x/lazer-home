@@ -109,14 +109,13 @@ delivery, allocations, timesheets, and billing.
   `project_roles`), barrelled by `src/lib/db/schema.ts`; imports `opportunities` from
   `./opportunities-schema` (opportunities were split out of `crm-schema.ts` —
   [ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
-  **Schema files are the source of truth for the current shape**: the squashed baseline
-  `drizzle/0000_light_shape.sql` plus two incremental migrations
-  (`drizzle/0001_wonderful_thing.sql` = the CRM timestamped-entries tables, unrelated to
-  projects) and `drizzle/0002_loud_sister_grimm.sql` (the **link inversion** — drops
-  `projects.opportunity_id` + its partial unique index, adds `opportunities.project_id`
-  (FK `restrict`, indexed), and adds `project_roles.status` + `project_roles.opportunity_id`
-  (FK `set null`, indexed) with the `project_role_status` enum; it **backfills** the inverted
-  link and role provenance and confirms already-won roles before dropping the old column).
+  **Schema files are the source of truth for the current shape** — the drizzle history has
+  been squashed into a single baseline (`drizzle/0000_lethal_rictor.sql`) more than once, so
+  don't chase per-feature migration filenames. The **link inversion** that shaped this domain
+  (folded into the baseline) dropped `projects.opportunity_id` + its partial unique index, added
+  `opportunities.project_id` (FK `restrict`, indexed), and added `project_roles.status` +
+  `project_roles.opportunity_id` (FK `set null`, indexed) with the `project_role_status` enum,
+  backfilling the inverted link and role provenance and confirming already-won roles.
   The projects domain relies on: the `project_role_type` + `project_status` +
   `project_role_status` enums, a nullable `project_roles.staff_id` with `name`/`role_type`/
   `status`/`opportunity_id` (and **no** `project_roles.line_of_business` — line of business

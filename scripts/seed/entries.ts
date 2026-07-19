@@ -17,12 +17,17 @@ type EntryKind = "note" | "next_step";
 
 /** A single synthetic entry: a note (longer prose) or a next step (a sentence). */
 function makeEntry(idPrefix: string, kind: EntryKind, staff: Staff[]) {
+  // Pin `updatedAt` to `createdAt` so a freshly-seeded entry reads as un-edited:
+  // `updatedAt` defaults to `now()`, which would otherwise beat the backdated
+  // `createdAt` and make every entry show the "edited" tag.
+  const createdAt = faker.date.recent({ days: 60 });
   return {
     id: generateId(idPrefix),
     kind,
     body: kind === "note" ? faker.lorem.paragraph() : faker.lorem.sentence(),
     authorStaffId: faker.helpers.arrayElement(staff).id,
-    createdAt: faker.date.recent({ days: 60 }),
+    createdAt,
+    updatedAt: createdAt,
   };
 }
 

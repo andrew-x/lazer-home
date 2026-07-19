@@ -48,6 +48,8 @@ export type ContactDetail = {
   managerName: string | null;
   ownerId: string | null;
   ownerName: string | null;
+  /** How strong our relationship is, 1–5, or null when unrated. */
+  relationshipStrength: number | null;
   /** Opportunities this contact sourced (the "referred by" junction). */
   referredOpportunities: ContactOpportunity[];
   /** Opportunities they're a named contact on, excluding ones they referred. */
@@ -91,6 +93,7 @@ export const getContactDetail = cache(
         managerName: contactNameSql<string | null>(managers),
         ownerId: contacts.ownerId,
         ownerName: staff.name,
+        relationshipStrength: contacts.relationshipStrength,
       })
       .from(contacts)
       .leftJoin(companies, eq(contacts.companyId, companies.id))
