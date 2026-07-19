@@ -37,10 +37,12 @@ role types).
 > before it's staffed — and the table gained `roleType` (a NOT NULL discipline enum,
 > distinct from line of business) and an optional `name`.
 >
-> **Superseded in part by [ADR 0025](./0025-line-of-business-on-opportunity-and-project-not-role.md):**
-> `lineOfBusiness` has been **dropped from `project_roles`** — line of business is now a
-> **project-level** field (`projects.lineOfBusiness`), not per-role. A role carries
-> `roleType`, dates, and hours (all still required); it inherits the project's practice.
+> **On `lineOfBusiness` (net effect):** [ADR 0025](./0025-line-of-business-on-opportunity-and-project-not-role.md)
+> briefly moved `lineOfBusiness` off the role up to the project, but
+> [ADR 0033](./0033-line-of-business-on-role-derived-project-status.md) **reversed that** —
+> `lineOfBusiness` is once again a **per-role** NOT NULL column on `project_roles` (a project's
+> LoBs are *derived* from its roles), so this ADR's original placement stands. A role carries
+> `lineOfBusiness`, `roleType`, dates, and hours (all required).
 
 **FK delete behaviour is asymmetric:** `projectId` → projects **cascade** (a role dies
 with its project), `staffId` → staff **`restrict`** (a *staffed* role without its person is

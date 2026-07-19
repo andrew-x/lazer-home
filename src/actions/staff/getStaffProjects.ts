@@ -1,6 +1,6 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/db";
 import {
   companies,
@@ -8,18 +8,20 @@ import {
   projectRoles,
   projects,
 } from "@/lib/db/schema";
+import { deriveProjectStatus } from "@/lib/project-derived";
+import type { ProjectRoleStatus } from "@/lib/project-role-status";
 import {
   PROJECT_ROLE_TYPE_LABELS,
   type ProjectRoleType,
 } from "@/lib/project-role-type";
-import type { ProjectStatus } from "@/lib/project-status";
 
 /** A project this person is involved with, plus how they're involved. */
 export type StaffProjectSummary = {
   id: string;
   name: string;
   companyName: string;
-  status: ProjectStatus;
+  /** Derived from the project's roles (see `project-derived.ts`). */
+  status: ProjectRoleStatus;
   /**
    * The person's relationship(s) to the project, as human-facing labels —
    * "Delivery manager" and/or role disciplines ("Engineer", "Designer", …),
@@ -46,7 +48,6 @@ export async function getStaffProjects(
       .select({
         id: projects.id,
         name: projects.name,
-        status: projects.status,
         companyName: companies.name,
         roleType: projectRoles.roleType,
       })
@@ -58,7 +59,6 @@ export async function getStaffProjects(
       .select({
         id: projects.id,
         name: projects.name,
-        status: projects.status,
         companyName: companies.name,
       })
       .from(projectDeliveryManagers)
@@ -72,15 +72,12 @@ export async function getStaffProjects(
   // of the same discipline (or a role + delivery-manager seat) lists each once.
   const byProject = new Map<
     string,
-    Omit<StaffProjectSummary, "relationships"> & { relationships: Set<string> }
+    Omit<StaffProjectSummary, "relationships" | "status"> & {
+      relationships: Set<string>;
+    }
   >();
 
-  const upsert = (row: {
-    id: string;
-    name: string;
-    status: ProjectStatus;
-    companyName: string;
-  }) => {
+  const upsert = (row: { id: string; name: string; companyName: string }) => {
     let entry = byProject.get(row.id);
     if (!entry) {
       entry = { ...row, relationships: new Set<string>() };
@@ -98,9 +95,29 @@ export async function getStaffProjects(
     );
   }
 
+  // Derived status needs each project's full set of role statuses (not just this
+  // person's roles) — one grouped query over the involved projects.
+  const projectIds = Array.from(byProject.keys());
+  const statusesByProject = new Map<string, ProjectRoleStatus[]>();
+  if (projectIds.length > 0) {
+    const statusRows = await db
+      .select({
+        projectId: projectRoles.projectId,
+        status: projectRoles.status,
+      })
+      .from(projectRoles)
+      .where(inArray(projectRoles.projectId, projectIds));
+    for (const { projectId, status } of statusRows) {
+      const list = statusesByProject.get(projectId) ?? [];
+      list.push(status);
+      statusesByProject.set(projectId, list);
+    }
+  }
+
   return Array.from(byProject.values())
     .map((entry) => ({
       ...entry,
+      status: deriveProjectStatus(statusesByProject.get(entry.id) ?? []),
       // Delivery manager first, then disciplines alphabetically.
       relationships: Array.from(entry.relationships).sort((a, b) => {
         if (a === DELIVERY_MANAGER_LABEL) return -1;

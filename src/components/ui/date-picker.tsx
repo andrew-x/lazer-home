@@ -43,12 +43,14 @@ export function DatePicker({
               id={id}
               variant="outline"
               className={cn(
-                "flex-1 justify-start gap-2 font-normal",
+                "min-w-0 flex-1 justify-start gap-2 font-normal",
                 !value && "text-muted-foreground",
               )}
             >
-              <IconCalendar className="size-4" />
-              {value ? formatDate(value) : placeholder}
+              <IconCalendar className="size-4 shrink-0" />
+              <span className="truncate">
+                {value ? formatDate(value) : placeholder}
+              </span>
             </Button>
           }
         />

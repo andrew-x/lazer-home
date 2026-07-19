@@ -1,26 +1,19 @@
 import { Badge } from "@/components/ui/badge";
 import {
-  PROJECT_STATUS_LABELS,
-  type ProjectStatus,
-} from "@/lib/project-status";
+  PROJECT_ROLE_STATUS_LABELS,
+  PROJECT_ROLE_STATUS_VARIANTS,
+  type ProjectRoleStatus,
+} from "@/lib/project-role-status";
 
-// Confirmed reads as the primary (default) badge; tentative stays muted;
-// paused is outlined; cancelled reads as destructive.
-const VARIANT_FOR_STATUS: Record<
-  ProjectStatus,
-  "default" | "secondary" | "outline" | "destructive"
-> = {
-  confirmed: "default",
-  tentative: "secondary",
-  paused: "outline",
-  cancelled: "destructive",
-};
-
-/** A project's lifecycle status shown as a labelled badge. */
-export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
+/**
+ * A project's *derived* lifecycle status shown as a labelled badge. A project
+ * has no stored status; the value comes from `deriveProjectStatus` over its
+ * roles, and shares the role-status labels/variants.
+ */
+export function ProjectStatusBadge({ status }: { status: ProjectRoleStatus }) {
   return (
-    <Badge variant={VARIANT_FOR_STATUS[status]}>
-      {PROJECT_STATUS_LABELS[status]}
+    <Badge variant={PROJECT_ROLE_STATUS_VARIANTS[status]}>
+      {PROJECT_ROLE_STATUS_LABELS[status]}
     </Badge>
   );
 }

@@ -28,8 +28,9 @@ export const updateProjectRole = secureActionClient
       await tx
         .update(projectRoles)
         .set({
+          lineOfBusiness: parsedInput.lineOfBusiness,
           staffId: parsedInput.staffId ?? null,
-          name: parsedInput.name,
+          description: parsedInput.description,
           roleType: parsedInput.roleType,
           startDate: parsedInput.startDate,
           endDate: parsedInput.endDate,

@@ -1,0 +1,1 @@
+ALTER TABLE "project_roles" RENAME COLUMN "name" TO "description";

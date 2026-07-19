@@ -8,6 +8,20 @@
       "when": 1784467886716,
       "tag": "0000_lethal_rictor",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784471176362,
+      "tag": "0001_gray_corsair",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784471176363,
+      "tag": "0002_gifted_kylun",
+      "breakpoints": true
     }
   ]
 }

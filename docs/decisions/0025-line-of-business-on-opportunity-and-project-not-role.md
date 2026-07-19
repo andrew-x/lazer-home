@@ -1,6 +1,15 @@
 # 0025 — Line of business belongs to the opportunity & project, not the role
 
-**Status:** accepted · 2026-07-13
+**Status:** superseded (on the project point) by [ADR 0033](./0033-line-of-business-on-role-derived-project-status.md) · 2026-07-13
+
+> **Superseded (partial), 2026-07-19.** The central "LoB on the **project**" call was
+> **reversed** by [ADR 0033](./0033-line-of-business-on-role-derived-project-status.md):
+> once a project became a shared vehicle several opportunities feed roles into, one
+> project could legitimately span practices, so `lineOfBusiness` **moved back onto
+> `project_roles`** and `projects.lineOfBusiness` was dropped — a project's set of LoBs
+> is now *derived* from its roles. What **still stands** from this ADR: LoB is required
+> on **opportunities**, and opportunities live in their own schema file. Read the rest
+> of this ADR with that reversal in mind.
 
 ## Context
 

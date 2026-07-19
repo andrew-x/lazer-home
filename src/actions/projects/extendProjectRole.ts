@@ -17,9 +17,10 @@ import { extendProjectRoleSchema } from "./extendProjectRole.schema";
  * line, so the extension shows as another block on that person's row. Gated on
  * `projects.edit`.
  *
- * The source role may be confirmed or from another opportunity (extending
- * someone's allocation), but must live on **this opportunity's** project — you
- * can only extend within the project you're planning against.
+ * The source role must be **confirmed** (you extend committed allocations, not
+ * speculative ones) and must live on **this opportunity's** project — you can
+ * only extend within the project you're planning against. It may belong to
+ * another opportunity (extending someone's existing allocation).
  */
 export const extendProjectRole = secureActionClient
   .metadata({
@@ -48,7 +49,9 @@ export const extendProjectRole = secureActionClient
         .select({
           projectId: projectRoles.projectId,
           staffId: projectRoles.staffId,
-          name: projectRoles.name,
+          status: projectRoles.status,
+          lineOfBusiness: projectRoles.lineOfBusiness,
+          description: projectRoles.description,
           roleType: projectRoles.roleType,
         })
         .from(projectRoles)
@@ -62,6 +65,9 @@ export const extendProjectRole = secureActionClient
           "You can only extend a role on this opportunity's project.",
         );
       }
+      if (source.status !== "confirmed") {
+        throw new UserSafeActionError("You can only extend a confirmed role.");
+      }
 
       await tx.insert(projectRoles).values({
         id: newRoleId,
@@ -70,7 +76,8 @@ export const extendProjectRole = secureActionClient
         status: "tentative",
         // Share the source role's person and identity — this is a continuation.
         staffId: source.staffId,
-        name: source.name,
+        lineOfBusiness: source.lineOfBusiness,
+        description: source.description,
         roleType: source.roleType,
         startDate: parsedInput.startDate,
         endDate: parsedInput.endDate,

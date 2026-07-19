@@ -11,8 +11,8 @@ import {
   type Staff,
 } from "@/lib/db/schema";
 import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
+import { PROJECT_ROLE_STATUSES } from "@/lib/project-role-status";
 import { PROJECT_ROLE_TYPES } from "@/lib/project-role-type";
-import { PROJECT_STATUSES } from "@/lib/project-status";
 import type { SeedDb } from "./client";
 import { chance, faker, isoDate } from "./faker";
 
@@ -28,7 +28,9 @@ type RoleInsert = InferInsertModel<typeof projectRoles>;
  * roles — a mix of staffed and open (unstaffed) positions. The CRM → delivery
  * link lives on `opportunities.projectId`, set below for the won opps that
  * spawned a project; those projects' roles are tagged with the opportunity and
- * marked confirmed (won), while standalone projects' roles stay tentative.
+ * marked confirmed (won), while standalone projects' roles vary across statuses.
+ * A project has no stored status or line of business — both are derived from its
+ * roles — so those live on the roles here (mirroring the app).
  */
 export async function seedProjects(
   db: SeedDb,
@@ -52,14 +54,7 @@ export async function seedProjects(
     const project: ProjectInsert = {
       id: generateId("project"),
       name: `${faker.commerce.productName()} ${faker.helpers.arrayElement(["Platform", "Revamp", "Migration", "MVP", "Integration"])}`,
-      // Projects from a won deal are already underway; standalone ones vary.
-      status: opp
-        ? faker.helpers.arrayElement(["confirmed", "paused"] as const)
-        : faker.helpers.arrayElement(PROJECT_STATUSES),
       companyId,
-      // Inherit the originating opportunity's line of business (mirrors createProject).
-      lineOfBusiness:
-        opp?.lineOfBusiness ?? faker.helpers.arrayElement(LINE_OF_BUSINESS),
     };
     return { project, opp };
   });
@@ -105,10 +100,16 @@ export async function seedProjects(
         projectId: project.id,
         staffId: open ? null : faker.helpers.arrayElement(staff).id,
         // Roles born from a won opportunity carry it and are confirmed;
-        // standalone-project roles stay tentative and untagged.
+        // standalone-project roles vary across statuses and are untagged.
         opportunityId: opp?.id ?? null,
-        status: opp ? "confirmed" : "tentative",
-        name: chance(0.5) ? faker.person.jobTitle() : null,
+        status: opp
+          ? "confirmed"
+          : faker.helpers.arrayElement(PROJECT_ROLE_STATUSES),
+        // A role's line of business: inherit the originating opportunity's, or a
+        // random one for standalone roles (so those projects span several LoBs).
+        lineOfBusiness:
+          opp?.lineOfBusiness ?? faker.helpers.arrayElement(LINE_OF_BUSINESS),
+        description: chance(0.5) ? faker.person.jobTitle() : null,
         roleType: faker.helpers.arrayElement(PROJECT_ROLE_TYPES),
         startDate: isoDate(start),
         endDate: isoDate(end),

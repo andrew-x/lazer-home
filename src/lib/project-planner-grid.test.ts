@@ -15,7 +15,8 @@ function role(
   return {
     staffId: null,
     staffName: null,
-    name: null,
+    lineOfBusiness: "CORE",
+    description: null,
     roleType: "ENGINEER",
     status: "tentative",
     opportunityId: CURRENT_OPP,
@@ -78,7 +79,7 @@ describe("buildPlannerRows", () => {
     const roles = [
       role({
         id: "p1",
-        name: "Backend lead",
+        description: "Backend lead",
         startDate: "2026-07-06",
         endDate: "2026-07-13",
       }),
@@ -143,7 +144,7 @@ describe("buildPlannerRows", () => {
     const roles = [
       role({
         id: "p1",
-        name: "Zeta open",
+        description: "Zeta open",
         startDate: "2026-07-06",
         endDate: "2026-07-06",
       }),
