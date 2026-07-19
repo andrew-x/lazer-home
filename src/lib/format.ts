@@ -58,3 +58,27 @@ export function formatDate(value: string): string {
 export function formatTimestamp(value: Date): string {
   return new Intl.DateTimeFormat("en-US", LONG_DATE_OPTIONS).format(value);
 }
+
+/** Compact date, e.g. "Jul 18, 2026" — for table cells and card lines. */
+export function formatShortDate(value: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(value);
+}
+
+/**
+ * Compact date + time, e.g. "Jul 18, 2026, 2:30 PM" — for the timestamp on a
+ * logged note/next-step entry. Wall-clock (see the database date rule); no zone
+ * conversion beyond the viewer's locale.
+ */
+export function formatDateTime(value: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(value);
+}

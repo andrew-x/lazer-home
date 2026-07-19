@@ -1,12 +1,12 @@
 import "server-only";
 
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/db";
 import {
   companies,
   opportunities,
+  opportunityEntries,
   opportunityOwners,
-  projects,
   staff,
 } from "@/lib/db/schema";
 import type { OpportunitySource, OpportunityStatus } from "@/lib/opportunity";
@@ -26,6 +26,10 @@ export type OpportunityBoardCard = {
   // Epoch millis — the client sorts by (position, createdAt) to match the
   // server's tie-break so a tied position never flips order between renders.
   createdAt: number;
+  /** Body of the most recent next-step entry, or null if none. */
+  nextStep: string | null;
+  /** When that next step was logged (epoch millis), or null. */
+  nextStepAt: number | null;
 };
 
 /**
@@ -35,6 +39,22 @@ export type OpportunityBoardCard = {
  * owner-name query (no N+1).
  */
 export async function getOpportunitiesBoard(): Promise<OpportunityBoardCard[]> {
+  // Latest next-step per opportunity (see getContactsPage for the DISTINCT ON
+  // rationale): one row per opportunity, newest `next_step` first.
+  const latestNextStep = db
+    .selectDistinctOn([opportunityEntries.opportunityId], {
+      opportunityId: opportunityEntries.opportunityId,
+      body: opportunityEntries.body,
+      createdAt: opportunityEntries.createdAt,
+    })
+    .from(opportunityEntries)
+    .where(eq(opportunityEntries.kind, "next_step"))
+    .orderBy(
+      opportunityEntries.opportunityId,
+      desc(opportunityEntries.createdAt),
+    )
+    .as("latest_next_step");
+
   const baseRows = await db
     .select({
       id: opportunities.id,
@@ -45,15 +65,22 @@ export async function getOpportunitiesBoard(): Promise<OpportunityBoardCard[]> {
       status: opportunities.status,
       position: opportunities.position,
       createdAt: opportunities.createdAt,
+      nextStep: latestNextStep.body,
+      nextStepAt: latestNextStep.createdAt,
+      // The delivery link lives on the opportunity now, so `hasProject` is a
+      // column read — no separate query.
+      projectId: opportunities.projectId,
     })
     .from(opportunities)
     .innerJoin(companies, eq(opportunities.companyId, companies.id))
+    .leftJoin(
+      latestNextStep,
+      eq(latestNextStep.opportunityId, opportunities.id),
+    )
     .orderBy(asc(opportunities.position), asc(opportunities.createdAt));
 
-  // Resolve owner names and project links for all cards in two grouped queries
-  // (no N+1).
+  // Resolve owner names for all cards in a single grouped query (no N+1).
   const ownersByOpportunity = new Map<string, string[]>();
-  const withProject = new Set<string>();
   if (baseRows.length > 0) {
     const ids = baseRows.map((r) => r.id);
 
@@ -72,21 +99,13 @@ export async function getOpportunitiesBoard(): Promise<OpportunityBoardCard[]> {
       list.push(name);
       ownersByOpportunity.set(opportunityId, list);
     }
-
-    const projectRows = await db
-      .select({ opportunityId: projects.opportunityId })
-      .from(projects)
-      .where(inArray(projects.opportunityId, ids));
-
-    for (const { opportunityId } of projectRows) {
-      if (opportunityId) withProject.add(opportunityId);
-    }
   }
 
-  return baseRows.map((r) => ({
+  return baseRows.map(({ projectId, ...r }) => ({
     ...r,
     createdAt: r.createdAt.getTime(),
+    nextStepAt: r.nextStepAt ? r.nextStepAt.getTime() : null,
     ownerNames: ownersByOpportunity.get(r.id) ?? [],
-    hasProject: withProject.has(r.id),
+    hasProject: projectId != null,
   }));
 }

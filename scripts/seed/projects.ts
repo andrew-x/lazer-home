@@ -1,8 +1,9 @@
-import type { InferInsertModel } from "drizzle-orm";
+import { eq, type InferInsertModel } from "drizzle-orm";
 import { generateId } from "@/lib/db/ids";
 import {
   type Company,
   type Opportunity,
+  opportunities as opportunitiesTable,
   type Project,
   projectDeliveryManagers,
   projectRoles,
@@ -24,7 +25,10 @@ type RoleInsert = InferInsertModel<typeof projectRoles>;
 /**
  * Seed projects (some originating from closed-won opportunities, respecting the
  * ≤1-project-per-opportunity constraint), their delivery managers, and staffing
- * roles — a mix of staffed and open (unstaffed) positions.
+ * roles — a mix of staffed and open (unstaffed) positions. The CRM → delivery
+ * link lives on `opportunities.projectId`, set below for the won opps that
+ * spawned a project; those projects' roles are tagged with the opportunity and
+ * marked confirmed (won), while standalone projects' roles stay tentative.
  */
 export async function seedProjects(
   db: SeedDb,
@@ -36,36 +40,47 @@ export async function seedProjects(
   const wonOpps = opportunities.filter((o) => o.status === "closed_won");
   let wonCursor = 0;
 
-  const projectRows: ProjectInsert[] = Array.from(
-    { length: PROJECT_COUNT },
-    () => {
-      // Consume a distinct closed-won opportunity when one is available.
-      const opp =
-        wonCursor < wonOpps.length && chance(0.7) ? wonOpps[wonCursor++] : null;
-      const companyId =
-        (opp && companies.find((c) => c.id === opp.companyId)?.id) ??
-        faker.helpers.arrayElement(companies).id;
-      return {
-        id: generateId("project"),
-        name: `${faker.commerce.productName()} ${faker.helpers.arrayElement(["Platform", "Revamp", "Migration", "MVP", "Integration"])}`,
-        // Projects from a won deal are already underway; standalone ones vary.
-        status: opp
-          ? faker.helpers.arrayElement(["confirmed", "paused"] as const)
-          : faker.helpers.arrayElement(PROJECT_STATUSES),
-        companyId,
-        // Inherit the originating opportunity's line of business (mirrors createProject).
-        lineOfBusiness:
-          opp?.lineOfBusiness ?? faker.helpers.arrayElement(LINE_OF_BUSINESS),
-        opportunityId: opp?.id ?? null,
-      };
-    },
-  );
+  // Track the originating opportunity (if any) alongside each project so we can
+  // set `opportunities.projectId` and tag the project's roles afterward.
+  const entries = Array.from({ length: PROJECT_COUNT }, () => {
+    // Consume a distinct closed-won opportunity when one is available.
+    const opp =
+      wonCursor < wonOpps.length && chance(0.7) ? wonOpps[wonCursor++] : null;
+    const companyId =
+      (opp && companies.find((c) => c.id === opp.companyId)?.id) ??
+      faker.helpers.arrayElement(companies).id;
+    const project: ProjectInsert = {
+      id: generateId("project"),
+      name: `${faker.commerce.productName()} ${faker.helpers.arrayElement(["Platform", "Revamp", "Migration", "MVP", "Integration"])}`,
+      // Projects from a won deal are already underway; standalone ones vary.
+      status: opp
+        ? faker.helpers.arrayElement(["confirmed", "paused"] as const)
+        : faker.helpers.arrayElement(PROJECT_STATUSES),
+      companyId,
+      // Inherit the originating opportunity's line of business (mirrors createProject).
+      lineOfBusiness:
+        opp?.lineOfBusiness ?? faker.helpers.arrayElement(LINE_OF_BUSINESS),
+    };
+    return { project, opp };
+  });
+
+  const projectRows = entries.map((e) => e.project);
   await db.insert(projects).values(projectRows);
+
+  // Set the inverted link on each opportunity that spawned a project.
+  for (const { project, opp } of entries) {
+    if (opp) {
+      await db
+        .update(opportunitiesTable)
+        .set({ projectId: project.id })
+        .where(eq(opportunitiesTable.id, opp.id));
+    }
+  }
 
   const deliveryManagers: DeliveryManagerInsert[] = [];
   const roles: RoleInsert[] = [];
 
-  for (const project of projectRows) {
+  for (const { project, opp } of entries) {
     // 1–2 delivery managers (distinct → no duplicate pairs).
     for (const s of faker.helpers.arrayElements(
       staff,
@@ -89,6 +104,10 @@ export async function seedProjects(
         id: generateId("role"),
         projectId: project.id,
         staffId: open ? null : faker.helpers.arrayElement(staff).id,
+        // Roles born from a won opportunity carry it and are confirmed;
+        // standalone-project roles stay tentative and untagged.
+        opportunityId: opp?.id ?? null,
+        status: opp ? "confirmed" : "tentative",
         name: chance(0.5) ? faker.person.jobTitle() : null,
         roleType: faker.helpers.arrayElement(PROJECT_ROLE_TYPES),
         startDate: isoDate(start),

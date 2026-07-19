@@ -1,4 +1,4 @@
-# 0030 — Staff rating levels (L0–L4): effective-dated, nullable, manager/admin-only with no self-view
+# 0032 — Staff rating levels (L0–L4): effective-dated, nullable, manager/admin-only with no self-view
 
 **Status:** accepted · 2026-07-18
 

@@ -178,7 +178,7 @@ and compensation. **Effective-dated exactly like `staff_employment`
 ([ADR 0007](../decisions/0007-staff-employment-effective-dating.md)):** saving an
 evaluation inserts a **new dated row per changed staff member**, and the current
 level is the latest row per staff. Full rationale in
-[ADR 0030](../decisions/0030-staff-rating-levels-effective-dated-manager-only.md).
+[ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md).
 
 ### Entity — `staff_rating` (`src/lib/db/performance-schema.ts`)
 
@@ -211,7 +211,7 @@ owner-visible path: a staffer never sees their own level, nor anyone else's** �
 stricter than compensation (own comp always visible) and feedback (recipients see a
 limited projection). A bare L-number has no constructive owner framing, so it stays
 entirely inside the manager/admin tier. See [permissions.md](./permissions.md) and
-[ADR 0030](../decisions/0030-staff-rating-levels-effective-dated-manager-only.md).
+[ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md).
 
 Defense in depth: both reads `requirePermission({ ratings: ["view"] })`, the write
 gates `metadata.permission: { ratings: ["edit"] }`, the pages `notFound()`, and the
@@ -270,7 +270,7 @@ state) **only when that prop is present**. So managers/admins see comp **and**
 levels on one page; finance sees comp only. Levels have **no separate sidebar
 entry**. (The earlier design — a cross-route `performance-tabs.tsx` bar and a
 standalone `/performance/levels` dashboard — was removed; see
-[ADR 0030](../decisions/0030-staff-rating-levels-effective-dated-manager-only.md).)
+[ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md).)
 
 ### Seed
 

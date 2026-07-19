@@ -42,6 +42,16 @@ table. Adding a survey or a question needs **no migration**.
   the schema is deliberately scoped to the text case for now (widen `questionId`
   to a `z.union([...])` of each survey's enum and add the list/json shapes as more
   surveys arrive).
+  (**Update, 2026-07-18 — this widening has now happened, on schedule:** the second
+  survey, **Ways of Working** (`src/lib/ways-of-working.ts`, 28 `WOW_`-prefixed ids),
+  landed as a **code-only** change — no migration. `upsertResponse.schema.ts`'s
+  `questionId` is now `z.union([manualOfMeQuestionId, waysOfWorkingQuestionId])`, and
+  the action accepts an optional `listResponse: string[]` alongside `textResponse`,
+  writing the used column and nulling the other. Free-text/single-select answers use
+  `textResponse`; multi-selects and the AI usage/savings matrix buckets use
+  `listResponse`. Each future survey appends its enum to the union; `jsonResponse`
+  is still unused. See [domains/staff-profiles.md](../domains/staff-profiles.md) →
+  *Ways of Working*.)
 - **The grain is a *current value* per (person, question), not history.** A
   `unique(staffId, questionId)` constraint makes writes an **upsert**
   (`onConflictDoUpdate`), so the guided editor saves each question independently

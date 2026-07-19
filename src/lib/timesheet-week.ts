@@ -40,6 +40,22 @@ export function isWeekend(date: string): boolean {
   return day === 0 || day === 6;
 }
 
+/**
+ * Every ISO-Monday from the week containing `start` to the week containing
+ * `end`, inclusive (both ends are normalized to their week start first). Returns
+ * `[]` when `end` falls before `start`. The week-column spine for a multi-week
+ * planner (a role active `start`→`end` maps onto these columns).
+ */
+export function eachWeek(start: string, end: string): string[] {
+  const first = getWeekStart(start);
+  const last = getWeekStart(end);
+  const weeks: string[] = [];
+  for (let w = first; w <= last; w = addWeeks(w, 1)) {
+    weeks.push(w);
+  }
+  return weeks;
+}
+
 /** The 7 day dates (Mon→Sun) of the week beginning `weekStart`. */
 export function getWeekDays(weekStart: string): string[] {
   const monday = parseIsoDate(weekStart);

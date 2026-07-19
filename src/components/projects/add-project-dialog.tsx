@@ -1,96 +1,43 @@
 "use client";
 
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPlus } from "@tabler/icons-react";
 import { useAction } from "next-safe-action/hooks";
 import type { ReactElement } from "react";
-import { Controller, useFieldArray, useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { createProject } from "@/actions/projects/createProject";
 import {
   type CreateProjectInput,
   createProjectSchema,
-  type ProjectRoleInput,
 } from "@/actions/projects/createProject.schema";
 import { searchCompanies } from "@/actions/projects/searchCompanies";
-import { searchStaff } from "@/actions/projects/searchStaff";
 import { CompanyCombobox } from "@/components/crm/company-combobox";
 import {
   applyServerIssues,
   type IssueTarget,
 } from "@/components/form/apply-server-issues";
-import { EntityCombobox } from "@/components/form/entity-combobox";
-import {
-  EntityMultiCombobox,
-  type EntityOption,
-} from "@/components/form/entity-multi-combobox";
 import { EnumSelect } from "@/components/form/enum-select";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
 import { FormField } from "@/components/form/form-field";
-import { IconButton } from "@/components/icon-button";
 import { Button } from "@/components/ui/button";
-import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import {
   LINE_OF_BUSINESS,
   LINE_OF_BUSINESS_LABELS,
   type LineOfBusiness,
 } from "@/lib/line-of-business";
-import {
-  PROJECT_ROLE_TYPE_LABELS,
-  PROJECT_ROLE_TYPES,
-  type ProjectRoleType,
-} from "@/lib/project-role-type";
-import {
-  DEFAULT_PROJECT_STATUS,
-  PROJECT_STATUS_LABELS,
-  PROJECT_STATUSES,
-  type ProjectStatus,
-} from "@/lib/project-status";
-
-type RoleFieldValues = {
-  staff: EntityOption | null;
-  name: string;
-  roleType: ProjectRoleType | "";
-  startDate: string | null;
-  endDate: string | null;
-  hoursPerDay: string;
-};
 
 type ProjectFormValues = {
   name: string;
   companyId: string;
   companyName: string;
   lineOfBusiness: LineOfBusiness | "";
-  status: ProjectStatus;
-  deliveryManagers: EntityOption[];
-  roles: RoleFieldValues[];
-};
-
-const EMPTY_ROLE: RoleFieldValues = {
-  staff: null,
-  name: "",
-  roleType: "",
-  startDate: null,
-  endDate: null,
-  hoursPerDay: "8",
-};
-
-// Maps a role sub-field (schema name) to the form field name (per row).
-const ROLE_FIELD_FOR_ISSUE: Record<
-  keyof ProjectRoleInput,
-  keyof RoleFieldValues
-> = {
-  staffId: "staff",
-  name: "name",
-  roleType: "roleType",
-  startDate: "startDate",
-  endDate: "endDate",
-  hoursPerDay: "hoursPerDay",
 };
 
 // Maps a top-level server-schema issue path to its form field. Typed by
 // `keyof CreateProjectInput` so a new schema field can't silently drop its
-// errors. `roles` is a field-array: its issues (`roles[i].sub`) route per-row
-// through ROLE_FIELD_FOR_ISSUE.
+// errors. Fields the simplified form no longer collects (status, delivery
+// managers, roles — all defaulted server-side) route to `name` as a harmless
+// fallback; they can't produce validation issues from this form.
 const FIELD_FOR_ISSUE: Record<
   keyof CreateProjectInput,
   IssueTarget<ProjectFormValues>
@@ -98,11 +45,10 @@ const FIELD_FOR_ISSUE: Record<
   name: "name",
   companyId: "companyId",
   lineOfBusiness: "lineOfBusiness",
-  status: "status",
-  // Prefilled/derived, never surfaced as a form field.
+  status: "name",
   opportunityId: "companyId",
-  deliveryManagerIds: "deliveryManagers",
-  roles: { array: "roles", fields: ROLE_FIELD_FOR_ISSUE },
+  deliveryManagerIds: "name",
+  roles: "name",
 };
 
 type ProjectDialogProps = {
@@ -123,10 +69,13 @@ type ProjectDialogProps = {
 };
 
 /**
- * The create-project dialog. Self-manages its trigger button by default (the
- * projects page); pass `open`/`onOpenChange` to drive it from a parent (the
- * opportunity drawer and the board's delivery-stage prompt), plus the
- * `opportunity`/company props to link and pin it. One component serves all three.
+ * The create-project dialog. Deliberately minimal — it collects only name,
+ * company, and line of business; roles and delivery managers are added
+ * afterward in the project planner (the opportunity drawer's "Project plan"
+ * tab). Self-manages its trigger button by default (the projects page); pass
+ * `open`/`onOpenChange` to drive it from a parent (the opportunity drawer and
+ * the board's delivery-stage prompt), plus the `opportunity`/company props to
+ * link and pin it. One component serves all three.
  */
 export function AddProjectDialog({
   trigger,
@@ -169,10 +118,10 @@ export function AddProjectDialog({
       title="Add project"
       description={
         opportunityId
-          ? "Create the project that delivers this opportunity."
-          : "Create a project for a company and staff it with roles."
+          ? "Create the project that delivers this opportunity. Add roles and delivery managers afterward in its planner."
+          : "Create a project for a company. Add roles and delivery managers afterward in its planner."
       }
-      contentClassName="max-h-[85vh] overflow-y-auto sm:max-w-2xl"
+      contentClassName="max-h-[85vh] overflow-y-auto sm:max-w-lg"
     >
       {({ close }) => (
         <ProjectForm
@@ -213,14 +162,8 @@ function ProjectForm({
       companyId: defaultCompanyId ?? "",
       companyName: defaultCompanyName ?? "",
       lineOfBusiness: defaultLineOfBusiness ?? "",
-      status: DEFAULT_PROJECT_STATUS,
-      deliveryManagers: [],
-      // Seed one role so the "at least one role" requirement is obvious.
-      roles: [EMPTY_ROLE],
     },
   });
-
-  const { fields, append, remove } = useFieldArray({ control, name: "roles" });
 
   const { execute, result, isPending } = useAction(createProject, {
     onSuccess: ({ data }) => {
@@ -237,17 +180,7 @@ function ProjectForm({
       name: values.name,
       companyId: values.companyId,
       lineOfBusiness: values.lineOfBusiness,
-      status: values.status,
       opportunityId,
-      deliveryManagerIds: values.deliveryManagers.map((d) => d.id),
-      roles: values.roles.map((role) => ({
-        staffId: role.staff?.id ?? undefined,
-        name: role.name,
-        roleType: role.roleType,
-        startDate: role.startDate ?? "",
-        endDate: role.endDate ?? "",
-        hoursPerDay: role.hoursPerDay,
-      })),
     };
 
     const parsed = createProjectSchema.safeParse(payload);
@@ -320,201 +253,6 @@ function ProjectForm({
           )}
         />
       </FormField>
-
-      <FormField label="Status" error={errors.status?.message}>
-        <Controller
-          control={control}
-          name="status"
-          render={({ field, fieldState }) => (
-            <EnumSelect
-              options={PROJECT_STATUSES}
-              labels={PROJECT_STATUS_LABELS}
-              placeholder="Select a status"
-              value={field.value}
-              invalid={Boolean(fieldState.error)}
-              onValueChange={field.onChange}
-            />
-          )}
-        />
-      </FormField>
-
-      <FormField label="Delivery managers">
-        <Controller
-          control={control}
-          name="deliveryManagers"
-          render={({ field, fieldState }) => (
-            <EntityMultiCombobox
-              value={field.value}
-              onChange={field.onChange}
-              searchAction={searchStaff}
-              placeholder="Search staff…"
-              invalid={Boolean(fieldState.error)}
-            />
-          )}
-        />
-      </FormField>
-
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Roles</span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => append(EMPTY_ROLE)}
-          >
-            <IconPlus />
-            Add role
-          </Button>
-        </div>
-
-        {fields.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            At least one role is required. Add one to staff this project — leave
-            the person blank for a placeholder (open) role.
-          </p>
-        ) : null}
-
-        {errors.roles?.root?.message ? (
-          <p className="text-sm text-destructive">
-            {errors.roles.root.message}
-          </p>
-        ) : null}
-
-        {fields.map((rowField, index) => {
-          const rowErrors = errors.roles?.[index];
-          return (
-            <div
-              key={rowField.id}
-              className="flex flex-col gap-3 rounded border p-3"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
-                  Role {index + 1}
-                </span>
-                <IconButton
-                  label={`Remove role ${index + 1}`}
-                  size="icon-sm"
-                  onClick={() => remove(index)}
-                >
-                  <IconTrash className="size-4" />
-                </IconButton>
-              </div>
-
-              <div className="flex gap-3">
-                <FormField
-                  label="Role type"
-                  error={rowErrors?.roleType?.message}
-                  className="flex-1"
-                >
-                  <Controller
-                    control={control}
-                    name={`roles.${index}.roleType`}
-                    render={({ field, fieldState }) => (
-                      <EnumSelect
-                        options={PROJECT_ROLE_TYPES}
-                        labels={PROJECT_ROLE_TYPE_LABELS}
-                        placeholder="Select a role type"
-                        value={field.value}
-                        invalid={Boolean(fieldState.error)}
-                        onValueChange={field.onChange}
-                      />
-                    )}
-                  />
-                </FormField>
-
-                <FormField
-                  label="Name (optional)"
-                  htmlFor={`role-name-${index}`}
-                  error={rowErrors?.name?.message}
-                  className="flex-1"
-                >
-                  <Input
-                    id={`role-name-${index}`}
-                    placeholder="Senior Backend Engineer"
-                    aria-invalid={Boolean(rowErrors?.name)}
-                    {...register(`roles.${index}.name`)}
-                  />
-                </FormField>
-              </div>
-
-              <FormField
-                label="Staff (optional)"
-                error={rowErrors?.staff?.message}
-              >
-                <Controller
-                  control={control}
-                  name={`roles.${index}.staff`}
-                  render={({ field, fieldState }) => (
-                    <EntityCombobox
-                      value={field.value}
-                      onChange={field.onChange}
-                      searchAction={searchStaff}
-                      placeholder="Search staff…"
-                      invalid={Boolean(fieldState.error)}
-                    />
-                  )}
-                />
-              </FormField>
-
-              <div className="flex gap-3">
-                <FormField
-                  label="Start date"
-                  error={rowErrors?.startDate?.message}
-                  className="flex-1"
-                >
-                  <Controller
-                    control={control}
-                    name={`roles.${index}.startDate`}
-                    render={({ field }) => (
-                      <DatePicker
-                        value={field.value}
-                        onChange={field.onChange}
-                        className="w-full"
-                      />
-                    )}
-                  />
-                </FormField>
-
-                <FormField
-                  label="End date"
-                  error={rowErrors?.endDate?.message}
-                  className="flex-1"
-                >
-                  <Controller
-                    control={control}
-                    name={`roles.${index}.endDate`}
-                    render={({ field }) => (
-                      <DatePicker
-                        value={field.value}
-                        onChange={field.onChange}
-                        className="w-full"
-                      />
-                    )}
-                  />
-                </FormField>
-
-                <FormField
-                  label="Hours / day"
-                  htmlFor={`role-hours-${index}`}
-                  error={rowErrors?.hoursPerDay?.message}
-                  className="flex-[2]"
-                >
-                  <Input
-                    id={`role-hours-${index}`}
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    max="24"
-                    aria-invalid={Boolean(rowErrors?.hoursPerDay)}
-                    {...register(`roles.${index}.hoursPerDay`)}
-                  />
-                </FormField>
-              </div>
-            </div>
-          );
-        })}
-      </div>
 
       <FormDialogFooter
         serverError={result.serverError}

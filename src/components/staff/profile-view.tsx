@@ -2,6 +2,7 @@ import { IconExternalLink, IconPencil } from "@tabler/icons-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { ManualOfMeEntry } from "@/actions/responses/getManualOfMe";
+import type { WaysOfWorking } from "@/actions/responses/getWaysOfWorking";
 import type { HistoryEntry } from "@/actions/staff/getStaffHistory";
 import type { StaffProfile } from "@/actions/staff/getStaffProfile";
 import type { StaffProjectSummary } from "@/actions/staff/getStaffProjects";
@@ -15,6 +16,7 @@ import { ManualOfMeSection } from "@/components/staff/manual-of-me-section";
 import { PtoContent } from "@/components/staff/pto-section";
 import { SkillsSection } from "@/components/staff/skills-section";
 import { StaffProjectsSection } from "@/components/staff/staff-projects-section";
+import { WaysOfWorkingSection } from "@/components/staff/ways-of-working-section";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -98,6 +100,7 @@ export function ProfileView({
   profile,
   projects,
   manualOfMe,
+  waysOfWorking,
   history,
   pto,
   canEdit,
@@ -110,6 +113,8 @@ export function ProfileView({
   projects: StaffProjectSummary[];
   /** This person's Manual of Me answers, in question order (unanswered → null). */
   manualOfMe: ManualOfMeEntry[];
+  /** This person's Ways of Working survey answers (keyed by question id). */
+  waysOfWorking: WaysOfWorking;
   history: HistoryEntry[];
   /** Null when the viewer isn't allowed to see this person's PTO (pto.review). */
   pto: StaffPtoView | null;
@@ -123,6 +128,7 @@ export function ProfileView({
   const manualOfMeAnswered = manualOfMe.filter(
     (entry) => entry.textResponse !== null,
   ).length;
+  const waysOfWorkingAnswered = waysOfWorking.answeredCount;
 
   const employmentSummary = employment
     ? [
@@ -225,6 +231,7 @@ export function ProfileView({
             <TabsList variant="line" className="mb-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="manual-of-me">Manual of Me</TabsTrigger>
+              <TabsTrigger value="ways-of-working">Ways of Working</TabsTrigger>
               <TabsTrigger value="resume">Resume</TabsTrigger>
               <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
@@ -325,6 +332,37 @@ export function ProfileView({
                   {manualOfMeAnswered > 0 ? (
                     <p className="text-xs text-muted-foreground">
                       {manualOfMeAnswered} of {manualOfMe.length} answered
+                    </p>
+                  ) : null}
+                </div>
+              </TabSection>
+            </TabsContent>
+
+            <TabsContent value="ways-of-working">
+              <TabSection
+                title="Ways of Working"
+                action={
+                  canEdit ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      nativeButton={false}
+                      render={
+                        <Link href={`/staff/${staffId}/ways-of-working`} />
+                      }
+                    >
+                      <IconPencil />
+                      {waysOfWorkingAnswered > 0 ? "Edit" : "Fill out"}
+                    </Button>
+                  ) : undefined
+                }
+              >
+                <div className="flex flex-col gap-3">
+                  <WaysOfWorkingSection responses={waysOfWorking} />
+                  {waysOfWorkingAnswered > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      {waysOfWorkingAnswered} of {waysOfWorking.totalCount}{" "}
+                      answered
                     </p>
                   ) : null}
                 </div>

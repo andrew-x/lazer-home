@@ -7,7 +7,7 @@ import { ExternalLink } from "@/components/external-link";
 import { InternalLink } from "@/components/internal-link";
 import { Badge } from "@/components/ui/badge";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { humanizeEnum } from "@/lib/format";
+import { formatShortDate, humanizeEnum } from "@/lib/format";
 import {
   DetailIdentity,
   DetailLayout,
@@ -172,7 +172,9 @@ export function CompanyDetailView({
         {company.contacts.length === 0 ? (
           <TableEmpty>No contacts at this company yet.</TableEmpty>
         ) : (
-          <DetailTable headers={["Name", "Role", "Email", "Phone"]}>
+          <DetailTable
+            headers={["Name", "Role", "Email", "Phone", "Next steps"]}
+          >
             {company.contacts.map((contact) => (
               <TableRow key={contact.id}>
                 <TableCell className="font-medium">
@@ -187,6 +189,20 @@ export function CompanyDetailView({
                 <TableCell>
                   {contact.phone ? (
                     <PhoneLink phone={contact.phone} />
+                  ) : (
+                    <EmptyCell />
+                  )}
+                </TableCell>
+                <TableCell>
+                  {contact.nextStep ? (
+                    <span className="flex flex-col gap-0.5">
+                      <span className="line-clamp-2">{contact.nextStep}</span>
+                      {contact.nextStepAt ? (
+                        <span className="text-xs text-muted-foreground">
+                          {formatShortDate(new Date(contact.nextStepAt))}
+                        </span>
+                      ) : null}
+                    </span>
                   ) : (
                     <EmptyCell />
                   )}

@@ -16,6 +16,8 @@ import {
 } from "@/lib/db/schema";
 import type { LineOfBusiness } from "@/lib/line-of-business";
 import type { OpportunitySource, OpportunityStatus } from "@/lib/opportunity";
+import type { EntryView } from "./entryViews";
+import { getOpportunityEntries } from "./entryViews";
 
 /** A picked entity, shaped for the drawer's comboboxes. */
 export type EntityRef = { id: string; name: string };
@@ -27,12 +29,16 @@ export type OpportunityDetail = {
   lineOfBusiness: LineOfBusiness;
   source: OpportunitySource;
   status: OpportunityStatus;
-  nextSteps: string | null;
   contacts: EntityRef[];
   owners: EntityRef[];
   sourceContacts: EntityRef[];
   sourceStaff: EntityRef[];
-  projects: EntityRef[];
+  /** The single project that delivers this opportunity, or null if none yet. */
+  project: EntityRef | null;
+  /** Timestamped notes, newest first. */
+  notes: EntryView[];
+  /** Timestamped next steps, newest first. */
+  nextSteps: EntryView[];
 };
 
 const contactName = contactNameSql(contacts);
@@ -55,16 +61,20 @@ export async function getOpportunity(
       lineOfBusiness: opportunities.lineOfBusiness,
       source: opportunities.source,
       status: opportunities.status,
-      nextSteps: opportunities.nextSteps,
+      // The delivery link now lives on the opportunity (many-to-one). Left-join
+      // the project so an unlinked opportunity still returns its base row.
+      projectId: projects.id,
+      projectName: projects.name,
     })
     .from(opportunities)
     .innerJoin(companies, eq(opportunities.companyId, companies.id))
+    .leftJoin(projects, eq(opportunities.projectId, projects.id))
     .where(eq(opportunities.id, id))
     .limit(1);
 
   if (!base) return null;
 
-  const [contactRows, ownerRows, srcContactRows, srcStaffRows, projectRows] =
+  const [contactRows, ownerRows, srcContactRows, srcStaffRows, entries] =
     await Promise.all([
       db
         .select({ id: contacts.id, name: contactName })
@@ -93,11 +103,7 @@ export async function getOpportunity(
         .innerJoin(staff, eq(opportunitySourceStaff.staffId, staff.id))
         .where(eq(opportunitySourceStaff.opportunityId, id))
         .orderBy(asc(staff.name)),
-      db
-        .select({ id: projects.id, name: projects.name })
-        .from(projects)
-        .where(eq(projects.opportunityId, id))
-        .orderBy(asc(projects.createdAt)),
+      getOpportunityEntries(id),
     ]);
 
   return {
@@ -107,11 +113,15 @@ export async function getOpportunity(
     lineOfBusiness: base.lineOfBusiness,
     source: base.source,
     status: base.status,
-    nextSteps: base.nextSteps,
     contacts: contactRows,
     owners: ownerRows,
     sourceContacts: srcContactRows,
     sourceStaff: srcStaffRows,
-    projects: projectRows,
+    project:
+      base.projectId && base.projectName
+        ? { id: base.projectId, name: base.projectName }
+        : null,
+    notes: entries.notes,
+    nextSteps: entries.nextSteps,
   };
 }

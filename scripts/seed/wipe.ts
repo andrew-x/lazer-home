@@ -22,12 +22,14 @@ const SEEDABLE_TABLES = [
   "project_delivery_managers",
   "projects",
   // opportunities
+  "opportunity_entries",
   "opportunity_source_staff",
   "opportunity_source_contacts",
   "opportunity_owners",
   "opportunity_contacts",
   "opportunities",
   // crm
+  "contact_entries",
   "contacts",
   "companies",
   // staff

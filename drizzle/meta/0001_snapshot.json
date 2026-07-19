@@ -1,5 +1,5 @@
 {
-  "id": "c53d2e52-9144-4cad-a55f-2a53502e6038",
+  "id": "82f9c5f9-3b29-40a2-a4da-3d079bf37cb5",
   "prevId": "868d750c-c013-40f7-bc20-908ce7a15cce",
   "version": "7",
   "dialect": "postgresql",
@@ -415,6 +415,119 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.contact_entries": {
+      "name": "contact_entries",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "contact_id": {
+          "name": "contact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "crm_entry_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "author_staff_id": {
+          "name": "author_staff_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "contact_entries_contact_kind_created_idx": {
+          "name": "contact_entries_contact_kind_created_idx",
+          "columns": [
+            {
+              "expression": "contact_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "contact_entries_contact_id_contacts_id_fk": {
+          "name": "contact_entries_contact_id_contacts_id_fk",
+          "tableFrom": "contact_entries",
+          "tableTo": "contacts",
+          "columnsFrom": [
+            "contact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "contact_entries_author_staff_id_staff_id_fk": {
+          "name": "contact_entries_author_staff_id_staff_id_fk",
+          "tableFrom": "contact_entries",
+          "tableTo": "staff",
+          "columnsFrom": [
+            "author_staff_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.contacts": {
       "name": "contacts",
       "schema": "",
@@ -593,12 +706,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "next_steps": {
-          "name": "next_steps",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "position": {
           "name": "position",
           "type": "double precision",
@@ -751,6 +858,119 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.opportunity_entries": {
+      "name": "opportunity_entries",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "opportunity_id": {
+          "name": "opportunity_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "crm_entry_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "author_staff_id": {
+          "name": "author_staff_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "opportunity_entries_opp_kind_created_idx": {
+          "name": "opportunity_entries_opp_kind_created_idx",
+          "columns": [
+            {
+              "expression": "opportunity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "opportunity_entries_opportunity_id_opportunities_id_fk": {
+          "name": "opportunity_entries_opportunity_id_opportunities_id_fk",
+          "tableFrom": "opportunity_entries",
+          "tableTo": "opportunities",
+          "columnsFrom": [
+            "opportunity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "opportunity_entries_author_staff_id_staff_id_fk": {
+          "name": "opportunity_entries_author_staff_id_staff_id_fk",
+          "tableFrom": "opportunity_entries",
+          "tableTo": "staff",
+          "columnsFrom": [
+            "author_staff_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1169,111 +1389,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.staff_rating": {
-      "name": "staff_rating",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "staff_id": {
-          "name": "staff_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "effective_date": {
-          "name": "effective_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "level": {
-          "name": "level",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "evaluated_by_user_id": {
-          "name": "evaluated_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "staff_rating_staff_idx": {
-          "name": "staff_rating_staff_idx",
-          "columns": [
-            {
-              "expression": "staff_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "staff_rating_staff_id_staff_id_fk": {
-          "name": "staff_rating_staff_id_staff_id_fk",
-          "tableFrom": "staff_rating",
-          "tableTo": "staff",
-          "columnsFrom": [
-            "staff_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "staff_rating_evaluated_by_user_id_user_id_fk": {
-          "name": "staff_rating_evaluated_by_user_id_user_id_fk",
-          "tableFrom": "staff_rating",
-          "tableTo": "user",
-          "columnsFrom": [
-            "evaluated_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "staff_rating_level_range": {
-          "name": "staff_rating_level_range",
-          "value": "\"staff_rating\".\"level\" is null or (\"staff_rating\".\"level\" >= 0 and \"staff_rating\".\"level\" <= 4)"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.project_delivery_managers": {
@@ -2325,6 +2440,14 @@
     }
   },
   "enums": {
+    "public.crm_entry_kind": {
+      "name": "crm_entry_kind",
+      "schema": "public",
+      "values": [
+        "note",
+        "next_step"
+      ]
+    },
     "public.opportunity_source": {
       "name": "opportunity_source",
       "schema": "public",

@@ -13,6 +13,7 @@ import {
 } from "@/lib/db/schema";
 import { UserSafeActionError } from "@/lib/errors";
 import { assertOpportunityTransitionAllowed } from "./assertOpportunityTransitionAllowed";
+import { confirmRolesOnWon } from "./confirmRolesOnWon";
 import { writeOpportunityLinks } from "./opportunityLinks";
 import { updateOpportunitySchema } from "./updateOpportunity.schema";
 
@@ -41,7 +42,19 @@ export const updateOpportunity = secureActionClient
     const { id } = parsedInput;
 
     await db.transaction(async (tx) => {
-      const updated = await tx
+      // Capture the status before the write so we can detect a genuine
+      // transition into `closed_won` (Postgres RETURNING would give the new
+      // value). Also guards the row's existence.
+      const [before] = await tx
+        .select({ status: opportunities.status })
+        .from(opportunities)
+        .where(eq(opportunities.id, id))
+        .limit(1);
+      if (!before) {
+        throw new UserSafeActionError("That opportunity no longer exists.");
+      }
+
+      await tx
         .update(opportunities)
         .set({
           name: parsedInput.name,
@@ -49,14 +62,11 @@ export const updateOpportunity = secureActionClient
           lineOfBusiness: parsedInput.lineOfBusiness,
           source: parsedInput.source,
           status: parsedInput.status,
-          nextSteps: parsedInput.nextSteps,
         })
-        .where(eq(opportunities.id, id))
-        .returning({ id: opportunities.id });
+        .where(eq(opportunities.id, id));
 
-      if (updated.length === 0) {
-        throw new UserSafeActionError("That opportunity no longer exists.");
-      }
+      // Won locks this opportunity's tentative roles (same transaction).
+      await confirmRolesOnWon(tx, id, parsedInput.status, before.status);
 
       // Replace the people junctions wholesale.
       await tx

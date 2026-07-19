@@ -1,4 +1,4 @@
-import { type InferSelectModel, sql } from "drizzle-orm";
+import type { InferSelectModel } from "drizzle-orm";
 import {
   date,
   index,
@@ -8,8 +8,11 @@ import {
   text,
   timestamp,
   unique,
-  uniqueIndex,
 } from "drizzle-orm/pg-core";
+import {
+  DEFAULT_PROJECT_ROLE_STATUS,
+  PROJECT_ROLE_STATUSES,
+} from "@/lib/project-role-status";
 import { PROJECT_ROLE_TYPES } from "@/lib/project-role-type";
 import { DEFAULT_PROJECT_STATUS, PROJECT_STATUSES } from "@/lib/project-status";
 import { companies } from "./crm-schema";
@@ -33,48 +36,30 @@ export const projectStatusEnum = pgEnum("project_status", [
   ...PROJECT_STATUSES,
 ]);
 
-export const projects = pgTable(
-  "projects",
-  {
-    id: text().primaryKey(),
-    name: text().notNull(),
-    // Where the project sits in its lifecycle. New projects default to
-    // `tentative`; the shared enum is the single source of truth.
-    status: projectStatusEnum().notNull().default(DEFAULT_PROJECT_STATUS),
-    // A project always belongs to a company. `restrict`: a company with live
-    // projects can't be deleted (mirrors opportunities).
-    companyId: text()
-      .notNull()
-      .references(() => companies.id, { onDelete: "restrict" }),
-    // The line of business this project belongs to. Defaults to the originating
-    // opportunity's line of business when created from one (see createProject).
-    // Shared/global enum (see `lineOfBusinessEnum`).
-    lineOfBusiness: lineOfBusinessEnum().notNull(),
-    // A project may originate from a CRM opportunity — optional, so a project
-    // can also be created standalone. `restrict`: an opportunity with a live
-    // project can't be deleted (mirrors companyId). An opportunity has at most
-    // one project; a project relates to at most one opportunity.
-    opportunityId: text().references(() => opportunities.id, {
-      onDelete: "restrict",
-    }),
+export const projects = pgTable("projects", {
+  id: text().primaryKey(),
+  name: text().notNull(),
+  // Where the project sits in its lifecycle. New projects default to
+  // `tentative`; the shared enum is the single source of truth.
+  status: projectStatusEnum().notNull().default(DEFAULT_PROJECT_STATUS),
+  // A project always belongs to a company. `restrict`: a company with live
+  // projects can't be deleted (mirrors opportunities).
+  companyId: text()
+    .notNull()
+    .references(() => companies.id, { onDelete: "restrict" }),
+  // The line of business this project belongs to. Defaults to the originating
+  // opportunity's line of business when created from one (see createProject).
+  // Shared/global enum (see `lineOfBusinessEnum`).
+  lineOfBusiness: lineOfBusinessEnum().notNull(),
+  // The CRM → delivery link now lives on `opportunities.projectId` (many
+  // opportunities can build up one project). See docs/decisions/0019 and 0024.
 
-    createdAt: timestamp().defaultNow().notNull(),
-    updatedAt: timestamp()
-      .defaultNow()
-      .$onUpdate(() => new Date())
-      .notNull(),
-  },
-  (t) => [
-    // At most one project per opportunity. Partial, because the column is
-    // nullable — standalone projects (null opportunityId) aren't constrained and
-    // can coexist. Also serves as the lookup index on the FK. The predicate uses
-    // the bare column name: Postgres rejects a table-qualified reference in a
-    // CREATE INDEX WHERE clause.
-    uniqueIndex("projects_opportunity_idx")
-      .on(t.opportunityId)
-      .where(sql`"opportunity_id" is not null`),
-  ],
-);
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp()
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
 
 // Delivery managers: many staff per project. Junction table following the CRM
 // convention — surrogate `text` PK, a unique on the FK pair for set-semantics,
@@ -103,6 +88,13 @@ export const projectRoleTypeEnum = pgEnum("project_role_type", [
   ...PROJECT_ROLE_TYPES,
 ]);
 
+// Role planning status — `tentative` while planned against an opportunity,
+// `confirmed` once that opportunity is won. Built from the shared client-safe
+// module so the pgEnum, zod, and labels can't drift.
+export const projectRoleStatusEnum = pgEnum("project_role_status", [
+  ...PROJECT_ROLE_STATUSES,
+]);
+
 // Roles: a staffing line on a project. Not a pure junction — it carries the
 // role type (discipline), date range, and daily hours. A role may be a
 // *placeholder* (an open position defined before it's staffed), so `staffId` is
@@ -118,6 +110,19 @@ export const projectRoles = pgTable(
       .references(() => projects.id, { onDelete: "cascade" }),
     // Null for a placeholder/open position; set once the role is staffed.
     staffId: text().references(() => staff.id, { onDelete: "restrict" }),
+    // The opportunity that created this role (which deal/extension staffed it),
+    // used to scope who may edit it and to grey out roles from other
+    // opportunities in that opportunity's planner. Nullable: a role added to a
+    // standalone project has no opportunity. `set null`: deleting the
+    // opportunity keeps the role (its `projectId` still holds it).
+    opportunityId: text().references(() => opportunities.id, {
+      onDelete: "set null",
+    }),
+    // `tentative` while planned; flips to `confirmed` when the opportunity is
+    // won. A confirmed role is locked (read-only) in the planner.
+    status: projectRoleStatusEnum()
+      .notNull()
+      .default(DEFAULT_PROJECT_ROLE_STATUS),
     // Optional label for the line, e.g. "Senior Backend Engineer".
     name: text(),
     roleType: projectRoleTypeEnum().notNull(),
@@ -132,6 +137,7 @@ export const projectRoles = pgTable(
   (t) => [
     index("project_roles_project_idx").on(t.projectId),
     index("project_roles_staff_idx").on(t.staffId),
+    index("project_roles_opportunity_idx").on(t.opportunityId),
   ],
 );
 

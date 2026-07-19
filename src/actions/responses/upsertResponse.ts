@@ -15,21 +15,38 @@ import { upsertResponseSchema } from "./upsertResponse.schema";
  *
  * Gated by `authorizeStaffEdit` (own profile always; others need `staff.edit`),
  * which reads `staffId` off the input — the same boundary as every other
- * profile-field edit. Clearing an answer sends "" → null (kept row).
+ * profile-field edit. Clearing an answer sends "" / [] → null (kept row).
+ *
+ * A question uses one payload shape; we write both columns explicitly (nulling
+ * the unused one) so a row never carries a stale value from the other shape.
  */
 export const upsertResponse = secureActionClient
   .metadata({ action: "upsert-response", authorize: authorizeStaffEdit })
   .inputSchema(upsertResponseSchema)
-  .action(async ({ parsedInput: { staffId, questionId, textResponse } }) => {
-    await db
-      .insert(responses)
-      .values({ id: generateId("response"), staffId, questionId, textResponse })
-      .onConflictDoUpdate({
-        target: [responses.staffId, responses.questionId],
-        set: { textResponse },
-      });
+  .action(
+    async ({
+      parsedInput: { staffId, questionId, textResponse, listResponse },
+    }) => {
+      const text = textResponse ?? null;
+      const list =
+        listResponse && listResponse.length > 0 ? listResponse : null;
 
-    revalidatePath("/profile");
-    revalidatePath(`/staff/${staffId}`);
-    return { ok: true };
-  });
+      await db
+        .insert(responses)
+        .values({
+          id: generateId("response"),
+          staffId,
+          questionId,
+          textResponse: text,
+          listResponse: list,
+        })
+        .onConflictDoUpdate({
+          target: [responses.staffId, responses.questionId],
+          set: { textResponse: text, listResponse: list },
+        });
+
+      revalidatePath("/profile");
+      revalidatePath(`/staff/${staffId}`);
+      return { ok: true };
+    },
+  );

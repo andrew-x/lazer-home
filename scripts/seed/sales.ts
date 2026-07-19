@@ -14,7 +14,7 @@ import {
 import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
 import { OPPORTUNITY_SOURCES, OPPORTUNITY_STATUSES } from "@/lib/opportunity";
 import type { SeedDb } from "./client";
-import { chance, faker } from "./faker";
+import { faker } from "./faker";
 
 type OpportunityInsert = InferInsertModel<typeof opportunities>;
 type OwnerInsert = InferInsertModel<typeof opportunityOwners>;
@@ -53,7 +53,6 @@ export async function seedOpportunities(
         source: faker.helpers.arrayElement(OPPORTUNITY_SOURCES),
         status,
         lineOfBusiness: faker.helpers.arrayElement(LINE_OF_BUSINESS),
-        nextSteps: chance(0.7) ? faker.lorem.sentence() : null,
         position: position++,
       });
     }
