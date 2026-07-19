@@ -1,6 +1,8 @@
+CREATE TYPE "public"."crm_entry_kind" AS ENUM('note', 'next_step');--> statement-breakpoint
 CREATE TYPE "public"."opportunity_source" AS ENUM('inbound', 'farming', 'extension', 'change_request', 'staff_referral', 'contact_referral');--> statement-breakpoint
 CREATE TYPE "public"."opportunity_status" AS ENUM('maturing', 'lead', 'qualifying', 'scoping_awaiting_info', 'scoping', 'scoping_reviewing', 'allocating_awaiting_profiles', 'allocating_introing_profiles', 'negotiating', 'closing_awaiting_contracts', 'closing_redlining', 'closing_awaiting_signatures', 'closed_won', 'closed_lost');--> statement-breakpoint
 CREATE TYPE "public"."feedback_rating" AS ENUM('ABOVE_AND_BEYOND', 'TOP_PERFORMER', 'SOLID_CONTRIBUTOR', 'MINOR_MISSES', 'NEEDS_IMPROVEMENT');--> statement-breakpoint
+CREATE TYPE "public"."project_role_status" AS ENUM('tentative', 'confirmed');--> statement-breakpoint
 CREATE TYPE "public"."project_role_type" AS ENUM('ENGINEER', 'DESIGNER', 'ARCHITECT', 'QA', 'SPECIALIST');--> statement-breakpoint
 CREATE TYPE "public"."project_status" AS ENUM('tentative', 'confirmed', 'paused', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."billable_type" AS ENUM('HUB', 'GLOBAL');--> statement-breakpoint
@@ -74,6 +76,16 @@ CREATE TABLE "companies" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "contact_entries" (
+	"id" text PRIMARY KEY NOT NULL,
+	"contact_id" text NOT NULL,
+	"kind" "crm_entry_kind" NOT NULL,
+	"body" text NOT NULL,
+	"author_staff_id" text,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "contacts" (
 	"id" text PRIMARY KEY NOT NULL,
 	"first_name" text NOT NULL,
@@ -97,8 +109,8 @@ CREATE TABLE "opportunities" (
 	"source" "opportunity_source" NOT NULL,
 	"status" "opportunity_status" NOT NULL,
 	"line_of_business" "line_of_business" NOT NULL,
-	"next_steps" text,
 	"position" double precision DEFAULT 0 NOT NULL,
+	"project_id" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -109,6 +121,16 @@ CREATE TABLE "opportunity_contacts" (
 	"contact_id" text NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "opportunity_contacts_unique" UNIQUE("opportunity_id","contact_id")
+);
+--> statement-breakpoint
+CREATE TABLE "opportunity_entries" (
+	"id" text PRIMARY KEY NOT NULL,
+	"opportunity_id" text NOT NULL,
+	"kind" "crm_entry_kind" NOT NULL,
+	"body" text NOT NULL,
+	"author_staff_id" text,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "opportunity_owners" (
@@ -150,6 +172,17 @@ CREATE TABLE "feedback" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "staff_rating" (
+	"id" text PRIMARY KEY NOT NULL,
+	"staff_id" text NOT NULL,
+	"effective_date" date NOT NULL,
+	"level" integer,
+	"evaluated_by_user_id" text,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "staff_rating_level_range" CHECK ("staff_rating"."level" is null or ("staff_rating"."level" >= 0 and "staff_rating"."level" <= 4))
+);
+--> statement-breakpoint
 CREATE TABLE "project_delivery_managers" (
 	"id" text PRIMARY KEY NOT NULL,
 	"project_id" text NOT NULL,
@@ -162,6 +195,8 @@ CREATE TABLE "project_roles" (
 	"id" text PRIMARY KEY NOT NULL,
 	"project_id" text NOT NULL,
 	"staff_id" text,
+	"opportunity_id" text,
+	"status" "project_role_status" DEFAULT 'tentative' NOT NULL,
 	"name" text,
 	"role_type" "project_role_type" NOT NULL,
 	"start_date" date NOT NULL,
@@ -176,7 +211,6 @@ CREATE TABLE "projects" (
 	"status" "project_status" DEFAULT 'tentative' NOT NULL,
 	"company_id" text NOT NULL,
 	"line_of_business" "line_of_business" NOT NULL,
-	"opportunity_id" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -276,12 +310,17 @@ CREATE TABLE "timesheets" (
 ALTER TABLE "account" ADD CONSTRAINT "account_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "companies" ADD CONSTRAINT "companies_owner_id_staff_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."staff"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "contact_entries" ADD CONSTRAINT "contact_entries_contact_id_contacts_id_fk" FOREIGN KEY ("contact_id") REFERENCES "public"."contacts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "contact_entries" ADD CONSTRAINT "contact_entries_author_staff_id_staff_id_fk" FOREIGN KEY ("author_staff_id") REFERENCES "public"."staff"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "contacts" ADD CONSTRAINT "contacts_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "contacts" ADD CONSTRAINT "contacts_manager_id_contacts_id_fk" FOREIGN KEY ("manager_id") REFERENCES "public"."contacts"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "contacts" ADD CONSTRAINT "contacts_owner_id_staff_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."staff"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "opportunities" ADD CONSTRAINT "opportunities_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "opportunities" ADD CONSTRAINT "opportunities_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "opportunity_contacts" ADD CONSTRAINT "opportunity_contacts_opportunity_id_opportunities_id_fk" FOREIGN KEY ("opportunity_id") REFERENCES "public"."opportunities"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "opportunity_contacts" ADD CONSTRAINT "opportunity_contacts_contact_id_contacts_id_fk" FOREIGN KEY ("contact_id") REFERENCES "public"."contacts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "opportunity_entries" ADD CONSTRAINT "opportunity_entries_opportunity_id_opportunities_id_fk" FOREIGN KEY ("opportunity_id") REFERENCES "public"."opportunities"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "opportunity_entries" ADD CONSTRAINT "opportunity_entries_author_staff_id_staff_id_fk" FOREIGN KEY ("author_staff_id") REFERENCES "public"."staff"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "opportunity_owners" ADD CONSTRAINT "opportunity_owners_opportunity_id_opportunities_id_fk" FOREIGN KEY ("opportunity_id") REFERENCES "public"."opportunities"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "opportunity_owners" ADD CONSTRAINT "opportunity_owners_staff_id_staff_id_fk" FOREIGN KEY ("staff_id") REFERENCES "public"."staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "opportunity_source_contacts" ADD CONSTRAINT "opportunity_source_contacts_opportunity_id_opportunities_id_fk" FOREIGN KEY ("opportunity_id") REFERENCES "public"."opportunities"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -290,12 +329,14 @@ ALTER TABLE "opportunity_source_staff" ADD CONSTRAINT "opportunity_source_staff_
 ALTER TABLE "opportunity_source_staff" ADD CONSTRAINT "opportunity_source_staff_staff_id_staff_id_fk" FOREIGN KEY ("staff_id") REFERENCES "public"."staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "feedback" ADD CONSTRAINT "feedback_from_staff_id_staff_id_fk" FOREIGN KEY ("from_staff_id") REFERENCES "public"."staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "feedback" ADD CONSTRAINT "feedback_to_staff_id_staff_id_fk" FOREIGN KEY ("to_staff_id") REFERENCES "public"."staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "staff_rating" ADD CONSTRAINT "staff_rating_staff_id_staff_id_fk" FOREIGN KEY ("staff_id") REFERENCES "public"."staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "staff_rating" ADD CONSTRAINT "staff_rating_evaluated_by_user_id_user_id_fk" FOREIGN KEY ("evaluated_by_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_delivery_managers" ADD CONSTRAINT "project_delivery_managers_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_delivery_managers" ADD CONSTRAINT "project_delivery_managers_staff_id_staff_id_fk" FOREIGN KEY ("staff_id") REFERENCES "public"."staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_roles" ADD CONSTRAINT "project_roles_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_roles" ADD CONSTRAINT "project_roles_staff_id_staff_id_fk" FOREIGN KEY ("staff_id") REFERENCES "public"."staff"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_roles" ADD CONSTRAINT "project_roles_opportunity_id_opportunities_id_fk" FOREIGN KEY ("opportunity_id") REFERENCES "public"."opportunities"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "projects" ADD CONSTRAINT "projects_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "projects" ADD CONSTRAINT "projects_opportunity_id_opportunities_id_fk" FOREIGN KEY ("opportunity_id") REFERENCES "public"."opportunities"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "responses" ADD CONSTRAINT "responses_staff_id_staff_id_fk" FOREIGN KEY ("staff_id") REFERENCES "public"."staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "staff" ADD CONSTRAINT "staff_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "staff" ADD CONSTRAINT "staff_manager_id_staff_id_fk" FOREIGN KEY ("manager_id") REFERENCES "public"."staff"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -304,17 +345,21 @@ ALTER TABLE "staff_pto" ADD CONSTRAINT "staff_pto_staff_id_staff_id_fk" FOREIGN 
 ALTER TABLE "time_entries" ADD CONSTRAINT "time_entries_timesheet_id_timesheets_id_fk" FOREIGN KEY ("timesheet_id") REFERENCES "public"."timesheets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "time_entries" ADD CONSTRAINT "time_entries_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "timesheets" ADD CONSTRAINT "timesheets_staff_id_staff_id_fk" FOREIGN KEY ("staff_id") REFERENCES "public"."staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "contact_entries_contact_kind_created_idx" ON "contact_entries" USING btree ("contact_id","kind","created_at");--> statement-breakpoint
 CREATE INDEX "opportunities_status_position_idx" ON "opportunities" USING btree ("status","position");--> statement-breakpoint
+CREATE INDEX "opportunities_project_idx" ON "opportunities" USING btree ("project_id");--> statement-breakpoint
 CREATE INDEX "opportunity_contacts_contact_idx" ON "opportunity_contacts" USING btree ("contact_id");--> statement-breakpoint
+CREATE INDEX "opportunity_entries_opp_kind_created_idx" ON "opportunity_entries" USING btree ("opportunity_id","kind","created_at");--> statement-breakpoint
 CREATE INDEX "opportunity_owners_staff_idx" ON "opportunity_owners" USING btree ("staff_id");--> statement-breakpoint
 CREATE INDEX "opportunity_source_contacts_contact_idx" ON "opportunity_source_contacts" USING btree ("contact_id");--> statement-breakpoint
 CREATE INDEX "opportunity_source_staff_staff_idx" ON "opportunity_source_staff" USING btree ("staff_id");--> statement-breakpoint
 CREATE INDEX "feedback_to_staff_idx" ON "feedback" USING btree ("to_staff_id");--> statement-breakpoint
 CREATE INDEX "feedback_from_staff_idx" ON "feedback" USING btree ("from_staff_id");--> statement-breakpoint
+CREATE INDEX "staff_rating_staff_idx" ON "staff_rating" USING btree ("staff_id");--> statement-breakpoint
 CREATE INDEX "project_delivery_managers_staff_idx" ON "project_delivery_managers" USING btree ("staff_id");--> statement-breakpoint
 CREATE INDEX "project_roles_project_idx" ON "project_roles" USING btree ("project_id");--> statement-breakpoint
 CREATE INDEX "project_roles_staff_idx" ON "project_roles" USING btree ("staff_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "projects_opportunity_idx" ON "projects" USING btree ("opportunity_id") WHERE "opportunity_id" is not null;--> statement-breakpoint
+CREATE INDEX "project_roles_opportunity_idx" ON "project_roles" USING btree ("opportunity_id");--> statement-breakpoint
 CREATE INDEX "responses_staff_idx" ON "responses" USING btree ("staff_id");--> statement-breakpoint
 CREATE INDEX "time_entries_timesheet_idx" ON "time_entries" USING btree ("timesheet_id");--> statement-breakpoint
 CREATE INDEX "timesheets_staff_idx" ON "timesheets" USING btree ("staff_id");
