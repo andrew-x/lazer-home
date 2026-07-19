@@ -40,6 +40,7 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0029](./0029-external-fx-rates-and-currency-normalization.md) | External FX rates (frankfurter.dev), USD-cross-rate conversion, never-throw fallback — first live external API call | accepted |
 | [0030](./0030-crm-timestamped-entries-notes-next-steps.md) | CRM notes & next steps as append logs: two concrete tables + shared kind enum, no per-entry ownership, scalar `nextSteps` dropped | accepted |
 | [0031](./0031-opportunity-project-planner-and-role-status.md) | Opportunity project planner: role `status` (tentative → confirmed), auto-confirm on won, weekly Gantt view | accepted |
+| [0032](./0032-staff-rating-levels-effective-dated-manager-only.md) | Staff rating levels (L0–L4): effective-dated, nullable, manager/admin-only with no self-view | accepted |
 
 > **0012 is intentionally absent** (the log jumps 0011 → 0013). It was a short-lived
 > ADR documenting the *open staff-edit gap pending RBAC*; it was **withdrawn** once

@@ -29,6 +29,7 @@ export const statement = {
   crm: ["edit"], // add/edit CRM companies, contacts & opportunities (reads are open)
   projects: ["edit"], // add/edit projects & their staffing (reads are open)
   feedback: ["review"], // view all peer feedback in full (giving is open to any active staff)
+  ratings: ["view", "edit"], // view / assign staff overall levels (L0–L4); sensitive, never visible to the staffer
   timesheets: ["edit"], // edit any timesheet, bypassing owner + ±1-week window (own weeks in-window need no permission)
 } as const;
 
@@ -49,6 +50,7 @@ export const roles = {
     crm: ["edit"],
     projects: ["edit"],
     feedback: ["review"],
+    ratings: ["view", "edit"],
     timesheets: ["edit"],
   }),
   // Admin keeps the business perms AND the Better Auth admin-plugin perms.
@@ -58,6 +60,7 @@ export const roles = {
     crm: ["edit"],
     projects: ["edit"],
     feedback: ["review"],
+    ratings: ["view", "edit"],
     timesheets: ["edit"],
     ...adminAc.statements,
   }),

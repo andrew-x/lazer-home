@@ -12,6 +12,7 @@ import type { SeedDb } from "./client";
 const SEEDABLE_TABLES = [
   // performance + survey
   "feedback",
+  "staff_rating",
   "responses",
   // timesheets
   "time_entries",

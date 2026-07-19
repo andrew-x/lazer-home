@@ -1,16 +1,19 @@
 # Domain: Performance management
 
-**Status: partially built.** Two concrete slices are realized: **peer feedback**
-and a **compensation & headcount analytics dashboard** (`/performance`, see
-below). The broader review/goal machinery (ReviewCycle, PerformanceReview, Goal)
-is still **proposed**.
+**Status: partially built.** Three concrete slices are realized: **peer feedback**,
+a **compensation & headcount analytics dashboard**, and **staff rating levels
+(L0–L4)** — the latter two share the **single `/performance` dashboard** (levels
+render as a section on that page, sharing its filter bar + currency toggle; there
+are **no tabs** — see below). The broader review/goal machinery (ReviewCycle,
+PerformanceReview, Goal) is still **proposed**.
 
 ## Purpose
 
 Ground assessment and growth in real signals — peer input, project work,
 utilization — rather than memory. The first shipped pieces let teammates capture
-structured feedback about each other continuously (not just at review time), and
-give finance/managers an aggregate read on workforce compensation & headcount.
+structured feedback about each other continuously (not just at review time), give
+finance/managers an aggregate read on workforce compensation & headcount, and let
+managers assign each person an overall performance **level** with a full history.
 
 ## Peer feedback — **built**
 
@@ -167,6 +170,115 @@ hand-rolled inline SVG — no charting library.** This is the documented pattern
 charts in this codebase; see [ui.md](../ui.md) → *Charts (hand-rolled SVG)* for the
 dataviz styling rules.
 
+## Staff rating levels (L0–L4) — **built**
+
+Each person gets an **overall performance level** — a single integer **L0–L4** a
+manager assigns and adjusts over time — distinct from peer feedback (per-interaction)
+and compensation. **Effective-dated exactly like `staff_employment`
+([ADR 0007](../decisions/0007-staff-employment-effective-dating.md)):** saving an
+evaluation inserts a **new dated row per changed staff member**, and the current
+level is the latest row per staff. Full rationale in
+[ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md).
+
+### Entity — `staff_rating` (`src/lib/db/performance-schema.ts`)
+
+- **`staffId`** — FK → `staff.id`, `onDelete: cascade`. Indexed (`staff_rating_staff_idx`).
+- **`effectiveDate`** — `date` (string mode); as-of date of this evaluation.
+- **`level`** — `integer`, **nullable**. `null` = explicitly **unrated** *as a
+  historied event* (a manager can set someone back to no rating); a staffer with
+  **no rows** is likewise unrated — both collapse to "Unrated" in every read. A DB
+  `CHECK` (`staff_rating_level_range`) enforces `level is null or 0..4`.
+- **`evaluatedByUserId`** — FK → `user.id`, `onDelete: set null` (audit; a rating
+  outlives the evaluator's record).
+
+The pure, client-importable module is **`src/lib/staff-rating.ts`** (`RATING_LEVELS`,
+`MIN/MAX_RATING_LEVEL`, `formatLevel` → `"L0".."L4"`/`"Unrated"`, `formatAverageLevel`
+→ `"L2.3"`, `isRatingLevel`, and the Select-value helpers `encodeLevelValue` /
+`decodeLevelValue` / `UNRATED_SELECT_VALUE` = `"none"` that map a level ↔ the edit
+dropdown's plain-string draft) — the single source the schema's `CHECK`, the zod
+schema, and the UI share, same shared-enum pattern as `feedback-rating.ts`
+([ADR 0016](../decisions/0016-junction-table-and-shared-enum-conventions.md)). The
+current-row ordering fragment is **`latestRatingFirst`**
+(`src/lib/staff-rating-history.ts`, `desc(effectiveDate)` then `desc(createdAt)`),
+a mirror of `latestEmploymentFirst` — kept out of the pure module so drizzle never
+leaks into a client bundle.
+
+### Access control — manager/admin-only, NO self-view (stricter than comp/feedback)
+
+A new resource **`ratings: ["view", "edit"]`**, granted to **manager + admin only**
+— deliberately **not finance** (unlike `staff.viewCompensation`). **There is no
+owner-visible path: a staffer never sees their own level, nor anyone else's** —
+stricter than compensation (own comp always visible) and feedback (recipients see a
+limited projection). A bare L-number has no constructive owner framing, so it stays
+entirely inside the manager/admin tier. See [permissions.md](./permissions.md) and
+[ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md).
+
+Defense in depth: both reads `requirePermission({ ratings: ["view"] })`, the write
+gates `metadata.permission: { ratings: ["edit"] }`, the pages `notFound()`, and the
+`/performance` server page fetches `getRatingsSummaryData()` **only** for
+`ratings.view` holders — passing it as the optional `ratingRecords` prop, so the
+**Levels section is omitted entirely** for everyone else. Finance sees only the
+compensation portion of the dashboard.
+
+### Server layer (`src/actions/performance/`)
+
+- **`getRatingsSummaryData`** (server-only read, `ratings.view`) — **anonymized**
+  per-active-staff rows (`RatingRecord` = `CompensationRecord` + `level`; no
+  id/name/email), for the dashboard. Latest employment row + latest rating row per
+  active staff (two queries each, `firstPerKey`, no N+1). Exports `ratingsFilterOptions`.
+- **`getStaffRatingsForEdit`** (server-only read, `ratings.view`) — one row per
+  active staff (name, current role **and line of business** for context/filtering)
+  for the edit table. The current level is returned **encoded as a string**
+  (`level: "none" | "0".."4"` via `encodeLevelValue`) so the editor's dropdown draft
+  is a plain string, like the other bulk-edit dropdowns.
+- **`saveStaffEvaluation`** (+ `.schema`, `secureActionClient`, `ratings.edit`) —
+  inserts one new dated `staff_rating` row per **genuinely-changed** staff, in a
+  transaction. Never trusts the payload: re-reads the current level, **drops
+  no-ops**, rejects unknown/inactive targets, and **rejects an effectiveDate that
+  predates a staff member's latest rating** (equal dates are fine — the `createdAt`
+  tiebreak makes the newer write current); effectiveDate defaults to today. Template
+  was `commitBulkEditEmployment`.
+
+### Pure stats & UI
+
+- **`src/lib/rating-stats.ts`** (+ test) — pure `computeLevelDistribution`,
+  `countUnrated`, `computeAverageLevel`, `computeAverageLevelByRole`. The
+  comp/rate-**per-level** table instead **reuses `computeByRole`** from
+  `performance-stats.ts`, tagging the group key with the level label.
+- Surfaced as a **section merged into the single `/performance` dashboard** (NOT a
+  new route, NOT a tab, NOT a nav item — see below). `levels-section.tsx`
+  (`LevelsSection`) renders: stat cards (average level / unrated), a hand-rolled SVG
+  **bar chart** (`level-distribution-bar-chart.tsx`, **zero baseline**; see
+  [ui.md](../ui.md) → *Charts*), a comp/rate-by-level table, and an
+  average-level-by-role table. It is **presentational** — the parent
+  `performance-dashboard.tsx` owns the filter + currency state and passes the
+  already-chosen `lineOfBusiness` / `role` / `employmentType` / `currency` as props,
+  so levels and compensation read from **one control bar** with the **same currency
+  toggle + FX** ([ADR 0029](../decisions/0029-external-fx-rates-and-currency-normalization.md)).
+  The edit page `/performance/levels/edit/page.tsx` → `edit-levels.tsx` reuses the
+  shared `EditableTable`/`useEditableRows` batch pattern (a level dropdown per active
+  staff, save-on-dirty bar, confirm-diff dialog) and offers **name search + role +
+  line-of-business filters**; its "back" link points to `/performance`.
+
+### One dashboard, no tabs
+
+There is **no tab bar and no separate levels route**. `/performance` fetches
+`getRatingsSummaryData()` only when the user holds `ratings.view` and hands it to
+`PerformanceDashboard` as the optional `ratingRecords` prop; the dashboard renders
+`<LevelsSection>` (after the compensation section, sharing its filter/currency
+state) **only when that prop is present**. So managers/admins see comp **and**
+levels on one page; finance sees comp only. Levels have **no separate sidebar
+entry**. (The earlier design — a cross-route `performance-tabs.tsx` bar and a
+standalone `/performance/levels` dashboard — was removed; see
+[ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md).)
+
+### Seed
+
+`scripts/seed/performance.ts` gained **`seedRatings`** (weighted levels, ~20%
+unrated, ~40% of rated also get an earlier historical row so the effective-dating
+is exercised); wired into `scripts/seed.ts`, and `staff_rating` added to
+`scripts/seed/wipe.ts`.
+
 ## Still proposed
 
 - **ReviewCycle** — a period in which reviews happen (quarterly, annual).
@@ -182,13 +294,15 @@ utilization, and project contributions as review context.
 
 - **Staff profiles** — feedback is staff↔staff; both endpoints are `staff` rows.
   Only **active** staff participate. The analytics dashboard reads the latest
-  `staff_employment` compensation for every **active** staff member. Future reviews
+  `staff_employment` compensation for every **active** staff member; ratings are
+  keyed to `staff` (cascade) and shown only for **active** staff. Future reviews
   would target a Person and may update role/seniority.
 - **Timesheets / Allocations** — utilization and delivery are intended review
   inputs (not yet wired).
-- **Permissions** — `feedback.review` (manager + admin) is the reviewer tier;
-  the analytics dashboard reuses `staff.viewCompensation` (finance/manager/admin).
-  See [domains/permissions.md](./permissions.md).
+- **Permissions** — `feedback.review` (manager + admin) is the reviewer tier; the
+  comp dashboard reuses `staff.viewCompensation` (finance/manager/admin); the
+  levels section uses the new `ratings.view` / `ratings.edit` (manager/admin **only**
+  — not finance, no self-view). See [domains/permissions.md](./permissions.md).
 
 ## Open questions (for the proposed pieces)
 

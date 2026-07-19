@@ -22,6 +22,8 @@ const MATRIX: Record<
     crmEdit: boolean;
     projectsEdit: boolean;
     feedbackReview: boolean;
+    ratingsView: boolean;
+    ratingsEdit: boolean;
     timesheetsEdit: boolean;
   }
 > = {
@@ -32,6 +34,8 @@ const MATRIX: Record<
     crmEdit: false,
     projectsEdit: false,
     feedbackReview: false,
+    ratingsView: false,
+    ratingsEdit: false,
     timesheetsEdit: false,
   },
   "delivery-manager": {
@@ -41,6 +45,8 @@ const MATRIX: Record<
     crmEdit: false,
     projectsEdit: true,
     feedbackReview: false,
+    ratingsView: false,
+    ratingsEdit: false,
     timesheetsEdit: false,
   },
   finance: {
@@ -50,6 +56,8 @@ const MATRIX: Record<
     crmEdit: false,
     projectsEdit: false,
     feedbackReview: false,
+    ratingsView: false,
+    ratingsEdit: false,
     timesheetsEdit: false,
   },
   sales: {
@@ -59,6 +67,8 @@ const MATRIX: Record<
     crmEdit: true,
     projectsEdit: false,
     feedbackReview: false,
+    ratingsView: false,
+    ratingsEdit: false,
     timesheetsEdit: false,
   },
   manager: {
@@ -68,6 +78,8 @@ const MATRIX: Record<
     crmEdit: true,
     projectsEdit: true,
     feedbackReview: true,
+    ratingsView: true,
+    ratingsEdit: true,
     timesheetsEdit: true,
   },
   admin: {
@@ -77,6 +89,8 @@ const MATRIX: Record<
     crmEdit: true,
     projectsEdit: true,
     feedbackReview: true,
+    ratingsView: true,
+    ratingsEdit: true,
     timesheetsEdit: true,
   },
 };
@@ -118,6 +132,18 @@ describe("permission matrix", () => {
     test(`${role}: feedback.review === ${expected.feedbackReview}`, () => {
       expect(userHasPermission({ role }, { feedback: ["review"] })).toBe(
         expected.feedbackReview,
+      );
+    });
+
+    test(`${role}: ratings.view === ${expected.ratingsView}`, () => {
+      expect(userHasPermission({ role }, { ratings: ["view"] })).toBe(
+        expected.ratingsView,
+      );
+    });
+
+    test(`${role}: ratings.edit === ${expected.ratingsEdit}`, () => {
+      expect(userHasPermission({ role }, { ratings: ["edit"] })).toBe(
+        expected.ratingsEdit,
       );
     });
 

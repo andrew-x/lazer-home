@@ -1,6 +1,18 @@
 import type { InferSelectModel } from "drizzle-orm";
-import { index, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import {
+  check,
+  date,
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import { FEEDBACK_RATINGS } from "@/lib/feedback-rating";
+import { MAX_RATING_LEVEL, MIN_RATING_LEVEL } from "@/lib/staff-rating";
+import { user } from "./auth-schema";
 import { staff } from "./staff-schema";
 
 // ---------------------------------------------------------------------------
@@ -59,6 +71,57 @@ export const feedback = pgTable(
   ],
 );
 
+// ---------------------------------------------------------------------------
+// Staff ratings (overall level, L0–L4)
+//
+// A staffer's overall performance level. Effective-dated exactly like
+// `staffEmployment` (ADR 0007): saving an evaluation spawns a NEW dated row, and
+// the current level is the row with the latest `effectiveDate` (createdAt breaks
+// same-day ties, `latestRatingFirst`). `level` is nullable so "unrated" is a
+// real, historied event (a manager can set someone back to no rating); a staffer
+// with no rows is likewise unrated.
+//
+// Ratings are sensitive: only `ratings.view` (manager/admin) may read them; the
+// reads that project ratings enforce this, and staff never see their own. See
+// docs/domains/performance.md.
+// ---------------------------------------------------------------------------
+
+export const staffRating = pgTable(
+  "staff_rating",
+  {
+    id: text().primaryKey(),
+    staffId: text()
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+    effectiveDate: date().notNull(),
+
+    // The overall level, 0–4. Null = explicitly unrated as of this date.
+    level: integer(),
+
+    // Who saved this evaluation (audit). Nullable + `set null` so a rating's
+    // history survives the evaluator's staff/user record being removed.
+    evaluatedByUserId: text().references(() => user.id, {
+      onDelete: "set null",
+    }),
+
+    createdAt: timestamp().defaultNow().notNull(),
+    updatedAt: timestamp()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    index("staff_rating_staff_idx").on(t.staffId),
+    check(
+      "staff_rating_level_range",
+      // Bounds are trusted numeric constants — embed as raw literals so they land
+      // in the CHECK DDL rather than as bind parameters.
+      sql`${t.level} is null or (${t.level} >= ${sql.raw(String(MIN_RATING_LEVEL))} and ${t.level} <= ${sql.raw(String(MAX_RATING_LEVEL))})`,
+    ),
+  ],
+);
+
 // --- Row types -------------------------------------------------------------
 
 export type Feedback = InferSelectModel<typeof feedback>;
+export type StaffRating = InferSelectModel<typeof staffRating>;

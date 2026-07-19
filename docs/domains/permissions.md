@@ -67,6 +67,17 @@ One capability gates a **read** rather than a write:
   the [performance domain](performance.md) and
   [ADR 0023](../decisions/0023-feedback-privacy-tiers.md).
 
+A resource with **two actions** gates staff overall ratings (levels L0–L4), a
+sensitive read/write with **no ownership dimension** — unlike compensation or
+feedback, a staffer never sees their *own* rating:
+
+- **`ratings.view`** — view staff overall levels: the per-level analytics breakdown
+  in the `/performance` dashboard's staff-levels section (headcount, comp/rate
+  aggregates, distribution) and the edit page's current levels. Manager/admin only;
+  there is no self-view path.
+- **`ratings.edit`** — assign / change levels and save an evaluation (a new dated
+  `staff_rating` row). Manager/admin only. See the [performance domain](performance.md).
+
 ## Roles → permissions (the canonical matrix — THIS IS THE CONTRACT)
 
 Single role per user. Roles are stored in `user.role` (text). This table is the
@@ -75,14 +86,14 @@ via `bun test`) and audited by `/audit-rbac`. **Changing it requires changing th
 `roles` map in `permissions.ts`, the test, and this table in lockstep** — that
 friction is deliberate.
 
-| Role               | `staff.edit` | `staff.viewCompensation` | `pto.review` | `crm.edit` | `projects.edit` | `feedback.review` | `timesheets.edit` | Notes                                |
-| ------------------ | :----------: | :----------------------: | :----------: | :--------: | :-------------: | :---------------: | :---------------: | ------------------------------------ |
-| `user`             |      –       |            –             |      –       |     –      |        –        |         –         |         –         | default role for new users           |
-| `delivery-manager` |      –       |            –             |      –       |     –      |        ✓        |         –         |         –         | owns projects & staffing             |
-| `finance`          |      –       |            ✓             |      –       |     –      |        –        |         –         |         –         | views staff compensation             |
-| `sales`            |      –       |            –             |      –       |     ✓      |        –        |         –         |         –         | CRM data entry                       |
-| `manager`          |      ✓       |            ✓             |      ✓       |     ✓      |        ✓        |         ✓         |         ✓         | all defined business perms           |
-| `admin`            |      ✓       |            ✓             |      ✓       |     ✓      |        ✓        |         ✓         |         ✓         | + Better Auth admin-plugin user/session perms (`...adminAc.statements`) |
+| Role               | `staff.edit` | `staff.viewCompensation` | `pto.review` | `crm.edit` | `projects.edit` | `feedback.review` | `ratings.view` | `ratings.edit` | `timesheets.edit` | Notes                                |
+| ------------------ | :----------: | :----------------------: | :----------: | :--------: | :-------------: | :---------------: | :------------: | :------------: | :---------------: | ------------------------------------ |
+| `user`             |      –       |            –             |      –       |     –      |        –        |         –         |       –        |       –        |         –         | default role for new users           |
+| `delivery-manager` |      –       |            –             |      –       |     –      |        ✓        |         –         |       –        |       –        |         –         | owns projects & staffing             |
+| `finance`          |      –       |            ✓             |      –       |     –      |        –        |         –         |       –        |       –        |         –         | views staff compensation (NOT ratings) |
+| `sales`            |      –       |            –             |      –       |     ✓      |        –        |         –         |       –        |       –        |         –         | CRM data entry                       |
+| `manager`          |      ✓       |            ✓             |      ✓       |     ✓      |        ✓        |         ✓         |       ✓        |       ✓        |         ✓         | all defined business perms           |
+| `admin`            |      ✓       |            ✓             |      ✓       |     ✓      |        ✓        |         ✓         |       ✓        |       ✓        |         ✓         | + Better Auth admin-plugin user/session perms (`...adminAc.statements`) |
 
 `DEFAULT_ROLE = "user"`, mirrored by `admin({ defaultRole: "user" })` in `auth.ts`.
 `adminRoles: ["admin"]` lists which roles may call the admin-plugin endpoints.
