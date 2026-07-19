@@ -215,6 +215,8 @@ Icon-only controls must use **`IconButton`** (`src/components/icon-button.tsx`):
 
 `TooltipProvider` lives in the **root layout** (`src/app/layout.tsx`), not `AppShell`, so tooltips work app-wide (auth screens included). `IconButton` must render inside it — the root provider covers everything.
 
+The root layout's `<body>` carries **`suppressHydrationWarning`** — browser extensions (e.g. ColorZilla's `cz-shortcut-listen`, Grammarly) inject attributes onto `<body>` before hydration, and this silences the resulting attribute-only mismatch warning. It's scoped to `<body>`'s own attributes; children still hydrate normally. Don't remove it, and don't broaden it to other elements.
+
 ## Auth UI (Google-only)
 
 - Sign in: `authClient.signIn.social({ provider: "google", callbackURL: "/" })` (`src/components/auth/google-sign-in-button.tsx`). On success the browser is redirected to Google, so the component only handles the error path.
