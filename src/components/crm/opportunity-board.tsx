@@ -19,8 +19,9 @@ import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { OpportunityBoardCard } from "@/actions/crm/getOpportunitiesBoard";
 import { updateOpportunityPosition } from "@/actions/crm/updateOpportunityPosition";
+import { createProjectFromOpportunity } from "@/actions/projects/createProjectFromOpportunity";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { IconButton } from "@/components/icon-button";
-import { AddProjectDialog } from "@/components/projects/add-project-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { type OpportunityStatus, STATUS_LABELS } from "@/lib/opportunity";
@@ -42,8 +43,7 @@ type PendingMove = { id: string; status: OpportunityStatus; position: number };
 
 type ProjectPrompt = {
   opportunityId: string;
-  companyId: string;
-  companyName: string;
+  opportunityName: string;
   pendingMove: PendingMove;
 };
 
@@ -172,6 +172,19 @@ export function OpportunityBoard({
     },
   });
 
+  // The delivery-stage prompt creates a project for the opportunity (one-click,
+  // inheriting its name + company) then completes the pending status move.
+  const createProject = useAction(createProjectFromOpportunity, {
+    onSuccess: () => {
+      toast.success("Project created.");
+      completePendingMove();
+    },
+    onError: ({ error }) => {
+      setProjectPrompt(null);
+      toast.error(error.serverError ?? "Couldn't create the project.");
+    },
+  });
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, {
@@ -296,8 +309,7 @@ export function OpportunityBoard({
       if (canCreateProject) {
         setProjectPrompt({
           opportunityId: activeCardId,
-          companyId: current.companyId,
-          companyName: current.companyName,
+          opportunityName: current.name,
           pendingMove: {
             id: activeCardId,
             status: newStatus,
@@ -483,16 +495,25 @@ export function OpportunityBoard({
             onOpenChange={setDrawerOpen}
             canCreateProject={canCreateProject}
           />
-          <AddProjectDialog
+          <ConfirmDialog
             open={projectPrompt !== null}
             onOpenChange={(next) => {
-              if (!next) setProjectPrompt(null);
+              if (!next && !createProject.isPending) setProjectPrompt(null);
             }}
-            opportunityId={projectPrompt?.opportunityId}
-            defaultCompanyId={projectPrompt?.companyId}
-            defaultCompanyName={projectPrompt?.companyName}
-            lockCompany
-            onCreated={completePendingMove}
+            title="Create a project?"
+            description={
+              projectPrompt
+                ? `"${projectPrompt.opportunityName}" needs a project before it can move to a delivery stage. Create one now? It inherits the opportunity's name and company.`
+                : undefined
+            }
+            confirmLabel="Create project"
+            loading={createProject.isPending}
+            onConfirm={() =>
+              projectPrompt &&
+              createProject.execute({
+                opportunityId: projectPrompt.opportunityId,
+              })
+            }
           />
         </>
       ) : null}

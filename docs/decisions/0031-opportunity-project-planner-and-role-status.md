@@ -1,6 +1,15 @@
 # 0031 — Opportunity project planner: role `status` (tentative → confirmed), auto-confirm on won, weekly Gantt view
 
-**Status:** accepted · 2026-07-18
+**Status:** accepted; amended by [ADR 0033](./0033-line-of-business-on-role-derived-project-status.md) · 2026-07-18
+
+> **Amended, 2026-07-19 ([ADR 0033](./0033-line-of-business-on-role-derived-project-status.md)).**
+> The role `status` enum **expanded** from `tentative | confirmed` to
+> `tentative | confirmed | paused | cancelled` (the two new states are enum-only for
+> now — no UI sets them yet). The separate **stored project `status`** this ADR relied
+> on is **gone**: a project's status is now *derived* from its roles' statuses
+> (`deriveProjectStatus` in `src/lib/project-derived.ts`; `src/lib/project-status.ts`
+> deleted). The role lifecycle, `assertRoleEditable`, auto-confirm-on-won, and the
+> planner grid below all still hold.
 
 ## Context
 

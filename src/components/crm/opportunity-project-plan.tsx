@@ -6,6 +6,7 @@ import {
   IconLayoutList,
   IconPencil,
   IconPlus,
+  IconTrash,
   IconUsers,
 } from "@tabler/icons-react";
 import { useAction } from "next-safe-action/hooks";
@@ -13,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { associateOpportunityProject } from "@/actions/crm/associateOpportunityProject";
+import { createProjectFromOpportunity } from "@/actions/projects/createProjectFromOpportunity";
 import { createProjectRole } from "@/actions/projects/createProjectRole";
 import { createProjectRoleSchema } from "@/actions/projects/createProjectRole.schema";
 import { deleteProjectRole } from "@/actions/projects/deleteProjectRole";
@@ -24,12 +26,14 @@ import type {
   PlanRole,
 } from "@/actions/projects/getOpportunityPlan";
 import { loadOpportunityPlan } from "@/actions/projects/loadOpportunityPlan";
+import { removeProjectFromOpportunity } from "@/actions/projects/removeProjectFromOpportunity";
 import { searchProjects } from "@/actions/projects/searchProjects";
 import { searchStaff } from "@/actions/projects/searchStaff";
 import { updateProject } from "@/actions/projects/updateProject";
 import { updateProjectSchema } from "@/actions/projects/updateProject.schema";
 import { updateProjectRole } from "@/actions/projects/updateProjectRole";
 import { updateProjectRoleSchema } from "@/actions/projects/updateProjectRole.schema";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   applyServerIssues,
   type IssueTarget,
@@ -43,7 +47,7 @@ import { EnumSelect } from "@/components/form/enum-select";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
 import { FormField } from "@/components/form/form-field";
 import { StatCard } from "@/components/performance/stat-card";
-import { AddProjectDialog } from "@/components/projects/add-project-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
@@ -67,16 +71,12 @@ import {
   type RoleSegment,
   weekColumnLabel,
 } from "@/lib/project-planner-grid";
+import { PROJECT_ROLE_STATUS_LABELS } from "@/lib/project-role-status";
 import {
   PROJECT_ROLE_TYPE_LABELS,
   PROJECT_ROLE_TYPES,
   type ProjectRoleType,
 } from "@/lib/project-role-type";
-import {
-  PROJECT_STATUS_LABELS,
-  PROJECT_STATUSES,
-  type ProjectStatus,
-} from "@/lib/project-status";
 import { cn } from "@/lib/utils";
 
 type CompanyRef = { id: string; name: string };
@@ -139,7 +139,6 @@ export function OpportunityProjectPlan({
       <NoProjectState
         opportunityId={opportunityId}
         company={company}
-        lineOfBusiness={lineOfBusiness}
         canManage={canManage}
         onLinked={afterLink}
       />
@@ -150,8 +149,10 @@ export function OpportunityProjectPlan({
     <PlanEditor
       opportunityId={opportunityId}
       plan={plan}
+      lineOfBusiness={lineOfBusiness}
       canManage={canManage}
       onChanged={reload}
+      onProjectRemoved={afterLink}
     />
   );
 }
@@ -160,17 +161,14 @@ export function OpportunityProjectPlan({
 function NoProjectState({
   opportunityId,
   company,
-  lineOfBusiness,
   canManage,
   onLinked,
 }: {
   opportunityId: string;
   company: CompanyRef;
-  lineOfBusiness: LineOfBusiness;
   canManage: boolean;
   onLinked: () => void;
 }) {
-  const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<EntityOption | null>(null);
   const searchArgs = useMemo(() => ({ companyId: company.id }), [company.id]);
 
@@ -182,6 +180,16 @@ function NoProjectState({
     },
     onError: ({ error }) =>
       toast.error(error.serverError ?? "Couldn't link the project."),
+  });
+
+  // One click — the new project inherits the opportunity's name and company.
+  const create = useAction(createProjectFromOpportunity, {
+    onSuccess: () => {
+      toast.success("Project created.");
+      onLinked();
+    },
+    onError: ({ error }) =>
+      toast.error(error.serverError ?? "Couldn't create the project."),
   });
 
   if (!canManage) {
@@ -230,24 +238,13 @@ function NoProjectState({
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => setCreateOpen(true)}
+          disabled={create.isPending}
+          onClick={() => create.execute({ opportunityId })}
         >
           <IconPlus />
           Create project
         </Button>
       </div>
-
-      <AddProjectDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        forceMountOverlay
-        opportunityId={opportunityId}
-        defaultCompanyId={company.id}
-        defaultCompanyName={company.name}
-        defaultLineOfBusiness={lineOfBusiness}
-        lockCompany
-        onCreated={onLinked}
-      />
     </div>
   );
 }
@@ -256,13 +253,19 @@ function NoProjectState({
 function PlanEditor({
   opportunityId,
   plan,
+  lineOfBusiness,
   canManage,
   onChanged,
+  onProjectRemoved,
 }: {
   opportunityId: string;
   plan: OpportunityPlan;
+  /** The opportunity's line of business — the default for new roles. */
+  lineOfBusiness: LineOfBusiness;
   canManage: boolean;
   onChanged: () => void;
+  /** Called after the project is removed/detached, so the drawer refreshes too. */
+  onProjectRemoved: () => void;
 }) {
   const [roleDialog, setRoleDialog] = useState<
     { mode: "create" } | { mode: "edit"; role: PlanRole } | null
@@ -276,6 +279,12 @@ function PlanEditor({
     [plan.roles, weekColumns, opportunityId],
   );
 
+  // You can only extend a confirmed role (continue a committed allocation).
+  const extendableRoles = useMemo(
+    () => plan.roles.filter((r) => r.status === "confirmed"),
+    [plan.roles],
+  );
+
   // The column count is exactly the timeline length in weeks (same eachWeek span).
   const lengthWeeks = weekColumns.length;
 
@@ -286,15 +295,29 @@ function PlanEditor({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Summary */}
+      {/* Summary — project name on its own line, then the stat tiles. */}
       <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium">Summary</span>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 flex-col gap-1">
+            <h3 className="font-heading text-base font-medium">
+              {plan.project?.name ?? "—"}
+            </h3>
+            {plan.project && plan.project.linesOfBusiness.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {plan.project.linesOfBusiness.map((lob) => (
+                  <Badge key={lob} variant="outline">
+                    {LINE_OF_BUSINESS_LABELS[lob]}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
+          </div>
           {canManage && plan.project ? (
             <Button
               type="button"
               variant="outline"
               size="sm"
+              className="shrink-0"
               onClick={() => setEditOpen(true)}
             >
               <IconPencil />
@@ -302,12 +325,14 @@ function PlanEditor({
             </Button>
           ) : null}
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-3">
           <StatCard
             label="Timeline"
             value={lengthWeeks ? `${lengthWeeks} wk` : "—"}
             hint={
-              plan.project ? PROJECT_STATUS_LABELS[plan.project.status] : ""
+              plan.project
+                ? PROJECT_ROLE_STATUS_LABELS[plan.project.status]
+                : ""
             }
             icon={IconCalendarStats}
           />
@@ -317,18 +342,9 @@ function PlanEditor({
             icon={IconLayoutList}
           />
           <StatCard
-            label="Delivery manager"
+            label="Delivery managers"
             value={deliveryManagerLabel(plan.project?.deliveryManagers ?? [])}
             icon={IconUsers}
-          />
-          <StatCard
-            label="Project"
-            value={plan.project?.name ?? "—"}
-            hint={
-              plan.project
-                ? LINE_OF_BUSINESS_LABELS[plan.project.lineOfBusiness]
-                : ""
-            }
           />
         </div>
       </div>
@@ -356,7 +372,7 @@ function PlanEditor({
               type="button"
               variant="outline"
               size="sm"
-              disabled={plan.roles.length === 0}
+              disabled={extendableRoles.length === 0}
               onClick={() => setExtendOpen(true)}
             >
               <IconArrowBarRight />
@@ -378,6 +394,7 @@ function PlanEditor({
         <RoleDialog
           key={roleDialog.mode === "edit" ? roleDialog.role.id : "create"}
           opportunityId={opportunityId}
+          defaultLineOfBusiness={lineOfBusiness}
           existing={roleDialog.mode === "edit" ? roleDialog.role : null}
           onClose={() => setRoleDialog(null)}
           onSaved={() => {
@@ -390,7 +407,7 @@ function PlanEditor({
       {extendOpen ? (
         <ExtendDialog
           opportunityId={opportunityId}
-          roles={plan.roles}
+          roles={extendableRoles}
           onClose={() => setExtendOpen(false)}
           onSaved={() => {
             setExtendOpen(false);
@@ -402,18 +419,20 @@ function PlanEditor({
       {editOpen && plan.project ? (
         <EditProjectDialog
           project={plan.project}
+          opportunityId={opportunityId}
           onClose={() => setEditOpen(false)}
           onSaved={() => {
             setEditOpen(false);
             onChanged();
           }}
+          onRemoved={onProjectRemoved}
         />
       ) : null}
     </div>
   );
 }
 
-/** The comma-joined delivery-manager names for the summary card, or "—". */
+/** The comma-joined delivery-manager names for the summary tile, or "—". */
 function deliveryManagerLabel(
   managers: { id: string; name: string }[],
 ): string {
@@ -573,8 +592,6 @@ function PlannerLegend() {
 
 type EditProjectFormValues = {
   name: string;
-  lineOfBusiness: LineOfBusiness;
-  status: ProjectStatus;
   deliveryManagers: EntityOption[];
 };
 
@@ -583,27 +600,33 @@ const EDIT_PROJECT_ISSUE_FIELDS: Record<
   IssueTarget<EditProjectFormValues>
 > = {
   name: "name",
-  lineOfBusiness: "lineOfBusiness",
-  status: "status",
   deliveryManagerIds: "deliveryManagers",
   // Server-controlled; never a form field.
   projectId: "name",
 };
 
 /**
- * Edit the project's top-level fields — name, line of business, status, and
- * delivery managers. Roles are managed separately by the planner grid below, so
- * they're absent here. Gated by the caller on `canManage` (`projects.edit`).
+ * Edit the project's name and delivery managers, or remove it from this
+ * opportunity. A project's status and lines of business are derived from its
+ * roles, so they aren't edited here; roles are managed separately by the planner
+ * grid below. Gated by the caller on `canManage` (`projects.edit`).
  */
 function EditProjectDialog({
   project,
+  opportunityId,
   onClose,
   onSaved,
+  onRemoved,
 }: {
   project: PlanProject;
+  opportunityId: string;
   onClose: () => void;
   onSaved: () => void;
+  /** Called after the project is removed/detached, so the drawer refreshes. */
+  onRemoved: () => void;
 }) {
+  const [removeOpen, setRemoveOpen] = useState(false);
+
   const {
     control,
     register,
@@ -613,8 +636,6 @@ function EditProjectDialog({
   } = useForm<EditProjectFormValues>({
     defaultValues: {
       name: project.name,
-      lineOfBusiness: project.lineOfBusiness,
-      status: project.status,
       deliveryManagers: project.deliveryManagers.map((m) => ({
         id: m.id,
         name: m.name,
@@ -631,12 +652,22 @@ function EditProjectDialog({
       toast.error(error.serverError ?? "Couldn't update the project."),
   });
 
+  const remove = useAction(removeProjectFromOpportunity, {
+    onSuccess: ({ data }) => {
+      setRemoveOpen(false);
+      toast.success(
+        data?.deletedProject ? "Project deleted." : "Project removed.",
+      );
+      onRemoved();
+    },
+    onError: ({ error }) =>
+      toast.error(error.serverError ?? "Couldn't remove the project."),
+  });
+
   const onSubmit = (values: EditProjectFormValues) => {
     const parsed = updateProjectSchema.safeParse({
       projectId: project.id,
       name: values.name,
-      lineOfBusiness: values.lineOfBusiness,
-      status: values.status,
       deliveryManagerIds: values.deliveryManagers.map((d) => d.id),
     });
     if (!parsed.success) {
@@ -654,7 +685,7 @@ function EditProjectDialog({
       }}
       forceMountOverlay
       title="Edit project"
-      description="Update the project's name, line of business, status, and delivery managers. Roles are edited in the planner below."
+      description="Update the project's name and delivery managers. Status and lines of business are derived from its roles, edited in the planner below."
       contentClassName="max-h-[85vh] overflow-y-auto sm:max-w-lg"
     >
       {() => (
@@ -670,49 +701,6 @@ function EditProjectDialog({
               {...register("name")}
             />
           </FormField>
-
-          <div className="flex gap-3">
-            <FormField
-              label="Line of business"
-              error={errors.lineOfBusiness?.message}
-              className="flex-1"
-            >
-              <Controller
-                control={control}
-                name="lineOfBusiness"
-                render={({ field, fieldState }) => (
-                  <EnumSelect
-                    options={LINE_OF_BUSINESS}
-                    labels={LINE_OF_BUSINESS_LABELS}
-                    placeholder="Select a line of business"
-                    value={field.value}
-                    invalid={Boolean(fieldState.error)}
-                    onValueChange={field.onChange}
-                  />
-                )}
-              />
-            </FormField>
-            <FormField
-              label="Status"
-              error={errors.status?.message}
-              className="flex-1"
-            >
-              <Controller
-                control={control}
-                name="status"
-                render={({ field, fieldState }) => (
-                  <EnumSelect
-                    options={PROJECT_STATUSES}
-                    labels={PROJECT_STATUS_LABELS}
-                    placeholder="Select a status"
-                    value={field.value}
-                    invalid={Boolean(fieldState.error)}
-                    onValueChange={field.onChange}
-                  />
-                )}
-              />
-            </FormField>
-          </div>
 
           <FormField label="Delivery managers">
             <Controller
@@ -730,10 +718,35 @@ function EditProjectDialog({
             />
           </FormField>
 
-          <FormDialogFooter
-            serverError={update.result.serverError}
-            submitLabel="Save"
-            loading={update.isPending}
+          <div className="flex items-center justify-between gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-destructive"
+              disabled={remove.isPending}
+              onClick={() => setRemoveOpen(true)}
+            >
+              <IconTrash />
+              Remove project
+            </Button>
+            <FormDialogFooter
+              serverError={update.result.serverError}
+              submitLabel="Save"
+              loading={update.isPending}
+            />
+          </div>
+
+          <ConfirmDialog
+            open={removeOpen}
+            onOpenChange={(next) => {
+              if (!remove.isPending) setRemoveOpen(next);
+            }}
+            title="Remove project?"
+            description="This removes the project from this opportunity. If the project holds only this opportunity's roles (and no other opportunity uses it), the whole project is deleted; otherwise this opportunity's roles are removed and the project is unlinked."
+            confirmLabel="Remove project"
+            destructive
+            loading={remove.isPending}
+            onConfirm={() => remove.execute({ opportunityId })}
           />
         </form>
       )}
@@ -745,7 +758,8 @@ function EditProjectDialog({
 
 type RoleFormValues = {
   staff: EntityOption | null;
-  name: string;
+  lineOfBusiness: LineOfBusiness | "";
+  description: string;
   roleType: ProjectRoleType | "";
   startDate: string | null;
   endDate: string | null;
@@ -756,7 +770,8 @@ type RoleFormValues = {
 // server-controlled `id`/`opportunityId` never surface as form errors.
 const ROLE_ISSUE_FIELDS: Record<string, IssueTarget<RoleFormValues>> = {
   staffId: "staff",
-  name: "name",
+  lineOfBusiness: "lineOfBusiness",
+  description: "description",
   roleType: "roleType",
   startDate: "startDate",
   endDate: "endDate",
@@ -765,11 +780,14 @@ const ROLE_ISSUE_FIELDS: Record<string, IssueTarget<RoleFormValues>> = {
 
 function RoleDialog({
   opportunityId,
+  defaultLineOfBusiness,
   existing,
   onClose,
   onSaved,
 }: {
   opportunityId: string;
+  /** Default line of business for a new role — the opportunity's own. */
+  defaultLineOfBusiness: LineOfBusiness;
   existing: PlanRole | null;
   onClose: () => void;
   onSaved: () => void;
@@ -787,7 +805,8 @@ function RoleDialog({
         existing?.staffId && existing.staffName
           ? { id: existing.staffId, name: existing.staffName }
           : null,
-      name: existing?.name ?? "",
+      lineOfBusiness: existing?.lineOfBusiness ?? defaultLineOfBusiness,
+      description: existing?.description ?? "",
       roleType: existing?.roleType ?? "",
       startDate: existing?.startDate ?? null,
       endDate: existing?.endDate ?? null,
@@ -816,7 +835,8 @@ function RoleDialog({
   const onSubmit = (values: RoleFormValues) => {
     const shared = {
       staffId: values.staff?.id ?? undefined,
-      name: values.name,
+      lineOfBusiness: values.lineOfBusiness,
+      description: values.description,
       roleType: values.roleType,
       startDate: values.startDate ?? "",
       endDate: values.endDate ?? "",
@@ -866,9 +886,29 @@ function RoleDialog({
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <div className="flex gap-3">
             <FormField
+              label="Line of business"
+              error={errors.lineOfBusiness?.message}
+              className="flex-1 min-w-0"
+            >
+              <Controller
+                control={control}
+                name="lineOfBusiness"
+                render={({ field, fieldState }) => (
+                  <EnumSelect
+                    options={LINE_OF_BUSINESS}
+                    labels={LINE_OF_BUSINESS_LABELS}
+                    placeholder="Select a line of business"
+                    value={field.value}
+                    invalid={Boolean(fieldState.error)}
+                    onValueChange={field.onChange}
+                  />
+                )}
+              />
+            </FormField>
+            <FormField
               label="Role type"
               error={errors.roleType?.message}
-              className="flex-1"
+              className="flex-1 min-w-0"
             >
               <Controller
                 control={control}
@@ -885,20 +925,20 @@ function RoleDialog({
                 )}
               />
             </FormField>
-            <FormField
-              label="Name (optional)"
-              htmlFor="role-name"
-              error={errors.name?.message}
-              className="flex-1"
-            >
-              <Input
-                id="role-name"
-                placeholder="Senior Backend Engineer"
-                aria-invalid={Boolean(errors.name)}
-                {...register("name")}
-              />
-            </FormField>
           </div>
+
+          <FormField
+            label="Description (optional)"
+            htmlFor="role-description"
+            error={errors.description?.message}
+          >
+            <Input
+              id="role-description"
+              placeholder="Senior Backend Engineer"
+              aria-invalid={Boolean(errors.description)}
+              {...register("description")}
+            />
+          </FormField>
 
           <FormField label="Staff (optional)" error={errors.staff?.message}>
             <Controller
@@ -920,7 +960,7 @@ function RoleDialog({
             <FormField
               label="Start date"
               error={errors.startDate?.message}
-              className="flex-1"
+              className="flex-1 min-w-0"
             >
               <Controller
                 control={control}
@@ -937,7 +977,7 @@ function RoleDialog({
             <FormField
               label="End date"
               error={errors.endDate?.message}
-              className="flex-1"
+              className="flex-1 min-w-0"
             >
               <Controller
                 control={control}
@@ -955,7 +995,7 @@ function RoleDialog({
               label="Hours / day"
               htmlFor="role-hours"
               error={errors.hoursPerDay?.message}
-              className="flex-1"
+              className="flex-1 min-w-0"
             >
               <Input
                 id="role-hours"
@@ -1016,7 +1056,9 @@ const EXTEND_ISSUE_FIELDS: Record<string, IssueTarget<ExtendFormValues>> = {
 /** A readable label for a role in the "extend" source picker. */
 function roleOptionLabel(role: PlanRole): string {
   const who =
-    role.staffName ?? role.name ?? PROJECT_ROLE_TYPE_LABELS[role.roleType];
+    role.staffName ??
+    role.description ??
+    PROJECT_ROLE_TYPE_LABELS[role.roleType];
   return `${who} · ${role.startDate} → ${role.endDate}`;
 }
 
@@ -1072,7 +1114,7 @@ function ExtendDialog({
       }}
       forceMountOverlay
       title="Extend a role"
-      description="Continue an existing role's staff allocation with a new tentative segment tied to this opportunity."
+      description="Continue a confirmed role's staff allocation with a new tentative segment tied to this opportunity."
       contentClassName="max-h-[85vh] overflow-y-auto sm:max-w-lg"
     >
       {() => (
@@ -1115,7 +1157,7 @@ function ExtendDialog({
             <FormField
               label="Start date"
               error={errors.startDate?.message}
-              className="flex-1"
+              className="flex-1 min-w-0"
             >
               <Controller
                 control={control}
@@ -1132,7 +1174,7 @@ function ExtendDialog({
             <FormField
               label="End date"
               error={errors.endDate?.message}
-              className="flex-1"
+              className="flex-1 min-w-0"
             >
               <Controller
                 control={control}
@@ -1150,7 +1192,7 @@ function ExtendDialog({
               label="Hours / day"
               htmlFor="extend-hours"
               error={errors.hoursPerDay?.message}
-              className="flex-1"
+              className="flex-1 min-w-0"
             >
               <Input
                 id="extend-hours"

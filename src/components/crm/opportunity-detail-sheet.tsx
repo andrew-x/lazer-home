@@ -1,8 +1,10 @@
 "use client";
 
-import { IconCheck, IconPencil, IconX } from "@tabler/icons-react";
+import { IconCheck, IconPencil, IconTrash, IconX } from "@tabler/icons-react";
 import { useAction } from "next-safe-action/hooks";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+import { deleteOpportunity } from "@/actions/crm/deleteOpportunity";
 import type {
   EntityRef,
   OpportunityDetail,
@@ -15,6 +17,7 @@ import {
   type UpdateOpportunityFieldInput,
   updateOpportunityFieldSchema,
 } from "@/actions/crm/updateOpportunityField.schema";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   EntityMultiCombobox,
   type EntityOption,
@@ -125,7 +128,11 @@ export function OpportunityDetailSheet({
           {/* pl clears the flush close tab below lg, where it sits inside the edge. */}
           <SheetHeader className="pl-12 lg:pl-4">
             {detail ? (
-              <OpportunityHeader detail={detail} refresh={refresh} />
+              <OpportunityHeader
+                detail={detail}
+                refresh={refresh}
+                onDeleted={() => onOpenChange(false)}
+              />
             ) : (
               <>
                 <SheetTitle>Opportunity</SheetTitle>
@@ -314,7 +321,11 @@ function EntityNames({ items }: { items: EntityRef[] }) {
  * dialog while the visible name field swaps between read and edit modes; a
  * visually-hidden `SheetDescription` satisfies the dialog's description slot.
  */
-function OpportunityHeader({ detail, refresh }: FieldProps) {
+function OpportunityHeader({
+  detail,
+  refresh,
+  onDeleted,
+}: FieldProps & { onDeleted: () => void }) {
   return (
     <>
       <SheetTitle className="sr-only">{detail.name}</SheetTitle>
@@ -325,8 +336,65 @@ function OpportunityHeader({ detail, refresh }: FieldProps) {
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <HeaderNameField detail={detail} refresh={refresh} />
         </div>
-        <HeaderStatusField detail={detail} refresh={refresh} />
+        <div className="flex items-start gap-2">
+          <HeaderStatusField detail={detail} refresh={refresh} />
+          <DeleteOpportunityButton detail={detail} onDeleted={onDeleted} />
+        </div>
       </div>
+    </>
+  );
+}
+
+/**
+ * Delete the opportunity (behind a confirm). If it has a project, the server
+ * cleans up its delivery footprint first (deletes the project when this
+ * opportunity solely owns it, else removes just its roles and unlinks). On
+ * success the drawer closes; the board refreshes via revalidation.
+ */
+function DeleteOpportunityButton({
+  detail,
+  onDeleted,
+}: {
+  detail: OpportunityDetail;
+  onDeleted: () => void;
+}) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const remove = useAction(deleteOpportunity, {
+    onSuccess: () => {
+      toast.success("Opportunity deleted.");
+      setConfirmOpen(false);
+      onDeleted();
+    },
+    onError: ({ error }) =>
+      toast.error(error.serverError ?? "Couldn't delete the opportunity."),
+  });
+
+  return (
+    <>
+      <IconButton
+        label="Delete opportunity"
+        variant="ghost"
+        className="text-destructive"
+        onClick={() => setConfirmOpen(true)}
+      >
+        <IconTrash />
+      </IconButton>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={(next) => {
+          if (!remove.isPending) setConfirmOpen(next);
+        }}
+        title="Delete opportunity?"
+        description={
+          detail.project
+            ? `Delete "${detail.name}"? Its project's roles from this opportunity are removed, and the project is deleted if nothing else uses it. This can't be undone.`
+            : `Delete "${detail.name}"? This can't be undone.`
+        }
+        confirmLabel="Delete opportunity"
+        destructive
+        loading={remove.isPending}
+        onConfirm={() => remove.execute({ id: detail.id })}
+      />
     </>
   );
 }

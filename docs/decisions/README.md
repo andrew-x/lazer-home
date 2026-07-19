@@ -33,7 +33,7 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0022](./0022-contact-manager-self-reference.md) | Contact "managed by" self-referential FK; same-company invariant enforced app-side | accepted |
 | [0023](./0023-feedback-privacy-tiers.md) | Peer feedback: privacy tiers as read-projections; giving open, review gated | accepted |
 | [0024](./0024-opportunity-project-handoff-and-placeholder-roles.md) | Opportunity → Project handoff: delivery-stage project requirement + placeholder roles + role type (amended: link inverted, same-company enforced) | accepted |
-| [0025](./0025-line-of-business-on-opportunity-and-project-not-role.md) | Line of business belongs to the opportunity & project, not the role; opportunities split to own schema file | accepted |
+| [0025](./0025-line-of-business-on-opportunity-and-project-not-role.md) | Line of business belongs to the opportunity & project, not the role; opportunities split to own schema file | superseded (project point) by 0033 |
 | [0026](./0026-staff-manager-self-reference.md) | Staff "reports to": durable self-FK, import-resolved by email in two passes | accepted |
 | [0027](./0027-timesheet-weekly-model-and-edit-window.md) | Timesheets: per-day weekly model, whole-week replace, ±1-week edit window | accepted |
 | [0028](./0028-generic-responses-table-app-validated-question-ids.md) | Generic `responses` table keyed by (staff, question); question ids validated in app code, not a pgEnum | accepted |
@@ -41,6 +41,7 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0030](./0030-crm-timestamped-entries-notes-next-steps.md) | CRM notes & next steps as append logs: two concrete tables + shared kind enum, no per-entry ownership, scalar `nextSteps` dropped | accepted |
 | [0031](./0031-opportunity-project-planner-and-role-status.md) | Opportunity project planner: role `status` (tentative → confirmed), auto-confirm on won, weekly Gantt view | accepted |
 | [0032](./0032-staff-rating-levels-effective-dated-manager-only.md) | Staff rating levels (L0–L4): effective-dated, nullable, manager/admin-only with no self-view | accepted |
+| [0033](./0033-line-of-business-on-role-derived-project-status.md) | LoB moves to the role; project status & LoB derived (not stored); one-click create-from-opportunity + delete/detach | accepted |
 
 > **0012 is intentionally absent** (the log jumps 0011 → 0013). It was a short-lived
 > ADR documenting the *open staff-edit gap pending RBAC*; it was **withdrawn** once

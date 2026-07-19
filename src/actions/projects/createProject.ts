@@ -46,8 +46,6 @@ export const createProject = secureActionClient
         id: projectId,
         name: parsedInput.name,
         companyId: parsedInput.companyId,
-        lineOfBusiness: parsedInput.lineOfBusiness,
-        status: parsedInput.status,
       });
 
       // Link the opportunity to this new project (the CRM → delivery link now
@@ -103,7 +101,8 @@ export const createProject = secureActionClient
             // Tag roles created from an opportunity with it (provenance). They
             // start tentative (schema default); auto-confirm when the deal wins.
             opportunityId: opportunityId ?? null,
-            name: role.name,
+            lineOfBusiness: role.lineOfBusiness,
+            description: role.description,
             roleType: role.roleType,
             startDate: role.startDate,
             endDate: role.endDate,

@@ -10,16 +10,20 @@ import {
   staff,
 } from "@/lib/db/schema";
 import type { LineOfBusiness } from "@/lib/line-of-business";
+import {
+  deriveProjectLinesOfBusiness,
+  deriveProjectStatus,
+} from "@/lib/project-derived";
 import type { ProjectRoleStatus } from "@/lib/project-role-status";
 import type { ProjectRoleType } from "@/lib/project-role-type";
-import type { ProjectStatus } from "@/lib/project-status";
 
 /** One staffing line on the opportunity's project, shaped for the planner. */
 export type PlanRole = {
   id: string;
   staffId: string | null;
   staffName: string | null;
-  name: string | null;
+  lineOfBusiness: LineOfBusiness;
+  description: string | null;
   roleType: ProjectRoleType;
   status: ProjectRoleStatus;
   // The opportunity that created the role — the planner greys roles from other
@@ -33,8 +37,10 @@ export type PlanRole = {
 export type PlanProject = {
   id: string;
   name: string;
-  status: ProjectStatus;
-  lineOfBusiness: LineOfBusiness;
+  /** Derived from the project's roles (see `project-derived.ts`). */
+  status: ProjectRoleStatus;
+  /** The distinct lines of business across the project's roles. */
+  linesOfBusiness: LineOfBusiness[];
   /** The staff who run this project, resolved for display and editing. */
   deliveryManagers: { id: string; name: string }[];
 };
@@ -75,8 +81,6 @@ export async function getOpportunityPlan(
     .select({
       id: projects.id,
       name: projects.name,
-      status: projects.status,
-      lineOfBusiness: projects.lineOfBusiness,
     })
     .from(projects)
     .where(eq(projects.id, opportunity.projectId))
@@ -103,7 +107,8 @@ export async function getOpportunityPlan(
       id: projectRoles.id,
       staffId: projectRoles.staffId,
       staffName: staff.name,
-      name: projectRoles.name,
+      lineOfBusiness: projectRoles.lineOfBusiness,
+      description: projectRoles.description,
       roleType: projectRoles.roleType,
       status: projectRoles.status,
       opportunityId: projectRoles.opportunityId,
@@ -129,7 +134,15 @@ export async function getOpportunityPlan(
   }
 
   return {
-    project: { ...projectRow, deliveryManagers },
+    project: {
+      ...projectRow,
+      // Project status and lines of business are derived from its roles.
+      status: deriveProjectStatus(roles.map((r) => r.status)),
+      linesOfBusiness: deriveProjectLinesOfBusiness(
+        roles.map((r) => r.lineOfBusiness),
+      ),
+      deliveryManagers,
+    },
     roles,
     timeline,
     roleCount: roles.length,

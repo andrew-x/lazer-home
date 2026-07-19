@@ -1,6 +1,7 @@
 import type { ProjectRow } from "@/actions/projects/getProjectsPage";
 import { EmptyCell } from "@/components/empty-cell";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -9,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
 
 export function ProjectsTable({ rows }: { rows: ProjectRow[] }) {
   if (rows.length === 0) {
@@ -25,6 +27,7 @@ export function ProjectsTable({ rows }: { rows: ProjectRow[] }) {
         <TableRow>
           <TableHead>Name</TableHead>
           <TableHead>Status</TableHead>
+          <TableHead>Line of business</TableHead>
           <TableHead>Company</TableHead>
           <TableHead>Delivery managers</TableHead>
           <TableHead>Roles</TableHead>
@@ -36,6 +39,19 @@ export function ProjectsTable({ rows }: { rows: ProjectRow[] }) {
             <TableCell className="font-medium">{project.name}</TableCell>
             <TableCell>
               <ProjectStatusBadge status={project.status} />
+            </TableCell>
+            <TableCell>
+              {project.linesOfBusiness.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {project.linesOfBusiness.map((lob) => (
+                    <Badge key={lob} variant="outline">
+                      {LINE_OF_BUSINESS_LABELS[lob]}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <EmptyCell />
+              )}
             </TableCell>
             <TableCell>{project.companyName}</TableCell>
             <TableCell>

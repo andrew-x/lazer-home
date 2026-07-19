@@ -14,7 +14,6 @@ import {
   PROJECT_ROLE_STATUSES,
 } from "@/lib/project-role-status";
 import { PROJECT_ROLE_TYPES } from "@/lib/project-role-type";
-import { DEFAULT_PROJECT_STATUS, PROJECT_STATUSES } from "@/lib/project-status";
 import { companies } from "./crm-schema";
 import { opportunities } from "./opportunities-schema";
 import { lineOfBusinessEnum, staff } from "./staff-schema";
@@ -23,34 +22,23 @@ import { lineOfBusinessEnum, staff } from "./staff-schema";
 // Projects domain
 //
 // A `project` is billable work for a company — the hub linking CRM to delivery.
-// It carries a line of business (defaulted from its originating opportunity).
+// A project has NO status or line of business of its own: both are *derived*
+// from its roles (see `project-derived.ts`) — a project's status aggregates its
+// roles' statuses, and its lines of business are the distinct LoBs of its roles.
 // `project_delivery_managers` is a junction to the staff who run the project.
 // `project_roles` are the staffing lines: a person for a date range at N
 // hours/day (the first cut of the proposed Allocation entity).
 // See docs/data-model.md and docs/domains/projects.md.
 // ---------------------------------------------------------------------------
 
-// Lifecycle status values — built from the shared, client-safe module so the
-// pgEnum, zod, and form labels can't drift.
-export const projectStatusEnum = pgEnum("project_status", [
-  ...PROJECT_STATUSES,
-]);
-
 export const projects = pgTable("projects", {
   id: text().primaryKey(),
   name: text().notNull(),
-  // Where the project sits in its lifecycle. New projects default to
-  // `tentative`; the shared enum is the single source of truth.
-  status: projectStatusEnum().notNull().default(DEFAULT_PROJECT_STATUS),
   // A project always belongs to a company. `restrict`: a company with live
   // projects can't be deleted (mirrors opportunities).
   companyId: text()
     .notNull()
     .references(() => companies.id, { onDelete: "restrict" }),
-  // The line of business this project belongs to. Defaults to the originating
-  // opportunity's line of business when created from one (see createProject).
-  // Shared/global enum (see `lineOfBusinessEnum`).
-  lineOfBusiness: lineOfBusinessEnum().notNull(),
   // The CRM → delivery link now lives on `opportunities.projectId` (many
   // opportunities can build up one project). See docs/decisions/0019 and 0024.
 
@@ -89,8 +77,9 @@ export const projectRoleTypeEnum = pgEnum("project_role_type", [
 ]);
 
 // Role planning status — `tentative` while planned against an opportunity,
-// `confirmed` once that opportunity is won. Built from the shared client-safe
-// module so the pgEnum, zod, and labels can't drift.
+// `confirmed` once that opportunity is won, `paused`/`cancelled` when on hold or
+// dropped. The project's derived status aggregates these. Built from the shared
+// client-safe module so the pgEnum, zod, and labels can't drift.
 export const projectRoleStatusEnum = pgEnum("project_role_status", [
   ...PROJECT_ROLE_STATUSES,
 ]);
@@ -100,7 +89,8 @@ export const projectRoleStatusEnum = pgEnum("project_role_status", [
 // *placeholder* (an open position defined before it's staffed), so `staffId` is
 // nullable; when set, it's `restrict` (a staffed role blocks deleting its
 // person). `projectId` cascades with its parent project. Line of business lives
-// on the project, not the role.
+// on the role (a project's LoBs are derived from its roles); a role created from
+// an opportunity inherits that opportunity's line of business by default.
 export const projectRoles = pgTable(
   "project_roles",
   {
@@ -123,8 +113,12 @@ export const projectRoles = pgTable(
     status: projectRoleStatusEnum()
       .notNull()
       .default(DEFAULT_PROJECT_ROLE_STATUS),
-    // Optional label for the line, e.g. "Senior Backend Engineer".
-    name: text(),
+    // The line of business this role belongs to. A project's set of lines of
+    // business is derived from its roles. Defaults from the originating
+    // opportunity when created from one. Shared/global enum.
+    lineOfBusiness: lineOfBusinessEnum().notNull(),
+    // Optional free-text description of the line, e.g. "Senior Backend Engineer".
+    description: text(),
     roleType: projectRoleTypeEnum().notNull(),
     startDate: date().notNull(),
     endDate: date().notNull(),

@@ -30,7 +30,7 @@ export type RoleSegment = {
   editable: boolean;
   roleType: ProjectRoleType;
   hoursPerDay: number;
-  name: string | null;
+  description: string | null;
   opportunityId: string | null;
 };
 
@@ -78,7 +78,7 @@ function toSegment(role: PlanRole, currentOpportunityId: string): RoleSegment {
     editable: isEditable(role, currentOpportunityId),
     roleType: role.roleType,
     hoursPerDay: role.hoursPerDay,
-    name: role.name,
+    description: role.description,
     opportunityId: role.opportunityId,
   };
 }
@@ -147,7 +147,7 @@ export function buildPlannerRows(
       const segments = [toSegment(role, currentOpportunityId)];
       return {
         key: `role:${role.id}`,
-        label: role.name ?? PROJECT_ROLE_TYPE_LABELS[role.roleType],
+        label: role.description ?? PROJECT_ROLE_TYPE_LABELS[role.roleType],
         sublabel: "Open position",
         staffId: null,
         segments,

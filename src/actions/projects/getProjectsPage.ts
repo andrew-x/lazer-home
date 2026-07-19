@@ -9,13 +9,21 @@ import {
   projects,
   staff,
 } from "@/lib/db/schema";
+import type { LineOfBusiness } from "@/lib/line-of-business";
 import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/pagination";
-import type { ProjectStatus } from "@/lib/project-status";
+import {
+  deriveProjectLinesOfBusiness,
+  deriveProjectStatus,
+} from "@/lib/project-derived";
+import type { ProjectRoleStatus } from "@/lib/project-role-status";
 
 export type ProjectRow = {
   id: string;
   name: string;
-  status: ProjectStatus;
+  /** Derived from the project's roles (see `project-derived.ts`). */
+  status: ProjectRoleStatus;
+  /** The distinct lines of business across the project's roles. */
+  linesOfBusiness: LineOfBusiness[];
   companyId: string;
   companyName: string;
   deliveryManagerNames: string[];
@@ -39,7 +47,6 @@ export async function getProjectsPage(
     .select({
       id: projects.id,
       name: projects.name,
-      status: projects.status,
       companyId: projects.companyId,
       companyName: companies.name,
     })
@@ -50,7 +57,9 @@ export async function getProjectsPage(
     .offset((safePage - 1) * pageSize);
 
   const managersByProject = new Map<string, string[]>();
-  const roleCountByProject = new Map<string, number>();
+  // Role statuses and lines of business per project, for the derived fields.
+  const roleStatusesByProject = new Map<string, ProjectRoleStatus[]>();
+  const roleLobsByProject = new Map<string, LineOfBusiness[]>();
 
   if (baseRows.length > 0) {
     const pageIds = baseRows.map((r) => r.id);
@@ -72,26 +81,40 @@ export async function getProjectsPage(
       managersByProject.set(projectId, list);
     }
 
-    // Role counts per project, in one grouped query.
-    const roleCounts = await db
+    // Role status + line of business for this page's projects, in one query —
+    // the raw material for the derived project status and lines of business.
+    const roleRows = await db
       .select({
         projectId: projectRoles.projectId,
-        roleCount: count(),
+        status: projectRoles.status,
+        lineOfBusiness: projectRoles.lineOfBusiness,
       })
       .from(projectRoles)
-      .where(inArray(projectRoles.projectId, pageIds))
-      .groupBy(projectRoles.projectId);
+      .where(inArray(projectRoles.projectId, pageIds));
 
-    for (const { projectId, roleCount } of roleCounts) {
-      roleCountByProject.set(projectId, roleCount);
+    for (const { projectId, status, lineOfBusiness } of roleRows) {
+      const statuses = roleStatusesByProject.get(projectId) ?? [];
+      statuses.push(status);
+      roleStatusesByProject.set(projectId, statuses);
+
+      const lobs = roleLobsByProject.get(projectId) ?? [];
+      lobs.push(lineOfBusiness);
+      roleLobsByProject.set(projectId, lobs);
     }
   }
 
-  const rows: ProjectRow[] = baseRows.map((r) => ({
-    ...r,
-    deliveryManagerNames: managersByProject.get(r.id) ?? [],
-    roleCount: roleCountByProject.get(r.id) ?? 0,
-  }));
+  const rows: ProjectRow[] = baseRows.map((r) => {
+    const statuses = roleStatusesByProject.get(r.id) ?? [];
+    return {
+      ...r,
+      status: deriveProjectStatus(statuses),
+      linesOfBusiness: deriveProjectLinesOfBusiness(
+        roleLobsByProject.get(r.id) ?? [],
+      ),
+      deliveryManagerNames: managersByProject.get(r.id) ?? [],
+      roleCount: statuses.length,
+    };
+  });
 
   return { rows, total, page: safePage, pageSize, pageCount };
 }

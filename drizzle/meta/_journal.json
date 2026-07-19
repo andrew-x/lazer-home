@@ -15,6 +15,20 @@
       "when": 1784469916991,
       "tag": "0001_past_agent_zero",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784471176362,
+      "tag": "0002_gray_corsair",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784471176363,
+      "tag": "0003_gifted_kylun",
+      "breakpoints": true
     }
   ]
 }

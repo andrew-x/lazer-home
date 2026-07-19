@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { dateString } from "@/lib/date-schema";
 import { optionalId } from "@/lib/id-schema";
+import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
 import { PROJECT_ROLE_TYPES } from "@/lib/project-role-type";
 import { optionalText } from "@/lib/text-schema";
 
@@ -10,13 +11,18 @@ import { optionalText } from "@/lib/text-schema";
  * all share this shape so the field rules (optional staff ⇒ placeholder,
  * required dates/hours, coerced hours ≤ 24) live in exactly one place. A pure,
  * client-importable module. `status` and `opportunityId` are **server-controlled
- * provenance**, never user input; line of business lives on the project.
+ * provenance**, never user input; line of business lives on the role (a
+ * project's LoBs are derived from its roles), defaulting from the opportunity.
  */
 export const projectRoleFields = {
   // Optional: absent ⇒ placeholder/open position.
   staffId: optionalId,
-  // Optional label, e.g. "Senior Backend Engineer".
-  name: optionalText(200),
+  // The role's line of business. A project's set of lines of business is derived
+  // from its roles; from an opportunity's planner this defaults to the
+  // opportunity's line of business.
+  lineOfBusiness: z.enum(LINE_OF_BUSINESS),
+  // Optional free-text description, e.g. "Senior Backend Engineer".
+  description: optionalText(200),
   roleType: z.enum(PROJECT_ROLE_TYPES),
   startDate: dateString,
   endDate: dateString,
