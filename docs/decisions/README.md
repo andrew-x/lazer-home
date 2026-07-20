@@ -42,6 +42,7 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0031](./0031-opportunity-project-planner-and-role-status.md) | Opportunity project planner: role `status` (tentative → confirmed), auto-confirm on won, weekly Gantt view | accepted |
 | [0032](./0032-staff-rating-levels-effective-dated-manager-only.md) | Staff rating levels (L0–L4): effective-dated, nullable, manager/admin-only with no self-view | accepted |
 | [0033](./0033-line-of-business-on-role-derived-project-status.md) | LoB moves to the role; project status & LoB derived (not stored); one-click create-from-opportunity + delete/detach | accepted |
+| [0034](./0034-company-status-derived-tags.md) | Company status as derived tags (Partner / Client / Prospect), not a stored column | accepted |
 
 > **0012 is intentionally absent** (the log jumps 0011 → 0013). It was a short-lived
 > ADR documenting the *open staff-edit gap pending RBAC*; it was **withdrawn** once

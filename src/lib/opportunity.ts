@@ -42,6 +42,17 @@ export const OPPORTUNITY_STATUSES = [
 export type OpportunitySource = (typeof OPPORTUNITY_SOURCES)[number];
 export type OpportunityStatus = (typeof OPPORTUNITY_STATUSES)[number];
 
+/**
+ * The terminal pipeline statuses — a deal that's been decided, won or lost. An
+ * opportunity is "open" iff its status is not one of these. Kept here beside the
+ * status list so anything distinguishing live vs. closed deals (e.g. a company's
+ * derived "prospect" status) shares one source of truth.
+ */
+export const CLOSED_OPPORTUNITY_STATUSES = [
+  "closed_won",
+  "closed_lost",
+] as const satisfies readonly OpportunityStatus[];
+
 /** Human labels for the opportunity source enum. */
 export const SOURCE_LABELS: Record<OpportunitySource, string> = {
   inbound: "Inbound",

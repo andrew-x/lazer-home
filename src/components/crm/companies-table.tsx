@@ -1,6 +1,5 @@
 import type { CompanyRow } from "@/actions/crm/getCompaniesPage";
 import { EmptyCell } from "@/components/empty-cell";
-import { ExternalLink } from "@/components/external-link";
 import { InternalLink } from "@/components/internal-link";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { COMPANY_STATUS_LABELS, companyStatusTags } from "@/lib/company-status";
 
 export function CompaniesTable({ rows }: { rows: CompanyRow[] }) {
   if (rows.length === 0) {
@@ -26,36 +26,35 @@ export function CompaniesTable({ rows }: { rows: CompanyRow[] }) {
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
-          <TableHead>Website</TableHead>
-          <TableHead>Partner</TableHead>
+          <TableHead>Status</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {rows.map((company) => (
-          <TableRow key={company.id}>
-            <TableCell className="font-medium">
-              <InternalLink href={`/companies/${company.id}`}>
-                {company.name}
-              </InternalLink>
-            </TableCell>
-            <TableCell>
-              {company.websiteUrl ? (
-                <ExternalLink href={company.websiteUrl}>
-                  {company.websiteUrl.replace(/^https?:\/\//, "")}
-                </ExternalLink>
-              ) : (
-                <EmptyCell />
-              )}
-            </TableCell>
-            <TableCell>
-              {company.isPartner ? (
-                <Badge variant="secondary">Partner</Badge>
-              ) : (
-                <EmptyCell />
-              )}
-            </TableCell>
-          </TableRow>
-        ))}
+        {rows.map((company) => {
+          const tags = companyStatusTags(company);
+          return (
+            <TableRow key={company.id}>
+              <TableCell className="font-medium">
+                <InternalLink href={`/companies/${company.id}`}>
+                  {company.name}
+                </InternalLink>
+              </TableCell>
+              <TableCell>
+                {tags.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {tags.map((tag) => (
+                      <Badge key={tag} variant="secondary">
+                        {COMPANY_STATUS_LABELS[tag]}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyCell />
+                )}
+              </TableCell>
+            </TableRow>
+          );
+        })}
       </TableBody>
     </Table>
   );
