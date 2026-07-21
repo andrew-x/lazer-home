@@ -43,7 +43,7 @@ The ordering fragment is `latestRatingFirst` (`src/lib/staff-rating-history.ts`,
 `desc(effectiveDate)` then `desc(createdAt)` to break same-day ties) — a direct
 mirror of `latestEmploymentFirst`. The pure shared module is
 `src/lib/staff-rating.ts` (`RATING_LEVELS`, `MIN/MAX_RATING_LEVEL`, `formatLevel`
-→ `"L0".."L4"`/`"Unrated"`, `formatAverageLevel` → `"L2.3"`, `isRatingLevel`),
+→ `"L0".."L4"`/`"Unrated"`, `formatAverageLevel` → `"L2.3"`),
 mirroring `feedback-rating.ts`.
 
 ### Level is a nullable integer 0–4; null = unrated as a real, historied event
