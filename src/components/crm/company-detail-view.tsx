@@ -7,7 +7,8 @@ import { InternalLink } from "@/components/internal-link";
 import { Badge } from "@/components/ui/badge";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatShortDate, humanizeEnum } from "@/lib/format";
+import { humanizeEnum } from "@/lib/format";
+import { ContactNextStepCell } from "./contact-next-step-cell";
 import {
   DetailIdentity,
   DetailLayout,
@@ -109,20 +110,10 @@ export function CompanyDetailView({
                     </TableCell>
                     <TableCell>{contact.role ?? <EmptyCell />}</TableCell>
                     <TableCell>
-                      {contact.nextStep ? (
-                        <span className="flex flex-col gap-0.5">
-                          <span className="line-clamp-2">
-                            {contact.nextStep}
-                          </span>
-                          {contact.nextStepAt ? (
-                            <span className="text-xs text-muted-foreground">
-                              {formatShortDate(new Date(contact.nextStepAt))}
-                            </span>
-                          ) : null}
-                        </span>
-                      ) : (
-                        <EmptyCell />
-                      )}
+                      <ContactNextStepCell
+                        nextStep={contact.nextStep}
+                        nextStepAt={contact.nextStepAt}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}

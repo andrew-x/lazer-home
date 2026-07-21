@@ -1,9 +1,13 @@
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { contacts } from "@/lib/db/schema";
 import { id } from "@/lib/id-schema";
 import { optionalText } from "@/lib/text-schema";
 import { optionalUrl } from "@/lib/url-schema";
+
+/**
+ * A pure, client-importable module (no `db`/drizzle) so the create/edit contact
+ * forms' resolvers and the server actions share one schema. See the "schema
+ * modules by boundary" rule in `.claude/rules/server-actions.md`.
+ */
 
 /**
  * The user-facing contact field refinements shared by create and update:
@@ -38,22 +42,9 @@ export const contactFields = {
 };
 
 /**
- * Contact create input. Built from the Drizzle insert schema — the `contacts`
- * table is the single source of truth for which columns exist — with the shared
- * `contactFields` refinements applied. `id`/timestamps are DB-managed and
- * omitted.
+ * Contact create input — the shared `contactFields` refinements as their own
+ * object. `id`/timestamps are DB-managed and omitted.
  */
-export const createContactSchema = createInsertSchema(contacts)
-  .pick({
-    firstName: true,
-    lastName: true,
-    email: true,
-    phone: true,
-    companyId: true,
-    role: true,
-    linkedinUrl: true,
-    managerId: true,
-  })
-  .extend(contactFields);
+export const createContactSchema = z.object(contactFields);
 
 export type CreateContactInput = z.input<typeof createContactSchema>;

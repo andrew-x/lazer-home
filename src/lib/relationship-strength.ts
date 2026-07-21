@@ -9,16 +9,13 @@
 export const RELATIONSHIP_STRENGTH_MIN = 1;
 export const RELATIONSHIP_STRENGTH_MAX = 5;
 
-export const RELATIONSHIP_STRENGTH_LEVELS = [1, 2, 3, 4, 5] as const;
+const RELATIONSHIP_STRENGTH_LEVELS = [1, 2, 3, 4, 5] as const;
 
 export type RelationshipStrength =
   (typeof RELATIONSHIP_STRENGTH_LEVELS)[number];
 
 /** Short label for each level, shown beneath the stars. */
-export const RELATIONSHIP_STRENGTH_LABELS: Record<
-  RelationshipStrength,
-  string
-> = {
+const RELATIONSHIP_STRENGTH_LABELS: Record<RelationshipStrength, string> = {
   1: "New / Unestablished",
   2: "Weak",
   3: "Developing",

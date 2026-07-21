@@ -1,7 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { authorizeStaffEdit } from "@/actions/staff/canEditStaff";
+import { revalidateStaffProfile } from "@/actions/staff/staffProfileMutation";
 import { secureActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
@@ -45,8 +45,7 @@ export const upsertResponse = secureActionClient
           set: { textResponse: text, listResponse: list },
         });
 
-      revalidatePath("/profile");
-      revalidatePath(`/staff/${staffId}`);
+      revalidateStaffProfile(staffId);
       return { ok: true };
     },
   );

@@ -194,7 +194,7 @@ level is the latest row per staff. Full rationale in
 
 The pure, client-importable module is **`src/lib/staff-rating.ts`** (`RATING_LEVELS`,
 `MIN/MAX_RATING_LEVEL`, `formatLevel` → `"L0".."L4"`/`"Unrated"`, `formatAverageLevel`
-→ `"L2.3"`, `isRatingLevel`, and the Select-value helpers `encodeLevelValue` /
+→ `"L2.3"`, and the Select-value helpers `encodeLevelValue` /
 `decodeLevelValue` / `UNRATED_SELECT_VALUE` = `"none"` that map a level ↔ the edit
 dropdown's plain-string draft) — the single source the schema's `CHECK`, the zod
 schema, and the UI share, same shared-enum pattern as `feedback-rating.ts`

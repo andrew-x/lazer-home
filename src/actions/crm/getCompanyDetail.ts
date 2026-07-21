@@ -1,8 +1,12 @@
 import "server-only";
 
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { cache } from "react";
 import { contactNameSql } from "@/actions/shared/contactName";
+import {
+  latestNextStepSubquery,
+  toEpochMillis,
+} from "@/actions/shared/latestNextStep";
 import { db } from "@/lib/db/db";
 import {
   companies,
@@ -144,18 +148,12 @@ export const getCompanyDetail = cache(
 
     if (!base) return null;
 
-    // Latest next-step per contact (see getContactsPage for the DISTINCT ON
-    // rationale), left-joined onto the company's contacts below.
-    const latestNextStep = db
-      .selectDistinctOn([contactEntries.contactId], {
-        contactId: contactEntries.contactId,
-        body: contactEntries.body,
-        createdAt: contactEntries.createdAt,
-      })
-      .from(contactEntries)
-      .where(eq(contactEntries.kind, "next_step"))
-      .orderBy(contactEntries.contactId, desc(contactEntries.createdAt))
-      .as("latest_next_step");
+    // Latest next-step per contact, left-joined onto the company's contacts
+    // below.
+    const latestNextStep = latestNextStepSubquery(
+      contactEntries,
+      contactEntries.contactId,
+    );
 
     const [
       opportunityRows,
@@ -242,7 +240,7 @@ export const getCompanyDetail = cache(
           nextStepAt: latestNextStep.createdAt,
         })
         .from(contacts)
-        .leftJoin(latestNextStep, eq(latestNextStep.contactId, contacts.id))
+        .leftJoin(latestNextStep, eq(latestNextStep.parentId, contacts.id))
         .where(eq(contacts.companyId, id))
         .orderBy(asc(contacts.lastName), asc(contacts.firstName)),
     ]);
@@ -255,7 +253,7 @@ export const getCompanyDetail = cache(
       referredProjects: groupReferrals(referredProjectRows),
       contacts: contactRows.map((row) => ({
         ...row,
-        nextStepAt: row.nextStepAt ? row.nextStepAt.getTime() : null,
+        nextStepAt: toEpochMillis(row.nextStepAt),
       })),
     };
   },

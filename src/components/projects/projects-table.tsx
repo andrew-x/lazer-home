@@ -1,5 +1,6 @@
 import type { ProjectRow } from "@/actions/projects/getProjectsPage";
 import { EmptyCell } from "@/components/empty-cell";
+import { EmptyState } from "@/components/empty-state";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,11 +15,7 @@ import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
 
 export function ProjectsTable({ rows }: { rows: ProjectRow[] }) {
   if (rows.length === 0) {
-    return (
-      <p className="px-2 py-8 text-center text-sm text-muted-foreground">
-        No projects yet.
-      </p>
-    );
+    return <EmptyState>No projects yet.</EmptyState>;
   }
 
   return (

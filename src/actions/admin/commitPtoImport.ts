@@ -2,8 +2,7 @@
 
 import { eq, type InferInsertModel, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { publicActionClient } from "@/lib/action";
-import { assertLocalhost } from "@/lib/admin";
+import { localActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import { staff, staffPto } from "@/lib/db/schema";
@@ -27,12 +26,10 @@ function required<T>(value: T | null, field: string): T {
  *   - deletes: remove records cancelled/rejected upstream, by leave-request id
  * Localhost-gated; see previewPtoImport for the auth rationale.
  */
-export const commitPtoImport = publicActionClient
+export const commitPtoImport = localActionClient
   .metadata({ action: "commit-pto-import" })
   .inputSchema(ptoImportInputSchema)
   .action(async ({ parsedInput: { rows } }): Promise<CommitResult> => {
-    await assertLocalhost();
-
     const { creates, updates, deletes } = await computePtoImportPlan(rows);
 
     // Resolve staff ids for the create rows (FK target).

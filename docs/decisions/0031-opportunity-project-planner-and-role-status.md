@@ -58,8 +58,9 @@ transaction** so they commit atomically.
 — a data-integrity invariant *on top of* the `projects.edit` RBAC gate, not a substitute for
 it. Confirmed roles and roles from *other* opportunities are read-only in this drawer.
 
-**4. The planner: a weekly, Gantt-like grid.** `src/components/crm/opportunity-project-plan.tsx`
-renders roles × week columns, rows grouped by person (so an extension stacks as another block
+**4. The planner: a weekly, Gantt-like grid.** `src/components/projects/opportunity-plan/`
+(entry `opportunity-project-plan.tsx`; moved from `components/crm/`, still mounted in the CRM
+opportunity detail sheet) renders roles × week columns, rows grouped by person (so an extension stacks as another block
 on the same person's line). The grid math is a pure, unit-tested module
 `src/lib/project-planner-grid.ts` (`buildWeekColumns`, `buildPlannerRows`, `weekColumnLabel`,
 `weekSpan`) — mirroring `timesheet-grid.ts`, with a new `eachWeek(start, end)` helper in

@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import {
+  createMiddleware,
   createSafeActionClient,
   DEFAULT_SERVER_ERROR_MESSAGE,
 } from "next-safe-action";
 import { z } from "zod";
+import { assertLocalhost } from "@/lib/admin";
 import { checkAuth } from "@/lib/auth";
 import { UserSafeActionError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
@@ -94,4 +96,33 @@ export const secureActionClient = publicActionClient.use(
     if (metadata.authorize) await metadata.authorize({ user, clientInput });
     return next({ ctx: { user } });
   },
+);
+
+/**
+ * Host-gate middleware for the local-only admin tooling surface. Declaring the
+ * loopback-host check (`assertLocalhost`) as middleware makes it an
+ * unforgettable part of the client rather than a hand-written first line every
+ * admin action has to remember — a new admin action that forgets the line would
+ * otherwise be silently ungated.
+ *
+ * Standalone (`createMiddleware`) so it composes onto BOTH the public and the
+ * authenticated clients without pinning/replacing their ctx: it calls `next()`
+ * with no ctx, so `secureActionClient`'s injected `ctx.user` is preserved and
+ * the localhost gate stacks ON TOP of auth rather than replacing it.
+ */
+export const assertLocalhostMiddleware = createMiddleware<object>().define(
+  async ({ next }) => {
+    await assertLocalhost();
+    return next();
+  },
+);
+
+/**
+ * Local-only admin client: `publicActionClient` + the host gate. Use for admin
+ * tooling actions that don't otherwise need auth (local seeding/maintenance).
+ * Actions that ALSO need auth/permission gating compose the gate onto
+ * `secureActionClient` instead: `secureActionClient.use(assertLocalhostMiddleware)`.
+ */
+export const localActionClient = publicActionClient.use(
+  assertLocalhostMiddleware,
 );

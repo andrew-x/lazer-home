@@ -275,9 +275,12 @@ delivery, allocations, timesheets, and billing.
   `src/components/form/entity-combobox.tsx` (`EntityCombobox`, the single-select base with a
   `searchArgs` prop for extra scope args, wrapped by `CompanyCombobox`/`ManagerComboboxField`)
   and `src/components/form/enum-select.tsx` (`EnumSelect`) — see [../ui.md](../ui.md).
-- **Opportunity planner UI** — `src/components/crm/opportunity-project-plan.tsx` renders the
-  opportunity drawer's **Project plan** tab as a **weekly Gantt-like planner** — effectively the
-  project editor. A **summary** header shows the project's **derived** lines of business, a
+- **Opportunity planner UI** — `src/components/projects/opportunity-plan/` (entry
+  `opportunity-project-plan.tsx`, split into `planner-grid.tsx` + `edit-project-dialog.tsx` +
+  `role-dialog.tsx` + `extend-dialog.tsx`) renders the opportunity drawer's **Project plan** tab
+  as a **weekly Gantt-like planner** — effectively the project editor. It lives under
+  `components/projects/` (delivery UI) but is still **mounted inside the CRM opportunity detail
+  sheet** (`components/crm/opportunity-detail-sheet.tsx`). A **summary** header shows the project's **derived** lines of business, a
   **Delivery manager** card (from `getOpportunityPlan`'s `deliveryManagers`), and an **"Edit
   project"** button opening an edit dialog wired to `updateProject` (**name + delivery managers
   only** — no status/LoB, since those derive; roles are edited in the grid below). It also offers

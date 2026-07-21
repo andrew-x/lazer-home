@@ -1,7 +1,7 @@
 import { createUpdateSchema } from "drizzle-zod";
 import type { z } from "zod";
 import { companies } from "@/lib/db/schema";
-import { id } from "@/lib/id-schema";
+import { id, ownerId } from "@/lib/id-schema";
 
 /**
  * Owner-only company update. A deliberately narrow counterpart to
@@ -15,7 +15,7 @@ export const updateCompanyOwnerSchema = createUpdateSchema(companies)
   .pick({ ownerId: true })
   .extend({
     id,
-    ownerId: id.nullable().default(null),
+    ownerId,
   });
 
 export type UpdateCompanyOwnerInput = z.input<typeof updateCompanyOwnerSchema>;

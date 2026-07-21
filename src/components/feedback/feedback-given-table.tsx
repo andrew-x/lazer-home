@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { FeedbackIGaveRow } from "@/actions/feedback/getFeedbackIGave";
+import { EmptyState } from "@/components/empty-state";
 import { FeedbackDetailFields } from "@/components/feedback/feedback-detail-fields";
 import {
   Dialog,
@@ -33,11 +34,7 @@ export function FeedbackGivenTable({ rows }: { rows: FeedbackIGaveRow[] }) {
   const [open, setOpen] = useState(false);
 
   if (rows.length === 0) {
-    return (
-      <p className="px-2 py-8 text-center text-sm text-muted-foreground">
-        You haven't given any feedback yet.
-      </p>
-    );
+    return <EmptyState>You haven't given any feedback yet.</EmptyState>;
   }
 
   return (

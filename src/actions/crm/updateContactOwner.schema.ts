@@ -1,7 +1,7 @@
 import { createUpdateSchema } from "drizzle-zod";
 import type { z } from "zod";
 import { contacts } from "@/lib/db/schema";
-import { id } from "@/lib/id-schema";
+import { id, ownerId } from "@/lib/id-schema";
 
 /**
  * Owner-only contact update. A deliberately narrow counterpart to
@@ -16,7 +16,7 @@ export const updateContactOwnerSchema = createUpdateSchema(contacts)
   .pick({ ownerId: true })
   .extend({
     id,
-    ownerId: id.nullable().default(null),
+    ownerId,
   });
 
 export type UpdateContactOwnerInput = z.input<typeof updateContactOwnerSchema>;

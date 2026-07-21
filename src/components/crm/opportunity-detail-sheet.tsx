@@ -25,6 +25,7 @@ import {
 import { EnumSelect } from "@/components/form/enum-select";
 import { InlineEditField } from "@/components/form/inline-edit-field";
 import { IconButton } from "@/components/icon-button";
+import { OpportunityProjectPlan } from "@/components/projects/opportunity-plan/opportunity-project-plan";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -53,7 +54,6 @@ import { CompanyCombobox } from "./company-combobox";
 import { CreateContactInlineDialog } from "./create-contact-inline-dialog";
 import { EntryLog } from "./entry-log";
 import { STATUS_SELECT_LABELS } from "./opportunity-display";
-import { OpportunityProjectPlan } from "./opportunity-project-plan";
 
 /**
  * The opportunity detail drawer: a wide right-side sheet opened by clicking a

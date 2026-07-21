@@ -2,8 +2,7 @@
 
 import { type InferInsertModel, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { publicActionClient } from "@/lib/action";
-import { assertLocalhost } from "@/lib/admin";
+import { localActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import { staff, staffEmployment } from "@/lib/db/schema";
@@ -33,12 +32,10 @@ type StaffEmploymentInsert = InferInsertModel<typeof staffEmployment>;
  * (A managed by B, both new) resolve fine.
  * Localhost-gated; see previewStaffImport for the auth rationale.
  */
-export const commitStaffImport = publicActionClient
+export const commitStaffImport = localActionClient
   .metadata({ action: "commit-staff-import" })
   .inputSchema(staffImportInputSchema)
   .action(async ({ parsedInput: { rows } }): Promise<CommitResult> => {
-    await assertLocalhost();
-
     const { creates, updates } = await computeImportPlan(rows);
     const today = new Date().toISOString().slice(0, 10);
 

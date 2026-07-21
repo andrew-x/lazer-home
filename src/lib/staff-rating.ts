@@ -17,16 +17,6 @@ export const RATING_LEVELS = [0, 1, 2, 3, 4] as const;
 
 export type RatingLevel = (typeof RATING_LEVELS)[number];
 
-/** True for an integer that is a valid rating level (0–4). */
-export function isRatingLevel(value: unknown): value is RatingLevel {
-  return (
-    typeof value === "number" &&
-    Number.isInteger(value) &&
-    value >= MIN_RATING_LEVEL &&
-    value <= MAX_RATING_LEVEL
-  );
-}
-
 /** Display label for a single level. `null` (unrated) → "Unrated". */
 export function formatLevel(level: number | null): string {
   return level == null ? "Unrated" : `L${level}`;

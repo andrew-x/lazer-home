@@ -1,12 +1,14 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { secureActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
 import { staff } from "@/lib/db/schema";
-import { UserSafeActionError } from "@/lib/errors";
 import { authorizeStaffEdit } from "./canEditStaff";
+import {
+  assertStaffUpdated,
+  revalidateStaffProfile,
+} from "./staffProfileMutation";
 import { updateStaffResumeSchema } from "./updateStaffResume.schema";
 
 /**
@@ -19,7 +21,7 @@ export const updateStaffResume = secureActionClient
   .metadata({ action: "update-staff-resume", authorize: authorizeStaffEdit })
   .inputSchema(updateStaffResumeSchema)
   .action(async ({ parsedInput }) => {
-    const [updated] = await db
+    const rows = await db
       .update(staff)
       .set({
         resume: parsedInput.resume,
@@ -28,11 +30,8 @@ export const updateStaffResume = secureActionClient
       .where(eq(staff.id, parsedInput.staffId))
       .returning({ id: staff.id });
 
-    if (!updated) {
-      throw new UserSafeActionError("That staff profile no longer exists.");
-    }
+    assertStaffUpdated(rows);
 
-    revalidatePath("/profile");
-    revalidatePath(`/staff/${parsedInput.staffId}`);
+    revalidateStaffProfile(parsedInput.staffId);
     return { ok: true };
   });

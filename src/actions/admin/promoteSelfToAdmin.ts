@@ -2,8 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { secureActionClient } from "@/lib/action";
-import { assertLocalhost } from "@/lib/admin";
+import { assertLocalhostMiddleware, secureActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
 import { user } from "@/lib/db/schema";
 import { roleSchema } from "@/lib/permissions";
@@ -16,14 +15,16 @@ import { roleSchema } from "@/lib/permissions";
  * solves (you can't grant yourself the first admin role through an admin-gated
  * endpoint). The value is still validated against `roleSchema`.
  *
- * Safety boundary: `assertLocalhost()` (NODE_ENV !== production + loopback host)
- * means this can NEVER run in a real deployment, and `secureActionClient`
- * requires a session — so a caller can only ever promote themselves, locally.
+ * Safety boundary: the `assertLocalhostMiddleware` host gate (NODE_ENV !==
+ * production + loopback host) means this can NEVER run in a real deployment, and
+ * `secureActionClient` requires a session — so a caller can only ever promote
+ * themselves, locally. The gate is declared on the client (composed on top of
+ * auth), not hand-written in the body.
  */
 export const promoteSelfToAdmin = secureActionClient
+  .use(assertLocalhostMiddleware)
   .metadata({ action: "promote-self-to-admin" })
   .action(async ({ ctx }) => {
-    await assertLocalhost();
     const role = roleSchema.parse("admin");
     await db.update(user).set({ role }).where(eq(user.id, ctx.user.id));
     revalidatePath("/admin/manage-users");

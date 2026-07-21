@@ -1,5 +1,6 @@
 import type { CompanyRow } from "@/actions/crm/getCompaniesPage";
 import { EmptyCell } from "@/components/empty-cell";
+import { EmptyState } from "@/components/empty-state";
 import { InternalLink } from "@/components/internal-link";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,11 +15,7 @@ import { COMPANY_STATUS_LABELS, companyStatusTags } from "@/lib/company-status";
 
 export function CompaniesTable({ rows }: { rows: CompanyRow[] }) {
   if (rows.length === 0) {
-    return (
-      <p className="px-2 py-8 text-center text-sm text-muted-foreground">
-        No companies yet.
-      </p>
-    );
+    return <EmptyState>No companies yet.</EmptyState>;
   }
 
   return (

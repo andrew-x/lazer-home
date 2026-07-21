@@ -1,5 +1,7 @@
 import type { ContactRow } from "@/actions/crm/getContactsPage";
+import { ContactNextStepCell } from "@/components/crm/contact-next-step-cell";
 import { EmptyCell } from "@/components/empty-cell";
+import { EmptyState } from "@/components/empty-state";
 import { InternalLink } from "@/components/internal-link";
 import {
   Table,
@@ -9,15 +11,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatShortDate } from "@/lib/format";
 
 export function ContactsTable({ rows }: { rows: ContactRow[] }) {
   if (rows.length === 0) {
-    return (
-      <p className="px-2 py-8 text-center text-sm text-muted-foreground">
-        No contacts yet.
-      </p>
-    );
+    return <EmptyState>No contacts yet.</EmptyState>;
   }
 
   return (
@@ -49,18 +46,10 @@ export function ContactsTable({ rows }: { rows: ContactRow[] }) {
             </TableCell>
             <TableCell>{contact.role ?? <EmptyCell />}</TableCell>
             <TableCell>
-              {contact.nextStep ? (
-                <span className="flex flex-col gap-0.5">
-                  <span className="line-clamp-2">{contact.nextStep}</span>
-                  {contact.nextStepAt ? (
-                    <span className="text-xs text-muted-foreground">
-                      {formatShortDate(new Date(contact.nextStepAt))}
-                    </span>
-                  ) : null}
-                </span>
-              ) : (
-                <EmptyCell />
-              )}
+              <ContactNextStepCell
+                nextStep={contact.nextStep}
+                nextStepAt={contact.nextStepAt}
+              />
             </TableCell>
           </TableRow>
         ))}

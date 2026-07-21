@@ -1,4 +1,5 @@
 import type { FeedbackAboutMeRow } from "@/actions/feedback/getFeedbackAboutMe";
+import { EmptyState } from "@/components/empty-state";
 import { formatTimestamp } from "@/lib/format";
 
 /**
@@ -8,11 +9,7 @@ import { formatTimestamp } from "@/lib/format";
  */
 export function FeedbackAboutMe({ rows }: { rows: FeedbackAboutMeRow[] }) {
   if (rows.length === 0) {
-    return (
-      <p className="rounded-md border px-2 py-8 text-center text-sm text-muted-foreground">
-        No feedback about you yet.
-      </p>
-    );
+    return <EmptyState bordered>No feedback about you yet.</EmptyState>;
   }
 
   return (

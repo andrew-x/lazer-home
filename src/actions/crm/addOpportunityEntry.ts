@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { secureActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
+import { isForeignKeyViolation } from "@/lib/db/foreign-key-violation";
 import { generateId } from "@/lib/db/ids";
 import { opportunityEntries } from "@/lib/db/schema";
 import { UserSafeActionError } from "@/lib/errors";
@@ -28,8 +29,11 @@ export const addOpportunityEntry = secureActionClient
         body: parsedInput.body,
         authorStaffId,
       });
-    } catch {
-      throw new UserSafeActionError("That opportunity no longer exists.");
+    } catch (error) {
+      if (isForeignKeyViolation(error)) {
+        throw new UserSafeActionError("That opportunity no longer exists.");
+      }
+      throw error;
     }
 
     revalidatePath("/opportunities");

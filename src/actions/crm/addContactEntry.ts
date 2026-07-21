@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { secureActionClient } from "@/lib/action";
 import { db } from "@/lib/db/db";
+import { isForeignKeyViolation } from "@/lib/db/foreign-key-violation";
 import { generateId } from "@/lib/db/ids";
 import { contactEntries } from "@/lib/db/schema";
 import { UserSafeActionError } from "@/lib/errors";
@@ -29,8 +30,11 @@ export const addContactEntry = secureActionClient
         body: parsedInput.body,
         authorStaffId,
       });
-    } catch {
-      throw new UserSafeActionError("That contact no longer exists.");
+    } catch (error) {
+      if (isForeignKeyViolation(error)) {
+        throw new UserSafeActionError("That contact no longer exists.");
+      }
+      throw error;
     }
 
     revalidatePath(`/contacts/${parsedInput.contactId}`);

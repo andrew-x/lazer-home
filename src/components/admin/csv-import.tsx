@@ -160,9 +160,17 @@ export function CsvImport<TRow, TPlan, TCommit>({
       skipEmptyLines: "greedy",
       transformHeader: (header) => header.trim(),
       complete: (results) => {
-        const result = transformRows(results.data);
-        setTransform(result);
-        preview.execute({ rows: result.rows });
+        try {
+          const result = transformRows(results.data);
+          setTransform(result);
+          preview.execute({ rows: result.rows });
+        } catch (error) {
+          setParseError(
+            error instanceof Error
+              ? error.message
+              : "Could not parse the file.",
+          );
+        }
       },
       error: (error) => setParseError(error.message),
     });
@@ -195,7 +203,7 @@ export function CsvImport<TRow, TPlan, TCommit>({
             accept=".csv,text/csv"
             onChange={onFileChange}
             disabled={busy}
-            className="cursor-pointer file:cursor-pointer"
+            className="file:cursor-pointer"
           />
           {fileName ? (
             <div className="flex items-center justify-between gap-2">
