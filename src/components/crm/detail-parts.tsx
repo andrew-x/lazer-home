@@ -7,6 +7,7 @@
 
 import type { ReactNode } from "react";
 import { EmptyCell } from "@/components/empty-cell";
+import { EmptyState } from "@/components/empty-state";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -156,14 +157,9 @@ export function DetailTable({
 /**
  * The no-rows state for a detail section: the same bordered container as
  * {@link DetailTable}, holding a centered "No … yet" note in place of a table.
- * Mirrors the list tables' empty placeholder.
+ * A thin wrapper over the shared {@link EmptyState} (bordered variant), kept as
+ * the named entry point the detail views reach for.
  */
 export function TableEmpty({ children }: { children: string }) {
-  return (
-    <div className="rounded-md border">
-      <p className="px-2 py-8 text-center text-sm text-muted-foreground">
-        {children}
-      </p>
-    </div>
-  );
+  return <EmptyState bordered>{children}</EmptyState>;
 }
