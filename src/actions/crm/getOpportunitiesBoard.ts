@@ -1,6 +1,10 @@
 import "server-only";
 
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
+import {
+  latestNextStepSubquery,
+  toEpochMillis,
+} from "@/actions/shared/latestNextStep";
 import { db } from "@/lib/db/db";
 import {
   companies,
@@ -39,21 +43,12 @@ export type OpportunityBoardCard = {
  * owner-name query (no N+1).
  */
 export async function getOpportunitiesBoard(): Promise<OpportunityBoardCard[]> {
-  // Latest next-step per opportunity (see getContactsPage for the DISTINCT ON
-  // rationale): one row per opportunity, newest `next_step` first.
-  const latestNextStep = db
-    .selectDistinctOn([opportunityEntries.opportunityId], {
-      opportunityId: opportunityEntries.opportunityId,
-      body: opportunityEntries.body,
-      createdAt: opportunityEntries.createdAt,
-    })
-    .from(opportunityEntries)
-    .where(eq(opportunityEntries.kind, "next_step"))
-    .orderBy(
-      opportunityEntries.opportunityId,
-      desc(opportunityEntries.createdAt),
-    )
-    .as("latest_next_step");
+  // Latest next-step per opportunity: one row per opportunity, newest
+  // `next_step` first.
+  const latestNextStep = latestNextStepSubquery(
+    opportunityEntries,
+    opportunityEntries.opportunityId,
+  );
 
   const baseRows = await db
     .select({
@@ -73,10 +68,7 @@ export async function getOpportunitiesBoard(): Promise<OpportunityBoardCard[]> {
     })
     .from(opportunities)
     .innerJoin(companies, eq(opportunities.companyId, companies.id))
-    .leftJoin(
-      latestNextStep,
-      eq(latestNextStep.opportunityId, opportunities.id),
-    )
+    .leftJoin(latestNextStep, eq(latestNextStep.parentId, opportunities.id))
     .orderBy(asc(opportunities.position), asc(opportunities.createdAt));
 
   // Resolve owner names for all cards in a single grouped query (no N+1).
@@ -104,7 +96,7 @@ export async function getOpportunitiesBoard(): Promise<OpportunityBoardCard[]> {
   return baseRows.map(({ projectId, ...r }) => ({
     ...r,
     createdAt: r.createdAt.getTime(),
-    nextStepAt: r.nextStepAt ? r.nextStepAt.getTime() : null,
+    nextStepAt: toEpochMillis(r.nextStepAt),
     ownerNames: ownersByOpportunity.get(r.id) ?? [],
     hasProject: projectId != null,
   }));

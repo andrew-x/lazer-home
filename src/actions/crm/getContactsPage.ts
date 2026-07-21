@@ -1,6 +1,10 @@
 import "server-only";
 
-import { asc, count, desc, eq } from "drizzle-orm";
+import { asc, count, eq } from "drizzle-orm";
+import {
+  latestNextStepSubquery,
+  toEpochMillis,
+} from "@/actions/shared/latestNextStep";
 import { db } from "@/lib/db/db";
 import { companies, contactEntries, contacts } from "@/lib/db/schema";
 import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/pagination";
@@ -33,18 +37,10 @@ export async function getContactsPage(
   const [{ total }] = await db.select({ total: count() }).from(contacts);
   const { pageCount, safePage } = clampPage(total, page, pageSize);
 
-  // Latest next-step per contact: DISTINCT ON keeps the first row per
-  // `contactId` under the (contactId, createdAt desc) ordering.
-  const latestNextStep = db
-    .selectDistinctOn([contactEntries.contactId], {
-      contactId: contactEntries.contactId,
-      body: contactEntries.body,
-      createdAt: contactEntries.createdAt,
-    })
-    .from(contactEntries)
-    .where(eq(contactEntries.kind, "next_step"))
-    .orderBy(contactEntries.contactId, desc(contactEntries.createdAt))
-    .as("latest_next_step");
+  const latestNextStep = latestNextStepSubquery(
+    contactEntries,
+    contactEntries.contactId,
+  );
 
   const rows = await db
     .select({
@@ -59,7 +55,7 @@ export async function getContactsPage(
     })
     .from(contacts)
     .leftJoin(companies, eq(contacts.companyId, companies.id))
-    .leftJoin(latestNextStep, eq(latestNextStep.contactId, contacts.id))
+    .leftJoin(latestNextStep, eq(latestNextStep.parentId, contacts.id))
     .orderBy(asc(contacts.lastName), asc(contacts.firstName))
     .limit(pageSize)
     .offset((safePage - 1) * pageSize);
@@ -67,7 +63,7 @@ export async function getContactsPage(
   return {
     rows: rows.map((row) => ({
       ...row,
-      nextStepAt: row.nextStepAt ? row.nextStepAt.getTime() : null,
+      nextStepAt: toEpochMillis(row.nextStepAt),
     })),
     total,
     page: safePage,
