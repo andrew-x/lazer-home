@@ -1,23 +1,17 @@
-import { createUpdateSchema } from "drizzle-zod";
-import type { z } from "zod";
-import { staff } from "@/lib/db/schema";
+import { z } from "zod";
 import { id } from "@/lib/id-schema";
 import { optionalUrl } from "@/lib/url-schema";
 
 /**
- * Staff links edit input. Built from the Drizzle update schema — the `staff`
- * table is the single source of truth for which columns exist — with each URL
- * refined by the shared optional-URL validator; `staffId` targets the row. Lives
- * in its own file so the edit form can import it for the resolver (never export
- * schemas from a "use server" file).
+ * Staff links edit input — a pure, client-importable module (no `db`/drizzle) so
+ * the edit form's resolver and the server action share one schema. Each URL is
+ * refined by the shared optional-URL validator; `staffId` targets the row.
  */
-export const updateStaffLinksSchema = createUpdateSchema(staff)
-  .pick({ linkedinUrl: true, githubUrl: true, portfolioUrl: true })
-  .extend({
-    staffId: id,
-    linkedinUrl: optionalUrl,
-    githubUrl: optionalUrl,
-    portfolioUrl: optionalUrl,
-  });
+export const updateStaffLinksSchema = z.object({
+  staffId: id,
+  linkedinUrl: optionalUrl,
+  githubUrl: optionalUrl,
+  portfolioUrl: optionalUrl,
+});
 
 export type UpdateStaffLinksInput = z.input<typeof updateStaffLinksSchema>;

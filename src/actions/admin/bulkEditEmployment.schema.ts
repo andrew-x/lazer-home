@@ -1,28 +1,50 @@
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { billableTypeEnum, staffEmployment } from "@/lib/db/schema";
 import { isEmploymentInvariantSatisfied } from "@/lib/employment";
 import { id } from "@/lib/id-schema";
+import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
+import {
+  BILLABLE_TYPE_LABELS,
+  type BillableType,
+  EMPLOYMENT_TYPE_LABELS,
+  type EmploymentType,
+  ROLE_LABELS,
+  type Role,
+} from "@/lib/staff-enums";
 
 /**
- * One staff member's edited employment facts in a bulk edit. Built from the
- * Drizzle insert schema (single source of truth for the enums), with the
- * defaulted/loosely-typed columns tightened: the client always sends each row's
- * full current state, so every fact is required here, and `utilizationTarget` is
- * bounded 0–100. The billable/target invariant is the shared one from
- * `@/lib/employment` (also enforced by the import's `normalizedStaffSchema`).
+ * A pure, client-importable module (no `db`/drizzle) so the bulk-edit UI and the
+ * commit action share one schema. The staff-employment enum value sets are
+ * reused via the label maps in `@/lib/staff-enums` (each keyed by the full enum
+ * union, so a `Record` type keeps them in lockstep with the schema enums) and
+ * `LINE_OF_BUSINESS` — no Drizzle enum import. See the "schema modules by
+ * boundary" rule in `.claude/rules/server-actions.md`.
  */
-const employmentChangeSchema = createInsertSchema(staffEmployment)
-  .pick({
-    lineOfBusiness: true,
-    role: true,
-    employmentType: true,
-  })
-  .extend({
+const ROLES = Object.keys(ROLE_LABELS) as [Role, ...Role[]];
+const EMPLOYMENT_TYPES = Object.keys(EMPLOYMENT_TYPE_LABELS) as [
+  EmploymentType,
+  ...EmploymentType[],
+];
+const BILLABLE_TYPES = Object.keys(BILLABLE_TYPE_LABELS) as [
+  BillableType,
+  ...BillableType[],
+];
+
+/**
+ * One staff member's edited employment facts in a bulk edit. Every fact is
+ * required (the client always sends each row's full current state) and
+ * `utilizationTarget` is bounded 0–100. The billable/target invariant is the
+ * shared one from `@/lib/employment` (also enforced by the import's
+ * `normalizedStaffSchema`).
+ */
+const employmentChangeSchema = z
+  .object({
+    lineOfBusiness: z.enum(LINE_OF_BUSINESS),
+    role: z.enum(ROLES),
+    employmentType: z.enum(EMPLOYMENT_TYPES),
     staffId: id,
     isBillable: z.boolean(),
     utilizationTarget: z.number().int().min(0).max(100),
-    billableType: z.enum(billableTypeEnum.enumValues),
+    billableType: z.enum(BILLABLE_TYPES),
     isManagement: z.boolean(),
   })
   .refine(isEmploymentInvariantSatisfied, {

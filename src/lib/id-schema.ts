@@ -12,6 +12,14 @@ export const id = z.string().min(1);
 export const optionalId = id.optional();
 
 /**
+ * A nullable owner reference — an existing staff id, or null to unassign,
+ * defaulting to null. The shared shape for every "owner" field across CRM
+ * (company/contact create+update and the inline owner-only updates) so the
+ * "staff id, or null to unassign" rule lives in one place.
+ */
+export const ownerId = id.nullable().default(null);
+
+/**
  * A list of related-entity ids (contacts, staff, delivery managers, …),
  * defaulting to empty. Shared by every form field that collects a set of picked
  * entity ids so the "non-empty strings, defaults to []" shape stays consistent
