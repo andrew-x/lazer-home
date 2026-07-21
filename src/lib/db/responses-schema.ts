@@ -42,7 +42,10 @@ export const responses = pgTable(
     // question has no row at all — a present row may still null out a cleared answer.
     listResponse: jsonb().$type<string[]>(),
     textResponse: text(),
-    jsonResponse: jsonb(),
+    // Structured-object answers. No consumer yet, and the shape is per-question
+    // (owned by each survey's pure module), so this is the narrowest honest type
+    // rather than a concrete union — validate the real shape at the zod layer.
+    jsonResponse: jsonb().$type<Record<string, unknown>>(),
 
     createdAt: timestamp().defaultNow().notNull(),
     updatedAt: timestamp()
