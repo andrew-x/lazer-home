@@ -37,6 +37,11 @@ export type CompanyRow = {
 // status: it's *derived* from its roles ("least-committed wins", see
 // `deriveProjectStatus` in `src/lib/project-derived.ts`), so "confirmed" means
 // the project has at least one confirmed role and no tentative/paused role.
+//
+// LOCKSTEP: this SQL re-expresses `deriveProjectStatus(...) === "confirmed"` in
+// the database. The two definitions of "confirmed" MUST stay in sync — if you
+// change the precedence in `project-derived.ts`, update this expression too.
+// `src/lib/project-derived.test.ts` asserts the two rules agree across fixtures.
 const isClientExpr = exists(
   db
     .select({ n: sql`1` })

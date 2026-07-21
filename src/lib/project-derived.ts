@@ -20,6 +20,11 @@ import type { ProjectRoleStatus } from "@/lib/project-role-status";
  * The precedence "least-committed wins" (tentative > paused > confirmed) means a
  * project only reads as confirmed once all its live roles are confirmed — which
  * is exactly what `confirmRolesOnWon` produces when an opportunity is won.
+ *
+ * LOCKSTEP: the "confirmed" case is re-expressed in SQL by `isClientExpr` in
+ * `src/actions/crm/getCompaniesPage.ts` (∃ confirmed role ∧ ∄ tentative/paused
+ * role) to tag client companies. Keep the two in sync; the agreement test in
+ * `project-derived.test.ts` guards it.
  */
 export function deriveProjectStatus(
   roleStatuses: readonly ProjectRoleStatus[],
