@@ -1,34 +1,26 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
+import {
+  type CompensationDimensions,
+  employmentCompColumns,
+} from "@/actions/shared/employmentComp";
 import { getCurrentUser } from "@/lib/auth";
 import { firstPerKey } from "@/lib/collections";
-import type { Currency } from "@/lib/currency";
 import { db } from "@/lib/db/db";
-import {
-  employmentTypeEnum,
-  lineOfBusinessEnum,
-  roleEnum,
-  type StaffEmployment,
-  staff,
-  staffEmployment,
-  staffRating,
-} from "@/lib/db/schema";
+import { staff, staffEmployment, staffRating } from "@/lib/db/schema";
 import { requirePermission } from "@/lib/permissions";
 import { latestEmploymentFirst } from "@/lib/staff-employment";
+import { STAFF_FILTER_OPTIONS } from "@/lib/staff-filters";
 import { latestRatingFirst } from "@/lib/staff-rating-history";
 
 /**
  * The filter dimensions offered by the Levels dashboard, sourced from the DB
  * enums. Exported here so the page/UI don't import the Drizzle schema (the
- * actions layer owns all `@/lib/db` access). Mirrors `performanceFilterOptions`.
- * `role` also drives the ordered by-level and by-role breakdowns.
+ * actions layer owns all `@/lib/db` access). `role` also drives the ordered
+ * by-level and by-role breakdowns.
  */
-export const ratingsFilterOptions = {
-  lineOfBusiness: [...lineOfBusinessEnum.enumValues],
-  role: [...roleEnum.enumValues],
-  employmentType: [...employmentTypeEnum.enumValues],
-};
+export const ratingsFilterOptions = STAFF_FILTER_OPTIONS;
 
 /**
  * One row per active staff member for the Levels dashboard: the person's current
@@ -45,15 +37,7 @@ export const ratingsFilterOptions = {
  */
 export type RatingRecord = {
   level: number | null;
-  employment: {
-    lineOfBusiness: StaffEmployment["lineOfBusiness"];
-    role: StaffEmployment["role"];
-    employmentType: StaffEmployment["employmentType"];
-    base: number;
-    guaranteedBonus: number;
-    hourlyRate: number;
-    currency: Currency;
-  } | null;
+  employment: CompensationDimensions | null;
 };
 
 /**
@@ -81,16 +65,7 @@ export async function getRatingsSummaryData(): Promise<RatingRecord[]> {
   // newest-first, keep the first per staff in JS (two queries each, no N+1).
   const [employmentRows, ratingRows] = await Promise.all([
     db
-      .select({
-        staffId: staffEmployment.staffId,
-        lineOfBusiness: staffEmployment.lineOfBusiness,
-        role: staffEmployment.role,
-        employmentType: staffEmployment.employmentType,
-        base: staffEmployment.base,
-        guaranteedBonus: staffEmployment.guaranteedBonus,
-        hourlyRate: staffEmployment.hourlyRate,
-        currency: staffEmployment.currency,
-      })
+      .select(employmentCompColumns)
       .from(staffEmployment)
       .orderBy(...latestEmploymentFirst),
     db

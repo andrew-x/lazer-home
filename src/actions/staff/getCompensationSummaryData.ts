@@ -1,31 +1,24 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
+import {
+  type CompensationDimensions,
+  employmentCompColumns,
+} from "@/actions/shared/employmentComp";
 import { getCurrentUser } from "@/lib/auth";
 import { firstPerKey } from "@/lib/collections";
-import type { Currency } from "@/lib/currency";
 import { db } from "@/lib/db/db";
-import {
-  employmentTypeEnum,
-  lineOfBusinessEnum,
-  roleEnum,
-  type StaffEmployment,
-  staff,
-  staffEmployment,
-} from "@/lib/db/schema";
+import { staff, staffEmployment } from "@/lib/db/schema";
 import { requirePermission } from "@/lib/permissions";
 import { latestEmploymentFirst } from "@/lib/staff-employment";
+import { STAFF_FILTER_OPTIONS } from "@/lib/staff-filters";
 
 /**
  * The filter dimensions offered by the performance dashboard, sourced from the
  * DB enums. Exported here so the page/UI don't import the Drizzle schema (the
- * actions layer owns all `@/lib/db` access). Mirrors `staffDirectoryFilterOptions`.
+ * actions layer owns all `@/lib/db` access).
  */
-export const performanceFilterOptions = {
-  lineOfBusiness: [...lineOfBusinessEnum.enumValues],
-  role: [...roleEnum.enumValues],
-  employmentType: [...employmentTypeEnum.enumValues],
-};
+export const performanceFilterOptions = STAFF_FILTER_OPTIONS;
 
 /**
  * One compensation record per active staff member: the dimensions the dashboard
@@ -36,15 +29,7 @@ export const performanceFilterOptions = {
  * to filter or group by an identity-linked attribute, do that server-side *before*
  * building the row — the record that ships to the client stays anonymous.
  */
-export type CompensationRecord = {
-  lineOfBusiness: StaffEmployment["lineOfBusiness"];
-  role: StaffEmployment["role"];
-  employmentType: StaffEmployment["employmentType"];
-  base: number;
-  guaranteedBonus: number;
-  hourlyRate: number;
-  currency: Currency;
-};
+export type CompensationRecord = CompensationDimensions;
 
 /**
  * Latest-employment compensation rows for every ACTIVE staff member, for the
@@ -74,16 +59,7 @@ export async function getCompensationSummaryData(): Promise<
   // in JS (two queries, no N+1) — same pattern as getStaffDirectory. Project only
   // the columns the dashboard needs.
   const employmentRows = await db
-    .select({
-      staffId: staffEmployment.staffId,
-      lineOfBusiness: staffEmployment.lineOfBusiness,
-      role: staffEmployment.role,
-      employmentType: staffEmployment.employmentType,
-      base: staffEmployment.base,
-      guaranteedBonus: staffEmployment.guaranteedBonus,
-      hourlyRate: staffEmployment.hourlyRate,
-      currency: staffEmployment.currency,
-    })
+    .select(employmentCompColumns)
     .from(staffEmployment)
     .orderBy(...latestEmploymentFirst);
 

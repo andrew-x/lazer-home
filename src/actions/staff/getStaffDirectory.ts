@@ -5,9 +5,6 @@ import { firstPerKey } from "@/lib/collections";
 import { db } from "@/lib/db/db";
 import {
   billableTypeEnum,
-  employmentTypeEnum,
-  lineOfBusinessEnum,
-  roleEnum,
   type StaffEmployment,
   staff,
   staffEmployment,
@@ -15,16 +12,16 @@ import {
 } from "@/lib/db/schema";
 import type { StaffSkill } from "@/lib/skills";
 import { latestEmploymentFirst } from "@/lib/staff-employment";
+import { STAFF_FILTER_OPTIONS } from "@/lib/staff-filters";
 
 /**
  * The values offered by the directory's filter dropdowns, sourced from the DB
  * enums. Exported here so pages don't import the Drizzle schema directly (the
- * actions layer owns all `@/lib/db` access).
+ * actions layer owns all `@/lib/db` access). The three shared dimensions come
+ * from `STAFF_FILTER_OPTIONS`; the directory adds `billableType`.
  */
 export const staffDirectoryFilterOptions = {
-  lineOfBusiness: [...lineOfBusinessEnum.enumValues],
-  role: [...roleEnum.enumValues],
-  employmentType: [...employmentTypeEnum.enumValues],
+  ...STAFF_FILTER_OPTIONS,
   billableType: [...billableTypeEnum.enumValues],
 };
 
