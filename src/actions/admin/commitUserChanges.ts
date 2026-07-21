@@ -3,8 +3,7 @@
 import { inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { secureActionClient } from "@/lib/action";
-import { assertLocalhost } from "@/lib/admin";
+import { assertLocalhostMiddleware, secureActionClient } from "@/lib/action";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/db";
 import { user } from "@/lib/db/schema";
@@ -30,8 +29,9 @@ function errorMessage(error: unknown): string {
  * `unbanUser` — rather than direct column writes, so a ban also revokes the
  * user's sessions. Those endpoints require the caller to be an admin, which the
  * `role: "admin"` gate guarantees (and which is also what gives us a session to
- * forward). The whole `/admin` segment is local-only, so `assertLocalhost()` is
- * re-asserted here as the action-level boundary.
+ * forward). The whole `/admin` segment is local-only, so the localhost host
+ * gate is composed on top of auth via `assertLocalhostMiddleware` (declared on
+ * the client, not hand-written in the body) as the action-level boundary.
  *
  * The client payload is never trusted: current role/banned are re-read and
  * no-op changes are dropped before any endpoint is called.
@@ -44,12 +44,11 @@ function errorMessage(error: unknown): string {
  * apply is possible, same as the sequential version would leave on first throw).
  */
 export const commitUserChanges = secureActionClient
+  .use(assertLocalhostMiddleware)
   .metadata({ action: "commit-user-changes", role: "admin" })
   .inputSchema(updateUsersSchema)
   .action(
     async ({ parsedInput: { changes } }): Promise<CommitUserChangesResult> => {
-      await assertLocalhost();
-
       const userIds = changes.map((c) => c.userId);
       const currentRows = await db
         .select({

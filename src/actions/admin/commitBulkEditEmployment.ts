@@ -2,8 +2,7 @@
 
 import { eq, type InferInsertModel, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { publicActionClient } from "@/lib/action";
-import { assertLocalhost } from "@/lib/admin";
+import { localActionClient } from "@/lib/action";
 import { firstPerKey } from "@/lib/collections";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
@@ -36,15 +35,13 @@ export type BulkEditEmploymentResult = {
  * This in-place-update path deliberately extends ADR 0007 (which otherwise only
  * inserts new rows). Localhost-gated; see staff import for the auth rationale.
  */
-export const commitBulkEditEmployment = publicActionClient
+export const commitBulkEditEmployment = localActionClient
   .metadata({ action: "bulk-edit-employment" })
   .inputSchema(bulkEditEmploymentSchema)
   .action(
     async ({
       parsedInput: { effectiveDate, changes },
     }): Promise<BulkEditEmploymentResult> => {
-      await assertLocalhost();
-
       const staffIds = changes.map((c) => c.staffId);
 
       // Latest employment row per affected staff (effectiveFromDate desc,
