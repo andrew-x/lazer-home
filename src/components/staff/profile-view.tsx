@@ -27,10 +27,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RIPPLING_TIME_OFF_URL } from "@/lib/constants";
-import { formatDate, formatTimestamp, initialsFor } from "@/lib/format";
-import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
-import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff-enums";
+import { RIPPLING_TIME_OFF_URL } from "@/lib/core/constants";
+import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
+import { formatDate, formatTimestamp, initialsFor } from "@/lib/format/format";
+import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff/staff-enums";
 
 /** A profile URL row, or an em dash when absent. */
 function LinkRow({ label, url }: { label: string; url: string | null }) {

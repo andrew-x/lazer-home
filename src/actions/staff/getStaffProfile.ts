@@ -5,8 +5,8 @@ import { alias } from "drizzle-orm/pg-core";
 import { cache } from "react";
 import { db } from "@/lib/db/db";
 import { type StaffEmployment, staff, staffEmployment } from "@/lib/db/schema";
-import type { StaffSkill } from "@/lib/skills";
-import { latestEmploymentFirst } from "@/lib/staff-employment";
+import type { StaffSkill } from "@/lib/staff/skills";
+import { latestEmploymentFirst } from "@/lib/staff/staff-employment";
 
 /**
  * A staff member's profile plus their latest employment facts. `employment` is

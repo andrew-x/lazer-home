@@ -5,13 +5,13 @@ import {
   type CompensationDimensions,
   employmentCompColumns,
 } from "@/actions/shared/employmentComp";
-import { getCurrentUser } from "@/lib/auth";
-import { firstPerKey } from "@/lib/collections";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { requirePermission } from "@/lib/auth/permissions";
+import { firstPerKey } from "@/lib/core/collections";
 import { db } from "@/lib/db/db";
 import { staff, staffEmployment } from "@/lib/db/schema";
-import { requirePermission } from "@/lib/permissions";
-import { latestEmploymentFirst } from "@/lib/staff-employment";
-import { STAFF_FILTER_OPTIONS } from "@/lib/staff-filters";
+import { latestEmploymentFirst } from "@/lib/staff/staff-employment";
+import { STAFF_FILTER_OPTIONS } from "@/lib/staff/staff-filters";
 
 /**
  * The filter dimensions offered by the performance dashboard, sourced from the

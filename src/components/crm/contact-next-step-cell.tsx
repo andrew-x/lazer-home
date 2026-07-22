@@ -1,5 +1,5 @@
 import { EmptyCell } from "@/components/empty-cell";
-import { formatShortDate } from "@/lib/format";
+import { formatShortDate } from "@/lib/format/format";
 
 /**
  * The "next steps" cell shared by the contacts list and the company detail's

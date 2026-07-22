@@ -27,13 +27,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
+import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
 import {
   matchesSkillFilter,
   type ProficiencyLevel,
   SKILL_CATEGORIES,
-} from "@/lib/skills";
-import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff-enums";
+} from "@/lib/staff/skills";
+import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff/staff-enums";
 
 /** Sentinel min-level meaning "any proficiency" — imposes no level constraint. */
 const ANY_LEVEL = "ANY";

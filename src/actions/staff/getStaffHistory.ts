@@ -1,12 +1,12 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
-import { type Currency, formatMoney } from "@/lib/currency";
+import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
 import { db } from "@/lib/db/db";
 import { staffEmployment } from "@/lib/db/schema";
-import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
-import { latestEmploymentFirst } from "@/lib/staff-employment";
-import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff-enums";
+import { type Currency, formatMoney } from "@/lib/format/currency";
+import { latestEmploymentFirst } from "@/lib/staff/staff-employment";
+import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff/staff-enums";
 
 /**
  * The kinds of change in a person's history feed. Employment (which now carries

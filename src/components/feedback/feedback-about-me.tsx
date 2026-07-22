@@ -1,6 +1,6 @@
 import type { FeedbackAboutMeRow } from "@/actions/feedback/getFeedbackAboutMe";
 import { EmptyState } from "@/components/empty-state";
-import { formatTimestamp } from "@/lib/format";
+import { formatTimestamp } from "@/lib/format/format";
 
 /**
  * The recipient's view: feedback left about you. Deliberately shows only the

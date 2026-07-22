@@ -3,9 +3,9 @@ import { getContactsPage } from "@/actions/crm/getContactsPage";
 import { AddContactDialog } from "@/components/crm/add-contact-dialog";
 import { ContactsTable } from "@/components/crm/contacts-table";
 import { PaginationControls } from "@/components/pagination-controls";
-import { getCurrentUser } from "@/lib/auth";
-import { parsePage } from "@/lib/pagination";
-import { userHasPermission } from "@/lib/permissions";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { userHasPermission } from "@/lib/auth/permissions";
+import { parsePage } from "@/lib/core/pagination";
 
 export const metadata: Metadata = { title: "Contacts" };
 

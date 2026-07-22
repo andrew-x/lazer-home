@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 
 /**
  * A labelled form field: a `Label`, the control (children), and — when present —

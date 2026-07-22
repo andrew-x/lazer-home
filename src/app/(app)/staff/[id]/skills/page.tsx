@@ -7,7 +7,7 @@ import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
 import { getStaffProfile } from "@/actions/staff/getStaffProfile";
 import { EditSkillsForm } from "@/components/staff/edit-skills-form";
 import { Button } from "@/components/ui/button";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth/auth";
 
 export const metadata: Metadata = { title: "Edit skills" };
 

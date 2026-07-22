@@ -14,14 +14,14 @@ import {
   LINE_OF_BUSINESS,
   LINE_OF_BUSINESS_LABELS,
   type LineOfBusiness,
-} from "@/lib/line-of-business";
+} from "@/lib/crm/line-of-business";
 import {
   OPPORTUNITY_SOURCES,
   OPPORTUNITY_STATUSES,
   type OpportunitySource,
   type OpportunityStatus,
   SOURCE_LABELS,
-} from "@/lib/opportunity";
+} from "@/lib/crm/opportunity";
 import { ContactsComboboxField } from "./contacts-combobox-field";
 import { STATUS_SELECT_LABELS } from "./opportunity-display";
 

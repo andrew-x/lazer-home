@@ -1,7 +1,7 @@
 import type { InferInsertModel } from "drizzle-orm";
 import { generateId } from "@/lib/db/ids";
 import { feedback, type Staff, staffRating } from "@/lib/db/schema";
-import { FEEDBACK_RATINGS } from "@/lib/feedback-rating";
+import { FEEDBACK_RATINGS } from "@/lib/performance/feedback-rating";
 import type { SeedDb } from "./client";
 import { chance, faker, isoDate } from "./faker";
 

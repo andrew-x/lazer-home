@@ -11,7 +11,7 @@ import {
   ComboboxList,
 } from "@/components/ui/combobox";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import type { SearchAction } from "@/lib/search";
+import type { SearchAction } from "@/lib/core/search";
 import { searchEmptyMessage } from "./combobox-empty-message";
 import type { EntityOption } from "./entity-multi-combobox";
 

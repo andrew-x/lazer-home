@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { getOpportunitiesBoard } from "@/actions/crm/getOpportunitiesBoard";
 import { AddOpportunityDialog } from "@/components/crm/add-opportunity-dialog";
 import { OpportunityBoard } from "@/components/crm/opportunity-board";
-import { getCurrentUser } from "@/lib/auth";
-import { userHasPermission } from "@/lib/permissions";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { userHasPermission } from "@/lib/auth/permissions";
 
 export const metadata: Metadata = { title: "Opportunities" };
 

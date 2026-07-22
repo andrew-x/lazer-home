@@ -20,15 +20,15 @@ The opportunities pipeline moved from a flat, static list to a **kanban board**
 
 **Status groups are derived in code from a flat leaf enum.** The database column
 stays a **single flat `pgEnum` (`opportunity_status`)** of 14 leaf values. The
-group structure lives only in the pure module `src/lib/opportunity-pipeline.ts`
+group structure lives only in the pure module `src/lib/crm/opportunity-pipeline.ts`
 (`OPPORTUNITY_GROUPS`), which maps ordered groups → their substatuses. The leaf
 tuple (`OPPORTUNITY_STATUSES`) remains the single source of truth in
-`src/lib/opportunity.ts`, in **strict pipeline order** (array
+`src/lib/crm/opportunity.ts`, in **strict pipeline order** (array
 index === pipeline position); the `pgEnum` derives from it (ADR 0016). A
-**module-load assertion** (plus `opportunity-pipeline.test.ts`) enforces that
+**module-load assertion** enforces that
 `OPPORTUNITY_GROUPS` flattened equals `OPPORTUNITY_STATUSES` in the same order, so
 the two structures can't drift silently — the same "deliberate friction" idea as
-the permissions matrix test. This mirrors the `src/lib/line-of-business.ts` pattern.
+the permissions matrix test. This mirrors the `src/lib/crm/line-of-business.ts` pattern.
 
 **Ordering is a single global fractional index.** `opportunities.position`
 (`doublePrecision NOT NULL DEFAULT 0`) is *one* global ordering, not per-column.

@@ -9,14 +9,14 @@ import { getTimesheet } from "@/actions/timesheets/getTimesheet";
 import { TimesheetWeek } from "@/components/timesheets/timesheet-week";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getCurrentUser } from "@/lib/auth";
-import { ISO_DATE } from "@/lib/date-schema";
-import { formatDate, formatIsoDate, parseIsoDate } from "@/lib/format";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { formatDate, formatIsoDate, parseIsoDate } from "@/lib/format/format";
+import { ISO_DATE } from "@/lib/schemas/date-schema";
 import {
   DEFAULT_TIMESHEET_STATUS,
   TIMESHEET_STATUS_LABELS,
-} from "@/lib/timesheet-status";
-import { getWeekDays, getWeekStart } from "@/lib/timesheet-week";
+} from "@/lib/timesheets/timesheet-status";
+import { getWeekDays, getWeekStart } from "@/lib/timesheets/timesheet-week";
 
 export const metadata: Metadata = { title: "Timesheet" };
 

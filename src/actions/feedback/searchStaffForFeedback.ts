@@ -2,8 +2,8 @@
 
 import { searchStaffByName } from "@/actions/shared/entitySearch";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
-import { secureActionClient } from "@/lib/action";
-import { searchQuerySchema } from "@/lib/search";
+import { secureActionClient } from "@/lib/core/action";
+import { searchQuerySchema } from "@/lib/core/search";
 
 /**
  * Type-ahead search for the feedback recipient picker: active staff matching the

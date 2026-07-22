@@ -2,12 +2,12 @@
 
 import { and, asc, eq, ilike, or } from "drizzle-orm";
 import { z } from "zod";
-import { secureActionClient } from "@/lib/action";
-import { contactName } from "@/lib/contact-name";
+import { secureActionClient } from "@/lib/core/action";
+import { escapeLike } from "@/lib/core/like";
+import { SEARCH_LIMIT, searchQuerySchema } from "@/lib/core/search";
+import { contactName } from "@/lib/crm/contact-name";
 import { db } from "@/lib/db/db";
 import { contacts } from "@/lib/db/schema";
-import { escapeLike } from "@/lib/like";
-import { SEARCH_LIMIT, searchQuerySchema } from "@/lib/search";
 
 /**
  * Type-ahead search backing the contact pickers. Matches on first/last name or

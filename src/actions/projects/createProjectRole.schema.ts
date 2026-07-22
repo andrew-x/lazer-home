@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { id } from "@/lib/id-schema";
+import { id } from "@/lib/schemas/id-schema";
 import {
   endOnOrAfterStart,
   endOnOrAfterStartError,

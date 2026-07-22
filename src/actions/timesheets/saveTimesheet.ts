@@ -2,12 +2,12 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { secureActionClient } from "@/lib/action";
+import { userHasPermission } from "@/lib/auth/permissions";
+import { secureActionClient } from "@/lib/core/action";
+import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import { timeEntries, timesheets } from "@/lib/db/schema";
-import { UserSafeActionError } from "@/lib/errors";
-import { userHasPermission } from "@/lib/permissions";
 import { authorizeTimesheetEdit } from "./canEditTimesheet";
 import { saveTimesheetSchema } from "./saveTimesheet.schema";
 

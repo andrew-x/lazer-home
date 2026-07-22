@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentStaffAccess } from "@/actions/staff/getCurrentStaffAccess";
 import { OnboardingNotice } from "@/components/auth/onboarding-notice";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth/auth";
 
 export const metadata: Metadata = { title: "Profile setup" };
 

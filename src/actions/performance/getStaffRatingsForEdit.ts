@@ -1,8 +1,9 @@
 import "server-only";
 
 import { asc, eq } from "drizzle-orm";
-import { getCurrentUser } from "@/lib/auth";
-import { firstPerKey } from "@/lib/collections";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { requirePermission } from "@/lib/auth/permissions";
+import { firstPerKey } from "@/lib/core/collections";
 import { db } from "@/lib/db/db";
 import {
   type StaffEmployment,
@@ -10,10 +11,9 @@ import {
   staffEmployment,
   staffRating,
 } from "@/lib/db/schema";
-import { requirePermission } from "@/lib/permissions";
-import { latestEmploymentFirst } from "@/lib/staff-employment";
-import { encodeLevelValue } from "@/lib/staff-rating";
-import { latestRatingFirst } from "@/lib/staff-rating-history";
+import { latestEmploymentFirst } from "@/lib/staff/staff-employment";
+import { encodeLevelValue } from "@/lib/staff/staff-rating";
+import { latestRatingFirst } from "@/lib/staff/staff-rating-history";
 
 /**
  * One editable row per ACTIVE staff member for the edit-levels table: identity,

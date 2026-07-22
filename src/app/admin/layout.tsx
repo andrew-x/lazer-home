@@ -1,7 +1,7 @@
 import { IconArrowLeft, IconTool } from "@tabler/icons-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { isLocalhost } from "@/lib/admin";
+import { isLocalhost } from "@/lib/auth/admin";
 
 /**
  * The admin area is a local-only tooling surface. It lives OUTSIDE the `(app)`

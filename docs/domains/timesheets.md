@@ -19,7 +19,7 @@ migration `drizzle/0026_rich_the_captain.sql`). See [ADR 0027](../decisions/0027
 - **`timesheets`** — one person's week. `id` (prefix `ts`), `staffId` → `staff.id`
   (cascade), **`weekStartDate`** (`date`, the ISO **Monday** of the week), `status`
   (`timesheet_status` enum: `draft` | `submitted`, default `draft` — the pgEnum is
-  **built from** the pure client-safe `src/lib/timesheet-status.ts` tuple/labels, one
+  **built from** the pure client-safe `src/lib/timesheets/timesheet-status.ts` tuple/labels, one
   source for the enum, read types, and UI, like `timesheet-category.ts`), `submittedAt`
   (nullable timestamp — stamped on submit, cleared on reopen), timestamps.
   **`unique(staffId, weekStartDate)`** (one sheet per person per week) + index on
@@ -34,11 +34,11 @@ migration `drizzle/0026_rich_the_captain.sql`). See [ADR 0027](../decisions/0027
   enforce it. `restrict` on `projectId`: a project with logged time can't be deleted.
 - **`time_entry_category`** — the non-billable buckets: `PTO`, `UNALLOCATED_BENCH`,
   `INTERNAL_ADMIN`. Values + labels live in the pure, client-importable module
-  `src/lib/timesheet-category.ts` (the single source feeding the pgEnum, zod, and the
-  form labels — same pattern as `src/lib/line-of-business.ts`). The **PTO bucket is
+  `src/lib/timesheets/timesheet-category.ts` (the single source feeding the pgEnum, zod, and the
+  form labels — same pattern as `src/lib/crm/line-of-business.ts`). The **PTO bucket is
   independent of the `staff_pto` table** — no sync between the two in v1.
 
-**Week math** lives in the pure module `src/lib/timesheet-week.ts` (no `db` import,
+**Week math** lives in the pure module `src/lib/timesheets/timesheet-week.ts` (no `db` import,
 so UI + actions + validation agree on what a "week" is): `getWeekStart`, `addWeeks`,
 `getWeekDays`, `currentWeekStart`, `weeksBetween`, `isWithinEditWindow`, `isWeekend`.
 Weeks are timezone-agnostic and keyed by their ISO-Monday `"YYYY-MM-DD"` string
@@ -70,8 +70,8 @@ The UX is **browse, then edit** — there is no week-arrow navigation.
   (`src/components/timesheets/timesheet-week.tsx`): one row per target (project or
   bucket), a hours cell per **weekday**, per-day column totals with a cap warning. The
   grid's pure totals math (per-day / per-row / week sums) lives in
-  `src/lib/timesheet-grid.ts` (+`.test.ts`), extracted from the component so it's unit-tested
-  independently of rendering. The
+  `src/lib/timesheets/timesheet-grid.ts`, extracted from the component so the math stays
+  independent of rendering. The
   status badge + week range live in the edit-page header; the grid itself carries no
   navigation. The `[week]` param is any date in the target week, normalized to its
   ISO-Monday key. **`saveTimesheet`** does a **whole-week transactional replace**:

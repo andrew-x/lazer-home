@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { id } from "@/lib/id-schema";
-import { optionalTrimmedText } from "@/lib/text-schema";
+import { id } from "@/lib/schemas/id-schema";
+import { optionalTrimmedText } from "@/lib/schemas/text-schema";
 
 /**
  * Client intro edit input — a pure, client-importable module (no `db`/drizzle)

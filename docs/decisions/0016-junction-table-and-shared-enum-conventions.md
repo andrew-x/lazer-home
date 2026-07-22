@@ -39,7 +39,7 @@ will copy. Two sub-questions arose:
   ids (see `getOpportunitiesBoard`), never per-row — avoid N+1.
 
 **Shared enums:** declare each value tuple **once** in a pure, client-importable module
-(`src/lib/opportunity.ts` — no `db`/drizzle import) and import it
+(`src/lib/crm/opportunity.ts` — no `db`/drizzle import) and import it
 into *both* the `pgEnum` and the zod schema. One source of truth, no drift.
 
 Related: `opportunities.companyId` is a **required** FK with **`onDelete: "restrict"`**

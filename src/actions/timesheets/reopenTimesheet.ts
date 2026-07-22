@@ -2,7 +2,7 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { secureActionClient } from "@/lib/action";
+import { secureActionClient } from "@/lib/core/action";
 import { db } from "@/lib/db/db";
 import { timesheets } from "@/lib/db/schema";
 import { authorizeTimesheetEdit } from "./canEditTimesheet";

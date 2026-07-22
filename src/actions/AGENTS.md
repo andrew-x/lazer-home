@@ -8,7 +8,7 @@ The RBAC/permissions rule that also governs this dir lives in the root AGENTS.md
 
 # Server actions (next-safe-action)
 
-All backend mutations go through the action layer in `src/lib/action.ts`. Read it before writing actions — auth, validation, logging, and safe errors are already handled by the client.
+All backend mutations go through the action layer in `src/lib/core/action.ts`. Read it before writing actions — auth, validation, logging, and safe errors are already handled by the client.
 
 ## The actions layer is the entry point for DB access
 
@@ -17,7 +17,7 @@ All backend mutations go through the action layer in `src/lib/action.ts`. Read i
 - **Mutations** → next-safe-action actions (the rules below).
 - **Reads** (incl. SSR) → a plain **server-only** async function in the same domain folder: `import "server-only"` at the top, named `get<Thing>.ts` (e.g. `timesheets/getTimesheet.ts`). NOT a `'use server'` action — a `'use server'` read would force the `{ data, serverError }` envelope and re-run session checks, awkward to consume during SSR. Resolve the current user inside (`getCurrentUser`) and filter by ownership so results are inherently scoped. Export a return type; pages `await` it directly.
 
-Two narrow exceptions still import `db`, and both are fine: **framework wiring** (the Better Auth Drizzle adapter in `src/lib/auth.ts`) and **pure compute helpers an action delegates to** (e.g. `src/lib/*-import/plan.ts`, reached only through an action, never a page). The rule is about the *call site*: feature UI goes through the actions layer. (There is no `src/lib` straggler: `getCurrentStaff` was folded into the actions layer as `src/actions/staff/getCurrentStaffAccess.ts` and `src/lib/staff.ts` was deleted — see ADR 0010.)
+Two narrow exceptions still import `db`, and both are fine: **framework wiring** (the Better Auth Drizzle adapter in `src/lib/auth/auth.ts`) and **pure compute helpers an action delegates to** (e.g. `src/lib/staff/*-import/plan.ts`, reached only through an action, never a page). The rule is about the *call site*: feature UI goes through the actions layer. (There is no `src/lib` straggler: `getCurrentStaff` was folded into the actions layer as `src/actions/staff/getCurrentStaffAccess.ts` and `src/lib/staff.ts` was deleted — see ADR 0010.)
 
 ## Mutation rules
 

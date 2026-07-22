@@ -16,21 +16,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { type Currency, formatMoney } from "@/lib/currency";
-import { convert } from "@/lib/fx";
-import { computeByRole, type StatRow } from "@/lib/performance-stats";
+import { type Currency, formatMoney } from "@/lib/format/currency";
+import { convert } from "@/lib/format/fx";
+import {
+  computeByRole,
+  type StatRow,
+} from "@/lib/performance/performance-stats";
 import {
   computeAverageLevel,
   computeAverageLevelByRole,
   computeLevelDistribution,
   countUnrated,
-} from "@/lib/rating-stats";
-import { ROLE_LABELS } from "@/lib/staff-enums";
+} from "@/lib/performance/rating-stats";
+import { ROLE_LABELS } from "@/lib/staff/staff-enums";
 import {
   formatAverageLevel,
   formatLevel,
   RATING_LEVELS,
-} from "@/lib/staff-rating";
+} from "@/lib/staff/staff-rating";
 
 /** The by-level breakdown reads in ascending level order (L0 → L4). */
 const LEVEL_ORDER = RATING_LEVELS.map((level) => formatLevel(level));

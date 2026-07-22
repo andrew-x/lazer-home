@@ -8,12 +8,12 @@ import {
   projectRoles,
   projects,
 } from "@/lib/db/schema";
-import { deriveProjectStatus } from "@/lib/project-derived";
-import type { ProjectRoleStatus } from "@/lib/project-role-status";
+import { deriveProjectStatus } from "@/lib/projects/project-derived";
+import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
 import {
   PROJECT_ROLE_TYPE_LABELS,
   type ProjectRoleType,
-} from "@/lib/project-role-type";
+} from "@/lib/projects/project-role-type";
 
 /** A project this person is involved with, plus how they're involved. */
 export type StaffProjectSummary = {

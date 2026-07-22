@@ -4,7 +4,7 @@ import { desc, eq } from "drizzle-orm";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
 import { db } from "@/lib/db/db";
 import { feedback, staff } from "@/lib/db/schema";
-import type { FeedbackRating } from "@/lib/feedback-rating";
+import type { FeedbackRating } from "@/lib/performance/feedback-rating";
 
 /**
  * The feedback the caller has authored, with full content (own-scoped — you

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { FEEDBACK_RATINGS } from "@/lib/feedback-rating";
-import { optionalText } from "@/lib/text-schema";
+import { FEEDBACK_RATINGS } from "@/lib/performance/feedback-rating";
+import { optionalText } from "@/lib/schemas/text-schema";
 
 /**
  * Input for leaving peer feedback. `fromStaffId` is NOT in the input — the caller

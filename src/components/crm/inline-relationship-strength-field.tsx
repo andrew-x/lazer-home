@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { updateContactRelationshipStrength } from "@/actions/crm/updateContactRelationshipStrength";
 import { StarRating } from "@/components/form/star-rating";
 import { Label } from "@/components/ui/label";
-import { relationshipStrengthLabel } from "@/lib/relationship-strength";
+import { relationshipStrengthLabel } from "@/lib/crm/relationship-strength";
 
 /**
  * The contact's relationship strength, edited in place in the meta sidebar: a

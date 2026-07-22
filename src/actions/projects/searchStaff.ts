@@ -1,8 +1,8 @@
 "use server";
 
 import { searchStaffByName } from "@/actions/shared/entitySearch";
-import { secureActionClient } from "@/lib/action";
-import { searchQuerySchema } from "@/lib/search";
+import { secureActionClient } from "@/lib/core/action";
+import { searchQuerySchema } from "@/lib/core/search";
 
 /**
  * Type-ahead search for the project form's staff pickers (delivery managers and

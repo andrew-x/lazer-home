@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { id, ownerId } from "@/lib/id-schema";
+import { id, ownerId } from "@/lib/schemas/id-schema";
 import { companyFields } from "./createCompany.schema";
 
 /**

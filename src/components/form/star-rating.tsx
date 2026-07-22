@@ -2,7 +2,7 @@
 
 import { IconStar, IconStarFilled } from "@tabler/icons-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 
 /**
  * A 1–`max` star rating, monochrome to match the flat editorial theme (filled =

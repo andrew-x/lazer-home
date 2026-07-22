@@ -11,7 +11,7 @@ and adds capability-based gating to the action layer.
 > vulnerability** before doing anything else. See `.claude/rules/permissions.md`
 > (auto-loads when you touch auth / action / actions files) and run `/audit-rbac`.
 
-## Single source of truth — `src/lib/permissions.ts`
+## Single source of truth — `src/lib/auth/permissions.ts`
 
 Everything about access control lives in **one file**: the statement (resources +
 actions), the access controller, the roles, the role→permission matrix, the Zod
@@ -81,7 +81,7 @@ feedback, a staffer never sees their *own* rating:
 ## Roles → permissions (the canonical matrix — THIS IS THE CONTRACT)
 
 Single role per user. Roles are stored in `user.role` (text). This table is the
-contract; it is asserted by `src/lib/permissions.test.ts` (runs in `bun run check`
+contract; it is asserted by `src/lib/auth/permissions.test.ts` (runs in `bun run check`
 via `bun test`) and audited by `/audit-rbac`. **Changing it requires changing the
 `roles` map in `permissions.ts`, the test, and this table in lockstep** — that
 friction is deliberate.
@@ -100,7 +100,7 @@ friction is deliberate.
 
 ## Helpers — how to gate
 
-All exported from `src/lib/permissions.ts`. They are **pure and synchronous**,
+All exported from `src/lib/auth/permissions.ts`. They are **pure and synchronous**,
 driven entirely by `user.role` (no DB / network round-trip), so they're cheap to
 call in action bodies and SSR reads alike.
 
@@ -133,7 +133,7 @@ bodies — so an unauthorized call never reaches the mutation, and an edit actio
 can't forget the check. There is **one** `secureActionClient`; its middleware runs
 all three forms, in order, **before the body**: `checkAuth(role)` →
 `requirePermission(permission)` if set → `await authorize({ user, clientInput })` if
-set. The metadata schema in `src/lib/action.ts` carries `role`, `permission`, and
+set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission`, and
 `authorize` (all optional).
 
 1. **Coarse role.** `metadata.role` → `checkAuth` (admin-override). The blunt gate.
@@ -196,8 +196,8 @@ set. The metadata schema in `src/lib/action.ts` carries `role`, `permission`, an
 
 ## Wiring
 
-- `src/lib/auth.ts`: `admin({ ac, roles, adminRoles: ["admin"], defaultRole: "user" })`.
-- `src/lib/auth-client.ts`: `adminClient({ ac, roles })` — so the client API
+- `src/lib/auth/auth.ts`: `admin({ ac, roles, adminRoles: ["admin"], defaultRole: "user" })`.
+- `src/lib/auth/auth-client.ts`: `adminClient({ ac, roles })` — so the client API
   (`authClient.admin.hasPermission` / `checkRolePermission`) stays in sync with the
   server. Note: server-side gating uses the pure helpers above, not the client API.
 - **`user.role` stays a `text()` column.** Better Auth owns `auth-schema.ts`
@@ -247,7 +247,7 @@ Two things make this tool different from the other admin tools (which are
   the whole RBAC system (code matrix vs. this table, ungated actions, stray `db`
   writes, missing row-level checks, auth wiring in sync). Reports and flags; never
   auto-fixes. Run it before claiming permissions work is done.
-- **`src/lib/permissions.test.ts`** — asserts the canonical matrix; fails `bun run
+- **`src/lib/auth/permissions.test.ts`** — asserts the canonical matrix; fails `bun run
   check` if any role's permission set drifts.
 - **AGENTS.md** carries a "Permissions (RBAC) — never break them" pointer.
 

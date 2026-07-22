@@ -2,11 +2,11 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { secureActionClient } from "@/lib/action";
+import { secureActionClient } from "@/lib/core/action";
+import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import { opportunities, projectRoles } from "@/lib/db/schema";
-import { UserSafeActionError } from "@/lib/errors";
 import { extendProjectRoleSchema } from "./extendProjectRole.schema";
 
 /**

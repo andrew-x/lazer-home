@@ -10,7 +10,7 @@ optional message). Feedback is sensitive — most of it is meant for the giver a
 for managers, and only a small part for the recipient. Two design questions had to
 be settled: (1) **who may give** feedback and (2) **who may read which fields**.
 
-The existing RBAC model (capabilities in `src/lib/permissions.ts`, enforced via
+The existing RBAC model (capabilities in `src/lib/auth/permissions.ts`, enforced via
 action metadata / server-only read guards — [ADR 0014](./0014-rbac-better-auth-access-control.md))
 gates *actions* by role, but feedback needs a **column-level** distinction (a
 recipient sees one field; a reviewer sees all) and an **input-dependent** giver

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { LogoMark } from "@/components/brand/logo";
-import { getCurrentUser } from "@/lib/auth";
-import { APP_NAME } from "@/lib/constants";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { APP_NAME } from "@/lib/core/constants";
 
 export const metadata: Metadata = { title: "Sign in" };
 

@@ -2,13 +2,13 @@
 
 import { type InferInsertModel, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { secureActionClient } from "@/lib/action";
-import { firstPerKey } from "@/lib/collections";
+import { secureActionClient } from "@/lib/core/action";
+import { firstPerKey } from "@/lib/core/collections";
+import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import { staff, staffRating } from "@/lib/db/schema";
-import { UserSafeActionError } from "@/lib/errors";
-import { latestRatingFirst } from "@/lib/staff-rating-history";
+import { latestRatingFirst } from "@/lib/staff/staff-rating-history";
 import { saveStaffEvaluationSchema } from "./saveStaffEvaluation.schema";
 
 type StaffRatingInsert = InferInsertModel<typeof staffRating>;

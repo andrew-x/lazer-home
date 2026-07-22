@@ -8,8 +8,8 @@ import {
 import { IconArrowsMaximize, IconArrowsMinimize } from "@tabler/icons-react";
 import type { OpportunityBoardCard } from "@/actions/crm/getOpportunitiesBoard";
 import { IconButton } from "@/components/icon-button";
-import { STATUS_LABELS } from "@/lib/opportunity";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
+import { STATUS_LABELS } from "@/lib/crm/opportunity";
 import {
   OpportunityCardView,
   SortableOpportunityCard,

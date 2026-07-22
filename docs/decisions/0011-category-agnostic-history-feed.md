@@ -22,7 +22,7 @@ Replace the employment-specific feed with a **category-agnostic** one, designed 
 - **Adding a history source is local and additive:** a new query + projection in `getStaffHistory`, plus extending the `HistoryCategory` union and the label map. No change to the page or the timeline.
 - **Authorization moved from the read to the page.** With reads taking any `staffId`, the security burden shifted to whoever renders the profile (page/profile-level gating), rather than each read structurally scoping to `staff.userId = user.id`. This is **accepted for now and under reevaluation** — if profile viewing grows finer-grained rules, the gate may need to move back down into the reads (or into a shared authorize helper). Any new caller passing a `staffId` it didn't derive from the current user must authorize it first.
 - **The feed is read-only and derived** — there is no `history` table. The timeline is recomputed from the source-of-truth tables on each read, so it can never drift from them. (If a source is *not* effective-dated history-as-rows, it must still be able to emit dated entries to participate.)
-- **`summary` is rendered as-is**, so each source owns its own human-readable phrasing (via `humanizeEnum`/`formatDate` in `src/lib/format.ts`). Cross-source phrasing consistency is a convention, not enforced by a type.
+- **`summary` is rendered as-is**, so each source owns its own human-readable phrasing (via `humanizeEnum`/`formatDate` in `src/lib/format/format.ts`). Cross-source phrasing consistency is a convention, not enforced by a type.
 - The removed `getMyEmploymentHistory.ts` / `employment-history-sheet.tsx` are gone; don't reintroduce per-domain history components.
 
 ## Alternatives considered

@@ -8,7 +8,7 @@ import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
 import { getStaffProfile } from "@/actions/staff/getStaffProfile";
 import { WaysOfWorkingGuide } from "@/components/staff/ways-of-working-guide";
 import { Button } from "@/components/ui/button";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth/auth";
 
 export const metadata: Metadata = { title: "Ways of Working" };
 

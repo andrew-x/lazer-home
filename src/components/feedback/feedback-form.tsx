@@ -17,13 +17,13 @@ import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/core/utils";
 import {
   FEEDBACK_RATING_DESCRIPTIONS,
   FEEDBACK_RATING_LABELS,
   FEEDBACK_RATINGS,
   type FeedbackRating,
-} from "@/lib/feedback-rating";
-import { cn } from "@/lib/utils";
+} from "@/lib/performance/feedback-rating";
 
 type FeedbackFormValues = {
   recipient: EntityOption | null;

@@ -10,7 +10,7 @@ This is an internal tool for Lazer staff — everyone already has a company Goog
 
 ## Decision
 
-**Google-only sign-in.** In `src/lib/auth.ts`, `emailAndPassword` is set to `{ enabled: false }` and the only social provider is Google (configured behind `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, with `prompt: "select_account"`). The login screen offers a single "Continue with Google" button (`authClient.signIn.social({ provider: "google", callbackURL: "/" })`); sign-out is `authClient.signOut()`.
+**Google-only sign-in.** In `src/lib/auth/auth.ts`, `emailAndPassword` is set to `{ enabled: false }` and the only social provider is Google (configured behind `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, with `prompt: "select_account"`). The login screen offers a single "Continue with Google" button (`authClient.signIn.social({ provider: "google", callbackURL: "/" })`); sign-out is `authClient.signOut()`.
 
 **Route protection lives in the `(app)` layout, not middleware.** `src/app/(app)/layout.tsx` is an async Server Component that does `const user = await getCurrentUser(); if (!user) redirect("/login")` before rendering `<AppShell>`. Public pages live in the separate `(auth)` route group. This continues the project's deliberate **no-middleware** posture (the same reason `env.ts` skips `import "server-only"` and auth runs through a catch-all route, not edge middleware).
 

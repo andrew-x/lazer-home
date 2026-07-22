@@ -27,14 +27,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/core/utils";
 import {
   PROFICIENCY_LABELS,
   PROFICIENCY_LEVELS,
   type ProficiencyLevel,
   SKILL_CATEGORIES,
   type StaffSkill,
-} from "@/lib/skills";
-import { cn } from "@/lib/utils";
+} from "@/lib/staff/skills";
 
 /**
  * Dedicated skills editor. Pick a level with the "Add as" selector, then click

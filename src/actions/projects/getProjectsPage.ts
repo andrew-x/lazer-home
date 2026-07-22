@@ -1,6 +1,8 @@
 import "server-only";
 
 import { asc, count, desc, eq, inArray } from "drizzle-orm";
+import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/core/pagination";
+import type { LineOfBusiness } from "@/lib/crm/line-of-business";
 import { db } from "@/lib/db/db";
 import {
   companies,
@@ -9,13 +11,11 @@ import {
   projects,
   staff,
 } from "@/lib/db/schema";
-import type { LineOfBusiness } from "@/lib/line-of-business";
-import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/pagination";
 import {
   deriveProjectLinesOfBusiness,
   deriveProjectStatus,
-} from "@/lib/project-derived";
-import type { ProjectRoleStatus } from "@/lib/project-role-status";
+} from "@/lib/projects/project-derived";
+import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
 
 export type ProjectRow = {
   id: string;

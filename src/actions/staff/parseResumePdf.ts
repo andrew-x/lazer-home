@@ -1,8 +1,8 @@
 "use server";
 
 import { extractText, getDocumentProxy } from "unpdf";
-import { secureActionClient } from "@/lib/action";
-import { UserSafeActionError } from "@/lib/errors";
+import { secureActionClient } from "@/lib/core/action";
+import { UserSafeActionError } from "@/lib/core/errors";
 import { parseResumePdfSchema } from "./parseResumePdf.schema";
 
 /**

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { dateString } from "@/lib/date-schema";
-import { id } from "@/lib/id-schema";
+import { dateString } from "@/lib/schemas/date-schema";
+import { id } from "@/lib/schemas/id-schema";
 import {
   endOnOrAfterStart,
   endOnOrAfterStartError,

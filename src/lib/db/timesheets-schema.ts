@@ -11,8 +11,8 @@ import {
   timestamp,
   unique,
 } from "drizzle-orm/pg-core";
-import { TIMESHEET_CATEGORY } from "@/lib/timesheet-category";
-import { TIMESHEET_STATUSES } from "@/lib/timesheet-status";
+import { TIMESHEET_CATEGORY } from "@/lib/timesheets/timesheet-category";
+import { TIMESHEET_STATUSES } from "@/lib/timesheets/timesheet-status";
 import { projects } from "./projects-schema";
 import { staff } from "./staff-schema";
 
@@ -28,14 +28,14 @@ import { staff } from "./staff-schema";
 
 // --- Enums -----------------------------------------------------------------
 
-// Draft→submitted lifecycle. Values live in `@/lib/timesheet-status` (a pure
+// Draft→submitted lifecycle. Values live in `@/lib/timesheets/timesheet-status` (a pure
 // module) so this pgEnum, the read types, and the UI labels share one source of
 // truth.
 export const timesheetStatusEnum = pgEnum("timesheet_status", [
   ...TIMESHEET_STATUSES,
 ]);
 
-// Non-billable buckets. Values live in `@/lib/timesheet-category` (a pure module)
+// Non-billable buckets. Values live in `@/lib/timesheets/timesheet-category` (a pure module)
 // so this pgEnum, the zod schemas, and the form labels share one source of truth.
 export const timeEntryCategoryEnum = pgEnum("time_entry_category", [
   ...TIMESHEET_CATEGORY,

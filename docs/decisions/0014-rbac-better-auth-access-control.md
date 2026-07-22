@@ -15,7 +15,7 @@ PTO. Time to build the role model.
 ## Decision
 
 Introduce RBAC on **Better Auth's native access-control system** (`createAccessControl`
-+ the already-enabled `admin` plugin), with `src/lib/permissions.ts` as the single
++ the already-enabled `admin` plugin), with `src/lib/auth/permissions.ts` as the single
 source of truth. The model, matrix, helpers, and enforcement are documented in
 [domains/permissions.md](../domains/permissions.md) — this ADR records the *why*.
 

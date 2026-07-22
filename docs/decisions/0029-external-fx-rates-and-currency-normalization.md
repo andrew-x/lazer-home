@@ -26,10 +26,10 @@ external service is down.
   external I/O too, not just DB — ADR 0010's spirit).
 - **USD-based rate table + cross-rate conversion.** Rates are carried as
   `1 USD → currency` (frankfurter's `?base=USD` shape). The pure, client-importable
-  helper `src/lib/fx.ts` exposes `convert(amount, from, to, usdRates)` which
+  helper `src/lib/format/fx.ts` exposes `convert(amount, from, to, usdRates)` which
   cross-rates through USD (`from → USD → to`), short-circuiting equal currencies.
-  Pure so the read, the client dashboard (recomputing on every filter/currency
-  change), and the unit tests all share one conversion path.
+  Pure so the read and the client dashboard (recomputing on every filter/currency
+  change) share one conversion path.
 - **AED is pegged, not fetched.** Frankfurter quotes 30 currencies but **not AED**;
   the dirham is fixed at `1 USD = 3.6725 AED` (since 1997). We carry `AED_PER_USD`
   in `fx.ts` and splice it (plus `USD: 1`, which frankfurter omits as the base)
@@ -53,7 +53,7 @@ external service is down.
   works on approximate numbers. No hard failure surface added.
 - **Fallback rates drift.** `FALLBACK_USD_RATES` is a hardcoded approximation;
   the `stale` flag is the only signal it's in use. Refresh it occasionally.
-- **Conversion is pure and unit-tested** (`fx.test.ts`) — no DB, client-safe, so
+- **Conversion is pure** — no DB, client-safe, so
   the same math runs server- and client-side.
 - **`formatMoney` gained an optional `Intl.NumberFormatOptions` arg** (backward
   compatible) so the dashboard can show whole-dollar aggregates

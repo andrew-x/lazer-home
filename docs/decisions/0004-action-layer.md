@@ -8,13 +8,13 @@ Most data in a PSA system is sensitive (rates, salaries, reviews), and nearly ev
 
 ## Decision
 
-Build two action clients by composition in `src/lib/action.ts`, and make every action a declarative chain.
+Build two action clients by composition in `src/lib/core/action.ts`, and make every action a declarative chain.
 
 - **`publicActionClient`** — the base. Typed metadata (`{ action, role? }`), one middleware that logs `action_start`/`action_end` with a requestId + timing, and `handleServerError` that shapes errors safely.
 - **`secureActionClient`** — `publicActionClient` + one more middleware that calls `checkAuth(metadata.role ?? "user")` and injects `ctx.user`, so every secure action gets the user without re-fetching the session. Used for almost everything; `publicActionClient` only for genuinely public actions.
 - Actions are `client.metadata({ action }).inputSchema(zod).action(fn)` — auth, validation, logging, and safe errors all come from the client.
 
-**`UserSafeActionError`** (`src/lib/errors.ts`) is the deliberate seam: its message is the *only* thing `handleServerError` passes through to `result.serverError`. Every other throw collapses to a generic message. So "expected, user-facing failure" vs. "bug the user must not see" is expressed by *which error type you throw*, not by remembering to sanitize at each call site.
+**`UserSafeActionError`** (`src/lib/core/errors.ts`) is the deliberate seam: its message is the *only* thing `handleServerError` passes through to `result.serverError`. Every other throw collapses to a generic message. So "expected, user-facing failure" vs. "bug the user must not see" is expressed by *which error type you throw*, not by remembering to sanitize at each call site.
 
 Authz is declared in action metadata, never in the body: `metadata.role` (coarse), `metadata.permission` (static capability), and `metadata.authorize` (a generic `ActionAuthorize` hook for input-dependent / ownership checks) — all enforced by `secureActionClient` before the body, because a route check can't know about per-row ownership — see [architecture.md](../architecture.md) and `.claude/rules/server-actions.md`.
 

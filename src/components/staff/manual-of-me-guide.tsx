@@ -6,7 +6,7 @@ import { useCallback, useState } from "react";
 import type { ManualOfMeEntry } from "@/actions/responses/getManualOfMe";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import { SaveIndicator } from "./response-save-indicator";
 import { isEmpty, useResponseAutosave } from "./use-response-autosave";
 

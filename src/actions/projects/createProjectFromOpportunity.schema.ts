@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { id } from "@/lib/id-schema";
+import { id } from "@/lib/schemas/id-schema";
 
 /**
  * Validation for creating a project directly from an opportunity. There's no

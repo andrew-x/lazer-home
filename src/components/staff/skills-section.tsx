@@ -3,7 +3,7 @@ import {
   PROFICIENCY_LABELS,
   PROFICIENCY_LEVELS,
   type StaffSkill,
-} from "@/lib/skills";
+} from "@/lib/staff/skills";
 
 /**
  * Read view of a person's skills, grouped by proficiency level (Senior →

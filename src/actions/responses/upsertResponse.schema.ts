@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { id } from "@/lib/id-schema";
-import { manualOfMeQuestionId } from "@/lib/manual-of-me";
-import { optionalTrimmedText } from "@/lib/text-schema";
-import { waysOfWorkingQuestionId } from "@/lib/ways-of-working";
+import { id } from "@/lib/schemas/id-schema";
+import { optionalTrimmedText } from "@/lib/schemas/text-schema";
+import { manualOfMeQuestionId } from "@/lib/staff/manual-of-me";
+import { waysOfWorkingQuestionId } from "@/lib/staff/ways-of-working";
 
 /**
  * Input for upserting a single survey response. `questionId` is validated

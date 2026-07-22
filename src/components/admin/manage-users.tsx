@@ -17,8 +17,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { humanizeEnum } from "@/lib/format";
-import { type AppRole, ROLE_SLUGS } from "@/lib/permissions";
+import { type AppRole, ROLE_SLUGS } from "@/lib/auth/permissions";
+import { humanizeEnum } from "@/lib/format/format";
 import {
   EditableTable,
   useEditableDraft,

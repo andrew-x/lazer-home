@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
 import { getTimesheetList } from "@/actions/timesheets/getTimesheetList";
 import { TimesheetsList } from "@/components/timesheets/timesheets-list";
-import { getCurrentUser } from "@/lib/auth";
-import { userHasPermission } from "@/lib/permissions";
-import { isWithinEditWindow } from "@/lib/timesheet-week";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { userHasPermission } from "@/lib/auth/permissions";
+import { isWithinEditWindow } from "@/lib/timesheets/timesheet-week";
 
 export const metadata: Metadata = { title: "Timesheets" };
 

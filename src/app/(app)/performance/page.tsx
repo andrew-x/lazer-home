@@ -7,8 +7,8 @@ import {
 } from "@/actions/staff/getCompensationSummaryData";
 import { getExchangeRates } from "@/actions/staff/getExchangeRates";
 import { PerformanceDashboard } from "@/components/performance/performance-dashboard";
-import { getCurrentUser } from "@/lib/auth";
-import { userHasPermission } from "@/lib/permissions";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { userHasPermission } from "@/lib/auth/permissions";
 
 export const metadata: Metadata = { title: "Performance" };
 

@@ -4,6 +4,10 @@ import { asc, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { cache } from "react";
 import { contactNameSql } from "@/actions/shared/contactName";
+import type {
+  OpportunitySource,
+  OpportunityStatus,
+} from "@/lib/crm/opportunity";
 import { db } from "@/lib/db/db";
 import {
   companies,
@@ -14,7 +18,6 @@ import {
   projects,
   staff,
 } from "@/lib/db/schema";
-import type { OpportunitySource, OpportunityStatus } from "@/lib/opportunity";
 import type { EntryView } from "./entryViews";
 import { getContactEntries } from "./entryViews";
 

@@ -32,11 +32,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { parseIsoDate } from "@/lib/format";
+import { cn } from "@/lib/core/utils";
+import { parseIsoDate } from "@/lib/format/format";
 import {
   TIMESHEET_CATEGORY,
   TIMESHEET_CATEGORY_LABELS,
-} from "@/lib/timesheet-category";
+} from "@/lib/timesheets/timesheet-category";
 import {
   autofillProjectHours,
   buildPayload,
@@ -46,10 +47,9 @@ import {
   parseHours,
   type Row,
   targetKey,
-} from "@/lib/timesheet-grid";
-import type { TimesheetStatus } from "@/lib/timesheet-status";
-import { isWeekend } from "@/lib/timesheet-week";
-import { cn } from "@/lib/utils";
+} from "@/lib/timesheets/timesheet-grid";
+import type { TimesheetStatus } from "@/lib/timesheets/timesheet-status";
+import { isWeekend } from "@/lib/timesheets/timesheet-week";
 
 type Props = {
   staffId: string;

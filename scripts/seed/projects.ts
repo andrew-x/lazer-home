@@ -1,4 +1,5 @@
 import { eq, type InferInsertModel } from "drizzle-orm";
+import { LINE_OF_BUSINESS } from "@/lib/crm/line-of-business";
 import { generateId } from "@/lib/db/ids";
 import {
   type Company,
@@ -10,9 +11,8 @@ import {
   projects,
   type Staff,
 } from "@/lib/db/schema";
-import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
-import { PROJECT_ROLE_STATUSES } from "@/lib/project-role-status";
-import { PROJECT_ROLE_TYPES } from "@/lib/project-role-type";
+import { PROJECT_ROLE_STATUSES } from "@/lib/projects/project-role-status";
+import { PROJECT_ROLE_TYPES } from "@/lib/projects/project-role-type";
 import type { SeedDb } from "./client";
 import { chance, faker, isoDate } from "./faker";
 

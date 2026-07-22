@@ -19,11 +19,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { type Currency, formatMoney } from "@/lib/currency";
-import { convert } from "@/lib/fx";
-import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
-import { computeByRole, type StatRow } from "@/lib/performance-stats";
-import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff-enums";
+import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
+import { type Currency, formatMoney } from "@/lib/format/currency";
+import { convert } from "@/lib/format/fx";
+import {
+  computeByRole,
+  type StatRow,
+} from "@/lib/performance/performance-stats";
+import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff/staff-enums";
 
 /** Only CAD and USD are offered as display currencies. */
 const DISPLAY_CURRENCIES = [

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { normalizedPtoSchema } from "@/lib/pto-import/types";
+import { normalizedPtoSchema } from "@/lib/staff/pto-import/types";
 
 /** Shared input for both preview and commit: the transformed CSV rows. */
 export const ptoImportInputSchema = z.object({

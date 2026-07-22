@@ -4,8 +4,8 @@ import { useState } from "react";
 import type { PtoSpan } from "@/actions/staff/getStaffPto";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDate } from "@/lib/format";
-import { PTO_TYPE_LABELS } from "@/lib/staff-enums";
+import { formatDate } from "@/lib/format/format";
+import { PTO_TYPE_LABELS } from "@/lib/staff/staff-enums";
 
 function formatRange(span: PtoSpan): string {
   return span.startDate === span.endDate

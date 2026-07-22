@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
+import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
 
 export function ProjectsTable({ rows }: { rows: ProjectRow[] }) {
   if (rows.length === 0) {

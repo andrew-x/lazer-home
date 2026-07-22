@@ -1,6 +1,6 @@
 import "server-only";
 
-import { userHasPermission } from "@/lib/permissions";
+import { userHasPermission } from "@/lib/auth/permissions";
 import { ownStaffId } from "./ownStaffId";
 
 /**

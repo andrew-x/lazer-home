@@ -8,7 +8,10 @@ import {
   timestamp,
   unique,
 } from "drizzle-orm/pg-core";
-import { OPPORTUNITY_SOURCES, OPPORTUNITY_STATUSES } from "@/lib/opportunity";
+import {
+  OPPORTUNITY_SOURCES,
+  OPPORTUNITY_STATUSES,
+} from "@/lib/crm/opportunity";
 import { companies, contacts, crmEntryKind } from "./crm-schema";
 import { projects } from "./projects-schema";
 import { lineOfBusinessEnum, staff } from "./staff-schema";

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { asc, eq } from "drizzle-orm";
+import type { LineOfBusiness } from "@/lib/crm/line-of-business";
 import { db } from "@/lib/db/db";
 import {
   opportunities,
@@ -9,13 +10,12 @@ import {
   projects,
   staff,
 } from "@/lib/db/schema";
-import type { LineOfBusiness } from "@/lib/line-of-business";
 import {
   deriveProjectLinesOfBusiness,
   deriveProjectStatus,
-} from "@/lib/project-derived";
-import type { ProjectRoleStatus } from "@/lib/project-role-status";
-import type { ProjectRoleType } from "@/lib/project-role-type";
+} from "@/lib/projects/project-derived";
+import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
+import type { ProjectRoleType } from "@/lib/projects/project-role-type";
 
 /** One staffing line on the opportunity's project, shaped for the planner. */
 export type PlanRole = {

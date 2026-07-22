@@ -2,13 +2,13 @@
 
 import { eq, type InferInsertModel, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { localActionClient } from "@/lib/action";
-import { firstPerKey } from "@/lib/collections";
+import { localActionClient } from "@/lib/core/action";
+import { firstPerKey } from "@/lib/core/collections";
+import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import { staff, staffEmployment } from "@/lib/db/schema";
-import { UserSafeActionError } from "@/lib/errors";
-import { latestEmploymentFirst } from "@/lib/staff-employment";
+import { latestEmploymentFirst } from "@/lib/staff/staff-employment";
 import {
   bulkEditEmploymentSchema,
   FACT_FIELDS,

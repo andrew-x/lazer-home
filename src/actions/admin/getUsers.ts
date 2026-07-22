@@ -1,9 +1,9 @@
 import "server-only";
 
 import { asc } from "drizzle-orm";
+import { type AppRole, isAppRole } from "@/lib/auth/permissions";
 import { db } from "@/lib/db/db";
 import { user } from "@/lib/db/schema";
-import { type AppRole, isAppRole } from "@/lib/permissions";
 
 /**
  * One row per application user for the admin "Manage users" table: identity plus

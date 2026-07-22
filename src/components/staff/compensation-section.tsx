@@ -1,4 +1,4 @@
-import { type Currency, formatMoney } from "@/lib/currency";
+import { type Currency, formatMoney } from "@/lib/format/currency";
 
 /** A compensation label/value row, or an em dash when absent. */
 function MoneyRow({

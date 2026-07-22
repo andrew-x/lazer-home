@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { id } from "@/lib/id-schema";
 import {
   RELATIONSHIP_STRENGTH_MAX,
   RELATIONSHIP_STRENGTH_MIN,
-} from "@/lib/relationship-strength";
+} from "@/lib/crm/relationship-strength";
+import { id } from "@/lib/schemas/id-schema";
 
 /**
  * Relationship-strength-only contact update. The narrow counterpart to

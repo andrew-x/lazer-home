@@ -1,9 +1,9 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
+import { UserSafeActionError } from "@/lib/core/errors";
 import type { db } from "@/lib/db/db";
 import { projectRoles } from "@/lib/db/schema";
-import { UserSafeActionError } from "@/lib/errors";
 
 /** `db` or a transaction handle. */
 type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];

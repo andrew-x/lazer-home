@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 
 /**
  * Anchor to an external URL. Opens in a new tab and always carries the standard

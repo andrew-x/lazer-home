@@ -1,11 +1,11 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
+import { UserSafeActionError } from "@/lib/core/errors";
+import type { OpportunityStatus } from "@/lib/crm/opportunity";
+import { requiresProject } from "@/lib/crm/opportunity-pipeline";
 import { db } from "@/lib/db/db";
 import { opportunities } from "@/lib/db/schema";
-import { UserSafeActionError } from "@/lib/errors";
-import type { OpportunityStatus } from "@/lib/opportunity";
-import { requiresProject } from "@/lib/opportunity-pipeline";
 import { opportunityHasProject } from "./opportunityHasProject";
 
 /**

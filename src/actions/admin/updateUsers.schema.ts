@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { id } from "@/lib/id-schema";
-import { roleSchema } from "@/lib/permissions";
+import { roleSchema } from "@/lib/auth/permissions";
+import { id } from "@/lib/schemas/id-schema";
 
 /**
  * One user's desired RBAC state. `role` validates against the permission matrix

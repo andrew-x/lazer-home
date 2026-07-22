@@ -2,10 +2,10 @@ import "server-only";
 
 import { and, eq } from "drizzle-orm";
 import { ownStaffId } from "@/actions/staff/ownStaffId";
-import type { ActionAuthorize } from "@/lib/action";
+import type { ActionAuthorize } from "@/lib/core/action";
+import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { staff } from "@/lib/db/schema";
-import { UserSafeActionError } from "@/lib/errors";
 
 /**
  * Can this user leave feedback about the target staff member?

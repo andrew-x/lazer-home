@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { id } from "@/lib/id-schema";
-import { optionalUrl } from "@/lib/url-schema";
+import { id } from "@/lib/schemas/id-schema";
+import { optionalUrl } from "@/lib/schemas/url-schema";
 
 /**
  * Staff links edit input — a pure, client-importable module (no `db`/drizzle) so

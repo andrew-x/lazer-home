@@ -11,7 +11,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { COMPANY_STATUS_LABELS, companyStatusTags } from "@/lib/company-status";
+import {
+  COMPANY_STATUS_LABELS,
+  companyStatusTags,
+} from "@/lib/crm/company-status";
 
 export function CompaniesTable({ rows }: { rows: CompanyRow[] }) {
   if (rows.length === 0) {

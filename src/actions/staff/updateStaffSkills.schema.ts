@@ -1,8 +1,8 @@
 import { createUpdateSchema } from "drizzle-zod";
 import { z } from "zod";
 import { staff } from "@/lib/db/schema";
-import { id } from "@/lib/id-schema";
-import { ALL_SKILLS, PROFICIENCY_LEVELS } from "@/lib/skills";
+import { id } from "@/lib/schemas/id-schema";
+import { ALL_SKILLS, PROFICIENCY_LEVELS } from "@/lib/staff/skills";
 
 const knownSkills = new Set<string>(ALL_SKILLS);
 

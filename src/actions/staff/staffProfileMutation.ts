@@ -1,5 +1,5 @@
 import { revalidatePath } from "next/cache";
-import { UserSafeActionError } from "@/lib/errors";
+import { UserSafeActionError } from "@/lib/core/errors";
 
 /**
  * Revalidate the pages that render a staff member's profile after a mutation:

@@ -13,7 +13,7 @@ extensions / change requests), while an opportunity still has at most one projec
 **A project stores almost nothing of its own** — just `id`, `name`, `companyId`, timestamps
 (plus delivery-managers + roles relations). It carries **no stored `status` and no stored
 `lineOfBusiness`**: both are **derived from its roles** by the pure module
-`src/lib/project-derived.ts` ([ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md)).
+`src/lib/projects/project-derived.ts` ([ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md)).
 Line of business is now a **per-role** field again; a role created from an opportunity
 inherits that opportunity's LoB by default (still editable in the planner).
 
@@ -47,7 +47,7 @@ delivery, allocations, timesheets, and billing.
   - **No stored `status` and no stored `lineOfBusiness`.** Both were **dropped** and are now
     **derived from the project's roles** ([ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md);
     the old `project_status` pgEnum and `src/lib/project-status.ts` are **deleted**):
-    - **Derived status** — `deriveProjectStatus(roleStatuses)` in `src/lib/project-derived.ts`:
+    - **Derived status** — `deriveProjectStatus(roleStatuses)` in `src/lib/projects/project-derived.ts`:
       no roles ⇒ `tentative`; all roles `cancelled` ⇒ `cancelled`; else over the *non-cancelled*
       roles, **least-committed wins** — any `tentative` ⇒ `tentative`, else any `paused` ⇒
       `paused`, else `confirmed`. So a project reads `confirmed` only once **all** its live
@@ -83,11 +83,11 @@ delivery, allocations, timesheets, and billing.
     this staffing line. **Moved back onto the role** ([ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md));
     a project's set of LoBs is *derived* from its roles, so one project can span practices. A
     role created from an opportunity's planner **defaults to the opportunity's LoB** (the UI
-    prefills it; still editable). Sourced from the pure `src/lib/line-of-business.ts`.
+    prefills it; still editable). Sourced from the pure `src/lib/crm/line-of-business.ts`.
   - **`roleType`** (NOT NULL, `projectRoleTypeEnum`: `ENGINEER`/`DESIGNER`/`ARCHITECT`/`QA`/`SPECIALIST`)
     — the role's **discipline**, what identifies an open position when no person is set.
     **Orthogonal to `lineOfBusiness`** (what kind of work vs. which practice bills it). Its
-    tuple + labels live in the pure `src/lib/project-role-type.ts`.
+    tuple + labels live in the pure `src/lib/projects/project-role-type.ts`.
   - **`description`** — optional free-text label, e.g. "Senior Backend Engineer"
     (nullable text, max 200; **renamed from `name`** by `drizzle/0002_gifted_kylun.sql`).
   - **`status`** (NOT NULL, `projectRoleStatusEnum`, **DB default `tentative`**) — the
@@ -96,7 +96,7 @@ delivery, allocations, timesheets, and billing.
     read-only), plus **`paused`/`cancelled`** for a role on hold or dropped. The last two are
     **enum-only for now** — no user-facing control sets them yet (the seed exercises them; the
     derivation + badges handle them). Its tuple, labels, and **badge variants** live in the
-    pure `src/lib/project-role-status.ts` — shared by the role badge *and* the derived
+    pure `src/lib/projects/project-role-status.ts` — shared by the role badge *and* the derived
     `ProjectStatusBadge`.
   - **`opportunityId`** → opportunities, **`set null`**, **NULLABLE** — the **provenance**:
     which deal created this role. Used to scope who may edit it (only this opportunity's own
@@ -133,25 +133,25 @@ delivery, allocations, timesheets, and billing.
   `project_roles.staff_id` with `line_of_business`/`description`/`role_type`/`status`/`opportunity_id`,
   a `projects` table with **no `status`/`line_of_business` columns**, and the delivery link on
   `opportunities.project_id`.
-- **Derived-fields module** — `src/lib/project-derived.ts` (+ `project-derived.test.ts`)
+- **Derived-fields module** — `src/lib/projects/project-derived.ts`
   exports `deriveProjectStatus(roleStatuses)` and `deriveProjectLinesOfBusiness(roleLobs)`. A
   **pure, client-importable** module (no `db`/drizzle) so every read, the UI, and tests share
   one implementation of the project's now-derived status/LoB. **Replaced the deleted
   `src/lib/project-status.ts`** ([ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md)).
-- **Shared role-status module** — `src/lib/project-role-status.ts` exports
+- **Shared role-status module** — `src/lib/projects/project-role-status.ts` exports
   `PROJECT_ROLE_STATUSES` (**four states**: `tentative`/`confirmed`/`paused`/`cancelled`),
   the `ProjectRoleStatus` type, `DEFAULT_PROJECT_ROLE_STATUS` (`tentative`),
   `PROJECT_ROLE_STATUS_LABELS`, **and `PROJECT_ROLE_STATUS_VARIANTS`** (badge variant per
   state: confirmed=default, tentative=secondary, paused=outline, cancelled=destructive). A
   **pure, client-importable** module (no `db`/drizzle) so the `projectRoleStatusEnum` pgEnum,
   zod, the planner UI, **and the derived `ProjectStatusBadge`** all share one source.
-- **Shared role-type module** — `src/lib/project-role-type.ts` exports `PROJECT_ROLE_TYPES`
+- **Shared role-type module** — `src/lib/projects/project-role-type.ts` exports `PROJECT_ROLE_TYPES`
   (`ENGINEER`/`DESIGNER`/`ARCHITECT`/`QA`/`SPECIALIST`), the `ProjectRoleType` type, and
   `PROJECT_ROLE_TYPE_LABELS`. A **pure, client-importable** module (no `db`/drizzle) so the
   `projectRoleTypeEnum` pgEnum, the create-project zod schema, and the form share one
   source — the same single-source pattern as `line-of-business.ts`. Role type is a role's
   **discipline**, orthogonal to line of business.
-- **Shared line-of-business module** — `src/lib/line-of-business.ts` exports the
+- **Shared line-of-business module** — `src/lib/crm/line-of-business.ts` exports the
   `LINE_OF_BUSINESS` tuple, the `LineOfBusiness` type, and `LINE_OF_BUSINESS_LABELS`.
   A **pure, client-importable** module (no `db`/drizzle) so the `lineOfBusinessEnum`
   pgEnum in `staff-schema.ts`, the projects/role zod schemas, and the client forms all share
@@ -162,7 +162,7 @@ delivery, allocations, timesheets, and billing.
   **no longer on `projects`**, whose LoBs are derived — [ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md)).
 - **Server layer** — `src/actions/projects/`:
   - `getProjectsPage.ts` — server-only read (per [ADR 0010](../decisions/0010-actions-layer-owns-db-access.md)),
-    server-side offset/limit pagination via `src/lib/pagination.ts` (same envelope as
+    server-side offset/limit pagination via `src/lib/core/pagination.ts` (same envelope as
     the CRM reads), `page` clamped into range. **Inner**-joins companies for
     `companyName` (company is required), resolves delivery-manager names via a
     **single grouped follow-up query** over just this page's ids, and role counts via
@@ -248,7 +248,7 @@ delivery, allocations, timesheets, and billing.
     `searchCompaniesByName` in `src/actions/shared/entitySearch.ts` — the identical
     query the CRM `searchStaff`/`searchCompanies` now also delegate to. Same query,
     separate permission gates per domain.
-  - **Role planning grid math** — `src/lib/project-planner-grid.ts` (+ `.test.ts`) is a **pure,
+  - **Role planning grid math** — `src/lib/projects/project-planner-grid.ts` is a **pure,
     client-importable** module (no `db`/React): `buildWeekColumns` (the ISO-Monday week spine),
     `buildPlannerRows` (groups roles into person-rows + placeholder rows, per-segment
     editability from the current opportunity id), `weekColumnLabel`, `weekSpan`. Mirrors

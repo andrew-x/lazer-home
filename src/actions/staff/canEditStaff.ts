@@ -1,8 +1,8 @@
 import "server-only";
 
-import type { ActionAuthorize } from "@/lib/action";
-import { UserSafeActionError } from "@/lib/errors";
-import { userHasPermission } from "@/lib/permissions";
+import { userHasPermission } from "@/lib/auth/permissions";
+import type { ActionAuthorize } from "@/lib/core/action";
+import { UserSafeActionError } from "@/lib/core/errors";
 import { ownStaffId } from "./ownStaffId";
 
 /**

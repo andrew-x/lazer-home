@@ -24,7 +24,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { IconButton } from "@/components/icon-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { type OpportunityStatus, STATUS_LABELS } from "@/lib/opportunity";
+import { type OpportunityStatus, STATUS_LABELS } from "@/lib/crm/opportunity";
 import {
   computePosition,
   type DropTarget,
@@ -33,7 +33,7 @@ import {
   type OpportunityGroupId,
   requiresProject,
   resolveTargetStatus,
-} from "@/lib/opportunity-pipeline";
+} from "@/lib/crm/opportunity-pipeline";
 import { OpportunityBoardColumn } from "./opportunity-board-column";
 import { CardDragHandle, OpportunityCardView } from "./opportunity-card";
 import { OpportunityDetailSheet } from "./opportunity-detail-sheet";

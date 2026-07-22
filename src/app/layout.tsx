@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { APP_DESCRIPTION, APP_NAME } from "@/lib/constants";
+import { APP_DESCRIPTION, APP_NAME } from "@/lib/core/constants";
 import "./globals.css";
 
 // The Nova theme maps Tailwind's `font-sans` to the `--font-sans` CSS var.

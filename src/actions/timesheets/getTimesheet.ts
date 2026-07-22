@@ -2,12 +2,12 @@ import "server-only";
 
 import { and, asc, eq } from "drizzle-orm";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { userHasPermission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db/db";
 import { companies, projects, timeEntries, timesheets } from "@/lib/db/schema";
-import { userHasPermission } from "@/lib/permissions";
-import type { TimesheetCategory } from "@/lib/timesheet-category";
-import type { TimesheetStatus } from "@/lib/timesheet-status";
+import type { TimesheetCategory } from "@/lib/timesheets/timesheet-category";
+import type { TimesheetStatus } from "@/lib/timesheets/timesheet-status";
 
 /** One logged row, with the project/company names resolved for display. */
 export type TimesheetEntryView = {

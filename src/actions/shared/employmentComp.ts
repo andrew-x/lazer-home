@@ -1,7 +1,7 @@
 import "server-only";
 
-import type { Currency } from "@/lib/currency";
 import { type StaffEmployment, staffEmployment } from "@/lib/db/schema";
+import type { Currency } from "@/lib/format/currency";
 
 /**
  * The shared latest-employment comp projection behind the compensation and

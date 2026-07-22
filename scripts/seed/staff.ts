@@ -1,5 +1,5 @@
 import type { InferInsertModel } from "drizzle-orm";
-import { CURRENCY } from "@/lib/currency";
+import { LINE_OF_BUSINESS } from "@/lib/crm/line-of-business";
 import { generateId } from "@/lib/db/ids";
 import {
   type Staff,
@@ -8,8 +8,12 @@ import {
   staffPto,
   user,
 } from "@/lib/db/schema";
-import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
-import { ALL_SKILLS, PROFICIENCY_LEVELS, type StaffSkill } from "@/lib/skills";
+import { CURRENCY } from "@/lib/format/currency";
+import {
+  ALL_SKILLS,
+  PROFICIENCY_LEVELS,
+  type StaffSkill,
+} from "@/lib/staff/skills";
 import type { SeedDb } from "./client";
 import { chance, faker, isoDate, money, pastDate } from "./faker";
 

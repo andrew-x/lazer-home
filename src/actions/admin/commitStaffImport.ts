@@ -2,12 +2,12 @@
 
 import { type InferInsertModel, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { localActionClient } from "@/lib/action";
+import { localActionClient } from "@/lib/core/action";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import { staff, staffEmployment } from "@/lib/db/schema";
-import { computeImportPlan } from "@/lib/staff-import/plan";
-import type { CommitResult } from "@/lib/staff-import/types";
+import { computeImportPlan } from "@/lib/staff/staff-import/plan";
+import type { CommitResult } from "@/lib/staff/staff-import/types";
 import { staffImportInputSchema } from "./staffImport.schema";
 
 type StaffInsert = InferInsertModel<typeof staff>;

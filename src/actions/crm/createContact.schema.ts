@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { id } from "@/lib/id-schema";
-import { optionalText } from "@/lib/text-schema";
-import { optionalUrl } from "@/lib/url-schema";
+import { id } from "@/lib/schemas/id-schema";
+import { optionalText } from "@/lib/schemas/text-schema";
+import { optionalUrl } from "@/lib/schemas/url-schema";
 
 /**
  * A pure, client-importable module (no `db`/drizzle) so the create/edit contact

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCompanyDetail } from "@/actions/crm/getCompanyDetail";
 import { CompanyDetailView } from "@/components/crm/company-detail-view";
-import { getCurrentUser } from "@/lib/auth";
-import { userHasPermission } from "@/lib/permissions";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { userHasPermission } from "@/lib/auth/permissions";
 
 export async function generateMetadata({
   params,

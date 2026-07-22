@@ -2,11 +2,11 @@ import "server-only";
 
 import { desc, eq, sql } from "drizzle-orm";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { userHasPermission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db/db";
 import { timeEntries, timesheets } from "@/lib/db/schema";
-import { userHasPermission } from "@/lib/permissions";
-import { addWeeks, currentWeekStart } from "@/lib/timesheet-week";
+import { addWeeks, currentWeekStart } from "@/lib/timesheets/timesheet-week";
 
 /** One week in the browse list, with its logged total and lifecycle state. */
 export type TimesheetListRow = {

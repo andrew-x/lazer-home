@@ -21,7 +21,7 @@ We also had to fit the PDF through a Next.js server action. base64 encoding infl
 - **Extraction quality is `unpdf`'s.** Scanned/image PDFs yield nothing (no OCR); layout-heavy PDFs may extract messily. The review-before-save step is the mitigation — the user fixes it in the textarea.
 - **The 8 MB limit is global to all server actions**, not just this one — a larger attack/cost surface for any action. Acceptable under the internal-only posture; revisit if untrusted input ever reaches actions.
 - **PDF parsing runs in the server-action (Node) runtime.** `unpdf` is bundled there; keep an eye on cold-start/bundle cost if more actions pull it in.
-- A `formatTimestamp(value: Date)` helper was added to `src/lib/format.ts` for the "Updated …" line (instants, vs. `formatDate` for `"YYYY-MM-DD"` calendar strings).
+- A `formatTimestamp(value: Date)` helper was added to `src/lib/format/format.ts` for the "Updated …" line (instants, vs. `formatDate` for `"YYYY-MM-DD"` calendar strings).
 
 ## Alternatives considered
 

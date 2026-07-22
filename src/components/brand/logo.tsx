@@ -1,6 +1,6 @@
 import Image from "next/image";
-import { APP_NAME } from "@/lib/constants";
-import { cn } from "@/lib/utils";
+import { APP_NAME } from "@/lib/core/constants";
+import { cn } from "@/lib/core/utils";
 
 /** The brand mark from /public/icon.svg. Decorative — pair with the name for a11y. */
 export function LogoMark({

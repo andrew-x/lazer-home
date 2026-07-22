@@ -10,8 +10,8 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
-import { FEEDBACK_RATINGS } from "@/lib/feedback-rating";
-import { MAX_RATING_LEVEL, MIN_RATING_LEVEL } from "@/lib/staff-rating";
+import { FEEDBACK_RATINGS } from "@/lib/performance/feedback-rating";
+import { MAX_RATING_LEVEL, MIN_RATING_LEVEL } from "@/lib/staff/staff-rating";
 import { user } from "./auth-schema";
 import { staff } from "./staff-schema";
 
@@ -26,7 +26,7 @@ import { staff } from "./staff-schema";
 // docs/domains/performance.md.
 // ---------------------------------------------------------------------------
 
-// Shared source of truth for the values lives in `@/lib/feedback-rating` (a pure
+// Shared source of truth for the values lives in `@/lib/performance/feedback-rating` (a pure
 // module) so the pgEnum here and the zod enum / form labels there stay in sync.
 export const feedbackRatingEnum = pgEnum("feedback_rating", [
   ...FEEDBACK_RATINGS,

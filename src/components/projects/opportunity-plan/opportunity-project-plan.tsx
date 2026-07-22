@@ -35,9 +35,12 @@ import { Button } from "@/components/ui/button";
 import {
   LINE_OF_BUSINESS_LABELS,
   type LineOfBusiness,
-} from "@/lib/line-of-business";
-import { buildPlannerRows, buildWeekColumns } from "@/lib/project-planner-grid";
-import { PROJECT_ROLE_STATUS_LABELS } from "@/lib/project-role-status";
+} from "@/lib/crm/line-of-business";
+import {
+  buildPlannerRows,
+  buildWeekColumns,
+} from "@/lib/projects/project-planner-grid";
+import { PROJECT_ROLE_STATUS_LABELS } from "@/lib/projects/project-role-status";
 
 type CompanyRef = { id: string; name: string };
 

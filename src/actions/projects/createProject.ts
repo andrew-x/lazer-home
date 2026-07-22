@@ -3,7 +3,8 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { opportunityHasProject } from "@/actions/crm/opportunityHasProject";
-import { secureActionClient } from "@/lib/action";
+import { secureActionClient } from "@/lib/core/action";
+import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import {
@@ -12,7 +13,6 @@ import {
   projectRoles,
   projects,
 } from "@/lib/db/schema";
-import { UserSafeActionError } from "@/lib/errors";
 import { createProjectSchema } from "./createProject.schema";
 
 /**

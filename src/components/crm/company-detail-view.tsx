@@ -7,7 +7,7 @@ import { InternalLink } from "@/components/internal-link";
 import { Badge } from "@/components/ui/badge";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { humanizeEnum } from "@/lib/format";
+import { humanizeEnum } from "@/lib/format/format";
 import { ContactNextStepCell } from "./contact-next-step-cell";
 import {
   DetailIdentity,

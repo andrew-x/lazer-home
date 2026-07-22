@@ -8,8 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getCurrentUser } from "@/lib/auth";
-import { initialsFor } from "@/lib/format";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { initialsFor } from "@/lib/format/format";
 
 export const metadata: Metadata = { title: "Settings" };
 

@@ -2,9 +2,9 @@ import { redirect } from "next/navigation";
 import { getCurrentStaffAccess } from "@/actions/staff/getCurrentStaffAccess";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { NAV_ITEMS } from "@/components/app-shell/nav";
-import { isLocalhost } from "@/lib/admin";
-import { getCurrentUser } from "@/lib/auth";
-import { userHasPermission } from "@/lib/permissions";
+import { isLocalhost } from "@/lib/auth/admin";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { userHasPermission } from "@/lib/auth/permissions";
 
 export default async function AppLayout({
   children,

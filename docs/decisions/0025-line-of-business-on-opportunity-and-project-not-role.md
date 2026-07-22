@@ -44,7 +44,7 @@ Separately, `src/lib/db/crm-schema.ts` had grown to hold companies, contacts, th
 
 Line of business is now a **shared/global enum carried by three entities — staff
 (`staff_employment`), opportunities, and projects** — sourced everywhere from the
-one pure module `src/lib/line-of-business.ts` (same single-source pattern as the
+one pure module `src/lib/crm/line-of-business.ts` (same single-source pattern as the
 opportunity enums, [ADR 0016](./0016-junction-table-and-shared-enum-conventions.md)).
 
 **2. The handoff pre-fills the project's line of business from the opportunity.**

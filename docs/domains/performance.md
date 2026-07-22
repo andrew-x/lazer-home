@@ -33,7 +33,7 @@ shape rather than a per-feature migration):
   both **`onDelete: cascade`** (feedback is meaningless without both people).
   Indexed on each side (`feedback_from_staff_idx`, `feedback_to_staff_idx`).
 - **`rating`** — 5-point `feedback_rating` pgEnum. Values + labels + descriptions
-  live in the pure, client-importable module **`src/lib/feedback-rating.ts`**
+  live in the pure, client-importable module **`src/lib/performance/feedback-rating.ts`**
   (`FEEDBACK_RATINGS`), the single source the pgEnum, the zod schema, and the
   form's radio group all import — same shared-enum pattern as
   `line-of-business.ts` ([ADR 0016](../decisions/0016-junction-table-and-shared-enum-conventions.md)).
@@ -144,11 +144,10 @@ client only filters, currency-normalizes, and aggregates. It also exports
 
 ### Pure helpers & UI
 
-- **`src/lib/fx.ts`** (`AED_PER_USD`, `FALLBACK_USD_RATES`, `convert`) and
-  **`src/lib/performance-stats.ts`** (`computeGroupStats`, `computeByRole` — pure
+- **`src/lib/format/fx.ts`** (`AED_PER_USD`, `FALLBACK_USD_RATES`, `convert`) and
+  **`src/lib/performance/performance-stats.ts`** (`computeGroupStats`, `computeByRole` — pure
   aggregation over normalized rows; empty groups yield `null` so the UI renders an
-  em dash, not NaN). Both client-importable and unit-tested (`fx.test.ts`,
-  `performance-stats.test.ts`).
+  em dash, not NaN). Both client-importable.
 - UI: `src/app/(app)/performance/page.tsx` (server), `performance-dashboard.tsx`
   (client — filters, currency toggle, KPI cards, by-role table, distribution
   scatter), the reusable `stat-card.tsx` (a KPI tile extracted from the Home page's
@@ -192,7 +191,7 @@ level is the latest row per staff. Full rationale in
 - **`evaluatedByUserId`** — FK → `user.id`, `onDelete: set null` (audit; a rating
   outlives the evaluator's record).
 
-The pure, client-importable module is **`src/lib/staff-rating.ts`** (`RATING_LEVELS`,
+The pure, client-importable module is **`src/lib/staff/staff-rating.ts`** (`RATING_LEVELS`,
 `MIN/MAX_RATING_LEVEL`, `formatLevel` → `"L0".."L4"`/`"Unrated"`, `formatAverageLevel`
 → `"L2.3"`, and the Select-value helpers `encodeLevelValue` /
 `decodeLevelValue` / `UNRATED_SELECT_VALUE` = `"none"` that map a level ↔ the edit
@@ -200,7 +199,7 @@ dropdown's plain-string draft) — the single source the schema's `CHECK`, the z
 schema, and the UI share, same shared-enum pattern as `feedback-rating.ts`
 ([ADR 0016](../decisions/0016-junction-table-and-shared-enum-conventions.md)). The
 current-row ordering fragment is **`latestRatingFirst`**
-(`src/lib/staff-rating-history.ts`, `desc(effectiveDate)` then `desc(createdAt)`),
+(`src/lib/staff/staff-rating-history.ts`, `desc(effectiveDate)` then `desc(createdAt)`),
 a mirror of `latestEmploymentFirst` — kept out of the pure module so drizzle never
 leaks into a client bundle.
 
@@ -242,7 +241,7 @@ compensation portion of the dashboard.
 
 ### Pure stats & UI
 
-- **`src/lib/rating-stats.ts`** (+ test) — pure `computeLevelDistribution`,
+- **`src/lib/performance/rating-stats.ts`** (+ test) — pure `computeLevelDistribution`,
   `countUnrated`, `computeAverageLevel`, `computeAverageLevelByRole`. The
   comp/rate-**per-level** table instead **reuses `computeByRole`** from
   `performance-stats.ts`, tagging the group key with the level label.

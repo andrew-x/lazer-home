@@ -12,8 +12,11 @@ import {
   csvPreviewSection,
 } from "@/components/admin/csv-import";
 import { Badge } from "@/components/ui/badge";
-import { EMPLOYMENT_TYPE_LABELS, type EmploymentType } from "@/lib/staff-enums";
-import { transformRows } from "@/lib/staff-import/transform";
+import {
+  EMPLOYMENT_TYPE_LABELS,
+  type EmploymentType,
+} from "@/lib/staff/staff-enums";
+import { transformRows } from "@/lib/staff/staff-import/transform";
 import type {
   ComparableField,
   ImportUpdate,
@@ -21,7 +24,7 @@ import type {
   NormalizedStaff,
   SkippedRow,
   StaffImportPlan,
-} from "@/lib/staff-import/types";
+} from "@/lib/staff/staff-import/types";
 
 const MONEY_FIELDS = new Set<ComparableField>([
   "base",

@@ -26,12 +26,12 @@ import {
   LINE_OF_BUSINESS,
   LINE_OF_BUSINESS_LABELS,
   type LineOfBusiness,
-} from "@/lib/line-of-business";
+} from "@/lib/crm/line-of-business";
 import {
   PROJECT_ROLE_TYPE_LABELS,
   PROJECT_ROLE_TYPES,
   type ProjectRoleType,
-} from "@/lib/project-role-type";
+} from "@/lib/projects/project-role-type";
 
 type RoleFormValues = {
   staff: EntityOption | null;

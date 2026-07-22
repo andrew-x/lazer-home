@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { id } from "@/lib/id-schema";
-import { requiredText } from "@/lib/text-schema";
+import { id } from "@/lib/schemas/id-schema";
+import { requiredText } from "@/lib/schemas/text-schema";
 
 /**
  * Shared validation for timestamped notes & next-step entries (contacts and

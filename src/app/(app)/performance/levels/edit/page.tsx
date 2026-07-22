@@ -4,8 +4,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getStaffRatingsForEdit } from "@/actions/performance/getStaffRatingsForEdit";
 import { EditLevels } from "@/components/performance/edit-levels";
-import { getCurrentUser } from "@/lib/auth";
-import { userHasPermission } from "@/lib/permissions";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { userHasPermission } from "@/lib/auth/permissions";
 
 export const metadata: Metadata = { title: "Edit levels" };
 

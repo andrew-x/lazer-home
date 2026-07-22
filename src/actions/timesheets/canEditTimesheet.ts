@@ -1,10 +1,10 @@
 import "server-only";
 
 import { ownStaffId } from "@/actions/staff/ownStaffId";
-import type { ActionAuthorize } from "@/lib/action";
-import { UserSafeActionError } from "@/lib/errors";
-import { userHasPermission } from "@/lib/permissions";
-import { isWithinEditWindow } from "@/lib/timesheet-week";
+import { userHasPermission } from "@/lib/auth/permissions";
+import type { ActionAuthorize } from "@/lib/core/action";
+import { UserSafeActionError } from "@/lib/core/errors";
+import { isWithinEditWindow } from "@/lib/timesheets/timesheet-week";
 
 /**
  * Can this user edit the given week's timesheet? The single decision point for

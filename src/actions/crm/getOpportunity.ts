@@ -2,6 +2,11 @@ import "server-only";
 
 import { asc, eq } from "drizzle-orm";
 import { contactNameSql } from "@/actions/shared/contactName";
+import type { LineOfBusiness } from "@/lib/crm/line-of-business";
+import type {
+  OpportunitySource,
+  OpportunityStatus,
+} from "@/lib/crm/opportunity";
 import { db } from "@/lib/db/db";
 import {
   companies,
@@ -14,8 +19,6 @@ import {
   projects,
   staff,
 } from "@/lib/db/schema";
-import type { LineOfBusiness } from "@/lib/line-of-business";
-import type { OpportunitySource, OpportunityStatus } from "@/lib/opportunity";
 import type { EntryView } from "./entryViews";
 import { getOpportunityEntries } from "./entryViews";
 

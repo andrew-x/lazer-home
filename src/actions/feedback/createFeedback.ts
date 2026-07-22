@@ -2,11 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
-import { secureActionClient } from "@/lib/action";
+import { secureActionClient } from "@/lib/core/action";
+import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import { feedback } from "@/lib/db/schema";
-import { UserSafeActionError } from "@/lib/errors";
 import { authorizeFeedbackCreate } from "./authorizeFeedback";
 import { createFeedbackSchema } from "./createFeedback.schema";
 

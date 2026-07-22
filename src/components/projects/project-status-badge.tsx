@@ -3,7 +3,7 @@ import {
   PROJECT_ROLE_STATUS_LABELS,
   PROJECT_ROLE_STATUS_VARIANTS,
   type ProjectRoleStatus,
-} from "@/lib/project-role-status";
+} from "@/lib/projects/project-role-status";
 
 /**
  * A project's *derived* lifecycle status shown as a labelled badge. A project

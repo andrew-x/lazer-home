@@ -1,10 +1,10 @@
 import "server-only";
 
 import { and, asc, eq, ilike, ne } from "drizzle-orm";
+import { escapeLike } from "@/lib/core/like";
+import { SEARCH_LIMIT } from "@/lib/core/search";
 import { db } from "@/lib/db/db";
 import { companies, staff } from "@/lib/db/schema";
-import { escapeLike } from "@/lib/like";
-import { SEARCH_LIMIT } from "@/lib/search";
 
 /**
  * Shared type-ahead query bodies for the entity pickers. The *query* (tables,

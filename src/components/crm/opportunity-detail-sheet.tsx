@@ -41,15 +41,15 @@ import {
   LINE_OF_BUSINESS,
   LINE_OF_BUSINESS_LABELS,
   type LineOfBusiness,
-} from "@/lib/line-of-business";
+} from "@/lib/crm/line-of-business";
 import {
   OPPORTUNITY_SOURCES,
   OPPORTUNITY_STATUSES,
   type OpportunitySource,
   type OpportunityStatus,
   SOURCE_LABELS,
-} from "@/lib/opportunity";
-import { requiresProject } from "@/lib/opportunity-pipeline";
+} from "@/lib/crm/opportunity";
+import { requiresProject } from "@/lib/crm/opportunity-pipeline";
 import { CompanyCombobox } from "./company-combobox";
 import { CreateContactInlineDialog } from "./create-contact-inline-dialog";
 import { EntryLog } from "./entry-log";

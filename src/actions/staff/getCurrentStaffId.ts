@@ -1,7 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth/auth";
 import { ownStaffId } from "./ownStaffId";
 
 /**

@@ -19,8 +19,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FEEDBACK_RATING_LABELS } from "@/lib/feedback-rating";
-import { formatTimestamp } from "@/lib/format";
+import { formatTimestamp } from "@/lib/format/format";
+import { FEEDBACK_RATING_LABELS } from "@/lib/performance/feedback-rating";
 
 /**
  * The feedback the current user has authored. Each row opens the full item in a

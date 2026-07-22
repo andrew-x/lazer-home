@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getContactDetail } from "@/actions/crm/getContactDetail";
 import { ContactDetailView } from "@/components/crm/contact-detail-view";
-import { getCurrentUser } from "@/lib/auth";
-import { contactName } from "@/lib/contact-name";
-import { userHasPermission } from "@/lib/permissions";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { userHasPermission } from "@/lib/auth/permissions";
+import { contactName } from "@/lib/crm/contact-name";
 
 export async function generateMetadata({
   params,

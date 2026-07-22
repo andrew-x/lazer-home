@@ -14,7 +14,7 @@ import { staff } from "./staff-schema";
 //
 // A GENERIC store for survey-style answers, keyed by (staffId, questionId).
 // `questionId` is plain text — the set of valid ids is owned by the app (pure
-// modules like `@/lib/manual-of-me`) and validated at the zod layer, so adding a
+// modules like `@/lib/staff/manual-of-me`) and validated at the zod layer, so adding a
 // new survey needs NO migration. It is deliberately not a pgEnum: growing an
 // enum requires an out-of-band `ALTER TYPE ... ADD VALUE`, at odds with a table
 // meant to serve many surveys.

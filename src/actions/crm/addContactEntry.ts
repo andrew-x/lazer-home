@@ -1,12 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { secureActionClient } from "@/lib/action";
+import { secureActionClient } from "@/lib/core/action";
+import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { isForeignKeyViolation } from "@/lib/db/foreign-key-violation";
 import { generateId } from "@/lib/db/ids";
 import { contactEntries } from "@/lib/db/schema";
-import { UserSafeActionError } from "@/lib/errors";
 import { addContactEntrySchema } from "./entries.schema";
 import { resolveAuthorStaffId } from "./resolveAuthorStaffId";
 

@@ -1,7 +1,7 @@
 "use server";
 
-import { localActionClient } from "@/lib/action";
-import { computeImportPlan } from "@/lib/staff-import/plan";
+import { localActionClient } from "@/lib/core/action";
+import { computeImportPlan } from "@/lib/staff/staff-import/plan";
 import { staffImportInputSchema } from "./staffImport.schema";
 
 /**

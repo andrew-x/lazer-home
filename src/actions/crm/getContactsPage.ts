@@ -5,9 +5,9 @@ import {
   latestNextStepSubquery,
   toEpochMillis,
 } from "@/actions/shared/latestNextStep";
+import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/core/pagination";
 import { db } from "@/lib/db/db";
 import { companies, contactEntries, contacts } from "@/lib/db/schema";
-import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/pagination";
 
 export type ContactRow = {
   id: string;

@@ -4,7 +4,7 @@ import {
   WOW_SECTIONS,
   type WowQuestionId,
   type WowSection,
-} from "@/lib/ways-of-working";
+} from "@/lib/staff/ways-of-working";
 
 /**
  * Read view of a person's Ways of Working answers, inside the profile card.

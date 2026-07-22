@@ -1,10 +1,7 @@
 ---
 paths:
-  - "src/lib/permissions.ts"
-  - "src/lib/permissions.test.ts"
-  - "src/lib/auth.ts"
-  - "src/lib/auth-client.ts"
-  - "src/lib/action.ts"
+  - "src/lib/auth/**"
+  - "src/lib/core/action.ts"
   - "src/actions/**"
 ---
 
@@ -13,11 +10,11 @@ paths:
 This system has access control. **Permissioning must never be broken.** Treat any
 gap as a security incident, not a refactor opportunity.
 
-`src/lib/permissions.ts` is the **single source of truth**: the statement
+`src/lib/auth/permissions.ts` is the **single source of truth**: the statement
 (resources/actions), the roles, the role→permission matrix, and the `userHasPermission`
 / `requirePermission` helpers. Better Auth (`admin` plugin) enforces through these.
 The canonical matrix is documented in `docs/domains/permissions.md` and asserted by
-`src/lib/permissions.test.ts`.
+`src/lib/auth/permissions.test.ts`.
 
 ## The inviolable rule
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { id } from "@/lib/id-schema";
+import { id } from "@/lib/schemas/id-schema";
 
 /**
  * Validation for deleting an opportunity. A pure, client-importable module so the

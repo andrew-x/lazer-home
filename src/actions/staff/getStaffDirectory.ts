@@ -1,7 +1,7 @@
 import "server-only";
 
 import { asc, eq } from "drizzle-orm";
-import { firstPerKey } from "@/lib/collections";
+import { firstPerKey } from "@/lib/core/collections";
 import { db } from "@/lib/db/db";
 import {
   billableTypeEnum,
@@ -10,9 +10,9 @@ import {
   staffEmployment,
   user,
 } from "@/lib/db/schema";
-import type { StaffSkill } from "@/lib/skills";
-import { latestEmploymentFirst } from "@/lib/staff-employment";
-import { STAFF_FILTER_OPTIONS } from "@/lib/staff-filters";
+import type { StaffSkill } from "@/lib/staff/skills";
+import { latestEmploymentFirst } from "@/lib/staff/staff-employment";
+import { STAFF_FILTER_OPTIONS } from "@/lib/staff/staff-filters";
 
 /**
  * The values offered by the directory's filter dropdowns, sourced from the DB

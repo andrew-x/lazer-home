@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/project-role-type";
+import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
 
 type ExtendFormValues = {
   sourceRoleId: string;

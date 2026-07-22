@@ -41,7 +41,7 @@ split (opportunities in their own file) is untouched.
 and `lineOfBusiness`; it is now just `id`, `name`, `companyId`, timestamps (plus the
 delivery-managers / roles relations). The `project_status` enum and
 `src/lib/project-status.ts` are **deleted**. A new pure, client-importable module
-`src/lib/project-derived.ts` computes both (unit-tested in `project-derived.test.ts`),
+`src/lib/projects/project-derived.ts` computes both,
 shared by every read (`getProjectsPage`, `getOpportunityPlan`, `getStaffProjects`),
 the UI, and tests:
 
@@ -55,7 +55,7 @@ the UI, and tests:
 
 **3. The role status enum expands to four states.** `projectRoleStatusEnum` grows from
 `tentative | confirmed` to `tentative | confirmed | paused | cancelled`
-(`src/lib/project-role-status.ts`, with shared labels + badge variants). The two new
+(`src/lib/projects/project-role-status.ts`, with shared labels + badge variants). The two new
 states are **enum-only for now** — no user-facing control sets them yet (the seed
 exercises them; the derivation and badges already handle them). `ProjectStatusBadge`
 renders the *derived* project status using these four-state role labels/variants.

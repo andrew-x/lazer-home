@@ -1,10 +1,10 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
+import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { contacts } from "@/lib/db/schema";
 import { isUniqueViolation } from "@/lib/db/unique-violation";
-import { UserSafeActionError } from "@/lib/errors";
 
 /**
  * Enforce the manager rule shared by create/update contact: a manager must be an

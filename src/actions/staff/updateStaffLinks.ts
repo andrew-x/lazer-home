@@ -1,7 +1,7 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { secureActionClient } from "@/lib/action";
+import { secureActionClient } from "@/lib/core/action";
 import { db } from "@/lib/db/db";
 import { staff } from "@/lib/db/schema";
 import { authorizeStaffEdit } from "./canEditStaff";

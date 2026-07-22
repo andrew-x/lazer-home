@@ -11,8 +11,8 @@ Staff need to get into the system before anyone can use it, and the first tool f
 A separate **admin area** at `src/app/admin/**`, with two deliberate properties:
 
 - **Outside the `(app)` route group.** It does not inherit the auth + staff-record gate, so it can run before any staff exist.
-- **The security boundary is a two-part local-only gate, not auth.** `src/lib/admin.ts` exposes `isLocalhost()` / `assertLocalhost()` with two layers:
-  - **Primary, unspoofable lock — `NODE_ENV === "production"` refuses outright** (`src/lib/admin.ts:21`), before the host is ever consulted. A real deployment can never reach admin regardless of headers.
+- **The security boundary is a two-part local-only gate, not auth.** `src/lib/auth/admin.ts` exposes `isLocalhost()` / `assertLocalhost()` with two layers:
+  - **Primary, unspoofable lock — `NODE_ENV === "production"` refuses outright** (`src/lib/auth/admin.ts:21`), before the host is ever consulted. A real deployment can never reach admin regardless of headers.
   - **Defense-in-depth — loopback host check.** In non-production, the request must also arrive over a loopback host: the `host` header (port-stripped, lowercased) is checked against a loopback allowlist (`localhost`, `127.0.0.1`, `[::1]`/`::1`), catching e.g. a dev server bound to a LAN address.
 
   `admin/layout.tsx` calls `isLocalhost()` and `notFound()`s the whole segment for non-local requests (404, not a redirect — the area is invisible remotely). The two admin server actions use `publicActionClient` + `assertLocalhost()` — **not** `secureActionClient` — for the same bootstrapping reason. Enforced server-side only; never trusted from the client.

@@ -3,11 +3,11 @@ import type { StaffDirectoryEntry } from "@/actions/staff/getStaffDirectory";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { initialsFor } from "@/lib/format";
-import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
-import { PROFICIENCY_LABELS } from "@/lib/skills";
-import { ROLE_LABELS } from "@/lib/staff-enums";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
+import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
+import { initialsFor } from "@/lib/format/format";
+import { PROFICIENCY_LABELS } from "@/lib/staff/skills";
+import { ROLE_LABELS } from "@/lib/staff/staff-enums";
 
 /**
  * One staff member as a clickable card linking to their profile. When

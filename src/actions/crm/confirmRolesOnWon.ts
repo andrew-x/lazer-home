@@ -1,9 +1,9 @@
 import "server-only";
 
 import { and, eq } from "drizzle-orm";
+import type { OpportunityStatus } from "@/lib/crm/opportunity";
 import type { db } from "@/lib/db/db";
 import { projectRoles } from "@/lib/db/schema";
-import type { OpportunityStatus } from "@/lib/opportunity";
 
 /** `db` or a transaction handle — both expose the `.update` used below. */
 type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];

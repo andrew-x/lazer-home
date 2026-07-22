@@ -1,4 +1,9 @@
 import type { InferInsertModel } from "drizzle-orm";
+import { LINE_OF_BUSINESS } from "@/lib/crm/line-of-business";
+import {
+  OPPORTUNITY_SOURCES,
+  OPPORTUNITY_STATUSES,
+} from "@/lib/crm/opportunity";
 import { generateId } from "@/lib/db/ids";
 import {
   type Company,
@@ -11,8 +16,6 @@ import {
   opportunitySourceStaff,
   type Staff,
 } from "@/lib/db/schema";
-import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
-import { OPPORTUNITY_SOURCES, OPPORTUNITY_STATUSES } from "@/lib/opportunity";
 import type { SeedDb } from "./client";
 import { faker } from "./faker";
 

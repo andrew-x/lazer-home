@@ -12,8 +12,8 @@ import {
 import {
   DEFAULT_PROJECT_ROLE_STATUS,
   PROJECT_ROLE_STATUSES,
-} from "@/lib/project-role-status";
-import { PROJECT_ROLE_TYPES } from "@/lib/project-role-type";
+} from "@/lib/projects/project-role-status";
+import { PROJECT_ROLE_TYPES } from "@/lib/projects/project-role-type";
 import { companies } from "./crm-schema";
 import { opportunities } from "./opportunities-schema";
 import { lineOfBusinessEnum, staff } from "./staff-schema";

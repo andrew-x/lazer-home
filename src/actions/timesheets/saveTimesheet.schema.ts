@@ -1,13 +1,17 @@
 import { z } from "zod";
-import { dateString } from "@/lib/date-schema";
-import { id } from "@/lib/id-schema";
-import { TIMESHEET_CATEGORY } from "@/lib/timesheet-category";
-import { getWeekDays, getWeekStart, isWeekend } from "@/lib/timesheet-week";
+import { dateString } from "@/lib/schemas/date-schema";
+import { id } from "@/lib/schemas/id-schema";
+import { TIMESHEET_CATEGORY } from "@/lib/timesheets/timesheet-category";
+import {
+  getWeekDays,
+  getWeekStart,
+  isWeekend,
+} from "@/lib/timesheets/timesheet-week";
 
 /**
  * Save-timesheet input. A pure, client-importable module (no `db`/drizzle) so the
  * weekly-grid form's resolver and the server action share exactly one set of
- * rules. Category values come from `@/lib/timesheet-category` — the same source
+ * rules. Category values come from `@/lib/timesheets/timesheet-category` — the same source
  * the pgEnum is built from. See docs/domains/timesheets.md.
  */
 

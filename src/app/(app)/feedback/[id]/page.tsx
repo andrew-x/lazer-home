@@ -12,8 +12,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { FEEDBACK_RATING_LABELS } from "@/lib/feedback-rating";
-import { formatTimestamp } from "@/lib/format";
+import { formatTimestamp } from "@/lib/format/format";
+import { FEEDBACK_RATING_LABELS } from "@/lib/performance/feedback-rating";
 
 export const metadata: Metadata = { title: "Feedback detail" };
 

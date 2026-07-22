@@ -26,7 +26,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useSignOut } from "@/hooks/useSignOut";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import { isActivePath, isActiveSubPath, NAV_ITEMS, type NavItem } from "./nav";
 
 export function AppSidebar({

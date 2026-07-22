@@ -7,7 +7,7 @@
 > `tentative | confirmed | paused | cancelled` (the two new states are enum-only for
 > now — no UI sets them yet). The separate **stored project `status`** this ADR relied
 > on is **gone**: a project's status is now *derived* from its roles' statuses
-> (`deriveProjectStatus` in `src/lib/project-derived.ts`; `src/lib/project-status.ts`
+> (`deriveProjectStatus` in `src/lib/projects/project-derived.ts`; `src/lib/project-status.ts`
 > deleted). The role lifecycle, `assertRoleEditable`, auto-confirm-on-won, and the
 > planner grid below all still hold.
 
@@ -35,7 +35,7 @@ Two prior open questions bore directly on this (both now resolved here):
 `opportunityId` provenance FK (nullable, `onDelete: set null`, indexed) recording *which
 opportunity created the role*. Both are **server-controlled provenance, never user input**
 (the shared `projectRole.schema.ts` excludes them). Status values live in the pure,
-client-importable `src/lib/project-role-status.ts` (`PROJECT_ROLE_STATUSES`,
+client-importable `src/lib/projects/project-role-status.ts` (`PROJECT_ROLE_STATUSES`,
 `DEFAULT_PROJECT_ROLE_STATUS`, `PROJECT_ROLE_STATUS_LABELS`) — the same single-source pattern
 as `project-status.ts` / `project-role-type.ts`. (The migration that added these columns has since
 been **folded into the squashed baseline** `drizzle/0000_lethal_rictor.sql`.)
@@ -61,8 +61,8 @@ it. Confirmed roles and roles from *other* opportunities are read-only in this d
 **4. The planner: a weekly, Gantt-like grid.** `src/components/projects/opportunity-plan/`
 (entry `opportunity-project-plan.tsx`; moved from `components/crm/`, still mounted in the CRM
 opportunity detail sheet) renders roles × week columns, rows grouped by person (so an extension stacks as another block
-on the same person's line). The grid math is a pure, unit-tested module
-`src/lib/project-planner-grid.ts` (`buildWeekColumns`, `buildPlannerRows`, `weekColumnLabel`,
+on the same person's line). The grid math is a pure module
+`src/lib/projects/project-planner-grid.ts` (`buildWeekColumns`, `buildPlannerRows`, `weekColumnLabel`,
 `weekSpan`) — mirroring `timesheet-grid.ts`, with a new `eachWeek(start, end)` helper in
 `timesheet-week.ts`. The component is render + action-wiring only. Editable blocks are this
 opportunity's tentative roles; everything else renders greyed. Empty state offers **associate

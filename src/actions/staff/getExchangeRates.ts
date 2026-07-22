@@ -1,9 +1,9 @@
 import "server-only";
 
 import { z } from "zod";
-import { CURRENCY, type Currency } from "@/lib/currency";
-import { AED_PER_USD, FALLBACK_USD_RATES } from "@/lib/fx";
-import { logger } from "@/lib/logger";
+import { logger } from "@/lib/core/logger";
+import { CURRENCY, type Currency } from "@/lib/format/currency";
+import { AED_PER_USD, FALLBACK_USD_RATES } from "@/lib/format/fx";
 
 /**
  * USD-based exchange rates for the compensation dashboard's currency toggle.

@@ -6,13 +6,13 @@ import {
   timeEntries,
   timesheets,
 } from "@/lib/db/schema";
-import { TIMESHEET_CATEGORY } from "@/lib/timesheet-category";
+import { TIMESHEET_CATEGORY } from "@/lib/timesheets/timesheet-category";
 import {
   addWeeks,
   currentWeekStart,
   getWeekDays,
   isWeekend,
-} from "@/lib/timesheet-week";
+} from "@/lib/timesheets/timesheet-week";
 import type { SeedDb } from "./client";
 import { chance, faker } from "./faker";
 

@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { getUsers } from "@/actions/admin/getUsers";
 import { ManageUsers } from "@/components/admin/manage-users";
 import { PromoteSelfButton } from "@/components/admin/promote-self-button";
-import { isLocalhost } from "@/lib/admin";
-import { getCurrentUser } from "@/lib/auth";
-import { isAdmin } from "@/lib/permissions";
+import { isLocalhost } from "@/lib/auth/admin";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { isAdmin } from "@/lib/auth/permissions";
 
 export const metadata: Metadata = { title: "Manage users" };
 

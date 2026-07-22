@@ -11,7 +11,7 @@ import {
   type CsvPlanBadge,
   csvPreviewSection,
 } from "@/components/admin/csv-import";
-import { transformRows } from "@/lib/pto-import/transform";
+import { transformRows } from "@/lib/staff/pto-import/transform";
 import type {
   ComparableField,
   NormalizedPto,
@@ -19,8 +19,8 @@ import type {
   PtoImportPlan,
   PtoImportUpdate,
   SkippedRow,
-} from "@/lib/pto-import/types";
-import { PTO_TYPE_LABELS, type PtoType } from "@/lib/staff-enums";
+} from "@/lib/staff/pto-import/types";
+import { PTO_TYPE_LABELS, type PtoType } from "@/lib/staff/staff-enums";
 
 function formatValue(field: ComparableField, value: unknown): string {
   if (value === null || value === "") return "—";

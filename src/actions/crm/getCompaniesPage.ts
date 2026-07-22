@@ -11,6 +11,8 @@ import {
   notInArray,
   sql,
 } from "drizzle-orm";
+import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/core/pagination";
+import { CLOSED_OPPORTUNITY_STATUSES } from "@/lib/crm/opportunity";
 import { db } from "@/lib/db/db";
 import {
   companies,
@@ -18,8 +20,6 @@ import {
   projectRoles,
   projects,
 } from "@/lib/db/schema";
-import { CLOSED_OPPORTUNITY_STATUSES } from "@/lib/opportunity";
-import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/pagination";
 
 export type CompanyRow = {
   id: string;

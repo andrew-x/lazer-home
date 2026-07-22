@@ -23,7 +23,7 @@ Store skills **inline on the `staff` row** as a single `jsonb` column
 `skills` (`StaffSkill[]` = `{ name, level }[]`, **NOT NULL default `[]`**) —
 the schema's **first jsonb/array column** (`drizzle/0016_demonic_rick_jones.sql`).
 
-- **Catalogue lives in code**, not the DB: `src/lib/skills.ts` is the single source
+- **Catalogue lives in code**, not the DB: `src/lib/staff/skills.ts` is the single source
   of truth for the pickable skills — a curated catalogue of ~307 skills across 9
   top-level **dimensions** (Type of Work, Languages, Frameworks, Hosting, Databases,
   DevOps & CI/CD, Testing, Tools, Compliance). Several dimensions carry sub-groups in
@@ -51,7 +51,7 @@ the schema's **first jsonb/array column** (`drizzle/0016_demonic_rick_jones.sql`
   allocations skill-matching or skills reporting arrives, revisit — either add a GIN
   index on the jsonb or migrate to the normalized `skill` + join tables this ADR
   deferred. The catalogue-in-code shape makes such a migration mechanical.
-- **Taxonomy changes require a code deploy** (edit `src/lib/skills.ts`), not a DB
+- **Taxonomy changes require a code deploy** (edit `src/lib/staff/skills.ts`), not a DB
   write or admin UI. Acceptable while the curator == developer; the curated catalogue
   is edited in-place there (add/remove skills, reorder — order is preserved in the
   picker).

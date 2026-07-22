@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { id } from "@/lib/id-schema";
+import { id } from "@/lib/schemas/id-schema";
 
 /**
  * Remove a tentative role from an opportunity's planner. `opportunityId` is the

@@ -72,7 +72,7 @@ After any **major change** — a new feature, a schema/data-model change, a sign
 
 ## Permissions (RBAC) — never break them
 
-Access control is non-negotiable. `src/lib/permissions.ts` is the single source of truth (roles, the permission matrix, and the `requirePermission`/`userHasPermission` helpers); the model is documented in `docs/domains/permissions.md`. **If you ever find a way to bypass a permission check, read/mutate another user's data, or escalate a role, STOP and flag it as a vulnerability immediately — don't work around it.**
+Access control is non-negotiable. `src/lib/auth/permissions.ts` is the single source of truth (roles, the permission matrix, and the `requirePermission`/`userHasPermission` helpers); the model is documented in `docs/domains/permissions.md`. **If you ever find a way to bypass a permission check, read/mutate another user's data, or escalate a role, STOP and flag it as a vulnerability immediately — don't work around it.**
 
 In **Claude Code** the full rule loads from `.claude/rules/permissions.md` when you touch auth/action/actions files. Because **Codex** can't auto-load it, the non-negotiables are inlined here so both runtimes always have them:
 

@@ -56,7 +56,7 @@ row in place. We are **not** versioning allocations as history-as-rows yet.
 
 Line of business (now on the project, [ADR 0025](./0025-line-of-business-on-opportunity-and-project-not-role.md))
 reuses the shared, single-source `LINE_OF_BUSINESS` module
-(`src/lib/line-of-business.ts`), extracted so the pgEnum, the zod schema, and the form
+(`src/lib/crm/line-of-business.ts`), extracted so the pgEnum, the zod schema, and the form
 share one tuple — the same pattern [ADR 0016](./0016-junction-table-and-shared-enum-conventions.md)
 established for the opportunity enums.
 

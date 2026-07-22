@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
-import type { OpportunityStatus } from "@/lib/opportunity";
-import { groupOfStatus } from "@/lib/opportunity-pipeline";
+import type { OpportunityStatus } from "@/lib/crm/opportunity";
+import { groupOfStatus } from "@/lib/crm/opportunity-pipeline";
 
 /**
  * A pipeline status shown as its group label ("Scoping", "Won", …) — the same

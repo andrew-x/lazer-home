@@ -1,14 +1,14 @@
 "use client";
 
 import { IconPencil } from "@tabler/icons-react";
-import { parseIsoDate } from "@/lib/format";
+import { cn } from "@/lib/core/utils";
+import { parseIsoDate } from "@/lib/format/format";
 import {
   type PlannerRow,
   type RoleSegment,
   weekColumnLabel,
-} from "@/lib/project-planner-grid";
-import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/project-role-type";
-import { cn } from "@/lib/utils";
+} from "@/lib/projects/project-planner-grid";
+import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
 
 /** The block style for a week cell, by the covering segment's state. */
 function segmentClass(segment: RoleSegment): string {

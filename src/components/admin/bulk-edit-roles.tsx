@@ -27,15 +27,15 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { normalizeEmploymentFacts } from "@/lib/employment";
-import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
+import { cn } from "@/lib/core/utils";
+import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
+import { normalizeEmploymentFacts } from "@/lib/staff/employment";
 import {
   BILLABLE_TYPE_LABELS,
   type BillableType,
   EMPLOYMENT_TYPE_LABELS,
   ROLE_LABELS,
-} from "@/lib/staff-enums";
-import { cn } from "@/lib/utils";
+} from "@/lib/staff/staff-enums";
 import {
   EditableTable,
   useEditableDraft,
@@ -63,7 +63,7 @@ const getStaffId = (row: StaffEmploymentEditRow) => row.staffId;
 
 /**
  * Merge a patch, enforcing the shared billable/management/utilization invariants
- * (`@/lib/employment`). Enabling management in this patch defaults the row to
+ * (`@/lib/staff/employment`). Enabling management in this patch defaults the row to
  * non-billable, which the shared normalizer then zeroes the target for.
  */
 function applyEmploymentPatch(

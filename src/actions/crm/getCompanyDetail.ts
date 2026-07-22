@@ -7,6 +7,10 @@ import {
   latestNextStepSubquery,
   toEpochMillis,
 } from "@/actions/shared/latestNextStep";
+import type {
+  OpportunitySource,
+  OpportunityStatus,
+} from "@/lib/crm/opportunity";
 import { db } from "@/lib/db/db";
 import {
   companies,
@@ -17,7 +21,6 @@ import {
   projects,
   staff,
 } from "@/lib/db/schema";
-import type { OpportunitySource, OpportunityStatus } from "@/lib/opportunity";
 
 export type CompanyOpportunity = {
   id: string;

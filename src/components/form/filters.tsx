@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { humanizeEnum } from "@/lib/format";
+import { humanizeEnum } from "@/lib/format/format";
 
 /**
  * Neutral, in-memory filter controls shared across the app's list/table screens

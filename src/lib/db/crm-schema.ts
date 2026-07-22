@@ -62,8 +62,9 @@ export const contacts = pgTable("contacts", {
   // optional FKs). Owner = staff, matching `companies.ownerId`.
   ownerId: text().references(() => staff.id, { onDelete: "set null" }),
   // How strong our relationship with this contact is, on a 1–5 scale (1 New /
-  // Unestablished … 5 Champion / Trusted Partner — see `@/lib/relationship-
-  // strength`). Null when not yet rated. Edited inline (stars) on the contact
+  // Unestablished … 5 Champion / Trusted Partner — see
+  // `@/lib/crm/relationship-strength`). Null when not yet rated. Edited inline
+  // (stars) on the contact
   // page via `updateContactRelationshipStrength`.
   relationshipStrength: integer(),
 

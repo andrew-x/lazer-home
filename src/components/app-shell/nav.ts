@@ -12,7 +12,7 @@ import {
   IconUser,
   IconUsers,
 } from "@tabler/icons-react";
-import type { PermissionCheck } from "@/lib/permissions";
+import type { PermissionCheck } from "@/lib/auth/permissions";
 
 /**
  * A sub-entry under a {@link NavItem}. Has no icon of its own — it renders

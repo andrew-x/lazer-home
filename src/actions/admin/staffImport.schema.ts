@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { normalizedStaffSchema } from "@/lib/staff-import/types";
+import { normalizedStaffSchema } from "@/lib/staff/staff-import/types";
 
 /** Shared input for both preview and commit: the transformed CSV rows. */
 export const staffImportInputSchema = z.object({

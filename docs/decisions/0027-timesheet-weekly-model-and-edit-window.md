@@ -22,8 +22,8 @@ lifecycle (`unique(staffId, weekStartDate)`). Each `time_entry` is hours on **on
 day** against **exactly one** target — either a `project` (billable) or a non-billable
 `category` bucket (`PTO` / `UNALLOCATED_BENCH` / `INTERNAL_ADMIN`). The one-target
 rule is enforced by a DB `CHECK` (XOR on `IS NOT NULL`) *and* a zod refine. Week math
-lives in a pure, client-importable module (`src/lib/timesheet-week.ts`); category
-values in another (`src/lib/timesheet-category.ts`), mirroring `line-of-business.ts`.
+lives in a pure, client-importable module (`src/lib/timesheets/timesheet-week.ts`); category
+values in another (`src/lib/timesheets/timesheet-category.ts`), mirroring `line-of-business.ts`.
 
 **Saving is a whole-week transactional replace.** `saveTimesheet` creates the
 `timesheets` row lazily on first save, then deletes all of its `time_entries` and
@@ -37,7 +37,7 @@ the shared `saveTimesheet.schema.ts` (client resolver + server).
 **Timesheets capture weekday (Mon–Fri) work only.** A week is still keyed and displayed
 as 7 days, but Saturday/Sunday are non-editable: the grid renders them blank/muted with
 no input, and the shared schema rejects any weekend-dated entry (`isWeekend` in
-`src/lib/timesheet-week.ts`). Weekend work is rare enough for a consultancy that the
+`src/lib/timesheets/timesheet-week.ts`). Weekend work is rare enough for a consultancy that the
 simpler, honest default is to disallow it rather than model it.
 
 **Adding a project row autofills weekday cells; non-billable buckets don't.** As a

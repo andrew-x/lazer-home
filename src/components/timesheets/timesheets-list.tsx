@@ -10,8 +10,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDate } from "@/lib/format";
-import { getWeekDays } from "@/lib/timesheet-week";
+import { formatDate } from "@/lib/format/format";
+import { getWeekDays } from "@/lib/timesheets/timesheet-week";
 
 type Props = {
   rows: TimesheetListRow[];

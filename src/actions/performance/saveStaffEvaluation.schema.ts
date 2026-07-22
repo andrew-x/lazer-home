@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { id } from "@/lib/id-schema";
-import { MAX_RATING_LEVEL, MIN_RATING_LEVEL } from "@/lib/staff-rating";
+import { id } from "@/lib/schemas/id-schema";
+import { MAX_RATING_LEVEL, MIN_RATING_LEVEL } from "@/lib/staff/staff-rating";
 
 /**
  * One staff member's new level in an evaluation. `level` is an integer 0–4, or

@@ -16,8 +16,8 @@ import { IconButton } from "@/components/icon-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { formatShortDate } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
+import { formatShortDate } from "@/lib/format/format";
 
 type EntryLogProps = {
   /** Which parent the entries hang off — selects the action set. */

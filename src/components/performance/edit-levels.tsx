@@ -25,14 +25,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { LINE_OF_BUSINESS_LABELS } from "@/lib/line-of-business";
-import { ROLE_LABELS, type Role } from "@/lib/staff-enums";
+import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
+import { ROLE_LABELS, type Role } from "@/lib/staff/staff-enums";
 import {
   decodeLevelValue,
   formatLevel,
   RATING_LEVELS,
   UNRATED_SELECT_VALUE,
-} from "@/lib/staff-rating";
+} from "@/lib/staff/staff-rating";
 
 /**
  * The one editable fact: the staff member's level, held as the Select's string

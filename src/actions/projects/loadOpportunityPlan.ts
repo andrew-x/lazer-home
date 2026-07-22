@@ -1,8 +1,8 @@
 "use server";
 
 import { z } from "zod";
-import { secureActionClient } from "@/lib/action";
-import { id } from "@/lib/id-schema";
+import { secureActionClient } from "@/lib/core/action";
+import { id } from "@/lib/schemas/id-schema";
 import { getOpportunityPlan } from "./getOpportunityPlan";
 
 /**

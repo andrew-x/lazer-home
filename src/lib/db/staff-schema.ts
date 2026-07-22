@@ -11,9 +11,9 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
-import { CURRENCY } from "@/lib/currency";
-import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
-import type { StaffSkill } from "@/lib/skills";
+import { LINE_OF_BUSINESS } from "@/lib/crm/line-of-business";
+import { CURRENCY } from "@/lib/format/currency";
+import type { StaffSkill } from "@/lib/staff/skills";
 import { user } from "./auth-schema";
 
 // ---------------------------------------------------------------------------
@@ -29,7 +29,7 @@ import { user } from "./auth-schema";
 // --- Enums -----------------------------------------------------------------
 
 // Shared/global enum — reused beyond staff (e.g. CRM, projects/allocations).
-// Values live in `@/lib/line-of-business` (a pure module) so the pgEnum here and
+// Values live in `@/lib/crm/line-of-business` (a pure module) so the pgEnum here and
 // the zod enum / form labels there share one source of truth.
 export const lineOfBusinessEnum = pgEnum("line_of_business", [
   ...LINE_OF_BUSINESS,
@@ -54,7 +54,7 @@ export const employmentTypeEnum = pgEnum("employment_type", [
 
 export const billableTypeEnum = pgEnum("billable_type", ["HUB", "GLOBAL"]);
 
-// Compensation currency. Values live in `@/lib/currency` (a pure module) so this
+// Compensation currency. Values live in `@/lib/format/currency` (a pure module) so this
 // pgEnum, the import's zod enum, and display formatting share one source of truth.
 export const currencyEnum = pgEnum("currency", [...CURRENCY]);
 
@@ -109,7 +109,7 @@ export const staff = pgTable("staff", {
   resumeUpdatedAt: timestamp(),
 
   // Skills held, as an inline list of { name, level } picked from the hardcoded
-  // catalogue in `@/lib/skills` (deliberately not a normalized skills table).
+  // catalogue in `@/lib/staff/skills` (deliberately not a normalized skills table).
   skills: jsonb().$type<StaffSkill[]>().notNull().default([]),
 
   joinDate: date(),

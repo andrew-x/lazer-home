@@ -8,7 +8,7 @@ import { getStaffProfile } from "@/actions/staff/getStaffProfile";
 import { getStaffProjects } from "@/actions/staff/getStaffProjects";
 import { getStaffPto } from "@/actions/staff/getStaffPto";
 import { ProfileView } from "@/components/staff/profile-view";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth/auth";
 
 export const metadata: Metadata = { title: "My profile" };
 

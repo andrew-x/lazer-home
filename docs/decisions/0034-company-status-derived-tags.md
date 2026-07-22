@@ -31,14 +31,14 @@ not a stored column. No schema change.** Three tags, in canonical order:
 The tags are **independent** — a company can carry several (a partner who is also
 a client with a live extension in the pipeline).
 
-- **Pure shared module** `src/lib/company-status.ts` (`companyStatusTags`,
+- **Pure shared module** `src/lib/crm/company-status.ts` (`companyStatusTags`,
   `COMPANY_STATUS_TAGS`, `COMPANY_STATUS_LABELS`) — no `db`/drizzle, no UI —
   mirrors the derived-field pattern in `project-derived.ts` so the read computing
   the flags and the UI rendering the badges share one definition of the tags,
   their order, and their labels.
 - **`CLOSED_OPPORTUNITY_STATUSES`** (`closed_won`, `closed_lost`) is the single
   source of truth for terminal statuses, declared beside the status list in
-  `src/lib/opportunity.ts`; the prospect check negates it.
+  `src/lib/crm/opportunity.ts`; the prospect check negates it.
 - The underlying flags are computed inline in `getCompaniesPage` as **correlated
   `EXISTS` subqueries**, so the list stays a single query. `CompanyRow` returns
   `{ id, name, isPartner, isClient, isProspect }`.

@@ -3,9 +3,9 @@ import { getCompaniesPage } from "@/actions/crm/getCompaniesPage";
 import { AddCompanyDialog } from "@/components/crm/add-company-dialog";
 import { CompaniesTable } from "@/components/crm/companies-table";
 import { PaginationControls } from "@/components/pagination-controls";
-import { getCurrentUser } from "@/lib/auth";
-import { parsePage } from "@/lib/pagination";
-import { userHasPermission } from "@/lib/permissions";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { userHasPermission } from "@/lib/auth/permissions";
+import { parsePage } from "@/lib/core/pagination";
 
 export const metadata: Metadata = { title: "Companies" };
 

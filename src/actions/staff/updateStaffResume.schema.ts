@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { id } from "@/lib/id-schema";
+import { id } from "@/lib/schemas/id-schema";
 
 // NUL byte (U+0000). Postgres `text` columns can't store it, and PDF text
 // extraction can leave it embedded — strip it before persisting. Built via

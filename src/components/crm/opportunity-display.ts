@@ -1,5 +1,5 @@
-import { type OpportunityStatus, STATUS_LABELS } from "@/lib/opportunity";
-import { OPPORTUNITY_GROUPS } from "@/lib/opportunity-pipeline";
+import { type OpportunityStatus, STATUS_LABELS } from "@/lib/crm/opportunity";
+import { OPPORTUNITY_GROUPS } from "@/lib/crm/opportunity-pipeline";
 
 /**
  * Status labels for a dropdown that lists every leaf status with no column

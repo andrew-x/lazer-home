@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import {
   type MatrixSection,
   type MultiselectField,
@@ -24,7 +24,7 @@ import {
   WOW_SECTIONS,
   type WowQuestionId,
   type WowSection,
-} from "@/lib/ways-of-working";
+} from "@/lib/staff/ways-of-working";
 import { aggregateSaveState, SaveIndicator } from "./response-save-indicator";
 import {
   isEmpty,

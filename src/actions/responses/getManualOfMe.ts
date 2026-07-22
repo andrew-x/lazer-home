@@ -8,11 +8,11 @@ import {
   MANUAL_OF_ME_QUESTION_IDS,
   MANUAL_OF_ME_QUESTIONS,
   type ManualOfMeQuestionId,
-} from "@/lib/manual-of-me";
+} from "@/lib/staff/manual-of-me";
 
 /**
  * One Manual of Me question paired with this person's answer (null if
- * unanswered). The question copy is merged in from `@/lib/manual-of-me` so
+ * unanswered). The question copy is merged in from `@/lib/staff/manual-of-me` so
  * callers get everything they need to render without re-importing the defs.
  */
 export type ManualOfMeEntry = {

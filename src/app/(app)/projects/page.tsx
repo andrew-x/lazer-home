@@ -3,9 +3,9 @@ import { getProjectsPage } from "@/actions/projects/getProjectsPage";
 import { PaginationControls } from "@/components/pagination-controls";
 import { AddProjectDialog } from "@/components/projects/add-project-dialog";
 import { ProjectsTable } from "@/components/projects/projects-table";
-import { getCurrentUser } from "@/lib/auth";
-import { parsePage } from "@/lib/pagination";
-import { userHasPermission } from "@/lib/permissions";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { userHasPermission } from "@/lib/auth/permissions";
+import { parsePage } from "@/lib/core/pagination";
 
 export const metadata: Metadata = { title: "Projects" };
 

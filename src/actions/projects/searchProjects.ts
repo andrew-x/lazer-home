@@ -2,11 +2,11 @@
 
 import { and, asc, eq, ilike } from "drizzle-orm";
 import { z } from "zod";
-import { secureActionClient } from "@/lib/action";
+import { secureActionClient } from "@/lib/core/action";
+import { escapeLike } from "@/lib/core/like";
+import { SEARCH_LIMIT, searchQuerySchema } from "@/lib/core/search";
 import { db } from "@/lib/db/db";
 import { projects } from "@/lib/db/schema";
-import { escapeLike } from "@/lib/like";
-import { SEARCH_LIMIT, searchQuerySchema } from "@/lib/search";
 
 /**
  * Type-ahead search backing the "associate an existing project" picker in the

@@ -7,7 +7,7 @@ import { createContactSchema } from "@/actions/crm/createContact.schema";
 import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
 import { stopBubblingSubmit } from "@/components/form/stop-bubbling-submit";
-import { contactName } from "@/lib/contact-name";
+import { contactName } from "@/lib/crm/contact-name";
 import { ContactFields } from "./contact-fields";
 
 /**

@@ -19,7 +19,7 @@ This keeps the same property ADR 0004 bought for writes: one place to authorize,
 
 **Two narrow exceptions still import `db`, and both are legitimate** — the rule is about the *call site* (feature UI), not a blanket ban:
 
-- **Framework wiring** — the Better Auth Drizzle adapter in `src/lib/auth.ts`.
+- **Framework wiring** — the Better Auth Drizzle adapter in `src/lib/auth/auth.ts`.
 - **Pure compute helpers an action delegates to** — e.g. `src/lib/*-import/plan.ts`, reached only through an action, never from a page.
 
 **The former straggler is resolved.** `getCurrentStaff` (once in `src/lib/staff.ts`, called straight from the `(app)` layout) now lives in the actions layer as `getCurrentStaffAccess` (`src/actions/staff/getCurrentStaffAccess.ts`); `src/lib/staff.ts` is deleted. The `(app)` layout and `/profile-setup` call the actions-layer function.

@@ -14,7 +14,7 @@ import {
   useComboboxAnchor,
 } from "@/components/ui/combobox";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import type { SearchAction } from "@/lib/search";
+import type { SearchAction } from "@/lib/core/search";
 import { searchEmptyMessage } from "./combobox-empty-message";
 
 export type EntityOption = { id: string; name: string };

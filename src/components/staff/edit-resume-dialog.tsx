@@ -12,7 +12,7 @@ import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
 import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { MAX_PDF_BYTES, PDF_TOO_LARGE_MESSAGE } from "@/lib/pdf-upload";
+import { MAX_PDF_BYTES, PDF_TOO_LARGE_MESSAGE } from "@/lib/staff/pdf-upload";
 
 /** Read a File's bytes as base64 (no `data:` prefix). */
 function fileToBase64(file: File): Promise<string> {

@@ -3,11 +3,11 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { userHasPermission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db/db";
 import { feedback, staff } from "@/lib/db/schema";
-import type { FeedbackRating } from "@/lib/feedback-rating";
-import { userHasPermission } from "@/lib/permissions";
+import type { FeedbackRating } from "@/lib/performance/feedback-rating";
 
 /** Full content of one feedback item, for the detail page. */
 export type FeedbackDetail = {

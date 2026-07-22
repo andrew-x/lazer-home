@@ -14,7 +14,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import type { RawRow, SkippedRow, TransformResult } from "@/lib/csv-import";
+import type {
+  RawRow,
+  SkippedRow,
+  TransformResult,
+} from "@/lib/import/csv-import";
 
 /**
  * Shared file → preview → commit harness for the admin CSV imports. Owns the

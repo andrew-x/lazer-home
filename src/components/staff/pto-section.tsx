@@ -1,7 +1,7 @@
 import type { StaffPtoView } from "@/actions/staff/getStaffPto";
 import { PtoList } from "@/components/staff/pto-list";
 import { Separator } from "@/components/ui/separator";
-import { PTO_TYPE_LABELS } from "@/lib/staff-enums";
+import { PTO_TYPE_LABELS } from "@/lib/staff/staff-enums";
 
 /** How many past spans to show before collapsing the rest behind "Show more". */
 const PAST_COLLAPSE_AFTER = 4;

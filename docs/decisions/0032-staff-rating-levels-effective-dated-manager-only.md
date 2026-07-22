@@ -39,10 +39,10 @@ cascade), `effectiveDate` (`date`, string mode), `level` (integer, **nullable**)
 `evaluatedByUserId` (FK → user, **set null** — a rating outlives the evaluator's
 record), timestamps. Saving an evaluation **inserts a new dated row per
 genuinely-changed staff member**; the current level is the latest row per staff.
-The ordering fragment is `latestRatingFirst` (`src/lib/staff-rating-history.ts`,
+The ordering fragment is `latestRatingFirst` (`src/lib/staff/staff-rating-history.ts`,
 `desc(effectiveDate)` then `desc(createdAt)` to break same-day ties) — a direct
 mirror of `latestEmploymentFirst`. The pure shared module is
-`src/lib/staff-rating.ts` (`RATING_LEVELS`, `MIN/MAX_RATING_LEVEL`, `formatLevel`
+`src/lib/staff/staff-rating.ts` (`RATING_LEVELS`, `MIN/MAX_RATING_LEVEL`, `formatLevel`
 → `"L0".."L4"`/`"Unrated"`, `formatAverageLevel` → `"L2.3"`),
 mirroring `feedback-rating.ts`.
 
@@ -104,7 +104,7 @@ The Levels section reads anonymized per-active-staff rows (`RatingRecord` =
 comp/rate-per-level table **reuses `computeByRole`** from `performance-stats.ts`,
 tagging the group key with the level label. Level-specific math (distribution,
 unrated count, average level, average-by-role) is the new pure
-`src/lib/rating-stats.ts`. The distribution is a hand-rolled SVG **bar chart**
+`src/lib/performance/rating-stats.ts`. The distribution is a hand-rolled SVG **bar chart**
 (zero baseline — see `docs/ui.md`). Currency toggle + FX are identical to the comp
 dashboard ([ADR 0029](./0029-external-fx-rates-and-currency-normalization.md)).
 

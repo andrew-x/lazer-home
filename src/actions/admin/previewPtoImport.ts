@@ -1,7 +1,7 @@
 "use server";
 
-import { localActionClient } from "@/lib/action";
-import { computePtoImportPlan } from "@/lib/pto-import/plan";
+import { localActionClient } from "@/lib/core/action";
+import { computePtoImportPlan } from "@/lib/staff/pto-import/plan";
 import { ptoImportInputSchema } from "./ptoImport.schema";
 
 /**

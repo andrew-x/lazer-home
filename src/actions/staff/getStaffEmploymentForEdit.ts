@@ -1,10 +1,10 @@
 import "server-only";
 
 import { asc } from "drizzle-orm";
-import { firstPerKey } from "@/lib/collections";
+import { firstPerKey } from "@/lib/core/collections";
 import { db } from "@/lib/db/db";
 import { type StaffEmployment, staff, staffEmployment } from "@/lib/db/schema";
-import { latestEmploymentFirst } from "@/lib/staff-employment";
+import { latestEmploymentFirst } from "@/lib/staff/staff-employment";
 
 /**
  * One editable row per staff member for the admin bulk-edit-roles table:

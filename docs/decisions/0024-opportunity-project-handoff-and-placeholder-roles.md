@@ -62,12 +62,12 @@ is **still not enforced** (deferred as in ADR 0019).
   *(Later changed by [ADR 0025](./0025-line-of-business-on-opportunity-and-project-not-role.md):
   line of business was dropped from the role and moved to the project; dates and hours
   are still required per role.)*
-- Role types live in the pure, client-importable `src/lib/project-role-type.ts`
+- Role types live in the pure, client-importable `src/lib/projects/project-role-type.ts`
   (`PROJECT_ROLE_TYPES` + labels), the single source the pgEnum, zod, and form share —
   the same pattern as `line-of-business.ts` ([ADR 0016](./0016-junction-table-and-shared-enum-conventions.md)).
 
 **3. Delivery stages require a linked project.** New `requiresProject(status)` in
-`src/lib/opportunity-pipeline.ts`: true from the **Allocating** group onward (Allocating →
+`src/lib/crm/opportunity-pipeline.ts`: true from the **Allocating** group onward (Allocating →
 Negotiating → Closing → Won), with **Closed – Lost excepted**. The invariant — *an
 opportunity in a delivery stage has a linked project* — is enforced **server-side at the
 entry points**, so it can't be bypassed by hitting an action directly:

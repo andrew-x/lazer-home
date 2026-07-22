@@ -1,7 +1,10 @@
 import { z } from "zod";
-import { idList } from "@/lib/id-schema";
-import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
-import { OPPORTUNITY_SOURCES, OPPORTUNITY_STATUSES } from "@/lib/opportunity";
+import { LINE_OF_BUSINESS } from "@/lib/crm/line-of-business";
+import {
+  OPPORTUNITY_SOURCES,
+  OPPORTUNITY_STATUSES,
+} from "@/lib/crm/opportunity";
+import { idList } from "@/lib/schemas/id-schema";
 
 /**
  * The field shape shared by create and update. Both build a `z.object` from

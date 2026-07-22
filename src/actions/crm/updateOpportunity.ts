@@ -2,7 +2,8 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { secureActionClient } from "@/lib/action";
+import { secureActionClient } from "@/lib/core/action";
+import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import {
   opportunities,
@@ -11,7 +12,6 @@ import {
   opportunitySourceContacts,
   opportunitySourceStaff,
 } from "@/lib/db/schema";
-import { UserSafeActionError } from "@/lib/errors";
 import { assertOpportunityTransitionAllowed } from "./assertOpportunityTransitionAllowed";
 import { confirmRolesOnWon } from "./confirmRolesOnWon";
 import { writeOpportunityLinks } from "./opportunityLinks";

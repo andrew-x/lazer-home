@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { id, idList } from "@/lib/id-schema";
+import { id, idList } from "@/lib/schemas/id-schema";
 
 /**
  * Validation for editing a project's top-level fields from the planner's Edit

@@ -9,8 +9,8 @@ import { InternalLink } from "@/components/internal-link";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { contactName } from "@/lib/contact-name";
-import { humanizeEnum, initialsFor } from "@/lib/format";
+import { contactName } from "@/lib/crm/contact-name";
+import { humanizeEnum, initialsFor } from "@/lib/format/format";
 import {
   DetailIdentity,
   DetailLayout,

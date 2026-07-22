@@ -9,8 +9,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { formatDate, formatIsoDate, parseIsoDate } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
+import { formatDate, formatIsoDate, parseIsoDate } from "@/lib/format/format";
 
 /**
  * A single-date picker bound to a "YYYY-MM-DD" string (or null when cleared).

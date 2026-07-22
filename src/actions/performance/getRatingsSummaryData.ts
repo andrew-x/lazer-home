@@ -5,14 +5,14 @@ import {
   type CompensationDimensions,
   employmentCompColumns,
 } from "@/actions/shared/employmentComp";
-import { getCurrentUser } from "@/lib/auth";
-import { firstPerKey } from "@/lib/collections";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { requirePermission } from "@/lib/auth/permissions";
+import { firstPerKey } from "@/lib/core/collections";
 import { db } from "@/lib/db/db";
 import { staff, staffEmployment, staffRating } from "@/lib/db/schema";
-import { requirePermission } from "@/lib/permissions";
-import { latestEmploymentFirst } from "@/lib/staff-employment";
-import { STAFF_FILTER_OPTIONS } from "@/lib/staff-filters";
-import { latestRatingFirst } from "@/lib/staff-rating-history";
+import { latestEmploymentFirst } from "@/lib/staff/staff-employment";
+import { STAFF_FILTER_OPTIONS } from "@/lib/staff/staff-filters";
+import { latestRatingFirst } from "@/lib/staff/staff-rating-history";
 
 /**
  * The filter dimensions offered by the Levels dashboard, sourced from the DB

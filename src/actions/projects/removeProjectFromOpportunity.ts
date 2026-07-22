@@ -2,10 +2,10 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { secureActionClient } from "@/lib/action";
+import { secureActionClient } from "@/lib/core/action";
+import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { opportunities } from "@/lib/db/schema";
-import { UserSafeActionError } from "@/lib/errors";
 import { detachProjectFromOpportunity } from "./detachProjectFromOpportunity";
 import { removeProjectFromOpportunitySchema } from "./removeProjectFromOpportunity.schema";
 

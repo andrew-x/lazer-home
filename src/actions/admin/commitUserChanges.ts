@@ -3,11 +3,14 @@
 import { inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { assertLocalhostMiddleware, secureActionClient } from "@/lib/action";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/auth";
+import {
+  assertLocalhostMiddleware,
+  secureActionClient,
+} from "@/lib/core/action";
+import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { user } from "@/lib/db/schema";
-import { UserSafeActionError } from "@/lib/errors";
 import { updateUsersSchema } from "./updateUsers.schema";
 
 export type CommitUserChangesResult = { usersAffected: number };

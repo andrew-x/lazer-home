@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { LevelCount } from "@/lib/rating-stats";
-import { formatLevel } from "@/lib/staff-rating";
+import type { LevelCount } from "@/lib/performance/rating-stats";
+import { formatLevel } from "@/lib/staff/staff-rating";
 
 // viewBox coordinate space — the SVG scales to its container width, keeping this
 // aspect ratio. Bars/lines use non-scaling strokes so they stay crisp.

@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { dateString } from "@/lib/date-schema";
-import { optionalId } from "@/lib/id-schema";
-import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
-import { PROJECT_ROLE_TYPES } from "@/lib/project-role-type";
-import { optionalText } from "@/lib/text-schema";
+import { LINE_OF_BUSINESS } from "@/lib/crm/line-of-business";
+import { PROJECT_ROLE_TYPES } from "@/lib/projects/project-role-type";
+import { dateString } from "@/lib/schemas/date-schema";
+import { optionalId } from "@/lib/schemas/id-schema";
+import { optionalText } from "@/lib/schemas/text-schema";
 
 /**
  * The editable fields common to every project role — the per-role rows of

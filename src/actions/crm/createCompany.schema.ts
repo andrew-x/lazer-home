@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { optionalUrl } from "@/lib/url-schema";
+import { optionalUrl } from "@/lib/schemas/url-schema";
 
 /**
  * A pure, client-importable module (no `db`/drizzle) so the create/edit company

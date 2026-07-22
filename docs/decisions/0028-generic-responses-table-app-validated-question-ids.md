@@ -30,9 +30,9 @@ the **zod layer** against app-owned id tuples — never a `pgEnum`, never a per-
 table. Adding a survey or a question needs **no migration**.
 
 - **`questionId` validity lives in code**, in a pure client-importable module per
-  survey — `src/lib/manual-of-me.ts` is the first (`MANUAL_OF_ME_QUESTION_IDS`,
+  survey — `src/lib/staff/manual-of-me.ts` is the first (`MANUAL_OF_ME_QUESTION_IDS`,
   `MANUAL_OF_ME_QUESTIONS`, the `manualOfMeQuestionId` zod enum). Same
-  single-source discipline as `@/lib/skills` / `@/lib/line-of-business`: one module
+  single-source discipline as `@/lib/staff/skills` / `@/lib/crm/line-of-business`: one module
   feeds the read layer, the `upsertResponse` action's schema, and the client UI.
   `upsertResponse.schema.ts` validates `questionId` against that enum, so a crafted
   id can't write an arbitrary row.
@@ -43,7 +43,7 @@ table. Adding a survey or a question needs **no migration**.
   to a `z.union([...])` of each survey's enum and add the list/json shapes as more
   surveys arrive).
   (**Update, 2026-07-18 — this widening has now happened, on schedule:** the second
-  survey, **Ways of Working** (`src/lib/ways-of-working.ts`, 28 `WOW_`-prefixed ids),
+  survey, **Ways of Working** (`src/lib/staff/ways-of-working.ts`, 28 `WOW_`-prefixed ids),
   landed as a **code-only** change — no migration. `upsertResponse.schema.ts`'s
   `questionId` is now `z.union([manualOfMeQuestionId, waysOfWorkingQuestionId])`, and
   the action accepts an optional `listResponse: string[]` alongside `textResponse`,

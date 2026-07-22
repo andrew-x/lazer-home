@@ -31,8 +31,8 @@ client-reachable.
 - **Imported by any `"use client"` component** (directly, or transitively via a
   shared fields fragment / another schema) → it **must be drizzle-free,
   hand-written `z.object(...)`**, built from the shared primitives
-  (`@/lib/id-schema`, `@/lib/text-schema`, `@/lib/url-schema`) and the pure enum
-  tuples/label maps (`@/lib/line-of-business`, `@/lib/staff-enums`, …). It carries
+  (`@/lib/schemas/id-schema`, `@/lib/schemas/text-schema`, `@/lib/schemas/url-schema`) and the pure enum
+  tuples/label maps (`@/lib/crm/line-of-business`, `@/lib/staff/staff-enums`, …). It carries
   a header comment marking it "a pure, client-importable module (no `db`/drizzle)".
 - **Used only server-side** (the action file and other server modules) → it **may**
   keep drizzle-zod, so the table stays the source of truth for its columns.

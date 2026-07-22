@@ -1,7 +1,7 @@
 import { createUpdateSchema } from "drizzle-zod";
 import type { z } from "zod";
 import { contacts } from "@/lib/db/schema";
-import { id, ownerId } from "@/lib/id-schema";
+import { id, ownerId } from "@/lib/schemas/id-schema";
 
 /**
  * Owner-only contact update. A deliberately narrow counterpart to

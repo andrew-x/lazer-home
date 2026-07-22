@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { idList, optionalId } from "@/lib/id-schema";
+import { idList, optionalId } from "@/lib/schemas/id-schema";
 import { projectRoleSchema } from "./projectRole.schema";
 
 /**

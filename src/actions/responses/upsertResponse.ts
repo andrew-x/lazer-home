@@ -2,7 +2,7 @@
 
 import { authorizeStaffEdit } from "@/actions/staff/canEditStaff";
 import { revalidateStaffProfile } from "@/actions/staff/staffProfileMutation";
-import { secureActionClient } from "@/lib/action";
+import { secureActionClient } from "@/lib/core/action";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import { responses } from "@/lib/db/schema";

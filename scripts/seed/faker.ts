@@ -1,5 +1,5 @@
 import { faker } from "@faker-js/faker";
-import { formatIsoDate } from "@/lib/format";
+import { formatIsoDate } from "@/lib/format/format";
 
 /**
  * A single faker instance seeded with a fixed value so every run of the seed

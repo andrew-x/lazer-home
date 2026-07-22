@@ -2,10 +2,13 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { assertLocalhostMiddleware, secureActionClient } from "@/lib/action";
+import { roleSchema } from "@/lib/auth/permissions";
+import {
+  assertLocalhostMiddleware,
+  secureActionClient,
+} from "@/lib/core/action";
 import { db } from "@/lib/db/db";
 import { user } from "@/lib/db/schema";
-import { roleSchema } from "@/lib/permissions";
 
 /**
  * Local-only bootstrap escape hatch: promote the *current* signed-in user to

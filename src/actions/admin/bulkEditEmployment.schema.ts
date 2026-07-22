@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { isEmploymentInvariantSatisfied } from "@/lib/employment";
-import { id } from "@/lib/id-schema";
-import { LINE_OF_BUSINESS } from "@/lib/line-of-business";
+import { LINE_OF_BUSINESS } from "@/lib/crm/line-of-business";
+import { id } from "@/lib/schemas/id-schema";
+import { isEmploymentInvariantSatisfied } from "@/lib/staff/employment";
 import {
   BILLABLE_TYPE_LABELS,
   type BillableType,
@@ -9,12 +9,12 @@ import {
   type EmploymentType,
   ROLE_LABELS,
   type Role,
-} from "@/lib/staff-enums";
+} from "@/lib/staff/staff-enums";
 
 /**
  * A pure, client-importable module (no `db`/drizzle) so the bulk-edit UI and the
  * commit action share one schema. The staff-employment enum value sets are
- * reused via the label maps in `@/lib/staff-enums` (each keyed by the full enum
+ * reused via the label maps in `@/lib/staff/staff-enums` (each keyed by the full enum
  * union, so a `Record` type keeps them in lockstep with the schema enums) and
  * `LINE_OF_BUSINESS` — no Drizzle enum import. See the "schema modules by
  * boundary" rule in `.claude/rules/server-actions.md`.
@@ -33,7 +33,7 @@ const BILLABLE_TYPES = Object.keys(BILLABLE_TYPE_LABELS) as [
  * One staff member's edited employment facts in a bulk edit. Every fact is
  * required (the client always sends each row's full current state) and
  * `utilizationTarget` is bounded 0–100. The billable/target invariant is the
- * shared one from `@/lib/employment` (also enforced by the import's
+ * shared one from `@/lib/staff/employment` (also enforced by the import's
  * `normalizedStaffSchema`).
  */
 const employmentChangeSchema = z

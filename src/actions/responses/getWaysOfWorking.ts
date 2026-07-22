@@ -7,7 +7,7 @@ import { responses } from "@/lib/db/schema";
 import {
   WAYS_OF_WORKING_QUESTION_IDS,
   type WowQuestionId,
-} from "@/lib/ways-of-working";
+} from "@/lib/staff/ways-of-working";
 
 /** One question's stored answer. A question uses exactly one shape; the other
  * stays null. Both null → unanswered. */

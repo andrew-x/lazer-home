@@ -3,7 +3,7 @@ import type {
   HistoryEntry,
 } from "@/actions/staff/getStaffHistory";
 import { Badge } from "@/components/ui/badge";
-import { formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/format/format";
 
 const CATEGORY_LABEL: Record<HistoryCategory, string> = {
   EMPLOYMENT: "Employment",
