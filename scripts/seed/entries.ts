@@ -1,7 +1,9 @@
 import type { InferInsertModel } from "drizzle-orm";
 import { generateId } from "@/lib/db/ids";
 import {
+  type Company,
   type Contact,
+  companyEntries,
   contactEntries,
   type Opportunity,
   opportunityEntries,
@@ -12,6 +14,7 @@ import { faker } from "./faker";
 
 type ContactEntryInsert = InferInsertModel<typeof contactEntries>;
 type OpportunityEntryInsert = InferInsertModel<typeof opportunityEntries>;
+type CompanyEntryInsert = InferInsertModel<typeof companyEntries>;
 
 type EntryKind = "note" | "next_step";
 
@@ -32,16 +35,23 @@ function makeEntry(idPrefix: string, kind: EntryKind, staff: Staff[]) {
 }
 
 /**
- * Seed timestamped notes & next steps across contacts and opportunities. Each
- * parent gets a handful of entries of mixed kind, authored by random staff and
+ * Seed timestamped notes & next steps across contacts, opportunities, and
+ * companies. Each parent gets a handful of entries, authored by random staff and
  * dated within the last couple of months so the logs read as a real history.
+ * Contacts and opportunities mix both kinds; companies carry `note`-only logs
+ * (the company detail page shows only notes).
  */
 export async function seedEntries(
   db: SeedDb,
   contacts: Contact[],
   opportunities: Opportunity[],
+  companies: Company[],
   staff: Staff[],
-): Promise<{ contactEntries: number; opportunityEntries: number }> {
+): Promise<{
+  contactEntries: number;
+  opportunityEntries: number;
+  companyEntries: number;
+}> {
   const contactRows: ContactEntryInsert[] = [];
   for (const contact of contacts) {
     const count = faker.number.int({ min: 0, max: 4 });
@@ -66,13 +76,27 @@ export async function seedEntries(
     }
   }
 
+  const companyRows: CompanyEntryInsert[] = [];
+  for (const company of companies) {
+    const count = faker.number.int({ min: 0, max: 4 });
+    for (let i = 0; i < count; i++) {
+      companyRows.push({
+        ...makeEntry("coentry", "note", staff),
+        companyId: company.id,
+      });
+    }
+  }
+
   if (contactRows.length > 0)
     await db.insert(contactEntries).values(contactRows);
   if (opportunityRows.length > 0)
     await db.insert(opportunityEntries).values(opportunityRows);
+  if (companyRows.length > 0)
+    await db.insert(companyEntries).values(companyRows);
 
   return {
     contactEntries: contactRows.length,
     opportunityEntries: opportunityRows.length,
+    companyEntries: companyRows.length,
   };
 }

@@ -73,7 +73,11 @@ one kind for prose and one for reminders.
   make room for the surfaced next step. A deliberate list-vs-detail split.
 - **Adding entries to another entity** (e.g. companies, projects) means another
   concrete table + a `variant` on the shared component + three thin actions — the
-  pattern is set here.
+  pattern is set here. **Realized for companies** (`company_entries` +
+  `variant="company"` + `add/update/delete CompanyEntry`, migration
+  `0004_blue_terrax.sql`): the table carries both kinds for shape parity, but the
+  company UI uses only `note` (no next-step composer) and renders the log **below**
+  the detail page's tabs rather than inside one.
 
 ## Alternatives considered
 

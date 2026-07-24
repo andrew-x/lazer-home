@@ -16,9 +16,20 @@ import {
   companyStatusTags,
 } from "@/lib/crm/company-status";
 
-export function CompaniesTable({ rows }: { rows: CompanyRow[] }) {
+export function CompaniesTable({
+  rows,
+  filtered = false,
+}: {
+  rows: CompanyRow[];
+  /** Whether a search/status filter is active — tunes the empty message. */
+  filtered?: boolean;
+}) {
   if (rows.length === 0) {
-    return <EmptyState>No companies yet.</EmptyState>;
+    return (
+      <EmptyState>
+        {filtered ? "No companies match your filters." : "No companies yet."}
+      </EmptyState>
+    );
   }
 
   return (

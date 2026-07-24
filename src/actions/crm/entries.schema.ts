@@ -53,6 +53,11 @@ export type AddOpportunityEntryInput = z.input<
   typeof addOpportunityEntrySchema
 >;
 
+export const addCompanyEntrySchema = z
+  .object({ companyId: id, kind: entryKindSchema, body })
+  .superRefine(refineEntryBody);
+export type AddCompanyEntryInput = z.input<typeof addCompanyEntrySchema>;
+
 // Updates carry `kind` only so the per-kind length cap can be validated; the
 // action never changes an entry's kind or parent, just its body.
 export const updateEntrySchema = z

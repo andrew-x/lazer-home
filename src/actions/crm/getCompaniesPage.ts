@@ -6,12 +6,15 @@ import {
   count,
   eq,
   exists,
+  ilike,
   inArray,
   notExists,
   notInArray,
+  type SQL,
   sql,
 } from "drizzle-orm";
 import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/core/pagination";
+import type { CompanyStatusTag } from "@/lib/crm/company-status";
 import { CLOSED_OPPORTUNITY_STATUSES } from "@/lib/crm/opportunity";
 import { db } from "@/lib/db/db";
 import {
@@ -31,6 +34,12 @@ export type CompanyRow = {
   isProspect: boolean;
 };
 
+/** Optional filters for the companies list — name search and a single status tag. */
+export type CompanyListFilters = {
+  query?: string;
+  status?: CompanyStatusTag;
+};
+
 // A company is a **client** iff it has at least one confirmed project. There's
 // no direct company→project link — projects hang off opportunities — so we
 // correlate through `opportunities.projectId`. A project no longer stores a
@@ -42,7 +51,10 @@ export type CompanyRow = {
 // the database. The two definitions of "confirmed" MUST stay in sync — if you
 // change the precedence in `project-derived.ts`, update this expression too.
 // `src/lib/project-derived.test.ts` asserts the two rules agree across fixtures.
-const isClientExpr = exists(
+//
+// The raw `exists(...)` condition is reused both as a selected boolean (via
+// `.mapWith(Boolean)` below) and as a `where` filter for the status dropdown.
+const hasConfirmedProject = exists(
   db
     .select({ n: sql`1` })
     .from(opportunities)
@@ -74,12 +86,12 @@ const isClientExpr = exists(
         ),
       ),
     ),
-).mapWith(Boolean);
+);
 
 // A company is a **prospect** iff it has at least one open (non-closed)
 // opportunity. Closed deals (won/lost) don't count — a won company shows as a
 // client instead, and a lost-only company carries no tag.
-const isProspectExpr = exists(
+const hasOpenOpportunity = exists(
   db
     .select({ n: sql`1` })
     .from(opportunities)
@@ -89,21 +101,49 @@ const isProspectExpr = exists(
         notInArray(opportunities.status, [...CLOSED_OPPORTUNITY_STATUSES]),
       ),
     ),
-).mapWith(Boolean);
+);
+
+const isClientExpr = hasConfirmedProject.mapWith(Boolean);
+const isProspectExpr = hasOpenOpportunity.mapWith(Boolean);
+
+/** The `where` condition that selects a single derived status tag. */
+const STATUS_CONDITION: Record<CompanyStatusTag, SQL> = {
+  partner: eq(companies.isPartner, true),
+  client: hasConfirmedProject,
+  prospect: hasOpenOpportunity,
+};
+
+/** Build the combined `where` for the given filters (undefined when none apply). */
+function companiesWhere(filters: CompanyListFilters): SQL | undefined {
+  const conditions: SQL[] = [];
+  const query = filters.query?.trim();
+  if (query) conditions.push(ilike(companies.name, `%${query}%`));
+  if (filters.status) conditions.push(STATUS_CONDITION[filters.status]);
+  return conditions.length > 0 ? and(...conditions) : undefined;
+}
 
 /**
- * One page of companies, ordered by name. Server-side paginated (offset/limit +
- * a count) — the dataset is expected to grow large. `page` is clamped into range
- * so an out-of-bounds query param can't return an empty page past the end.
+ * One page of companies, ordered by name, optionally filtered by name search
+ * and/or a single status tag. Server-side paginated (offset/limit + a count) —
+ * the dataset is expected to grow large. `page` is clamped into range so an
+ * out-of-bounds query param can't return an empty page past the end. The filter
+ * `where` is applied to BOTH the count and the row query so the total (and thus
+ * the page count) reflects the filtered set.
  *
  * Each row carries its derived status flags (client/prospect), computed inline
  * as correlated `EXISTS` subqueries so the page stays a single query.
  */
 export async function getCompaniesPage(
   page = 1,
+  filters: CompanyListFilters = {},
   pageSize = CRM_PAGE_SIZE,
 ): Promise<Page<CompanyRow>> {
-  const [{ total }] = await db.select({ total: count() }).from(companies);
+  const where = companiesWhere(filters);
+
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(companies)
+    .where(where);
   const { pageCount, safePage } = clampPage(total, page, pageSize);
 
   const rows = await db
@@ -115,6 +155,7 @@ export async function getCompaniesPage(
       isProspect: isProspectExpr,
     })
     .from(companies)
+    .where(where)
     .orderBy(asc(companies.name))
     .limit(pageSize)
     .offset((safePage - 1) * pageSize);
