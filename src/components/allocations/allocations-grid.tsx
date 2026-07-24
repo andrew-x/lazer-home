@@ -1,6 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import {
+  PLANNER_LABEL_COL,
+  PLANNER_WEEK_COL,
+} from "@/components/planner/planner-columns";
 import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
@@ -37,11 +41,16 @@ const UNIT_NOUN: Record<Granularity, string> = {
   month: "month",
 };
 
-/** Minimum column width per granularity — days pack tighter, months breathe. */
+/**
+ * Column width per granularity — days pack tighter, months breathe. Fixed
+ * (w/min-w/max-w) so `table-fixed` widths stay authoritative; the week bucket
+ * reuses the shared PLANNER_WEEK_COL so allocations line up with the other
+ * planner grids.
+ */
 const COLUMN_WIDTH: Record<Granularity, string> = {
-  day: "min-w-24",
-  week: "min-w-28",
-  month: "min-w-32",
+  day: "w-24 min-w-24 max-w-24",
+  week: PLANNER_WEEK_COL,
+  month: "w-32 min-w-32 max-w-32",
 };
 
 /**
@@ -71,10 +80,15 @@ export function AllocationsGrid({
 
   return (
     <div className="overflow-x-auto rounded-md border">
-      <table className="w-full border-collapse text-sm">
+      <table className="table-fixed border-collapse text-sm">
         <thead>
           <tr className="border-b">
-            <th className="sticky left-0 z-10 min-w-52 bg-background px-3 py-2.5 text-left font-medium">
+            <th
+              className={cn(
+                PLANNER_LABEL_COL,
+                "sticky left-0 z-10 bg-background px-3 py-2.5 text-left font-medium",
+              )}
+            >
               Staff
             </th>
             {columns.map((col) => (
@@ -94,23 +108,28 @@ export function AllocationsGrid({
         <tbody>
           {rows.map((row) => (
             <tr key={row.staffId} className="border-b last:border-b-0">
-              <td className="sticky left-0 z-10 bg-background px-3 py-2 align-top">
-                <div className="flex items-center gap-1.5">
+              <td
+                className={cn(
+                  PLANNER_LABEL_COL,
+                  "sticky left-0 z-10 bg-background px-3 py-2 align-top",
+                )}
+              >
+                <div className="flex min-w-0 items-center gap-1.5">
                   <Link
                     href={`/staff/${row.staffId}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium hover:underline"
+                    className="min-w-0 truncate font-medium hover:underline"
                   >
                     {row.name}
                   </Link>
                   {row.employmentType === "HOURLY" ? (
-                    <Badge variant="outline" className="font-normal">
+                    <Badge variant="outline" className="shrink-0 font-normal">
                       {EMPLOYMENT_TYPE_LABELS.HOURLY}
                     </Badge>
                   ) : null}
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="truncate text-xs text-muted-foreground">
                   {staffSublabel(row)}
                 </div>
               </td>
