@@ -57,9 +57,17 @@ export const WORKING_DAYS_PER_WEEK = 5;
 
 /**
  * Time off overlapping a week. `percent` is the share of the working week the
- * person is away (away weekdays / 5). `type` is null unless the viewer may see it.
+ * person is away (away weekdays / 5). `type` is null unless the viewer may see
+ * it. `startDate`/`endDate` are the extent of the overlapping leave span(s) —
+ * availability info, shown to everyone (see the disclosure note in
+ * `getAllocationsGrid`).
  */
-export type TimeOffCell = { type: PtoType | null; percent: number };
+export type TimeOffCell = {
+  type: PtoType | null;
+  percent: number;
+  startDate: string;
+  endDate: string;
+};
 
 /** One (person, week) cell: any allocations that week, plus any time off. */
 export type WeekCell = {
@@ -73,6 +81,7 @@ export type AllocationRow = {
   name: string;
   role: AllocationStaffRow["role"];
   lineOfBusiness: AllocationStaffRow["lineOfBusiness"];
+  employmentType: AllocationStaffRow["employmentType"];
   /** One entry per column in the driving `weekColumns`, in the same order. */
   weeks: WeekCell[];
 };
@@ -88,12 +97,17 @@ export function buildWeekColumns(start: string, end: string): string[] {
   return eachWeek(start, end);
 }
 
-/** A short "Mon D" label for a week column header. */
+/** Compact working-week range for a column header, e.g. "Jul 6–10" / "Jun 29–Jul 3". */
 export function weekColumnLabel(weekStart: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-  }).format(parseIsoDate(weekStart));
+  const monday = parseIsoDate(weekStart);
+  const friday = parseIsoDate(getWeekDays(weekStart)[4]);
+  const month = new Intl.DateTimeFormat("en-US", { month: "short" });
+  const day = new Intl.DateTimeFormat("en-US", { day: "numeric" });
+  const startMonth = month.format(monday);
+  const endMonth = month.format(friday);
+  return startMonth === endMonth
+    ? `${startMonth} ${day.format(monday)}–${day.format(friday)}`
+    : `${startMonth} ${day.format(monday)}–${endMonth} ${day.format(friday)}`;
 }
 
 /** Count of Mon–Fri days in `weekStart`'s week that fall within [start, end]. */
@@ -130,6 +144,25 @@ function firstAwayType(
     (s) => activeWeekdays(weekStart, s.startDate, s.endDate) > 0,
   );
   return span ? span.type : null;
+}
+
+/**
+ * The extent (min start, max end) of the time-off spans overlapping the week,
+ * or null when none do. Merges any concurrent spans into one outer range so the
+ * away tooltip can show when the leave actually runs.
+ */
+function awaySpanRange(
+  weekStart: string,
+  spans: readonly AllocationTimeOff[],
+): { startDate: string; endDate: string } | null {
+  let start: string | null = null;
+  let end: string | null = null;
+  for (const span of spans) {
+    if (activeWeekdays(weekStart, span.startDate, span.endDate) === 0) continue;
+    if (start === null || span.startDate < start) start = span.startDate;
+    if (end === null || span.endDate > end) end = span.endDate;
+  }
+  return start && end ? { startDate: start, endDate: end } : null;
 }
 
 /**
@@ -222,11 +255,14 @@ export function buildAllocationRows(
       allocations.sort((a, b) => b.percent - a.percent);
 
       const awayDays = awayWeekdays(weekStart, personTimeOff);
+      const awayRange = awaySpanRange(weekStart, personTimeOff);
       const timeOff: TimeOffCell | null =
-        awayDays > 0
+        awayDays > 0 && awayRange
           ? {
               type: firstAwayType(weekStart, personTimeOff),
               percent: Math.round((awayDays / WORKING_DAYS_PER_WEEK) * 100),
+              startDate: awayRange.startDate,
+              endDate: awayRange.endDate,
             }
           : null;
       return { allocations, timeOff };
@@ -237,6 +273,7 @@ export function buildAllocationRows(
       name: person.name,
       role: person.role,
       lineOfBusiness: person.lineOfBusiness,
+      employmentType: person.employmentType,
       weeks,
     };
     return { row, confirmedEnd: latestConfirmedEnd(personRoles) };
