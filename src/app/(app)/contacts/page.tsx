@@ -30,22 +30,19 @@ export default async function ContactsPage({
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-10">
-      <header>
-        <h2 className="font-heading text-xl font-semibold tracking-tight">
-          Contacts
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          The people at the companies we work with.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="font-heading text-xl font-semibold tracking-tight">
+            Contacts
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            The people at the companies we work with.
+          </p>
+        </div>
+        {canEdit ? <AddContactDialog /> : null}
       </header>
 
       <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-4">
-          <h3 className="font-heading text-base font-semibold tracking-tight">
-            All contacts
-          </h3>
-          {canEdit ? <AddContactDialog /> : null}
-        </div>
         <ContactsListFilters params={params} />
         <div className="rounded-md border">
           <ContactsTable rows={contacts.rows} filtered={city !== undefined} />

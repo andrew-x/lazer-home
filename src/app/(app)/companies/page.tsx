@@ -48,22 +48,19 @@ export default async function CompaniesPage({
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-10">
-      <header>
-        <h2 className="font-heading text-xl font-semibold tracking-tight">
-          Companies
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          The clients and partners we work with.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="font-heading text-xl font-semibold tracking-tight">
+            Companies
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            The clients and partners we work with.
+          </p>
+        </div>
+        {canEdit ? <AddCompanyDialog /> : null}
       </header>
 
       <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-4">
-          <h3 className="font-heading text-base font-semibold tracking-tight">
-            All companies
-          </h3>
-          {canEdit ? <AddCompanyDialog /> : null}
-        </div>
         <CompaniesListFilters params={params} />
         <div className="rounded-md border">
           <CompaniesTable

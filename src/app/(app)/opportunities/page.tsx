@@ -53,26 +53,22 @@ export default async function OpportunitiesPage({
 
   return (
     <div className="flex flex-col gap-10">
-      <header>
-        <h2 className="font-heading text-xl font-semibold tracking-tight">
-          Opportunities
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          The deals in our pipeline, from lead to close.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="font-heading text-xl font-semibold tracking-tight">
+            Opportunities
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            The deals in our pipeline, from lead to close.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <OpportunityViewToggle current={view} />
+          {canEdit ? <AddOpportunityDialog /> : null}
+        </div>
       </header>
 
       <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <h3 className="font-heading text-base font-semibold tracking-tight">
-              {view === "list" ? "All opportunities" : "Pipeline"}
-            </h3>
-            <OpportunityViewToggle current={view} />
-          </div>
-          {canEdit ? <AddOpportunityDialog /> : null}
-        </div>
-
         {view === "list" ? (
           <ListView
             params={params}
