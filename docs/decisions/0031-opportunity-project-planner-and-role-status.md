@@ -10,6 +10,16 @@
 > (`deriveProjectStatus` in `src/lib/projects/project-derived.ts`; `src/lib/project-status.ts`
 > deleted). The role lifecycle, `assertRoleEditable`, auto-confirm-on-won, and the
 > planner grid below all still hold.
+>
+> **Amended again (role-centric planner).** The planner grid is **no longer grouped by
+> person** — it now renders **one row per role** with a dedicated **Staff** lead column,
+> greys each staffed person's **other-project commitments** into the cells, and adds row
+> selection with **bulk delete / duplicate / bump** plus inline **staff assignment**
+> (`deleteProjectRoles`, `duplicateProjectRoles`, `bumpProjectRoles`, `assignRoleStaff` —
+> all `projects.edit`, all guarded by `assertRoleEditable`). Where the text below says
+> "rows grouped by person" / "one person line," read "one row per role." The role
+> lifecycle, the edit guard, and the RBAC gate are unchanged. See
+> [projects.md](../domains/projects.md).
 
 ## Context
 
