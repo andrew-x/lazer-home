@@ -6,16 +6,27 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { IconArrowsMaximize, IconArrowsMinimize } from "@tabler/icons-react";
+import Link from "next/link";
 import type { OpportunityBoardCard } from "@/actions/crm/getOpportunitiesBoard";
 import { IconButton } from "@/components/icon-button";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/core/utils";
 import { STATUS_LABELS } from "@/lib/crm/opportunity";
+import type { OpportunityGroupId } from "@/lib/crm/opportunity-pipeline";
 import {
   OpportunityCardView,
   SortableOpportunityCard,
 } from "./opportunity-card";
 
 export type ColumnToggle = { expanded: boolean; onToggle: () => void };
+
+/** A capped column's "N more in the list view" link target. */
+export type ColumnShowMore = {
+  count: number;
+  groupId: OpportunityGroupId;
+  /** Active board LOB filter, carried into the list-view deep-link. */
+  lob?: string;
+};
 
 /**
  * One kanban column — a single status, or a collapsed multi-status group. Its
@@ -30,6 +41,7 @@ export function OpportunityBoardColumn({
   canEdit,
   toggle,
   onOpenCard,
+  showMore,
 }: {
   id: string;
   label: string;
@@ -38,6 +50,8 @@ export function OpportunityBoardColumn({
   canEdit: boolean;
   toggle?: ColumnToggle;
   onOpenCard?: (id: string) => void;
+  /** When set, the column is truncated — render a link to the full list view. */
+  showMore?: ColumnShowMore;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
 
@@ -103,6 +117,22 @@ export function OpportunityBoardColumn({
       ) : (
         body
       )}
+      {showMore ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="justify-center text-muted-foreground"
+          render={
+            <Link
+              href={`/opportunities?view=list&stage=${showMore.groupId}${
+                showMore.lob ? `&lob=${showMore.lob}` : ""
+              }`}
+            />
+          }
+        >
+          Show {showMore.count} more
+        </Button>
+      ) : null}
     </div>
   );
 }

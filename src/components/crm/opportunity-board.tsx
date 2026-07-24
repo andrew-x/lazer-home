@@ -21,20 +21,29 @@ import type { OpportunityBoardCard } from "@/actions/crm/getOpportunitiesBoard";
 import { updateOpportunityPosition } from "@/actions/crm/updateOpportunityPosition";
 import { createProjectFromOpportunity } from "@/actions/projects/createProjectFromOpportunity";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ALL, FilterLabel, SelectFilter } from "@/components/form/filters";
 import { IconButton } from "@/components/icon-button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  LINE_OF_BUSINESS,
+  LINE_OF_BUSINESS_LABELS,
+} from "@/lib/crm/line-of-business";
 import { type OpportunityStatus, STATUS_LABELS } from "@/lib/crm/opportunity";
 import {
+  CAPPED_BOARD_STATUSES,
   computePosition,
   type DropTarget,
+  groupOfStatus,
   OPPORTUNITY_GROUPS,
   type OpportunityGroup,
   type OpportunityGroupId,
   requiresProject,
   resolveTargetStatus,
 } from "@/lib/crm/opportunity-pipeline";
-import { OpportunityBoardColumn } from "./opportunity-board-column";
+import {
+  type ColumnShowMore,
+  OpportunityBoardColumn,
+} from "./opportunity-board-column";
 import { CardDragHandle, OpportunityCardView } from "./opportunity-card";
 import { OpportunityDetailSheet } from "./opportunity-detail-sheet";
 
@@ -122,10 +131,13 @@ function buildUnits(
  */
 export function OpportunityBoard({
   cards: initialCards,
+  cappedTotals,
   canEdit,
   canCreateProject,
 }: {
   cards: OpportunityBoardCard[];
+  /** Full per-status counts for the capped columns (see `getOpportunitiesBoard`). */
+  cappedTotals: Partial<Record<OpportunityStatus, number>>;
   canEdit: boolean;
   canCreateProject: boolean;
 }) {
@@ -135,6 +147,7 @@ export function OpportunityBoard({
     Partial<Record<OpportunityGroupId, boolean>>
   >({});
   const [search, setSearch] = useState("");
+  const [lob, setLob] = useState<string>(ALL);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   // Detail drawer + the delivery-stage "create a project first" prompt.
@@ -207,7 +220,12 @@ export function OpportunityBoard({
   // (search filter applied) is what each column renders. Reordering must use the
   // full neighbours — a drag while searching would otherwise place a card
   // relative to only the visible cards and corrupt its order against hidden ones.
+  //
+  // Note: the search below only filters the cards already loaded. The capped
+  // columns (Maturing/Won/Lost) load just their most-recent slice, so search
+  // won't surface cards beyond the cap — the list view is the exhaustive search.
   const query = search.trim().toLowerCase();
+  const lobFilter = lob === ALL ? null : lob;
   const columnByStatus = new Map<OpportunityStatus, BoardColumn>();
   for (const col of columns) {
     for (const status of col.statuses) columnByStatus.set(status, col);
@@ -224,8 +242,34 @@ export function OpportunityBoard({
     if (!colId) continue;
     fullByColumnId.get(colId)?.push(card);
     columnIdByCard.set(card.id, colId);
-    if (!query || card.name.toLowerCase().includes(query)) {
+    const matchesQuery = !query || card.name.toLowerCase().includes(query);
+    const matchesLob = !lobFilter || card.lineOfBusiness === lobFilter;
+    if (matchesQuery && matchesLob) {
       visibleByColumnId.get(colId)?.push(card);
+    }
+  }
+
+  // "Show more" per capped column: those columns load only their most-recent
+  // slice, so when the DB holds more than we rendered, offer a link into the list
+  // view filtered to that stage. Capped statuses are single-status groups, so a
+  // column's loaded (full) count is exactly that status's on-board total.
+  const cappedStatuses = new Set<OpportunityStatus>(CAPPED_BOARD_STATUSES);
+  const showMoreByColumnId = new Map<string, ColumnShowMore>();
+  for (const col of columns) {
+    if (col.statuses.length !== 1) continue;
+    const status = col.statuses[0];
+    if (!cappedStatuses.has(status)) continue;
+    const total = cappedTotals[status];
+    const loaded = fullByColumnId.get(col.id)?.length ?? 0;
+    if (total != null && total > loaded) {
+      showMoreByColumnId.set(col.id, {
+        // Count is the column's full hidden remainder (unfiltered) — like the
+        // search, the LOB filter only narrows loaded cards. The deep-link
+        // carries the active LOB so the exhaustive list view applies it too.
+        count: total - loaded,
+        groupId: groupOfStatus(status).id,
+        lob: lobFilter ?? undefined,
+      });
     }
   }
 
@@ -393,6 +437,7 @@ export function OpportunityBoard({
                   showSubstatusBadge={col.showSubstatusBadge}
                   canEdit={canEdit}
                   onOpenCard={canEdit ? openCard : undefined}
+                  showMore={showMoreByColumnId.get(col.id)}
                 />
               ))}
             </div>
@@ -412,6 +457,7 @@ export function OpportunityBoard({
               showSubstatusBadge={unit.column.showSubstatusBadge}
               canEdit={canEdit}
               onOpenCard={canEdit ? openCard : undefined}
+              showMore={showMoreByColumnId.get(unit.column.id)}
               toggle={{
                 expanded: false,
                 onToggle: () => toggleGroup(unit.group.id),
@@ -427,6 +473,7 @@ export function OpportunityBoard({
             showSubstatusBadge={unit.column.showSubstatusBadge}
             canEdit={canEdit}
             onOpenCard={canEdit ? openCard : undefined}
+            showMore={showMoreByColumnId.get(unit.column.id)}
           />
         ),
       )}
@@ -443,19 +490,28 @@ export function OpportunityBoard({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="flex max-w-sm flex-col gap-1.5">
-        <Label htmlFor={searchId}>Search</Label>
-        <div className="relative">
-          <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            id={searchId}
-            type="search"
-            placeholder="Search opportunities by name…"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="pl-9"
-          />
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex min-w-56 max-w-sm flex-1 flex-col gap-1.5">
+          <FilterLabel htmlFor={searchId}>Search</FilterLabel>
+          <div className="relative">
+            <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id={searchId}
+              type="search"
+              placeholder="Search opportunities by name…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="pl-9"
+            />
+          </div>
         </div>
+        <SelectFilter
+          label="Line of business"
+          value={lob}
+          options={LINE_OF_BUSINESS}
+          labels={LINE_OF_BUSINESS_LABELS}
+          onChange={setLob}
+        />
       </div>
 
       {canEdit ? (
