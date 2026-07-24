@@ -1,6 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { AllocationNoteCell } from "@/components/allocations/allocation-note-cell";
+import {
+  PLANNER_LABEL_COL,
+  PLANNER_WEEK_COL,
+} from "@/components/planner/planner-columns";
 import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
@@ -10,9 +15,10 @@ import {
 import {
   type AllocationCell,
   type AllocationRow,
+  columnLabel,
+  type Granularity,
   type TimeOffCell,
   WORKING_DAYS_PER_WEEK,
-  weekColumnLabel,
 } from "@/lib/allocations/allocations-grid";
 import { cn } from "@/lib/core/utils";
 import {
@@ -27,13 +33,34 @@ import {
   PTO_TYPE_LABELS,
   ROLE_LABELS,
 } from "@/lib/staff/staff-enums";
+import { isWeekend } from "@/lib/timesheets/timesheet-week";
+
+/** The noun a cell's percentage is "% of", by granularity. */
+const UNIT_NOUN: Record<Granularity, string> = {
+  day: "day",
+  week: "week",
+  month: "month",
+};
 
 /**
- * The allocations planner grid: a sticky staff column and one column per week.
- * A filled cell shows each project the person is allocated to that week, with
- * its share of a 40-hour week; a tooltip carries the project, role, duration,
- * and status. Confirmed roles read as a solid block, tentative as a dashed
- * outline. A neutral "Away" strip marks time off.
+ * Column width per granularity — days pack tighter, months breathe. Fixed
+ * (w/min-w/max-w) so `table-fixed` widths stay authoritative; the week bucket
+ * reuses the shared PLANNER_WEEK_COL so allocations line up with the other
+ * planner grids.
+ */
+const COLUMN_WIDTH: Record<Granularity, string> = {
+  day: "w-24 min-w-24 max-w-24",
+  week: PLANNER_WEEK_COL,
+  month: "w-32 min-w-32 max-w-32",
+};
+
+/**
+ * The allocations planner grid: a sticky staff column and one column per bucket
+ * (day, week, or month). A filled cell shows each project the person is allocated
+ * to that column, with its share of the column; a tooltip carries the project,
+ * role, duration, and status. Confirmed roles read as a solid block, tentative as
+ * a dashed outline. A neutral "Away" strip marks time off. In the daily view,
+ * weekend columns are dimmed — the allocation model only counts weekdays.
  *
  * A deliberately hand-rolled `<table>` (like the opportunity `PlannerGrid`) —
  * NOT `@/components/ui/table`: the sticky first column and per-cell stacked
@@ -41,25 +68,48 @@ import {
  */
 export function AllocationsGrid({
   rows,
-  weekColumns,
+  columns,
+  granularity,
+  canEditNotes,
 }: {
   rows: AllocationRow[];
-  weekColumns: string[];
+  columns: string[];
+  granularity: Granularity;
+  /** Render the manager-only Notes column (viewer holds `staff.edit`). */
+  canEditNotes: boolean;
 }) {
+  const unit = UNIT_NOUN[granularity];
+  const width = COLUMN_WIDTH[granularity];
+  const dimmed = (col: string) => granularity === "day" && isWeekend(col);
+
   return (
     <div className="overflow-x-auto rounded-md border">
-      <table className="w-full border-collapse text-sm">
+      <table className="table-fixed border-collapse text-sm">
         <thead>
           <tr className="border-b">
-            <th className="sticky left-0 z-10 min-w-52 bg-background px-3 py-2.5 text-left font-medium">
+            <th
+              className={cn(
+                PLANNER_LABEL_COL,
+                "sticky left-0 z-10 bg-background px-3 py-2.5 text-left font-medium",
+              )}
+            >
               Staff
             </th>
-            {weekColumns.map((week) => (
+            {canEditNotes ? (
+              <th className="min-w-56 px-3 py-2.5 text-left font-medium">
+                Allocation note
+              </th>
+            ) : null}
+            {columns.map((col) => (
               <th
-                key={week}
-                className="min-w-28 px-1 py-2.5 text-center text-xs font-medium text-muted-foreground"
+                key={col}
+                className={cn(
+                  "px-1 py-2.5 text-center text-xs font-medium text-muted-foreground",
+                  width,
+                  dimmed(col) && "bg-muted/30 text-muted-foreground/50",
+                )}
               >
-                {weekColumnLabel(week)}
+                {columnLabel(granularity, col)}
               </th>
             ))}
           </tr>
@@ -67,35 +117,57 @@ export function AllocationsGrid({
         <tbody>
           {rows.map((row) => (
             <tr key={row.staffId} className="border-b last:border-b-0">
-              <td className="sticky left-0 z-10 bg-background px-3 py-2 align-top">
-                <div className="flex items-center gap-1.5">
+              <td
+                className={cn(
+                  PLANNER_LABEL_COL,
+                  "sticky left-0 z-10 bg-background px-3 py-2 align-top",
+                )}
+              >
+                <div className="flex min-w-0 items-center gap-1.5">
                   <Link
                     href={`/staff/${row.staffId}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium hover:underline"
+                    className="min-w-0 truncate font-medium hover:underline"
                   >
                     {row.name}
                   </Link>
                   {row.employmentType === "HOURLY" ? (
-                    <Badge variant="outline" className="font-normal">
+                    <Badge variant="outline" className="shrink-0 font-normal">
                       {EMPLOYMENT_TYPE_LABELS.HOURLY}
                     </Badge>
                   ) : null}
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="truncate text-xs text-muted-foreground">
                   {staffSublabel(row)}
                 </div>
               </td>
-              {row.weeks.map((cell, i) => (
-                // Week columns are a fixed spine; index keys are stable here.
-                <td key={weekColumns[i]} className="px-1 py-1.5 align-top">
+              {canEditNotes ? (
+                <td className="min-w-56 max-w-72 px-2 py-1.5 align-top">
+                  <AllocationNoteCell
+                    staffId={row.staffId}
+                    initialNotes={row.allocationNotes}
+                  />
+                </td>
+              ) : null}
+              {row.cells.map((cell, i) => (
+                // Columns are a fixed spine; index keys are stable here.
+                <td
+                  key={columns[i]}
+                  className={cn(
+                    "px-1 py-1.5 align-top",
+                    dimmed(columns[i]) && "bg-muted/30",
+                  )}
+                >
                   <div className="flex flex-col gap-1">
-                    {cell.timeOff ? <TimeOffBlock cell={cell.timeOff} /> : null}
+                    {cell.timeOff ? (
+                      <TimeOffBlock cell={cell.timeOff} unit={unit} />
+                    ) : null}
                     {cell.allocations.map((allocation) => (
                       <AllocationBlock
                         key={allocation.roleId}
                         allocation={allocation}
+                        unit={unit}
                       />
                     ))}
                   </div>
@@ -120,11 +192,17 @@ function staffSublabel(row: AllocationRow): string {
 }
 
 /**
- * One project allocation for a week: project name + percentage, with a tooltip.
+ * One project allocation for a column: project name + percentage, with a tooltip.
  * Confirmed reads as an indigo fill, tentative as a dashed indigo outline. A
- * solid bar on the leading/trailing edge marks the week the role starts/ends.
+ * solid bar on the leading/trailing edge marks the column the role starts/ends.
  */
-function AllocationBlock({ allocation }: { allocation: AllocationCell }) {
+function AllocationBlock({
+  allocation,
+  unit,
+}: {
+  allocation: AllocationCell;
+  unit: string;
+}) {
   const confirmed = allocation.status === "confirmed";
   return (
     <Tooltip>
@@ -172,11 +250,11 @@ function AllocationBlock({ allocation }: { allocation: AllocationCell }) {
         <span>{allocation.hoursPerDay * WORKING_DAYS_PER_WEEK} hrs/week</span>
         <span className="text-background/70">
           {PROJECT_ROLE_STATUS_LABELS[allocation.status]} · {allocation.percent}
-          % of week
+          % of {unit}
         </span>
         {allocation.isStart || allocation.isEnd ? (
           <span className="text-background/70">
-            {startEndNote(allocation.isStart, allocation.isEnd)}
+            {startEndNote(allocation.isStart, allocation.isEnd, unit)}
           </span>
         ) : null}
       </TooltipContent>
@@ -184,18 +262,18 @@ function AllocationBlock({ allocation }: { allocation: AllocationCell }) {
   );
 }
 
-/** "Starts this week" / "Ends this week" / "Starts & ends this week". */
-function startEndNote(isStart: boolean, isEnd: boolean): string {
-  if (isStart && isEnd) return "Starts & ends this week";
-  return isStart ? "Starts this week" : "Ends this week";
+/** "Starts this week" / "Ends this month" / "Starts & ends this day". */
+function startEndNote(isStart: boolean, isEnd: boolean, unit: string): string {
+  if (isStart && isEnd) return `Starts & ends this ${unit}`;
+  return isStart ? `Starts this ${unit}` : `Ends this ${unit}`;
 }
 
 /**
- * An "Away" strip (amber, clearly not work) with the share of the week the
+ * An "Away" strip (amber, clearly not work) with the share of the column the
  * person is out. The leave reason shows in the tooltip only when the viewer may
  * see it.
  */
-function TimeOffBlock({ cell }: { cell: TimeOffCell }) {
+function TimeOffBlock({ cell, unit }: { cell: TimeOffCell; unit: string }) {
   return (
     <Tooltip>
       <TooltipTrigger
@@ -211,7 +289,7 @@ function TimeOffBlock({ cell }: { cell: TimeOffCell }) {
       <TooltipContent className="flex-col items-start gap-0.5">
         <span>
           {cell.type ? PTO_TYPE_LABELS[cell.type] : "Time off"} · {cell.percent}
-          % of week
+          % of {unit}
         </span>
         <span>
           {formatDate(cell.startDate)} – {formatDate(cell.endDate)}

@@ -43,6 +43,13 @@
       "when": 1784915706315,
       "tag": "0005_secret_zarek",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784923162129,
+      "tag": "0006_empty_whirlwind",
+      "breakpoints": true
     }
   ]
 }

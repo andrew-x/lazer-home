@@ -27,7 +27,13 @@ Permissions are `(resource, action)` pairs. The `statement` merges Better Auth's
 so the admin role retains its built-in capabilities) with two business resources:
 
 - **`staff.edit`** — edit *another* staff member's profile. (Editing your *own*
-  linked profile never needs it — see ownership rule below.)
+  linked profile never needs it — see ownership rule below.) **One exception has no
+  owner path:** the allocations planner's `allocationNotes` are cross-person staffing
+  metadata gated on the **static `staff.edit` capability** for both read and write
+  (managers/admins only — a person cannot edit their own), *not* the owner-or-`staff.edit`
+  hook the profile fields use. Same capability, no new matrix row — see
+  [ADR 0041](../decisions/0041-allocation-notes-on-staff.md) and
+  [allocations.md](./allocations.md).
 - **`staff.viewCompensation`** — view *another* staff member's compensation (on
   their profile and in the history feed). (Your own compensation is always visible.)
 - **`pto.review`** — view the aggregated PTO summary of *other* staff. (Your own
