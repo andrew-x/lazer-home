@@ -3,19 +3,24 @@
 **Status: proposed as a full domain — partially realized.** Staffing People onto
 Projects over time — the heart of capacity planning. The first concrete cut of the
 Allocation entity **already exists** as `project_roles` in the Projects domain (see
-[projects.md](./projects.md)), and a **read-only company-wide planner view**
-(`/allocations`) now surfaces that data as a weekly grid (see *The planner view*
+[projects.md](./projects.md)), and a **company-wide planner view**
+(`/allocations`) now surfaces that data as a weekly grid — read-only except for a
+single manager/admin-only inline **Notes** column (see *The planner view*
 below). The rest of the domain (a dedicated capacity model, forecast vs. actuals,
 conflict handling) is still proposed.
 
-## The planner view (realized) — a read over `project_roles`, not a new table
+## The planner view (realized) — mostly a read over `project_roles`
 
-`/allocations` is a **read-only, company-wide** grid: **rows = active staff**,
+`/allocations` is a **company-wide** grid: **rows = active staff**,
 **columns = weeks** over a user-chosen date range (default: current week + next 11,
-12 columns). It's a **view over existing tables — no schema change**. It reads
-`project_roles` (the plan), `staff` + `staff_employment` (who + their current facts),
-and `staff_pto` (availability). It is **visible to everyone signed in — no permission
-gate** (the same open-read posture as the staff/CRM/projects lists).
+12 columns). It's **almost entirely a view over existing tables**; the sole schema
+addition is a nullable free-text **`allocationNotes`** column on `staff`
+(`drizzle/0006_empty_whirlwind.sql`) that backs the manager-only Notes column below.
+It reads `project_roles` (the plan), `staff` + `staff_employment` (who + their current
+facts), and `staff_pto` (availability). The page is **visible to everyone signed in —
+no route gate** (the same open-read posture as the staff/CRM/projects lists); it is
+**read-only for everyone except that the Notes column is shown and editable only to
+`staff.edit` holders** (managers/admins).
 
 - **What a cell shows.** For each person-week, every project the person is allocated
   to that week — project name + a **percentage of a 40-hour week**, with a tooltip
@@ -28,6 +33,21 @@ gate** (the same open-read posture as the staff/CRM/projects lists).
 - **Staff column.** Each person's name is a **link to their `/staff/[id]` profile
   (opens in a new tab)**, and **hourly** staff (`employmentType === "HOURLY"`) carry an
   **"Hourly" badge**. `employmentType` is threaded onto the `AllocationRow` for this.
+- **Notes column (manager/admin-only, inline-editable).** Immediately right of the
+  staff name sits a free-text **Notes** column — a plain planning note about a person's
+  staffing (e.g. "on bench after Aug 15, wants frontend work"), stored on
+  `staff.allocationNotes`. It is **shown only to viewers holding `staff.edit`** and
+  **hidden entirely otherwise**: `getAllocationsGrid` computes `canEditNotes =
+  userHasPermission(user, { staff: ["edit"] })` and only projects the note value when
+  true (defense in depth — the string never ships to an unprivileged client), and the
+  grid renders the column only when `canEditNotes`. Each cell (`allocation-note-cell.tsx`)
+  is a **debounced-autosave (600 ms) textarea** that grows vertically, with a subtle
+  inline Saving…/Saved/error status (never a toast). Writes go through
+  `updateStaffAllocationNotes`, gated on the **static `staff.edit` capability — NOT the
+  owner-or-`staff.edit` `authorizeStaffEdit` hook the profile fields use**, because these
+  are cross-person staffing notes on a management planner (a person editing only their own
+  row isn't the intent). See [ADR 0040](../decisions/0040-allocation-notes-on-staff.md)
+  and [permissions.md](./permissions.md).
 - **What appears.** Only **staffed** roles (non-null `staffId` — placeholders/open
   positions have no person to row) with status **`tentative` or `confirmed`**;
   `paused`/`cancelled` roles are excluded (not an active allocation). Only **approved**
@@ -57,7 +77,13 @@ gate** (the same open-read posture as the staff/CRM/projects lists).
 
 - **Read:** `src/actions/allocations/getAllocationsGrid.ts` (server-only; also
   re-exports `allocationsFilterOptions = STAFF_FILTER_OPTIONS`). Two-query
-  latest-employment-per-person fold (no N+1), mirroring `getStaffDirectory`.
+  latest-employment-per-person fold (no N+1), mirroring `getStaffDirectory`. Selects
+  `staff.allocationNotes`, computes `canEditNotes`, and only projects the note when the
+  viewer holds `staff.edit` (`AllocationsGridData` carries `canEditNotes`;
+  `AllocationStaffRow.allocationNotes: string | null`).
+- **Notes write:** `src/actions/staff/updateStaffAllocationNotes.ts` (+ `.schema.ts`,
+  a client-importable pure module sharing one zod schema with the inline editor). Gated
+  on `metadata.permission: { staff: ["edit"] }`; revalidates `/allocations`.
 - **Pure grid math:** `src/lib/allocations/allocations-grid.ts` — builds the ISO-Monday
   week-column spine, folds staff + roles + PTO into one row per person, and computes
   the per-week percentage: `hoursPerDay × (active Mon–Fri weekdays that week) / 40`,
@@ -69,9 +95,11 @@ gate** (the same open-read posture as the staff/CRM/projects lists).
   two planners agree on a week's load — keep this the single source and update both call
   sites when the load formula changes.
 - **UI:** `src/components/allocations/allocations-planner.tsx` (filter bar + window),
-  `allocations-grid.tsx` (render-only grid + legend), page
-  `src/app/(app)/allocations/page.tsx`. Nav entry added to `NAV_ITEMS`
-  (`src/components/app-shell/nav.ts`), ungated.
+  `allocations-grid.tsx` (grid + legend; renders the Notes column only when
+  `canEditNotes`), `allocation-note-cell.tsx` (the debounced-autosave note editor),
+  page `src/app/(app)/allocations/page.tsx`. Nav entry added to `NAV_ITEMS`
+  (`src/components/app-shell/nav.ts`), ungated. `allocationNotes` is threaded through
+  `AllocationRow`/`buildAllocationRows` in `src/lib/allocations/allocations-grid.ts`.
 
 > **This is a *view*, not the missing capacity model.** It reads one project's-worth
 > of roles per person per week but does **not** sum a person's load across projects,

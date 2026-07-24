@@ -13,7 +13,7 @@ The durable knowledge base for the PSA platform — maintained by the `librarian
 | [flows.md](./flows.md) | Cross-domain flows, the auth flow, + the technical request flow every mutation follows |
 | [domains/crm.md](./domains/crm.md) | Companies (clients + partners), contacts, sales pipeline |
 | [domains/projects.md](./domains/projects.md) | Projects (client engagements) + delivery managers + role/staffing lines |
-| [domains/allocations.md](./domains/allocations.md) | Staffing people onto projects over time; the read-only `/allocations` planner view (built) |
+| [domains/allocations.md](./domains/allocations.md) | Staffing people onto projects over time; the `/allocations` planner view (built) + its manager-only inline notes |
 | [domains/timesheets.md](./domains/timesheets.md) | Weekly time capture (built); approval + billing deferred |
 | [domains/staff-profiles.md](./domains/staff-profiles.md) | People, roles, skills, compensation, availability |
 | [domains/performance.md](./domains/performance.md) | Peer feedback + compensation dashboard + staff rating levels L0–L4 (built); reviews, goals, growth (proposed) |

@@ -82,6 +82,7 @@ export type AllocationRow = {
   role: AllocationStaffRow["role"];
   lineOfBusiness: AllocationStaffRow["lineOfBusiness"];
   employmentType: AllocationStaffRow["employmentType"];
+  allocationNotes: AllocationStaffRow["allocationNotes"];
   /** One entry per column in the driving `weekColumns`, in the same order. */
   weeks: WeekCell[];
 };
@@ -274,6 +275,7 @@ export function buildAllocationRows(
       role: person.role,
       lineOfBusiness: person.lineOfBusiness,
       employmentType: person.employmentType,
+      allocationNotes: person.allocationNotes,
       weeks,
     };
     return { row, confirmedEnd: latestConfirmedEnd(personRoles) };

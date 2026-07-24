@@ -51,6 +51,7 @@ export function AllocationsPlanner({
   roleOptions: string[];
   employmentTypeOptions: string[];
 }) {
+  const canEditNotes = data.canEditNotes;
   const searchId = useId();
   const initialWindow = useMemo(() => defaultWindow(), []);
   // Default the role filter to the billable disciplines that actually appear in
@@ -162,7 +163,11 @@ export function AllocationsPlanner({
           No staff match these filters.
         </p>
       ) : (
-        <AllocationsGrid rows={rows} weekColumns={weekColumns} />
+        <AllocationsGrid
+          rows={rows}
+          weekColumns={weekColumns}
+          canEditNotes={canEditNotes}
+        />
       )}
     </div>
   );

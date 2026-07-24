@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AllocationNoteCell } from "@/components/allocations/allocation-note-cell";
 import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
@@ -42,9 +43,12 @@ import {
 export function AllocationsGrid({
   rows,
   weekColumns,
+  canEditNotes,
 }: {
   rows: AllocationRow[];
   weekColumns: string[];
+  /** Render the manager-only Notes column (viewer holds `staff.edit`). */
+  canEditNotes: boolean;
 }) {
   return (
     <div className="overflow-x-auto rounded-md border">
@@ -54,6 +58,11 @@ export function AllocationsGrid({
             <th className="sticky left-0 z-10 min-w-52 bg-background px-3 py-2.5 text-left font-medium">
               Staff
             </th>
+            {canEditNotes ? (
+              <th className="min-w-56 px-3 py-2.5 text-left font-medium">
+                Allocation note
+              </th>
+            ) : null}
             {weekColumns.map((week) => (
               <th
                 key={week}
@@ -87,6 +96,14 @@ export function AllocationsGrid({
                   {staffSublabel(row)}
                 </div>
               </td>
+              {canEditNotes ? (
+                <td className="min-w-56 max-w-72 px-2 py-1.5 align-top">
+                  <AllocationNoteCell
+                    staffId={row.staffId}
+                    initialNotes={row.allocationNotes}
+                  />
+                </td>
+              ) : null}
               {row.weeks.map((cell, i) => (
                 // Week columns are a fixed spine; index keys are stable here.
                 <td key={weekColumns[i]} className="px-1 py-1.5 align-top">
