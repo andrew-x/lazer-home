@@ -1,6 +1,17 @@
 "use client";
 
 import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxItem,
+  ComboboxList,
+  useComboboxAnchor,
+} from "@/components/ui/combobox";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -83,6 +94,66 @@ export function SelectFilter({
           ))}
         </SelectContent>
       </Select>
+    </div>
+  );
+}
+
+/**
+ * Multi-select filter over a flat list of enum options, shown as chips in a
+ * searchable Combobox. Unlike {@link SelectFilter} there is no "All" sentinel —
+ * the selection is the set of accepted values, so an empty selection matches
+ * nothing (the caller decides what to render for that). Pass `labels` to display
+ * values through a single-source label map (e.g. the staff enums); without it,
+ * options fall back to `humanizeEnum`.
+ */
+export function MultiSelectFilter({
+  label,
+  value,
+  options,
+  labels,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string[];
+  options: readonly string[];
+  labels?: Record<string, string>;
+  onChange: (next: string[]) => void;
+  /** Input placeholder shown when nothing is selected. */
+  placeholder?: string;
+}) {
+  const anchor = useComboboxAnchor();
+  const display = (option: string) => labels?.[option] ?? humanizeEnum(option);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <FilterLabel>{label}</FilterLabel>
+      <Combobox
+        multiple
+        items={options as string[]}
+        value={value}
+        onValueChange={onChange}
+      >
+        <ComboboxChips ref={anchor} className="w-full">
+          {value.map((option) => (
+            <ComboboxChip key={option} aria-label={display(option)}>
+              {display(option)}
+            </ComboboxChip>
+          ))}
+          <ComboboxChipsInput
+            placeholder={value.length === 0 ? (placeholder ?? "") : ""}
+          />
+        </ComboboxChips>
+        <ComboboxContent anchor={anchor}>
+          <ComboboxEmpty>No matches.</ComboboxEmpty>
+          <ComboboxList>
+            {(option: string) => (
+              <ComboboxItem key={option} value={option}>
+                {display(option)}
+              </ComboboxItem>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
     </div>
   );
 }

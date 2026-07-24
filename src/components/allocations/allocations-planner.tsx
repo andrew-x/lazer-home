@@ -14,6 +14,7 @@ import { PlannerRange } from "@/components/allocations/planner-range";
 import {
   ALL,
   FilterLabel,
+  MultiSelectFilter,
   SegmentedFilter,
   SelectFilter,
 } from "@/components/form/filters";
@@ -26,7 +27,12 @@ import {
 } from "@/lib/allocations/allocations-grid";
 import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
 import { matchesSkillFilter } from "@/lib/staff/skills";
-import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff/staff-enums";
+import {
+  EMPLOYMENT_TYPE_LABELS,
+  isBillableRole,
+  ROLE_LABELS,
+  type Role,
+} from "@/lib/staff/staff-enums";
 
 /**
  * The allocations planner: a filter bar + date-range window over a weekly grid
@@ -47,9 +53,15 @@ export function AllocationsPlanner({
 }) {
   const searchId = useId();
   const initialWindow = useMemo(() => defaultWindow(), []);
+  // Default the role filter to the billable disciplines that actually appear in
+  // the data, so the planner opens on the people who bill client work.
+  const defaultRoles = useMemo(
+    () => roleOptions.filter((option) => isBillableRole(option as Role)),
+    [roleOptions],
+  );
   const [search, setSearch] = useState("");
   const [lineOfBusiness, setLineOfBusiness] = useState(ALL);
-  const [role, setRole] = useState(ALL);
+  const [roles, setRoles] = useState<string[]>(defaultRoles);
   const [type, setType] = useState(ALL);
   const [skills, setSkills] = useState<string[]>([]);
   const [start, setStart] = useState(initialWindow.start);
@@ -61,12 +73,12 @@ export function AllocationsPlanner({
       if (query && !person.name.toLowerCase().includes(query)) return false;
       if (lineOfBusiness !== ALL && person.lineOfBusiness !== lineOfBusiness)
         return false;
-      if (role !== ALL && person.role !== role) return false;
+      if (person.role === null || !roles.includes(person.role)) return false;
       if (type !== ALL && person.employmentType !== type) return false;
       if (!matchesSkillFilter(person.skills, skills)) return false;
       return true;
     });
-  }, [data.staff, search, lineOfBusiness, role, type, skills]);
+  }, [data.staff, search, lineOfBusiness, roles, type, skills]);
 
   const weekColumns = useMemo(() => buildWeekColumns(start, end), [start, end]);
 
@@ -106,13 +118,13 @@ export function AllocationsPlanner({
             onChange={setLineOfBusiness}
             triggerClassName="w-full"
           />
-          <SelectFilter
+          <MultiSelectFilter
             label="Role"
-            value={role}
+            value={roles}
             options={roleOptions}
             labels={ROLE_LABELS}
-            onChange={setRole}
-            triggerClassName="w-full"
+            onChange={setRoles}
+            placeholder="Filter by role…"
           />
           <SegmentedFilter
             label="Type"

@@ -21,20 +21,37 @@ gate** (the same open-read posture as the staff/CRM/projects lists).
   to that week — project name + a **percentage of a 40-hour week**, with a tooltip
   (project, role, duration, status). **Confirmed** roles render as a solid block,
   **tentative** as a dashed outline. Approved time off renders as a neutral **"Away"**
-  strip (availability only).
+  strip (availability only), whose tooltip shows the away period's start/end dates and
+  "% of week" (reason gated — see below). Week-column headers show a compact working-week
+  (Mon–Fri) range — e.g. `Jul 6–10`, collapsing to a single month when start and end
+  share one, else `Jun 29–Jul 3` (`weekColumnLabel`).
+- **Staff column.** Each person's name is a **link to their `/staff/[id]` profile
+  (opens in a new tab)**, and **hourly** staff (`employmentType === "HOURLY"`) carry an
+  **"Hourly" badge**. `employmentType` is threaded onto the `AllocationRow` for this.
 - **What appears.** Only **staffed** roles (non-null `staffId` — placeholders/open
   positions have no person to row) with status **`tentative` or `confirmed`**;
   `paused`/`cancelled` roles are excluded (not an active allocation). Only **approved**
   (non-pending) PTO is shown.
 - **PTO disclosure is minimal, and gated.** Everyone sees the reason-free "Away"
-  strip; the leave **type** is revealed only to viewers holding **`pto.review`** —
-  `getAllocationsGrid` nulls the `type` field otherwise. This preserves the PTO gate
-  rather than loosening it; see [ADR 0038](../decisions/0038-allocations-planner-pto-disclosure.md)
+  strip **plus the away period's start/end dates** (the min-start/max-end across the
+  leave spans overlapping that week — availability info); only the leave **type** is
+  gated, revealed to viewers holding **`pto.review`** (`getAllocationsGrid` nulls the
+  `type` field otherwise). Showing the dates is still just availability, not reason —
+  the gate is unchanged. See [ADR 0038](../decisions/0038-allocations-planner-pto-disclosure.md)
   and [permissions.md](./permissions.md).
 - **Filter bar.** Narrows the staff rows in-memory (the once-fetched-list pattern the
   staff directory uses) by name, line of business, employment type, role, and skills.
   The skills multi-select is the shared `src/components/form/skills-filter.tsx`
-  (extracted from the staff directory, now used by both).
+  (extracted from the staff directory, now used by both). The **Role** filter is a
+  **multiselect** (`MultiSelectFilter` chips, `src/components/form/filters.tsx`), not the
+  single-select the other lists use, and **defaults to the billable disciplines** —
+  `roleOptions.filter(isBillableRole)` (the `isBillableRole` predicate + `NON_BILLABLE_ROLES`
+  from `src/lib/staff/staff-enums.ts` are the single source of the billable/overhead split,
+  also used by the staff-import `isBillable` derivation), intersected with the roles actually
+  present in the data — so the planner opens on the people who bill client work rather than
+  the whole company. Its semantics differ from
+  `SelectFilter`: **there is no `ALL` sentinel — the selection *is* the accepted set**, so
+  clearing it matches no one and the "No staff match these filters" empty state shows.
 
 ### Code map
 

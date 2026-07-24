@@ -35,6 +35,26 @@ export const ROLE_LABELS: Record<Role, string> = {
   QA: "QA",
 };
 
+/**
+ * The overhead disciplines — roles that do not bill client work. The billable
+ * roles are the complement (Engineer, Designer, Architect, Delivery, QA). This
+ * is the single source for the billable/overhead split, shared by the two places
+ * that need it: deriving a staff member's `isBillable` at CSV import
+ * ({@link isBillableRole}, in `staff-import/transform.ts`) and defaulting the
+ * allocations planner's role filter. Keep it here so the two can't drift.
+ */
+export const NON_BILLABLE_ROLES: readonly Role[] = [
+  "LEADERSHIP",
+  "SALES",
+  "SOLUTIONS",
+  "OPERATIONS",
+];
+
+/** Whether a role bills client work — i.e. is not one of the overhead roles. */
+export function isBillableRole(role: Role): boolean {
+  return !(NON_BILLABLE_ROLES as readonly string[]).includes(role);
+}
+
 /** Whether the person is salaried full-time or paid hourly. */
 export const EMPLOYMENT_TYPE_LABELS: Record<EmploymentType, string> = {
   FULL_TIME: "Full time",

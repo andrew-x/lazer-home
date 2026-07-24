@@ -28,7 +28,10 @@ disclosing the **reason** (which `pto.review` protects)?
 the leave type — enforced in the read, not the UI.**
 
 - The planner renders a neutral **"Away"** strip for any week a person has approved
-  time off. That is an *availability* signal only — no type, no reason.
+  time off. That is an *availability* signal only — no type, no reason. Its tooltip
+  also shows the away period's **start/end dates** (min-start/max-end across the leave
+  spans overlapping that week) and "% of week"; dates are still availability, not
+  reason, so they stay on the public side of the split.
 - The leave **`type`** is revealed **only** to a viewer who holds **`pto.review`**.
   `getAllocationsGrid` (`src/actions/allocations/getAllocationsGrid.ts`) computes
   `canSeePtoType = userHasPermission(user, { pto: ["review"] })` and, when false,

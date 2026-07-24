@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -20,7 +22,11 @@ import {
 import { formatDate } from "@/lib/format/format";
 import { PROJECT_ROLE_STATUS_LABELS } from "@/lib/projects/project-role-status";
 import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
-import { PTO_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff/staff-enums";
+import {
+  EMPLOYMENT_TYPE_LABELS,
+  PTO_TYPE_LABELS,
+  ROLE_LABELS,
+} from "@/lib/staff/staff-enums";
 
 /**
  * The allocations planner grid: a sticky staff column and one column per week.
@@ -62,7 +68,21 @@ export function AllocationsGrid({
           {rows.map((row) => (
             <tr key={row.staffId} className="border-b last:border-b-0">
               <td className="sticky left-0 z-10 bg-background px-3 py-2 align-top">
-                <div className="font-medium">{row.name}</div>
+                <div className="flex items-center gap-1.5">
+                  <Link
+                    href={`/staff/${row.staffId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium hover:underline"
+                  >
+                    {row.name}
+                  </Link>
+                  {row.employmentType === "HOURLY" ? (
+                    <Badge variant="outline" className="font-normal">
+                      {EMPLOYMENT_TYPE_LABELS.HOURLY}
+                    </Badge>
+                  ) : null}
+                </div>
                 <div className="text-xs text-muted-foreground">
                   {staffSublabel(row)}
                 </div>
@@ -183,9 +203,14 @@ function TimeOffBlock({ cell }: { cell: TimeOffCell }) {
           </div>
         }
       />
-      <TooltipContent>
-        {cell.type ? PTO_TYPE_LABELS[cell.type] : "Time off"} · {cell.percent}%
-        of week
+      <TooltipContent className="flex-col items-start gap-0.5">
+        <span>
+          {cell.type ? PTO_TYPE_LABELS[cell.type] : "Time off"} · {cell.percent}
+          % of week
+        </span>
+        <span>
+          {formatDate(cell.startDate)} – {formatDate(cell.endDate)}
+        </span>
       </TooltipContent>
     </Tooltip>
   );
