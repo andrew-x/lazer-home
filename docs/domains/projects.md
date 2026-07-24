@@ -403,8 +403,14 @@ to title the tab), `notFound()`s when the plan is null (unknown id), and renders
 `ProjectDetailView` (`src/components/projects/detail/project-detail-view.tsx`).
 
 **Everything on this page is read-only** — role editing stays in the opportunity planner (see
-[Open questions](#open-questions--not-yet-built)). The `/projects` list's **Name cell now links
-here** (`projects-table.tsx` → `InternalLink href="/projects/[id]"`).
+[Open questions](#open-questions--not-yet-built)). **Cross-links into this route are now wired
+across the app** (all via the canonical `InternalLink`, `src/components/internal-link.tsx`): the
+`/projects` list Name cell (`projects-table.tsx`), the staff/own-profile Projects section
+(`StaffProjectsSection`), the CRM company detail Projects & Referred-projects lists
+(`company-detail-view.tsx`) and contact detail Referred-projects list (`contact-detail-view.tsx`),
+the opportunity Project-plan tab heading (`opportunity-project-plan.tsx`), and the allocations grid
+project cells (`allocations-grid.tsx`, opening in a new tab). The only project references still
+left as plain text by design are the **editable timesheet week grid** row labels.
 
 - **Header + summary tiles** — project name + derived `ProjectStatusBadge`, a company link
   (`/companies/[id]`), derived LoB badges, then the **same summary `StatCard` tiles** as the

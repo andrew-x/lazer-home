@@ -222,9 +222,14 @@ function AllocationBlock({
             {allocation.isEnd ? (
               <span className="absolute inset-y-0 right-0 w-1 rounded-r-sm bg-primary" />
             ) : null}
-            <span className="truncate font-medium">
+            <Link
+              href={`/projects/${allocation.projectId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="truncate font-medium hover:underline"
+            >
               {allocation.projectName}
-            </span>
+            </Link>
             <span className="shrink-0 text-muted-foreground tabular-nums">
               {allocation.percent}%
             </span>

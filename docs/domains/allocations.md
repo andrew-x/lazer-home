@@ -31,8 +31,9 @@ no route gate** (the same open-read posture as the staff/CRM/projects lists); it
   the **prev/next chevrons shift the whole window by one bucket** of the active
   granularity (`planner-range.tsx`, `shiftBy`).
 - **What a cell shows — the *nominal rate* at every granularity.** A role's cell shows
-  its steady-state load = **`hoursPerDay / 8h`** (e.g. 4h/day → 50%, 8h/day → 100%,
-  capped at 100), with a tooltip (project, role, duration, status, "% of
+  its **project name (a link to `/projects/[id]`, opening in a new tab, mirroring the
+  staff-name link)** + its steady-state load = **`hoursPerDay / 8h`** (e.g. 4h/day → 50%,
+  8h/day → 100%, capped at 100), with a tooltip (project, role, duration, status, "% of
   {day|week|month}"). **The granularity only changes column width and how the start/end
   edges land**, not the headline percentage — *except* that a week still prorates its
   partial start/end columns (the historical behavior). Specifically (`bucketPercent`):
@@ -74,7 +75,7 @@ no route gate** (the same open-read posture as the staff/CRM/projects lists); it
   `updateStaffAllocationNotes`, gated on the **static `staff.edit` capability — NOT the
   owner-or-`staff.edit` `authorizeStaffEdit` hook the profile fields use**, because these
   are cross-person staffing notes on a management planner (a person editing only their own
-  row isn't the intent). See [ADR 0040](../decisions/0040-allocation-notes-on-staff.md)
+  row isn't the intent). See [ADR 0041](../decisions/0041-allocation-notes-on-staff.md)
   and [permissions.md](./permissions.md).
 - **What appears.** Only **staffed** roles (non-null `staffId` — placeholders/open
   positions have no person to row) with status **`tentative` or `confirmed`**;

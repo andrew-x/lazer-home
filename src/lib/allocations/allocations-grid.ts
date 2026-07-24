@@ -80,6 +80,7 @@ function nominalRatePercent(hoursPerDay: number): number {
 /** One project allocation within a single planner cell. */
 export type AllocationCell = {
   roleId: string;
+  projectId: string;
   projectName: string;
   roleType: ProjectRoleType;
   status: ProjectRoleStatus;
@@ -415,6 +416,7 @@ export function buildAllocationRows(
         if (percent === 0) continue;
         allocations.push({
           roleId: role.id,
+          projectId: role.projectId,
           projectName: role.projectName,
           roleType: role.roleType,
           status: role.status,

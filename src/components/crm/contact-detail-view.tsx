@@ -81,7 +81,11 @@ function ProjectTable({ rows }: { rows: ContactProject[] }) {
     <DetailTable headers={["Name", "Company"]}>
       {rows.map((project) => (
         <TableRow key={project.id}>
-          <TableCell className="font-medium">{project.name}</TableCell>
+          <TableCell className="font-medium">
+            <InternalLink href={`/projects/${project.id}`}>
+              {project.name}
+            </InternalLink>
+          </TableCell>
           <TableCell>
             <InternalLink href={`/companies/${project.companyId}`}>
               {project.companyName}
