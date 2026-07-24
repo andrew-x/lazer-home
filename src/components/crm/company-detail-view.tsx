@@ -1,10 +1,12 @@
 import { IconBuilding } from "@tabler/icons-react";
 import { Fragment } from "react";
+import type { EntryView } from "@/actions/crm/entryViews";
 import type { CompanyDetail } from "@/actions/crm/getCompanyDetail";
 import { EmptyCell } from "@/components/empty-cell";
 import { ExternalLink } from "@/components/external-link";
 import { InternalLink } from "@/components/internal-link";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { humanizeEnum } from "@/lib/format/format";
@@ -19,6 +21,7 @@ import {
   TableEmpty,
 } from "./detail-parts";
 import { EditCompanyDialog } from "./edit-company-dialog";
+import { EntryLog } from "./entry-log";
 import { InlineOwnerField } from "./inline-owner-field";
 import { OpportunityStatusBadge } from "./opportunity-status-badge";
 
@@ -27,13 +30,16 @@ import { OpportunityStatusBadge } from "./opportunity-status-badge";
  * owner) beside two tabs — Contacts (the company's people directory, linking
  * through to each contact's detail page) and Opportunities & Projects (its
  * pipeline, delivery work, and referred deals/projects). Opportunities and
- * projects have no detail page yet, so they render as rows.
+ * projects have no detail page yet, so they render as rows. Beneath the tabs, a
+ * separated Notes section holds the company's running, authored note log.
  */
 export function CompanyDetailView({
   company,
+  notes,
   canEdit,
 }: {
   company: CompanyDetail;
+  notes: EntryView[];
   canEdit: boolean;
 }) {
   const hasPipeline =
@@ -224,6 +230,18 @@ export function CompanyDetailView({
           )}
         </TabsContent>
       </Tabs>
+
+      <Separator />
+
+      <DetailSection title="Notes" count={notes.length}>
+        <EntryLog
+          variant="company"
+          parentId={company.id}
+          kind="note"
+          entries={notes}
+          canEdit={canEdit}
+        />
+      </DetailSection>
     </DetailLayout>
   );
 }

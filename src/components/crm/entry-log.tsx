@@ -4,12 +4,15 @@ import { IconPencil, IconTrash } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
+import { addCompanyEntry } from "@/actions/crm/addCompanyEntry";
 import { addContactEntry } from "@/actions/crm/addContactEntry";
 import { addOpportunityEntry } from "@/actions/crm/addOpportunityEntry";
+import { deleteCompanyEntry } from "@/actions/crm/deleteCompanyEntry";
 import { deleteContactEntry } from "@/actions/crm/deleteContactEntry";
 import { deleteOpportunityEntry } from "@/actions/crm/deleteOpportunityEntry";
 import { type EntryKind, maxLengthForKind } from "@/actions/crm/entries.schema";
 import type { EntryView } from "@/actions/crm/entryViews";
+import { updateCompanyEntry } from "@/actions/crm/updateCompanyEntry";
 import { updateContactEntry } from "@/actions/crm/updateContactEntry";
 import { updateOpportunityEntry } from "@/actions/crm/updateOpportunityEntry";
 import { IconButton } from "@/components/icon-button";
@@ -21,7 +24,7 @@ import { formatShortDate } from "@/lib/format/format";
 
 type EntryLogProps = {
   /** Which parent the entries hang off — selects the action set. */
-  variant: "contact" | "opportunity";
+  variant: "contact" | "opportunity" | "company";
   parentId: string;
   kind: EntryKind;
   entries: EntryView[];
@@ -149,12 +152,27 @@ export function EntryLog({
       refresh();
     },
   });
-  const add = variant === "contact" ? addContact : addOpportunity;
+  const addCompany = useAction(addCompanyEntry, {
+    onSuccess: () => {
+      setDraft("");
+      refresh();
+    },
+  });
+  const add =
+    variant === "contact"
+      ? addContact
+      : variant === "opportunity"
+        ? addOpportunity
+        : addCompany;
 
-  // Update and delete share one schema across both parents, so a ternary on the
+  // Update and delete share one schema across all parents, so a ternary on the
   // action reference keeps a single, consistently-typed hook each.
   const update = useAction(
-    variant === "contact" ? updateContactEntry : updateOpportunityEntry,
+    variant === "contact"
+      ? updateContactEntry
+      : variant === "opportunity"
+        ? updateOpportunityEntry
+        : updateCompanyEntry,
     {
       onSuccess: () => {
         setEditingId(null);
@@ -164,7 +182,11 @@ export function EntryLog({
     },
   );
   const remove = useAction(
-    variant === "contact" ? deleteContactEntry : deleteOpportunityEntry,
+    variant === "contact"
+      ? deleteContactEntry
+      : variant === "opportunity"
+        ? deleteOpportunityEntry
+        : deleteCompanyEntry,
     {
       onSettled: () => setDeletingId(null),
       onSuccess: refresh,
@@ -176,8 +198,10 @@ export function EntryLog({
     if (!body) return;
     if (variant === "contact") {
       addContact.execute({ contactId: parentId, kind, body });
-    } else {
+    } else if (variant === "opportunity") {
       addOpportunity.execute({ opportunityId: parentId, kind, body });
+    } else {
+      addCompany.execute({ companyId: parentId, kind, body });
     }
   };
 

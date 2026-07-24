@@ -2,7 +2,12 @@ import "server-only";
 
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db/db";
-import { contactEntries, opportunityEntries, staff } from "@/lib/db/schema";
+import {
+  companyEntries,
+  contactEntries,
+  opportunityEntries,
+  staff,
+} from "@/lib/db/schema";
 import type { EntryKind } from "./entries.schema";
 
 /**
@@ -88,5 +93,25 @@ export async function getOpportunityEntries(
     .leftJoin(staff, eq(opportunityEntries.authorStaffId, staff.id))
     .where(eq(opportunityEntries.opportunityId, opportunityId))
     .orderBy(desc(opportunityEntries.createdAt));
+  return toLogData(rows);
+}
+
+/** Newest-first notes & next steps for a company, with author names. */
+export async function getCompanyEntries(
+  companyId: string,
+): Promise<EntryLogData> {
+  const rows = await db
+    .select({
+      id: companyEntries.id,
+      kind: companyEntries.kind,
+      body: companyEntries.body,
+      authorName: staff.name,
+      createdAt: companyEntries.createdAt,
+      updatedAt: companyEntries.updatedAt,
+    })
+    .from(companyEntries)
+    .leftJoin(staff, eq(companyEntries.authorStaffId, staff.id))
+    .where(eq(companyEntries.companyId, companyId))
+    .orderBy(desc(companyEntries.createdAt));
   return toLogData(rows);
 }

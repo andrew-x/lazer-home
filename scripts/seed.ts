@@ -66,7 +66,13 @@ async function main() {
     const timesheets = await seedTimesheets(db, staff, projects);
     const feedbackCount = await seedFeedback(db, staff);
     const ratingsCount = await seedRatings(db, staff);
-    const entries = await seedEntries(db, contacts, opportunities, staff);
+    const entries = await seedEntries(
+      db,
+      contacts,
+      opportunities,
+      companies,
+      staff,
+    );
 
     console.log("\n✅ Done. Row counts:");
     console.table({
@@ -81,6 +87,7 @@ async function main() {
       ratings: ratingsCount,
       contactEntries: entries.contactEntries,
       opportunityEntries: entries.opportunityEntries,
+      companyEntries: entries.companyEntries,
     });
     console.log(
       "\n   Sign in with Google as andrew@lazertechnologies.com (admin).\n",

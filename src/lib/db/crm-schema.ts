@@ -78,12 +78,13 @@ export const contacts = pgTable("contacts", {
 // ---------------------------------------------------------------------------
 // Timestamped entries — notes & next steps
 //
-// Both contacts and opportunities carry a running, authored log of free-text
-// entries: `note` (longer, "what happened") and `next_step` (shorter, "what's
-// planned"). One table per parent entity (concrete FKs — no polymorphic FK); the
-// two kinds share a shape and differ only by `kind` + validation length. Entries
-// are point-in-time and shown newest-first, mirroring the `feedback` table. See
-// docs/domains/crm.md.
+// Contacts, opportunities, and companies each carry a running, authored log of
+// free-text entries: `note` (longer, "what happened") and `next_step` (shorter,
+// "what's planned"). One table per parent entity (concrete FKs — no polymorphic
+// FK); the two kinds share a shape and differ only by `kind` + validation length.
+// (Companies only use the `note` kind in the UI, but share the same table shape.)
+// Entries are point-in-time and shown newest-first, mirroring the `feedback`
+// table. See docs/domains/crm.md.
 // ---------------------------------------------------------------------------
 
 export const crmEntryKind = pgEnum("crm_entry_kind", ["note", "next_step"]);
@@ -117,8 +118,38 @@ export const contactEntries = pgTable(
   ],
 );
 
+export const companyEntries = pgTable(
+  "company_entries",
+  {
+    id: text().primaryKey(),
+    companyId: text()
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    kind: crmEntryKind().notNull(),
+    body: text().notNull(),
+    // Who wrote it. Set-null so an entry survives the author's staff row being
+    // removed (author attribution, not ownership). Author = staff, matching the
+    // other people-FKs in this domain.
+    authorStaffId: text().references(() => staff.id, { onDelete: "set null" }),
+
+    createdAt: timestamp().defaultNow().notNull(),
+    updatedAt: timestamp()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    index("company_entries_company_kind_created_idx").on(
+      t.companyId,
+      t.kind,
+      t.createdAt,
+    ),
+  ],
+);
+
 // --- Row types -------------------------------------------------------------
 
 export type Company = InferSelectModel<typeof companies>;
 export type Contact = InferSelectModel<typeof contacts>;
 export type ContactEntry = InferSelectModel<typeof contactEntries>;
+export type CompanyEntry = InferSelectModel<typeof companyEntries>;
