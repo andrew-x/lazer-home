@@ -3,6 +3,7 @@ import {
   IconAddressBook,
   IconBriefcase,
   IconBuildingSkyscraper,
+  IconCalendarStats,
   IconChartBar,
   IconClock,
   IconHome,
@@ -48,6 +49,7 @@ export const NAV_ITEMS: NavItem[] = [
   { title: "Contacts", href: "/contacts", icon: IconAddressBook },
   { title: "Opportunities", href: "/opportunities", icon: IconTargetArrow },
   { title: "Projects", href: "/projects", icon: IconBriefcase },
+  { title: "Allocations", href: "/allocations", icon: IconCalendarStats },
   { title: "Timesheets", href: "/timesheets", icon: IconClock },
   {
     title: "Performance",
