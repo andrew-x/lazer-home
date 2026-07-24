@@ -20,10 +20,14 @@ import {
 } from "@/components/form/filters";
 import { SkillsFilter } from "@/components/form/skills-filter";
 import { Input } from "@/components/ui/input";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   buildAllocationRows,
-  buildWeekColumns,
+  buildColumns,
   defaultWindow,
+  GRANULARITIES,
+  GRANULARITY_LABELS,
+  type Granularity,
 } from "@/lib/allocations/allocations-grid";
 import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
 import { matchesSkillFilter } from "@/lib/staff/skills";
@@ -52,7 +56,7 @@ export function AllocationsPlanner({
   employmentTypeOptions: string[];
 }) {
   const searchId = useId();
-  const initialWindow = useMemo(() => defaultWindow(), []);
+  const initialWindow = useMemo(() => defaultWindow("week"), []);
   // Default the role filter to the billable disciplines that actually appear in
   // the data, so the planner opens on the people who bill client work.
   const defaultRoles = useMemo(
@@ -64,8 +68,18 @@ export function AllocationsPlanner({
   const [roles, setRoles] = useState<string[]>(defaultRoles);
   const [type, setType] = useState(ALL);
   const [skills, setSkills] = useState<string[]>([]);
+  const [granularity, setGranularity] = useState<Granularity>("week");
   const [start, setStart] = useState(initialWindow.start);
   const [end, setEnd] = useState(initialWindow.end);
+
+  // Switching granularity re-seeds the range to that granularity's default
+  // window (anchored at today) — a leftover week range makes no sense as days.
+  const changeGranularity = (next: Granularity) => {
+    setGranularity(next);
+    const window = defaultWindow(next);
+    setStart(window.start);
+    setEnd(window.end);
+  };
 
   const filteredStaff = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -80,12 +94,21 @@ export function AllocationsPlanner({
     });
   }, [data.staff, search, lineOfBusiness, roles, type, skills]);
 
-  const weekColumns = useMemo(() => buildWeekColumns(start, end), [start, end]);
+  const columns = useMemo(
+    () => buildColumns(granularity, start, end),
+    [granularity, start, end],
+  );
 
   const rows = useMemo(
     () =>
-      buildAllocationRows(filteredStaff, data.roles, data.timeOff, weekColumns),
-    [filteredStaff, data.roles, data.timeOff, weekColumns],
+      buildAllocationRows(
+        filteredStaff,
+        data.roles,
+        data.timeOff,
+        columns,
+        granularity,
+      ),
+    [filteredStaff, data.roles, data.timeOff, columns, granularity],
   );
 
   return (
@@ -137,23 +160,45 @@ export function AllocationsPlanner({
       </div>
 
       {/* Planner window — its own control, not a staff filter: it changes which
-          weeks the grid shows, not which people. */}
+          columns the grid shows, not which people. */}
       <div className="flex flex-wrap items-end justify-between gap-4 border-t pt-4">
-        <div className="flex flex-col gap-1.5">
-          <FilterLabel>Planner range</FilterLabel>
-          <PlannerRange
-            start={start}
-            end={end}
-            onChange={(nextStart, nextEnd) => {
-              setStart(nextStart);
-              setEnd(nextEnd);
-            }}
-          />
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <FilterLabel>View by</FilterLabel>
+            <ToggleGroup
+              variant="outline"
+              spacing={0}
+              aria-label="Planner granularity"
+              value={[granularity]}
+              onValueChange={(values) => {
+                if (values.length > 0)
+                  changeGranularity(values[0] as Granularity);
+              }}
+            >
+              {GRANULARITIES.map((option) => (
+                <ToggleGroupItem key={option} value={option}>
+                  {GRANULARITY_LABELS[option]}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Planner range</FilterLabel>
+            <PlannerRange
+              start={start}
+              end={end}
+              granularity={granularity}
+              onChange={(nextStart, nextEnd) => {
+                setStart(nextStart);
+                setEnd(nextEnd);
+              }}
+            />
+          </div>
         </div>
         <AllocationsLegend />
       </div>
 
-      {weekColumns.length === 0 ? (
+      {columns.length === 0 ? (
         <p className="rounded-md border p-4 text-sm text-muted-foreground">
           Pick an end date on or after the start date to see the planner.
         </p>
@@ -162,7 +207,11 @@ export function AllocationsPlanner({
           No staff match these filters.
         </p>
       ) : (
-        <AllocationsGrid rows={rows} weekColumns={weekColumns} />
+        <AllocationsGrid
+          rows={rows}
+          columns={columns}
+          granularity={granularity}
+        />
       )}
     </div>
   );
