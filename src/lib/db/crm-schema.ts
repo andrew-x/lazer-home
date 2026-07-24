@@ -24,6 +24,10 @@ export const companies = pgTable("companies", {
   id: text().primaryKey(),
   name: text().notNull(),
   websiteUrl: text(),
+  // Optional home base as a free-text "City, CC" label (e.g. "Toronto, CA"),
+  // picked from the static world-cities list (`@/lib/cities`). Free text, not a
+  // FK/enum — see docs/data-model.md. Null when unknown.
+  location: text(),
   isPartner: boolean().notNull().default(false),
   // Optional owner — the staff member accountable for the relationship. Null
   // when unassigned or once the staff row is removed (set-null, mirroring the
@@ -50,6 +54,10 @@ export const contacts = pgTable("contacts", {
   role: text(),
   // Optional LinkedIn profile URL.
   linkedinUrl: text(),
+  // Optional home base as a free-text "City, CC" label (e.g. "Toronto, CA"),
+  // picked from the static world-cities list (`@/lib/cities`). Free text, not a
+  // FK/enum — see docs/data-model.md. Null when unknown.
+  location: text(),
   // Optional "managed by" link to another contact. Self-referential; set-null on
   // delete so removing a manager just clears their reports' pointer (mirrors the
   // optional-FK convention on `companyId`). By our rules a manager is always a

@@ -35,6 +35,7 @@ export type StaffDirectoryEntry = {
   id: string;
   name: string;
   email: string;
+  location: string | null;
   isActive: boolean;
   imageUrl: string | null;
   skills: StaffSkill[];
@@ -50,6 +51,7 @@ export async function getStaffDirectory(): Promise<StaffDirectoryEntry[]> {
       id: staff.id,
       name: staff.name,
       email: staff.email,
+      location: staff.location,
       isActive: staff.isActive,
       imageUrl: user.image,
       skills: staff.skills,
@@ -81,6 +83,7 @@ export async function getStaffDirectory(): Promise<StaffDirectoryEntry[]> {
       id: s.id,
       name: s.name,
       email: s.email,
+      location: s.location,
       isActive: s.isActive,
       imageUrl: s.imageUrl,
       skills: s.skills,

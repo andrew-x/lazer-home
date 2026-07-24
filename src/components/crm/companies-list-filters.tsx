@@ -4,6 +4,7 @@ import { IconSearch } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { ALL, FilterLabel, SelectFilter } from "@/components/form/filters";
+import { LocationFilterControl } from "@/components/form/location-filter-control";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -55,6 +56,8 @@ export function CompaniesListFilters({ params }: { params: SearchParams }) {
 
   const currentQuery = str(params.q);
   const currentStatus = str(params.status) || ALL;
+  const currentCity = str(params.city) || null;
+  const currentNearby = str(params.nearby) === "1";
 
   const [search, setSearch] = useState(currentQuery);
 
@@ -75,46 +78,69 @@ export function CompaniesListFilters({ params }: { params: SearchParams }) {
     return () => clearTimeout(timer);
   }, [search, currentQuery, params, router]);
 
-  const hasFilters = currentQuery !== "" || currentStatus !== ALL;
+  const hasFilters =
+    currentQuery !== "" ||
+    currentStatus !== ALL ||
+    currentCity !== null ||
+    currentNearby;
 
   return (
-    <div className="flex flex-wrap items-end gap-3">
-      <div className="flex min-w-56 flex-1 flex-col gap-1.5">
-        <FilterLabel htmlFor={searchId}>Search</FilterLabel>
-        <div className="relative">
-          <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            id={searchId}
-            type="search"
-            placeholder="Search by company name…"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="pl-9"
-          />
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex min-w-56 flex-1 flex-col gap-1.5">
+          <FilterLabel htmlFor={searchId}>Search</FilterLabel>
+          <div className="relative">
+            <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id={searchId}
+              type="search"
+              placeholder="Search by company name…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="pl-9"
+            />
+          </div>
         </div>
+
+        <SelectFilter
+          label="Status"
+          value={currentStatus}
+          options={COMPANY_STATUS_TAGS}
+          labels={COMPANY_STATUS_LABELS}
+          onChange={(value) =>
+            router.replace(
+              hrefWith(params, { status: value === ALL ? null : value }),
+            )
+          }
+        />
+
+        {hasFilters ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.replace("/companies")}
+          >
+            Clear filters
+          </Button>
+        ) : null}
       </div>
 
-      <SelectFilter
-        label="Status"
-        value={currentStatus}
-        options={COMPANY_STATUS_TAGS}
-        labels={COMPANY_STATUS_LABELS}
-        onChange={(value) =>
+      <LocationFilterControl
+        city={currentCity}
+        nearby={currentNearby}
+        onCityChange={(label) =>
           router.replace(
-            hrefWith(params, { status: value === ALL ? null : value }),
+            hrefWith(params, {
+              city: label,
+              // Clearing the city drops "nearby" too — it means nothing alone.
+              ...(label ? {} : { nearby: null }),
+            }),
           )
         }
+        onNearbyChange={(checked) =>
+          router.replace(hrefWith(params, { nearby: checked ? "1" : null }))
+        }
       />
-
-      {hasFilters ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.replace("/companies")}
-        >
-          Clear filters
-        </Button>
-      ) : null}
     </div>
   );
 }

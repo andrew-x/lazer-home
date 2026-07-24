@@ -15,6 +15,7 @@ import { latestEmploymentFirst } from "@/lib/staff/staff-employment";
 export type StaffProfile = {
   name: string;
   email: string;
+  location: string | null;
   linkedinUrl: string | null;
   githubUrl: string | null;
   portfolioUrl: string | null;
@@ -56,6 +57,7 @@ export const getStaffProfile = cache(
       .select({
         name: staff.name,
         email: staff.email,
+        location: staff.location,
         linkedinUrl: staff.linkedinUrl,
         githubUrl: staff.githubUrl,
         portfolioUrl: staff.portfolioUrl,

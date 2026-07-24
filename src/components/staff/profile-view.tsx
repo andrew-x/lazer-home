@@ -166,6 +166,9 @@ export function ProfileView({
 
             <div className="flex flex-col gap-3">
               <MetaRow label="Email">{profile.email}</MetaRow>
+              {profile.location ? (
+                <MetaRow label="Location">{profile.location}</MetaRow>
+              ) : null}
               {profile.joinDate ? (
                 <MetaRow label="Joined">{formatDate(profile.joinDate)}</MetaRow>
               ) : null}

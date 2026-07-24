@@ -98,6 +98,11 @@ export const staff = pgTable("staff", {
   githubUrl: text(),
   portfolioUrl: text(),
 
+  // Optional home base as a free-text "City, CC" label (e.g. "Toronto, CA"),
+  // picked from the static world-cities list (`@/lib/cities`). Free text, not a
+  // FK/enum — see docs/data-model.md. Null when unknown. No in-app editor yet.
+  location: text(),
+
   clientIntro: text(),
   clientIntroUpdatedAt: timestamp(),
 

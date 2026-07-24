@@ -1,4 +1,5 @@
 import type { InferInsertModel } from "drizzle-orm";
+import { cityLabelsForCountries } from "@/lib/cities/cities";
 import { LINE_OF_BUSINESS } from "@/lib/crm/line-of-business";
 import { generateId } from "@/lib/db/ids";
 import {
@@ -16,6 +17,10 @@ import {
 } from "@/lib/staff/skills";
 import type { SeedDb } from "./client";
 import { chance, faker, isoDate, money, pastDate } from "./faker";
+
+// Seeded staff locations focus on US & Canada, drawn from the static world-cities
+// list so every seeded value is one the location picker would actually offer.
+const US_CA_CITIES = cityLabelsForCountries(["US", "CA"]);
 
 // The employment `role` enum (declared inline in staff-schema.ts). Non-leadership
 // staff draw from the delivery-ish roles; leaders/managers get LEADERSHIP.
@@ -236,6 +241,7 @@ function buildStaff(
     linkedinUrl: chance(0.7) ? faker.internet.url() : null,
     githubUrl: tier === "ic" && chance(0.6) ? faker.internet.url() : null,
     portfolioUrl: chance(0.3) ? faker.internet.url() : null,
+    location: chance(0.9) ? faker.helpers.arrayElement(US_CA_CITIES) : null,
     clientIntro: hasIntro ? faker.lorem.paragraph() : null,
     clientIntroUpdatedAt: hasIntro ? faker.date.recent({ days: 120 }) : null,
     resume: hasResume ? faker.lorem.paragraphs(2) : null,

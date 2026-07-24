@@ -22,6 +22,7 @@ import {
 } from "./detail-parts";
 import { EditCompanyDialog } from "./edit-company-dialog";
 import { EntryLog } from "./entry-log";
+import { InlineLocationField } from "./inline-location-field";
 import { InlineOwnerField } from "./inline-owner-field";
 import { OpportunityStatusBadge } from "./opportunity-status-badge";
 
@@ -79,6 +80,15 @@ export function CompanyDetailView({
                 </ExternalLink>
               ) : null}
             </MetaField>
+          </SidebarSection>
+
+          <SidebarSection>
+            <InlineLocationField
+              kind="company"
+              entityId={company.id}
+              canEdit={canEdit}
+              location={company.location}
+            />
           </SidebarSection>
 
           <SidebarSection>

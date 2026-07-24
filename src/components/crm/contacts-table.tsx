@@ -12,9 +12,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-export function ContactsTable({ rows }: { rows: ContactRow[] }) {
+export function ContactsTable({
+  rows,
+  filtered = false,
+}: {
+  rows: ContactRow[];
+  /** Whether a location filter is active — tunes the empty message. */
+  filtered?: boolean;
+}) {
   if (rows.length === 0) {
-    return <EmptyState>No contacts yet.</EmptyState>;
+    return (
+      <EmptyState>
+        {filtered ? "No contacts match your filters." : "No contacts yet."}
+      </EmptyState>
+    );
   }
 
   return (
@@ -24,6 +35,7 @@ export function ContactsTable({ rows }: { rows: ContactRow[] }) {
           <TableHead>Name</TableHead>
           <TableHead>Company</TableHead>
           <TableHead>Role</TableHead>
+          <TableHead>Location</TableHead>
           <TableHead>Next steps</TableHead>
         </TableRow>
       </TableHeader>
@@ -45,6 +57,7 @@ export function ContactsTable({ rows }: { rows: ContactRow[] }) {
               )}
             </TableCell>
             <TableCell>{contact.role ?? <EmptyCell />}</TableCell>
+            <TableCell>{contact.location ?? <EmptyCell />}</TableCell>
             <TableCell>
               <ContactNextStepCell
                 nextStep={contact.nextStep}

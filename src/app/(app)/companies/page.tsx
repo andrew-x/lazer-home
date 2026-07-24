@@ -31,9 +31,16 @@ export default async function CompaniesPage({
   const params = await searchParams;
   const query = typeof params.q === "string" ? params.q : undefined;
   const status = parseStatus(params.status);
+  const city = typeof params.city === "string" ? params.city : undefined;
+  const nearby = params.nearby === "1";
 
   const [companies, user] = await Promise.all([
-    getCompaniesPage(parsePage(params.companiesPage), { query, status }),
+    getCompaniesPage(parsePage(params.companiesPage), {
+      query,
+      status,
+      city,
+      nearby,
+    }),
     getCurrentUser(),
   ]);
 
@@ -61,7 +68,9 @@ export default async function CompaniesPage({
         <div className="rounded-md border">
           <CompaniesTable
             rows={companies.rows}
-            filtered={query !== undefined || status !== undefined}
+            filtered={
+              query !== undefined || status !== undefined || city !== undefined
+            }
           />
           <PaginationControls
             basePath="/companies"
