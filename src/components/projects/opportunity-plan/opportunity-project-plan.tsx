@@ -46,7 +46,12 @@ import {
   LINE_OF_BUSINESS_LABELS,
   type LineOfBusiness,
 } from "@/lib/crm/line-of-business";
-import { parseIsoDate } from "@/lib/format/format";
+import {
+  deliveryManagerLabel,
+  rangeLabel,
+  rangeOf,
+  yearHint,
+} from "@/lib/projects/plan-summary";
 import {
   buildPlannerRows,
   buildWeekColumns,
@@ -588,40 +593,6 @@ function PlanEditor({
   );
 }
 
-/** Overall span (min start, max end) across `roles`, or null when empty. */
-function rangeOf(roles: PlanRole[]): { start: string; end: string } | null {
-  let range: { start: string; end: string } | null = null;
-  for (const role of roles) {
-    if (!range) {
-      range = { start: role.startDate, end: role.endDate };
-      continue;
-    }
-    if (role.startDate < range.start) range.start = role.startDate;
-    if (role.endDate > range.end) range.end = role.endDate;
-  }
-  return range;
-}
-
-/** A compact "Mon D" for an ISO date, for the summary tiles. */
-function shortMonthDay(iso: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-  }).format(parseIsoDate(iso));
-}
-
-/** "Aug 3 – Dec 12" for a date range tile value. */
-function rangeLabel(range: { start: string; end: string }): string {
-  return `${shortMonthDay(range.start)} – ${shortMonthDay(range.end)}`;
-}
-
-/** The year (or "2026–2027") for a range tile hint. */
-function yearHint(range: { start: string; end: string }): string {
-  const from = range.start.slice(0, 4);
-  const to = range.end.slice(0, 4);
-  return from === to ? from : `${from}–${to}`;
-}
-
 /** Confirm-dialog for the bulk "Bump timelines by N weeks" action. */
 function BumpRolesDialog({
   open,
@@ -684,11 +655,4 @@ function BumpRolesForm({
       <FormDialogFooter submitLabel="Bump" loading={pending} />
     </form>
   );
-}
-
-/** The comma-joined delivery-manager names for the summary tile, or "—". */
-function deliveryManagerLabel(
-  managers: { id: string; name: string }[],
-): string {
-  return managers.length ? managers.map((m) => m.name).join(", ") : "—";
 }

@@ -1,6 +1,7 @@
 import type { ProjectRow } from "@/actions/projects/getProjectsPage";
 import { EmptyCell } from "@/components/empty-cell";
 import { EmptyState } from "@/components/empty-state";
+import { InternalLink } from "@/components/internal-link";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -33,7 +34,11 @@ export function ProjectsTable({ rows }: { rows: ProjectRow[] }) {
       <TableBody>
         {rows.map((project) => (
           <TableRow key={project.id}>
-            <TableCell className="font-medium">{project.name}</TableCell>
+            <TableCell className="font-medium">
+              <InternalLink href={`/projects/${project.id}`}>
+                {project.name}
+              </InternalLink>
+            </TableCell>
             <TableCell>
               <ProjectStatusBadge status={project.status} />
             </TableCell>

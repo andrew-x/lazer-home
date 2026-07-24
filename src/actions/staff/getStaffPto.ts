@@ -5,7 +5,8 @@ import { getCurrentUser } from "@/lib/auth/auth";
 import { userHasPermission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db/db";
 import { type StaffPto, staffPto } from "@/lib/db/schema";
-import { formatIsoDate, parseIsoDate } from "@/lib/format/format";
+import { formatIsoDate } from "@/lib/format/format";
+import { countWorkingDays } from "@/lib/staff/pto-working-days";
 import { getCurrentStaffId } from "./getCurrentStaffId";
 
 export type PtoType = StaffPto["type"];
@@ -34,20 +35,6 @@ export type StaffPtoView = {
    */
   summary: PtoCategorySummary[];
 };
-
-/** Count Mon–Fri days in the inclusive "YYYY-MM-DD" span (no half-days here). */
-function countWorkingDays(startDate: string, endDate: string): number {
-  const cursor = parseIsoDate(startDate);
-  const end = parseIsoDate(endDate);
-
-  let count = 0;
-  while (cursor <= end) {
-    const weekday = cursor.getDay();
-    if (weekday !== 0 && weekday !== 6) count += 1;
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return count;
-}
 
 /**
  * A staff member's time off: upcoming and past spans plus a per-category
