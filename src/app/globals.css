@@ -129,8 +129,14 @@
   html {
     @apply font-sans;
   }
+}
 
-  /* Interactive elements get a pointer (Base UI / shadcn don't add it). */
+@layer utilities {
+  /* Interactive elements get a pointer. Declared in the utilities layer (not
+     base) so it beats the `cursor-default` the vendored Base UI / shadcn
+     primitives hardcode on their option/menu-item classNames — a base-layer
+     rule would lose to that utility regardless of specificity. Disabled items
+     carry `pointer-events-none`, so they never show this pointer. */
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]):not([data-disabled]),
   [role="menuitem"],
@@ -145,9 +151,7 @@
   select:not(:disabled) {
     cursor: pointer;
   }
-}
 
-@layer utilities {
   /* Flat surfaces: hairline borders define edges; no elevation shadows. */
   .shadow-2xs,
   .shadow-xs,
