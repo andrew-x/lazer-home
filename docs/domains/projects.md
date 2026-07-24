@@ -1,8 +1,9 @@
 # Domain: Projects
 
-**Status: growing.** Projects data, reads, create/edit/delete flows, and the `/projects` page
-all exist. This is the **hub linking CRM to delivery** and the first concrete cut of the
-proposed **Allocation** concept (`project_roles`).
+**Status: growing.** Projects data, reads, create/edit/delete flows, the `/projects` list page,
+and now a **per-project detail page** (`/projects/[id]`, the first single-project route — see
+[Project detail page](#project-detail-page) below) all exist. This is the **hub linking CRM to
+delivery** and the first concrete cut of the proposed **Allocation** concept (`project_roles`).
 
 The CRM → delivery link lives on **`opportunities.projectId`** — a nullable FK, and **many
 opportunities → one project** (a project can be built up from an original deal plus later
@@ -170,6 +171,25 @@ delivery, allocations, timesheets, and billing.
     LoBs** (one grouped query) and computes `ProjectRow.status` + `ProjectRow.linesOfBusiness[]`
     via `deriveProjectStatus`/`deriveProjectLinesOfBusiness` — the project has no stored columns
     for these.
+  - `getProjectPlan.ts` — **server-only** read backing the **project detail page**
+    (`/projects/[id]`). A **project-keyed sibling of `getOpportunityPlan`**: it takes a
+    `projectId`, joins the owning company (`company: {id,name}`, for the header link), and returns
+    the `PlanProject` meta (with **derived `status` + `linesOfBusiness[]` + `deliveryManagers`**),
+    **every** role on the project (all opportunities), the overall `timeline`, `roleCount`, and
+    `externalAllocations` (the other-project commitments of everyone staffed here — same
+    other-project / `tentative`|`confirmed` filter as the opportunity read). **Reuses the
+    `PlanRole`/`PlanProject`/`ExternalAllocation` types from `getOpportunityPlan.ts`.** Unlike that
+    read it has **no `editable`/`currentOpportunityId` notion** — the detail page is **read-only**.
+    Returns **`null` when the project id is unknown**, so the page `notFound()`s.
+  - `getProjectPto.ts` — **server-only** read backing the detail page's **Time off** tab.
+    Aggregates PTO for **everyone connected to the project** — its staffed role assignees (`project_roles.staffId`)
+    ∪ its delivery managers — into `{ upcoming, past, canSeeType }` (`endDate >= today` ⇒ upcoming
+    soonest-first, else past most-recent-first; working-day counts via the shared
+    `countWorkingDays`). **Permission nuance:** the tab is open to **anyone who can view the
+    project** — every viewer sees the person, dates, and working-day count — but the **leave `type`
+    and `isPending` state are gated on `pto.review`** and **masked in the read** (type → null,
+    isPending → false) for non-reviewers. The `canSeeType` flag drives whether the client renders
+    the Type column. Masking happens **in the read, never in the client**.
   - `createProjectFromOpportunity.ts` (+ `.schema.ts`) — **the one-click create from an
     opportunity** (no form), gated `projects.edit`. Inherits the opportunity's `name` +
     `companyId`, creates **no roles**, and sets `opportunities.projectId` under the atomic
@@ -283,6 +303,12 @@ delivery, allocations, timesheets, and billing.
     `weekColumnLabel` now renders the **full week range** (e.g. `"Aug 3 – Aug 9"`, was a single
     Monday date). Mirrors `timesheet-grid.ts`; relies on `eachWeek(start, end)` in
     `timesheet-week.ts`.
+  - **Summary-tile helpers** — `src/lib/projects/plan-summary.ts` is a **pure, client-importable**
+    module (no `db`/drizzle/React) holding `rangeOf` (min-start/max-end over dated items),
+    `rangeLabel` (`"Aug 3 – Dec 12"`), `yearHint` (`"2026"` or `"2026–2027"`), and
+    `deliveryManagerLabel` (comma-joined names or `"—"`). **Extracted out of
+    `opportunity-project-plan.tsx`** so the opportunity Project-plan tab and the new project detail
+    page render **identical summary stats from one source**.
   - **Auto-confirm on won** — `src/actions/crm/confirmRolesOnWon.ts` (server-only) flips every
     tentative role tagged with an opportunity to `confirmed` on a genuine transition into
     `closed_won`; wired into `updateOpportunityField`/`updateOpportunity`/`updateOpportunityPosition`
@@ -305,6 +331,9 @@ delivery, allocations, timesheets, and billing.
   `src/components/form/entity-combobox.tsx` (`EntityCombobox`, the single-select base with a
   `searchArgs` prop for extra scope args, wrapped by `CompanyCombobox`/`ManagerComboboxField`)
   and `src/components/form/enum-select.tsx` (`EnumSelect`) — see [../ui.md](../ui.md).
+- **Project detail page UI** — `src/app/(app)/projects/[id]/page.tsx` (Server Component) +
+  `src/components/projects/detail/project-detail-view.tsx` (client). See
+  [Project detail page](#project-detail-page) below and [../ui.md](../ui.md).
 - **Opportunity planner UI** — `src/components/projects/opportunity-plan/` (entry
   `opportunity-project-plan.tsx`, split into `planner-grid.tsx` + `edit-project-dialog.tsx` +
   `role-dialog.tsx` + `extend-dialog.tsx`) renders the opportunity drawer's **Project plan** tab
@@ -364,10 +393,44 @@ a single-role user edit). Two callers:
 
 See [ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md).
 
+## Project detail page
+
+`/projects/[id]` (`src/app/(app)/projects/[id]/page.tsx`) is the **first per-project detail
+route** — previously the only in-depth single-project surface was the opportunity drawer's
+Project-plan tab (keyed by `opportunityId`). The Server Component `Promise.all`s
+`getProjectPlan(id)` + `getProjectPto(id)` (its `generateMetadata` also calls `getProjectPlan`
+to title the tab), `notFound()`s when the plan is null (unknown id), and renders the client
+`ProjectDetailView` (`src/components/projects/detail/project-detail-view.tsx`).
+
+**Everything on this page is read-only** — role editing stays in the opportunity planner (see
+[Open questions](#open-questions--not-yet-built)). The `/projects` list's **Name cell now links
+here** (`projects-table.tsx` → `InternalLink href="/projects/[id]"`).
+
+- **Header + summary tiles** — project name + derived `ProjectStatusBadge`, a company link
+  (`/companies/[id]`), derived LoB badges, then the **same summary `StatCard` tiles** as the
+  opportunity Project-plan tab (Length, Dates, Confirmed span, Tentative span, Delivery managers),
+  rendered from the shared `plan-summary.ts` helpers so the two surfaces agree.
+- **Three tabs:**
+  - **Timeline** — a **read-only reuse of the opportunity planner's `PlannerGrid`**
+    (`opportunity-plan/planner-grid.tsx`) fed by the pure `buildWeekColumns`/`buildPlannerRows`.
+    Read-only is achieved by passing **`""` as the `currentOpportunityId`** so no role is marked
+    editable (a real `opportunityId` can never be the empty string). It uses a **project-specific
+    legend** (Confirmed / Tentative / Other project) instead of the opportunity planner's "This
+    deal" legend.
+  - **Roles** — all roles as a table (staffed first, then open/unstaffed placeholders shown as
+    "Open role"), columns Staff · Role · Line of business · Status · Dates · Hrs/day.
+  - **Time off** — the project's PTO from `getProjectPto`, split Upcoming / Past. The **Type
+    column renders only for `pto.review` reviewers** (driven by `canSeeType`; see the read's
+    permission nuance above).
+
 ## Authorization
 
-**Reads are open** — any signed-in user can browse all projects (the `(app)` gate is
-the boundary). **All project writes** are gated by a single flat capability (no
+**Reads are open** — any signed-in user can browse all projects, including the **detail
+page** (`getProjectPlan`/`getProjectPto` are server-only; the `(app)` gate is the boundary).
+**One field is masked, not gated:** the project detail page's Time off tab shows dates + who to
+everyone but masks each leave's **type/pending state** unless the viewer has **`pto.review`**
+(`getProjectPto` nulls those fields in the read — see [Project detail page](#project-detail-page)).
+**All project writes** are gated by a single flat capability (no
 ownership dimension): **`projects.edit`**, granted to `delivery-manager`, `manager`,
 `admin`. It covers creating projects and their staffing (`createProject`,
 **`createProjectFromOpportunity`**), **editing a project** (`updateProject` — name + delivery
@@ -456,7 +519,8 @@ clean). See [permissions.md](./permissions.md).
   can be edited through the drawer's planner only while it's **tentative and this
   opportunity's**, so a **confirmed** (or paused/cancelled) role, one on a standalone project
   with no opportunity, or one owned by a different opportunity can't be changed. `updateProject`
-  never touches roles.
+  never touches roles. The new **project detail page's Timeline tab is deliberately read-only**
+  too — it reuses the planner grid purely for display (`currentOpportunityId = ""`).
 - **`paused`/`cancelled` role states have no UI yet** — the enum values and their derivation
   (into the project's derived status) + badges exist, and the seed exercises them, but **no
   user-facing control sets a role to paused/cancelled**. Added when the planner grows role-state
