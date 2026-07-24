@@ -1,53 +1,85 @@
 /**
  * Pure grid math for the opportunity planner (the weekly, Gantt-like view in the
  * Project plan tab). A client-importable module (no `db`/drizzle, no React) so
- * the tricky bits — the week-column spine, grouping roles into person-rows, and
- * marking which weeks each row is active — stay unit-testable and the component
- * is render + action-wiring only. Mirrors `timesheet-grid.ts`. See
+ * the tricky bits — the week-column spine, one row per role, and each week's
+ * own-role load plus the assignee's other commitments — stay unit-testable and
+ * the component is render + action-wiring only. Reuses `weekPercent` from the
+ * allocations grid so both planners agree on what a week's load is. See
  * docs/domains/projects.md.
  */
 
-import type { PlanRole } from "@/actions/projects/getOpportunityPlan";
+import type {
+  ExternalAllocation,
+  PlanRole,
+} from "@/actions/projects/getOpportunityPlan";
+import { weekPercent } from "@/lib/allocations/allocations-grid";
+import type { LineOfBusiness } from "@/lib/crm/line-of-business";
 import { parseIsoDate } from "@/lib/format/format";
 import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
 import {
   PROJECT_ROLE_TYPE_LABELS,
   type ProjectRoleType,
 } from "@/lib/projects/project-role-type";
-import { eachWeek, getWeekStart } from "@/lib/timesheets/timesheet-week";
+import {
+  eachWeek,
+  getWeekDays,
+  getWeekStart,
+} from "@/lib/timesheets/timesheet-week";
 
-/** One role record as a planner block: the weeks it spans and its edit state. */
-export type RoleSegment = {
-  roleId: string;
-  // ISO-Monday bounds (the role's start/end weeks), for block placement.
-  startWeek: string;
-  endWeek: string;
-  startDate: string;
-  endDate: string;
-  status: ProjectRoleStatus;
-  // True only for this opportunity's own tentative roles — the rest render
-  // greyed and read-only.
-  editable: boolean;
-  roleType: ProjectRoleType;
-  hoursPerDay: number;
-  description: string | null;
-  opportunityId: string | null;
+/** This role's own load in a single week cell (its share of a 40-hour week). */
+export type OwnBlock = {
+  /** Share of a 40-hour week this role takes that week (0–100). */
+  percent: number;
+  /** This is the role's first week — its start falls in this column. */
+  isStart: boolean;
+  /** This is the role's last week — its end falls in this column. */
+  isEnd: boolean;
 };
 
-/** A planner row: a person (with all their segments) or one placeholder role. */
+/**
+ * One of the assigned person's commitments on **another** project within a week
+ * cell — rendered greyed behind this role, mirroring the allocations grid block.
+ */
+export type ExternalBlock = {
+  roleId: string;
+  projectName: string;
+  percent: number;
+  status: ProjectRoleStatus;
+  roleType: ProjectRoleType;
+  lineOfBusiness: LineOfBusiness;
+  description: string | null;
+  startDate: string;
+  endDate: string;
+  isStart: boolean;
+  isEnd: boolean;
+};
+
+/** One (role, week) cell: this role's block plus any greyed other commitments. */
+export type PlannerCell = { own: OwnBlock | null; external: ExternalBlock[] };
+
+/** A planner row: exactly one project role, with its week-aligned cells. */
 export type PlannerRow = {
   key: string;
-  label: string;
-  sublabel: string | null;
+  roleId: string;
+  /** The role's display name: its description, else the role-type label. */
+  roleLabel: string;
+  roleTypeLabel: string;
+  hoursPerDay: number;
+  status: ProjectRoleStatus;
+  /** True only for this opportunity's own tentative role — the rest are read-only. */
+  editable: boolean;
   staffId: string | null;
-  segments: RoleSegment[];
-  // Per week column: true if any of the row's segments covers that week.
-  active: boolean[];
+  staffName: string | null;
+  startDate: string;
+  endDate: string;
+  /** One entry per column in the driving `weekColumns`, in the same order. */
+  weeks: PlannerCell[];
 };
 
 /**
  * The week-column spine: every ISO-Monday from the earliest role start to the
- * latest role end. `[]` when there are no roles.
+ * latest role end. `[]` when there are no roles. External commitments outside
+ * this window simply don't render — the spine tracks this project's own work.
  */
 export function buildWeekColumns(roles: PlanRole[]): string[] {
   if (roles.length === 0) return [];
@@ -67,103 +99,106 @@ function isEditable(role: PlanRole, currentOpportunityId: string): boolean {
   );
 }
 
-function toSegment(role: PlanRole, currentOpportunityId: string): RoleSegment {
-  return {
-    roleId: role.id,
-    startWeek: getWeekStart(role.startDate),
-    endWeek: getWeekStart(role.endDate),
-    startDate: role.startDate,
-    endDate: role.endDate,
-    status: role.status,
-    editable: isEditable(role, currentOpportunityId),
-    roleType: role.roleType,
-    hoursPerDay: role.hoursPerDay,
-    description: role.description,
-    opportunityId: role.opportunityId,
-  };
-}
-
-/** The distinct role-type labels across a row's segments, comma-joined. */
-function typeSublabel(segments: RoleSegment[]): string {
-  const labels: string[] = [];
-  for (const s of segments) {
-    const label = PROJECT_ROLE_TYPE_LABELS[s.roleType];
-    if (!labels.includes(label)) labels.push(label);
-  }
-  return labels.join(", ");
-}
-
-/** Which of `weekColumns` any segment covers (inclusive, ISO-Monday compare). */
-function activeWeeks(
-  segments: RoleSegment[],
-  weekColumns: string[],
-): boolean[] {
-  return weekColumns.map((week) =>
-    segments.some((s) => week >= s.startWeek && week <= s.endWeek),
-  );
-}
-
 /**
- * Group roles into planner rows: one row per staffed person (all their role
- * segments together, so an extension shows as another block on the same line),
- * and one row per placeholder (null-staff) role. Staffed rows come first,
- * alphabetically; placeholders follow. `currentOpportunityId` drives per-segment
- * editability.
+ * One row per role (staffed or placeholder). Each week cell carries this role's
+ * own load and — for a staffed role — the assignee's other-project commitments
+ * greyed behind it. `currentOpportunityId` drives per-role editability. Rows are
+ * ordered so a person's roles sit together: staffed roles first (by staff name),
+ * then open positions; within a person, by role type, then start date.
  */
 export function buildPlannerRows(
   roles: PlanRole[],
+  externalAllocations: ExternalAllocation[],
   weekColumns: string[],
   currentOpportunityId: string,
 ): PlannerRow[] {
-  const byStaff = new Map<string, PlanRole[]>();
-  const placeholders: PlanRole[] = [];
-
-  for (const role of roles) {
-    if (role.staffId) {
-      const list = byStaff.get(role.staffId) ?? [];
-      list.push(role);
-      byStaff.set(role.staffId, list);
-    } else {
-      placeholders.push(role);
-    }
+  const externalByStaff = new Map<string, ExternalAllocation[]>();
+  for (const ext of externalAllocations) {
+    const list = externalByStaff.get(ext.staffId) ?? [];
+    list.push(ext);
+    externalByStaff.set(ext.staffId, list);
   }
 
-  const staffedRows: PlannerRow[] = [];
-  for (const [staffId, staffRoles] of byStaff) {
-    const segments = staffRoles.map((r) => toSegment(r, currentOpportunityId));
-    staffedRows.push({
-      key: `staff:${staffId}`,
-      label: staffRoles[0].staffName ?? "Unknown",
-      sublabel: typeSublabel(segments),
-      staffId,
-      segments,
-      active: activeWeeks(segments, weekColumns),
+  const rows: PlannerRow[] = roles.map((role) => {
+    const external = role.staffId
+      ? (externalByStaff.get(role.staffId) ?? [])
+      : [];
+
+    const weeks: PlannerCell[] = weekColumns.map((week) => {
+      const percent = weekPercent(role, week);
+      const own: OwnBlock | null =
+        percent > 0
+          ? {
+              percent,
+              isStart: getWeekStart(role.startDate) === week,
+              isEnd: getWeekStart(role.endDate) === week,
+            }
+          : null;
+
+      const externalBlocks: ExternalBlock[] = [];
+      for (const ext of external) {
+        const extPercent = weekPercent(ext, week);
+        if (extPercent === 0) continue;
+        externalBlocks.push({
+          roleId: ext.roleId,
+          projectName: ext.projectName,
+          percent: extPercent,
+          status: ext.status,
+          roleType: ext.roleType,
+          lineOfBusiness: ext.lineOfBusiness,
+          description: ext.description,
+          startDate: ext.startDate,
+          endDate: ext.endDate,
+          isStart: getWeekStart(ext.startDate) === week,
+          isEnd: getWeekStart(ext.endDate) === week,
+        });
+      }
+      externalBlocks.sort((a, b) => b.percent - a.percent);
+
+      return { own, external: externalBlocks };
     });
-  }
-  staffedRows.sort((a, b) => a.label.localeCompare(b.label));
 
-  const placeholderRows: PlannerRow[] = placeholders
-    .map((role) => {
-      const segments = [toSegment(role, currentOpportunityId)];
-      return {
-        key: `role:${role.id}`,
-        label: role.description ?? PROJECT_ROLE_TYPE_LABELS[role.roleType],
-        sublabel: "Open position",
-        staffId: null,
-        segments,
-        active: activeWeeks(segments, weekColumns),
-      };
-    })
-    .sort((a, b) => a.label.localeCompare(b.label));
+    return {
+      key: `role:${role.id}`,
+      roleId: role.id,
+      roleLabel: role.description ?? PROJECT_ROLE_TYPE_LABELS[role.roleType],
+      roleTypeLabel: PROJECT_ROLE_TYPE_LABELS[role.roleType],
+      hoursPerDay: role.hoursPerDay,
+      status: role.status,
+      editable: isEditable(role, currentOpportunityId),
+      staffId: role.staffId,
+      staffName: role.staffName,
+      startDate: role.startDate,
+      endDate: role.endDate,
+      weeks,
+    };
+  });
 
-  return [...staffedRows, ...placeholderRows];
+  return rows.sort((a, b) => {
+    // Staffed roles before open positions.
+    const aStaffed = a.staffId !== null;
+    const bStaffed = b.staffId !== null;
+    if (aStaffed !== bStaffed) return aStaffed ? -1 : 1;
+    // Keep a person's roles adjacent, alphabetically by name.
+    const nameCmp = (a.staffName ?? "").localeCompare(b.staffName ?? "");
+    if (nameCmp !== 0) return nameCmp;
+    // Within a person (or among open positions), by role type, then start date.
+    const typeCmp = a.roleTypeLabel.localeCompare(b.roleTypeLabel);
+    if (typeCmp !== 0) return typeCmp;
+    return a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : 0;
+  });
 }
 
-/** A short "Mon D" → "Mon D" label for a week column header. */
-export function weekColumnLabel(weekStart: string): string {
-  const monday = parseIsoDate(weekStart);
+/** A short "Mon D" for a single date. */
+function shortDay(date: string): string {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
-  }).format(monday);
+  }).format(parseIsoDate(date));
+}
+
+/** A week column header showing the full week span, e.g. "Aug 3 – Aug 9". */
+export function weekColumnLabel(weekStart: string): string {
+  const days = getWeekDays(weekStart);
+  return `${shortDay(days[0])} – ${shortDay(days[6])}`;
 }

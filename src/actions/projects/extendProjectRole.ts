@@ -13,9 +13,8 @@ import { extendProjectRoleSchema } from "./extendProjectRole.schema";
  * Extend an existing role — the planner's "add to an existing role + staff
  * allocation". Reads the source role's staff/type/name and inserts a **new**
  * tentative segment (its own `project_roles` row sharing the `staffId`) tagged
- * with this opportunity; the planner groups shared-staff rows into one person
- * line, so the extension shows as another block on that person's row. Gated on
- * `projects.edit`.
+ * with this opportunity; the planner renders it as its own role row, editable
+ * for this deal. Gated on `projects.edit`.
  *
  * The source role must be **confirmed** (you extend committed allocations, not
  * speculative ones) and must live on **this opportunity's** project — you can
