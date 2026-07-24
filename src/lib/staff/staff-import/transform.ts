@@ -10,6 +10,7 @@ import {
   type TransformResult,
 } from "@/lib/import/csv-import";
 import { normalizeEmploymentFacts } from "@/lib/staff/employment";
+import { isBillableRole } from "@/lib/staff/staff-enums";
 import { MANAGER_EMAIL_HEADER } from "./managers";
 import type {
   EmploymentType,
@@ -25,15 +26,6 @@ import type {
  * documented inline; see docs/domains/staff-profiles.md. Shared parse
  * primitives live in `@/lib/import/csv-import`.
  */
-
-// Roles that are not billable. Everyone else (Engineer, Designer, Architect,
-// Delivery, QA) is billable.
-const NON_BILLABLE_ROLES = new Set<Role>([
-  "LEADERSHIP",
-  "SALES",
-  "SOLUTIONS",
-  "OPERATIONS",
-]);
 
 /** Department "Design" → DESIGN; otherwise derive from the Teams column. */
 function deriveLineOfBusiness(
@@ -172,7 +164,7 @@ export function transformRows(
     // Billable staff default to a 100% target; the shared invariant zeroes it
     // for the non-billable roles (single source of truth in `@/lib/staff/employment`).
     const { isBillable, utilizationTarget } = normalizeEmploymentFacts({
-      isBillable: !NON_BILLABLE_ROLES.has(role),
+      isBillable: isBillableRole(role),
       utilizationTarget: 100,
     });
 
