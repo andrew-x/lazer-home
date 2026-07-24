@@ -16,21 +16,31 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/core/utils";
 
 /**
  * Two-column detail page: a fixed-width meta sidebar beside the main column of
  * stacked sections. Collapses to a single stacked column on narrow screens
- * (sidebar first).
+ * (sidebar first). Centred at `max-w-6xl` by default; pass `fullWidth` when the
+ * main column needs the whole page (e.g. a wide timeline) — the sidebar keeps
+ * its fixed width and the main column takes the rest.
  */
 export function DetailLayout({
   sidebar,
   children,
+  fullWidth = false,
 }: {
   sidebar: ReactNode;
   children: ReactNode;
+  fullWidth?: boolean;
 }) {
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8 md:flex-row md:gap-10">
+    <div
+      className={cn(
+        "flex flex-col gap-8 md:flex-row md:gap-10",
+        fullWidth ? "w-full" : "mx-auto max-w-6xl",
+      )}
+    >
       <aside className="flex w-full flex-col gap-5 md:w-80 md:shrink-0">
         {sidebar}
       </aside>
