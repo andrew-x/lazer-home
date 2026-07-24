@@ -78,6 +78,29 @@ export function groupOfStatus(status: OpportunityStatus): OpportunityGroup {
   return groupByStatus[status];
 }
 
+/** A group by its id (e.g. resolving a `stage` filter param to its statuses). */
+export function opportunityGroupById(id: OpportunityGroupId): OpportunityGroup {
+  return OPPORTUNITY_GROUPS[GROUP_INDEX_BY_ID[id]];
+}
+
+// --- Board column capping --------------------------------------------------
+
+/**
+ * The high-volume board columns. Maturing accrues early-stage deals and the two
+ * closed columns accrue every decided deal forever, so the board fetches only
+ * the most-recently-updated {@link BOARD_COLUMN_CAP} of each — the rest are
+ * browsable in the list view (a "Show more" link deep-links there, filtered to
+ * the column's group). Every other column shows its full contents.
+ */
+export const CAPPED_BOARD_STATUSES = [
+  "maturing",
+  "closed_won",
+  "closed_lost",
+] as const satisfies readonly OpportunityStatus[];
+
+/** How many cards a capped column shows before its "Show more" link. */
+export const BOARD_COLUMN_CAP = 20;
+
 /** A status's group's pipeline index — the notion of "earlier/later" in the pipeline. */
 function groupIndexOfStatus(status: OpportunityStatus): number {
   return GROUP_INDEX_BY_ID[groupByStatus[status].id];

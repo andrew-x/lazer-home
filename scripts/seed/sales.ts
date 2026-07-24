@@ -3,7 +3,12 @@ import { LINE_OF_BUSINESS } from "@/lib/crm/line-of-business";
 import {
   OPPORTUNITY_SOURCES,
   OPPORTUNITY_STATUSES,
+  type OpportunityStatus,
 } from "@/lib/crm/opportunity";
+import {
+  BOARD_COLUMN_CAP,
+  CAPPED_BOARD_STATUSES,
+} from "@/lib/crm/opportunity-pipeline";
 import { generateId } from "@/lib/db/ids";
 import {
   type Company,
@@ -44,11 +49,23 @@ export async function seedOpportunities(
     contactsByCompany.set(contact.companyId, list);
   }
 
-  // At least two per status → ≥28 opportunities, every column populated.
+  // Every column gets a couple of cards; the capped columns
+  // (`CAPPED_BOARD_STATUSES`) get more than `BOARD_COLUMN_CAP` so the board
+  // truncates them, surfaces a "Show more" link, and the list view has multiple
+  // pages to browse. Derived from the cap so this stays correct if it changes.
+  const capped = new Set<OpportunityStatus>(CAPPED_BOARD_STATUSES);
+  const countFor = (status: OpportunityStatus) =>
+    capped.has(status) ? BOARD_COLUMN_CAP + 5 : 2;
+
   let position = 1;
   for (const status of OPPORTUNITY_STATUSES) {
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < countFor(status); i++) {
       const company = faker.helpers.arrayElement(companies);
+      // Spread timestamps over the past few months so the capped columns'
+      // "most recent" (updatedAt desc) selection is meaningful and the list's
+      // "Last updated" column varies. `updatedAt` is never before `createdAt`.
+      const createdAt = faker.date.recent({ days: 180 });
+      const updatedAt = faker.date.between({ from: createdAt, to: new Date() });
       rows.push({
         id: generateId("opp"),
         name: `${company.name} — ${faker.commerce.productName()}`,
@@ -57,6 +74,8 @@ export async function seedOpportunities(
         status,
         lineOfBusiness: faker.helpers.arrayElement(LINE_OF_BUSINESS),
         position: position++,
+        createdAt,
+        updatedAt,
       });
     }
   }
