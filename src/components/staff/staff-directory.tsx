@@ -9,30 +9,13 @@ import {
   SegmentedFilter,
   SelectFilter,
 } from "@/components/form/filters";
+import { SkillsFilter } from "@/components/form/skills-filter";
 import { StaffCard } from "@/components/staff/staff-card";
-import {
-  Combobox,
-  ComboboxChip,
-  ComboboxChips,
-  ComboboxChipsInput,
-  ComboboxCollection,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxGroup,
-  ComboboxItem,
-  ComboboxLabel,
-  ComboboxList,
-  useComboboxAnchor,
-} from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
-import {
-  matchesSkillFilter,
-  type ProficiencyLevel,
-  SKILL_CATEGORIES,
-} from "@/lib/staff/skills";
+import { matchesSkillFilter, type ProficiencyLevel } from "@/lib/staff/skills";
 import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff/staff-enums";
 
 /** Sentinel min-level meaning "any proficiency" — imposes no level constraint. */
@@ -44,62 +27,6 @@ const MIN_LEVEL_OPTIONS: { value: ProficiencyLevel; label: string }[] = [
   { value: "intermediate", label: "Intermediate+" },
   { value: "senior", label: "Senior" },
 ];
-
-/** The skill catalogue shaped as Base UI Combobox groups (label + items). */
-const SKILL_GROUPS = SKILL_CATEGORIES.map((category) => ({
-  value: category.name,
-  items: [...category.skills],
-}));
-
-/** A grouped, searchable multi-select of catalogue skills, shown as chips. */
-function SkillsFilter({
-  value,
-  onChange,
-}: {
-  value: string[];
-  onChange: (next: string[]) => void;
-}) {
-  const anchor = useComboboxAnchor();
-  return (
-    <div className="flex flex-col gap-1.5">
-      <FilterLabel>Skills</FilterLabel>
-      <Combobox
-        multiple
-        items={SKILL_GROUPS}
-        value={value}
-        onValueChange={onChange}
-      >
-        <ComboboxChips ref={anchor} className="w-full">
-          {value.map((skill) => (
-            <ComboboxChip key={skill} aria-label={skill}>
-              {skill}
-            </ComboboxChip>
-          ))}
-          <ComboboxChipsInput
-            placeholder={value.length === 0 ? "Search skills…" : ""}
-          />
-        </ComboboxChips>
-        <ComboboxContent anchor={anchor}>
-          <ComboboxEmpty>No skills found.</ComboboxEmpty>
-          <ComboboxList>
-            {(group: { value: string; items: string[] }) => (
-              <ComboboxGroup key={group.value} items={group.items}>
-                <ComboboxLabel>{group.value}</ComboboxLabel>
-                <ComboboxCollection>
-                  {(skill: string) => (
-                    <ComboboxItem key={skill} value={skill}>
-                      {skill}
-                    </ComboboxItem>
-                  )}
-                </ComboboxCollection>
-              </ComboboxGroup>
-            )}
-          </ComboboxList>
-        </ComboboxContent>
-      </Combobox>
-    </div>
-  );
-}
 
 /**
  * Staff directory: client-side name search + line-of-business / role selects, a

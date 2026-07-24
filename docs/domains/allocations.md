@@ -3,8 +3,60 @@
 **Status: proposed as a full domain — partially realized.** Staffing People onto
 Projects over time — the heart of capacity planning. The first concrete cut of the
 Allocation entity **already exists** as `project_roles` in the Projects domain (see
-[projects.md](./projects.md)); the full domain below (capacity planning, forecast vs.
-actuals, conflict handling) is still proposed.
+[projects.md](./projects.md)), and a **read-only company-wide planner view**
+(`/allocations`) now surfaces that data as a weekly grid (see *The planner view*
+below). The rest of the domain (a dedicated capacity model, forecast vs. actuals,
+conflict handling) is still proposed.
+
+## The planner view (realized) — a read over `project_roles`, not a new table
+
+`/allocations` is a **read-only, company-wide** grid: **rows = active staff**,
+**columns = weeks** over a user-chosen date range (default: current week + next 11,
+12 columns). It's a **view over existing tables — no schema change**. It reads
+`project_roles` (the plan), `staff` + `staff_employment` (who + their current facts),
+and `staff_pto` (availability). It is **visible to everyone signed in — no permission
+gate** (the same open-read posture as the staff/CRM/projects lists).
+
+- **What a cell shows.** For each person-week, every project the person is allocated
+  to that week — project name + a **percentage of a 40-hour week**, with a tooltip
+  (project, role, duration, status). **Confirmed** roles render as a solid block,
+  **tentative** as a dashed outline. Approved time off renders as a neutral **"Away"**
+  strip (availability only).
+- **What appears.** Only **staffed** roles (non-null `staffId` — placeholders/open
+  positions have no person to row) with status **`tentative` or `confirmed`**;
+  `paused`/`cancelled` roles are excluded (not an active allocation). Only **approved**
+  (non-pending) PTO is shown.
+- **PTO disclosure is minimal, and gated.** Everyone sees the reason-free "Away"
+  strip; the leave **type** is revealed only to viewers holding **`pto.review`** —
+  `getAllocationsGrid` nulls the `type` field otherwise. This preserves the PTO gate
+  rather than loosening it; see [ADR 0038](../decisions/0038-allocations-planner-pto-disclosure.md)
+  and [permissions.md](./permissions.md).
+- **Filter bar.** Narrows the staff rows in-memory (the once-fetched-list pattern the
+  staff directory uses) by name, line of business, employment type, role, and skills.
+  The skills multi-select is the shared `src/components/form/skills-filter.tsx`
+  (extracted from the staff directory, now used by both).
+
+### Code map
+
+- **Read:** `src/actions/allocations/getAllocationsGrid.ts` (server-only; also
+  re-exports `allocationsFilterOptions = STAFF_FILTER_OPTIONS`). Two-query
+  latest-employment-per-person fold (no N+1), mirroring `getStaffDirectory`.
+- **Pure grid math:** `src/lib/allocations/allocations-grid.ts` — builds the ISO-Monday
+  week-column spine, folds staff + roles + PTO into one row per person, and computes
+  the per-week percentage: `hoursPerDay × (active Mon–Fri weekdays that week) / 40`,
+  rounded and **capped at 100** (a mid-week end date or a part-day, e.g. 4h/day → 50%,
+  shows as a partial %). Client-importable (no `db`/drizzle), reusing the timesheet
+  week helpers — it **mirrors `src/lib/projects/project-planner-grid.ts`** (the
+  opportunity planner's grid), so keep the two in step when either changes.
+- **UI:** `src/components/allocations/allocations-planner.tsx` (filter bar + window),
+  `allocations-grid.tsx` (render-only grid + legend), page
+  `src/app/(app)/allocations/page.tsx`. Nav entry added to `NAV_ITEMS`
+  (`src/components/app-shell/nav.ts`), ungated.
+
+> **This is a *view*, not the missing capacity model.** It reads one project's-worth
+> of roles per person per week but does **not** sum a person's load across projects,
+> flag over-allocation, or reconcile against timesheet actuals — those remain the
+> open questions below.
 
 ## Purpose
 
@@ -53,5 +105,8 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
 - ~~Soft (tentative) vs. hard (confirmed) allocations?~~ **Resolved** — a role's `status`
   (`tentative` → `confirmed`, auto-confirmed on the opportunity's win) models exactly this.
   See [ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md).
-- How are conflicts/over-allocation surfaced and resolved? (The planner shows one project's
-  roles per person, but nothing yet sums a person's load *across* projects.)
+- How are conflicts/over-allocation surfaced and resolved? (The planner view lists each
+  project a person is on per week with its own %, but nothing yet **sums** those into a
+  total weekly load or flags >100% over-allocation.)
+- How are the planner-view percentages (the *plan*) reconciled against timesheet
+  actuals? Still unbuilt.
