@@ -193,6 +193,13 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
   returns `null` and `ProfileView` hides the section (graceful, not an error).
   (Reads are plain server-only functions, not actions, so they call the helpers
   inline rather than via a composed client.)
+- **`src/actions/allocations/getAllocationsGrid.ts`** — the (ungated, company-wide)
+  allocations planner read. A **second `pto.review` enforcement site**: the planner
+  shows everyone a reason-free "Away" strip, but reveals the leave **`type`** only to
+  a `pto.review` holder — `canSeePtoType = userHasPermission(user, { pto: ["review"] })`,
+  and the `type` field is **nulled** in the projection otherwise, so the reason never
+  leaves the server. Minimal disclosure, not a loosening of the PTO gate — see
+  [ADR 0038](../decisions/0038-allocations-planner-pto-disclosure.md).
 
 ## Wiring
 

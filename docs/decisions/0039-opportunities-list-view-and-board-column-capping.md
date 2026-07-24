@@ -1,4 +1,4 @@
-# 0038 — Opportunities list view + board column capping
+# 0039 — Opportunities list view + board column capping
 
 **Status:** accepted · 2026-07-24
 
@@ -76,5 +76,3 @@ as the exhaustive browse.** No schema change (reuses existing `status`,
 - **A standalone `/opportunities/[id]` detail page.** Rejected for now — the
   drawer already covers detail/edit in both views; a second detail surface would
   duplicate it.
-</content>
-</invoke>

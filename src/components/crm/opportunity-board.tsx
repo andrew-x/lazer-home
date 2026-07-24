@@ -407,6 +407,25 @@ export function OpportunityBoard({
     ? (cards.find((c) => c.id === activeId) ?? null)
     : null;
 
+  // Prev/next neighbours for the open card, within its column's *visible* cards
+  // so navigation matches what the search filter is showing. Undefined at a
+  // boundary; if the selected card is filtered out (idx === -1) `navTotal` is 0
+  // and the drawer hides its nav controls and x-of-y count.
+  const selectedColId = selectedId ? columnIdByCard.get(selectedId) : undefined;
+  const siblings = selectedColId
+    ? (visibleByColumnId.get(selectedColId) ?? [])
+    : [];
+  const selectedIndex = siblings.findIndex((c) => c.id === selectedId);
+  const prevId = selectedIndex > 0 ? siblings[selectedIndex - 1].id : null;
+  const nextId =
+    selectedIndex >= 0 && selectedIndex < siblings.length - 1
+      ? siblings[selectedIndex + 1].id
+      : null;
+  // 1-based position + column size for the "x of y" indicator; 0 when the card
+  // isn't in the visible list, which hides the whole nav strip.
+  const navTotal = selectedIndex >= 0 ? siblings.length : 0;
+  const navPosition = selectedIndex >= 0 ? selectedIndex + 1 : 0;
+
   const board = (
     <div className="flex gap-4 overflow-x-auto pb-2">
       {units.map((unit) =>
@@ -550,6 +569,10 @@ export function OpportunityBoard({
             open={drawerOpen}
             onOpenChange={setDrawerOpen}
             canCreateProject={canCreateProject}
+            onPrev={prevId ? () => setSelectedId(prevId) : undefined}
+            onNext={nextId ? () => setSelectedId(nextId) : undefined}
+            position={navPosition}
+            total={navTotal}
           />
           <ConfirmDialog
             open={projectPrompt !== null}
