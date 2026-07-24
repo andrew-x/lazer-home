@@ -213,14 +213,28 @@ delivery, allocations, timesheets, and billing.
   - **Role CRUD (planner) — all gated `projects.edit`.** `createProjectRole` (adds a fresh
     tentative role/open position to the opportunity's project), `updateProjectRole` (edits an
     existing role's fields), `deleteProjectRole` (removes one), `extendProjectRole` (inserts a
-    **new** tentative segment sharing a source role's `staffId`/`description`/`roleType` — the planner
-    groups shared-staff rows into one person line, so an extension stacks as another block).
-    Each derives the target project from the opportunity's `projectId` (a role can't be planted
-    on an unrelated project); the mutating ones (`update`/`delete`) go through the shared
-    **`assertRoleEditable`** guard: you may only edit a role that is **tentative** *and*
-    **tagged with the current opportunity** (a data-integrity invariant on top of the RBAC
-    gate, mirroring `assertOpportunityTransitionAllowed`). All revalidate `/opportunities` +
-    `/projects`.
+    **new** tentative segment sharing a source role's `staffId`/`description`/`roleType`; each
+    role is its own planner row, so an extension shows as a separate row for the same person —
+    the source must be **confirmed** and on this opportunity's project, though it may belong to
+    another opportunity). Each derives the target project from the opportunity's `projectId` (a
+    role can't be planted on an unrelated project); the mutating ones (`update`/`delete`) go
+    through the shared **`assertRoleEditable`** guard: you may only edit a role that is
+    **tentative** *and* **tagged with the current opportunity** (a data-integrity invariant on
+    top of the RBAC gate, mirroring `assertOpportunityTransitionAllowed`). All revalidate
+    `/opportunities` + `/projects`.
+  - **Bulk role actions (planner selection) — all gated `projects.edit`.** The planner's row
+    checkboxes drive three batch actions over the selected editable roles, each taking
+    `{ opportunityId, roleIds }` and running **`assertRoleEditable` per id inside one
+    transaction** (a single non-editable id aborts the whole batch): **`deleteProjectRoles`**
+    (bulk remove), **`duplicateProjectRoles`** (copies each role's *shape* — LoB, description,
+    role type, dates, hours — as a fresh **tentative, unstaffed open position**, deliberately
+    dropping the assigned `staffId`), and **`bumpProjectRoles`** (`+ weeks`: shifts each role's
+    `startDate` **and** `endDate` by whole weeks via `addWeeks`, preserving duration; `weeks`
+    may be negative to pull work earlier). Plus **`assignRoleStaff`** (`{ roleId, opportunityId,
+    staffId }`, `staffId` nullable) — the inline "Assign staff…" picker on an editable unstaffed
+    row; sets or clears the role's `staffId`. All are `secureActionClient`, gated `projects.edit`,
+    guarded by `assertRoleEditable`, and revalidate `/opportunities` + `/projects`. **No RBAC
+    matrix change** — they reuse the existing `projects.edit` capability.
   - `associateOpportunityProject.ts` (+ `.schema.ts`) — link an opportunity to an **existing**
     project (the other half of the planner's empty state). **Gated `projects.edit`** (a delivery
     decision, though it writes an `opportunities` column). **Enforces the same-company invariant**
@@ -235,7 +249,12 @@ delivery, allocations, timesheets, and billing.
     `status` + `lineOfBusiness` + `opportunityId` so the client renders this opportunity's
     tentative roles editable and everything else (confirmed, paused/cancelled, or other
     opportunities') greyed. Also returns the overall timeline span and role count. Null only if
-    the opportunity is unknown; no-project ⇒ empty plan.
+    the opportunity is unknown; no-project ⇒ empty plan. **It additionally returns
+    `externalAllocations: ExternalAllocation[]`** — the **other-project commitments** of everyone
+    staffed on this project: a second query over `project_roles` for those `staffId`s where the
+    project is **not** this one and the status is `tentative`/`confirmed` (the allocations grid's
+    filter), joined to `projects.name`. The planner greys these behind each staffed row's own
+    load so an over-allocation is visible while planning the deal. Empty when no one is staffed.
   - `loadOpportunityPlan.ts` — the **interactive-read** `'use server'` wrapper (like
     `loadOpportunityDetail`), gated **`crm.edit`** because the planner lives in the edit-only
     drawer; write controls are separately `projects.edit`-gated per mutating action.
@@ -249,10 +268,21 @@ delivery, allocations, timesheets, and billing.
     query the CRM `searchStaff`/`searchCompanies` now also delegate to. Same query,
     separate permission gates per domain.
   - **Role planning grid math** — `src/lib/projects/project-planner-grid.ts` is a **pure,
-    client-importable** module (no `db`/React): `buildWeekColumns` (the ISO-Monday week spine),
-    `buildPlannerRows` (groups roles into person-rows + placeholder rows, per-segment
-    editability from the current opportunity id), `weekColumnLabel`, `weekSpan`. Mirrors
-    `timesheet-grid.ts`; relies on the new `eachWeek(start, end)` in `timesheet-week.ts`.
+    client-importable** module (no `db`/React): `buildWeekColumns(roles)` (the ISO-Monday week
+    spine from earliest role start to latest role end), `buildPlannerRows(roles,
+    externalAllocations, weekColumns, currentOpportunityId)`, and `weekColumnLabel`. It is now
+    **role-centric — one `PlannerRow` per project role** (was one row per person with a person's
+    roles grouped onto a line). Exported types: `PlannerRow` (`roleId`, `roleLabel`,
+    `roleTypeLabel`, `hoursPerDay`, `status`, `editable`, `staffId`, `staffName`, `startDate`,
+    `endDate`, `weeks`), `PlannerCell` (`{ own: OwnBlock | null; external: ExternalBlock[] }`),
+    `OwnBlock` (this role's own % load for a week + start/end flags), and `ExternalBlock` (one of
+    the assignee's other-project commitments in that week, greyed behind the own block). Per-row
+    `editable` is derived from the `currentOpportunityId` (tentative + this opportunity). Rows sort
+    **editable-first, then by start date, then staff name / role label**. It **reuses `weekPercent`
+    from `@/lib/allocations/allocations-grid`** so both planners agree on a week's load;
+    `weekColumnLabel` now renders the **full week range** (e.g. `"Aug 3 – Aug 9"`, was a single
+    Monday date). Mirrors `timesheet-grid.ts`; relies on `eachWeek(start, end)` in
+    `timesheet-week.ts`.
   - **Auto-confirm on won** — `src/actions/crm/confirmRolesOnWon.ts` (server-only) flips every
     tentative role tagged with an opportunity to `confirmed` on a genuine transition into
     `closed_won`; wired into `updateOpportunityField`/`updateOpportunity`/`updateOpportunityPosition`
@@ -280,19 +310,34 @@ delivery, allocations, timesheets, and billing.
   `role-dialog.tsx` + `extend-dialog.tsx`) renders the opportunity drawer's **Project plan** tab
   as a **weekly Gantt-like planner** — effectively the project editor. It lives under
   `components/projects/` (delivery UI) but is still **mounted inside the CRM opportunity detail
-  sheet** (`components/crm/opportunity-detail-sheet.tsx`). A **summary** header shows the project's **derived** lines of business, a
-  **Delivery manager** card (from `getOpportunityPlan`'s `deliveryManagers`), and an **"Edit
-  project"** button opening an edit dialog wired to `updateProject` (**name + delivery managers
-  only** — no status/LoB, since those derive; roles are edited in the grid below). It also offers
-  **"Remove project"** (`removeProjectFromOpportunity`). Below that, summary StatCards (timeline
-  weeks, role count) over a grid of roles × week columns (rows grouped by person; a filled cell =
-  role active that week). Each role carries its own line of business (defaulted from the
-  opportunity when added). This opportunity's tentative roles are **editable** (click a block to
-  edit, Add role, Extend a role); confirmed, paused/cancelled, and other opportunities' roles
-  render **greyed/read-only**. Editable "this deal" blocks use the indigo `bg-primary` accent.
-  The empty state offers **associate an existing project** (`searchProjects` → `associateOpportunityProject`)
-  or **create a new one** (one-click `createProjectFromOpportunity`). All write controls gated on
-  `projects.edit`. Grid math is the pure `project-planner-grid.ts` (above).
+  sheet** (`components/crm/opportunity-detail-sheet.tsx`). A **summary** header shows the
+  project's **derived** lines of business, an **"Edit project"** button opening an edit dialog
+  wired to `updateProject` (**name + delivery managers only** — no status/LoB, since those
+  derive; roles are edited in the grid below), and **"Remove project"**
+  (`removeProjectFromOpportunity`). Below that, summary `StatCard` tiles: **Timeline** (length in
+  weeks + derived project status), **Dates** (the overall `plan.timeline` start–end), **Roles**
+  count, and **Delivery managers** — plus, **when any role is confirmed**, separate **Confirmed**
+  and **Tentative** date-range tiles so the locked-in span reads apart from the proposed one.
+  - **The grid is now role-centric: one row per role** (was one row per person). It has **two
+    sticky lead columns — Role and Staff** — then a cell per week column. A filled `OwnBlock` = the
+    role active that week, carrying its % of a 40-hour week; a **Staff** cell shows the assigned
+    person's name, an inline `EntityCombobox` **"Assign staff…"** picker on editable unstaffed rows
+    (wired to `assignRoleStaff`), or a dash. In each **staffed** row's week cells, the assignee's
+    **other-project commitments** (from `getOpportunityPlan`'s `externalAllocations`) are greyed in
+    behind the own block (project name + % + tooltip), mirroring the allocations grid's block style —
+    surfacing over-allocation while planning.
+  - **Selection + bulk actions.** Editable rows carry checkboxes (the vendored
+    `src/components/ui/checkbox.tsx`); a header checkbox toggles all editable rows. When any are
+    selected a **bulk bar** offers **Delete** (`deleteProjectRoles`), **Duplicate**
+    (`duplicateProjectRoles` — copies as unstaffed open positions), and **Bump…** (a confirm
+    dialog collecting a non-zero whole number → `bumpProjectRoles`, shifting start+end together).
+  - This opportunity's tentative roles are **editable** (per-row Edit button, Add role, Extend a
+    role — extend is **confirmed-roles only**); confirmed, paused/cancelled, and other
+    opportunities' roles render **greyed/read-only**. Editable "this deal" blocks use the indigo
+    `bg-primary` accent. The empty state offers **associate an existing project** (`searchProjects`
+    → `associateOpportunityProject`) or **create a new one** (one-click
+    `createProjectFromOpportunity`). All write controls gated on `projects.edit`. Grid math is the
+    pure `project-planner-grid.ts` (above).
 
 ## Delete / detach
 
@@ -328,6 +373,8 @@ ownership dimension): **`projects.edit`**, granted to `delivery-manager`, `manag
 **`createProjectFromOpportunity`**), **editing a project** (`updateProject` — name + delivery
 managers), **removing a project from an opportunity** (`removeProjectFromOpportunity`), **all
 planner role CRUD** (`createProjectRole`/`updateProjectRole`/`deleteProjectRole`/`extendProjectRole`),
+**the bulk role actions + inline staff assignment**
+(`deleteProjectRoles`/`duplicateProjectRoles`/`bumpProjectRoles`/`assignRoleStaff`),
 **associating an opportunity to an existing project** (`associateOpportunityProject` — a
 delivery decision even though it writes an `opportunities` column), and the type-ahead pickers
 (`searchStaff`/`searchCompanies`/`searchProjects`). (**Deleting the opportunity itself** —
@@ -360,8 +407,11 @@ clean). See [permissions.md](./permissions.md).
   [ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md).
 - **Plan staffing against a deal** (built) — in the opportunity drawer's **Project plan** tab,
   add/edit/delete/extend **tentative roles** on the linked project via the weekly planner
-  (scoped to this opportunity's own roles by `assertRoleEditable`). Roles **auto-confirm** when
-  the opportunity is won ([ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md)).
+  (scoped to this opportunity's own roles by `assertRoleEditable`), plus **bulk delete/duplicate/
+  bump** on selected rows and **inline staff assignment** on unstaffed rows. Assigning someone
+  greys their **other-project commitments** into the grid so over-allocation is visible. Roles
+  **auto-confirm** when the opportunity is won
+  ([ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md)).
 
 ## Connects to
 
