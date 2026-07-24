@@ -13,6 +13,7 @@ import {
   type SQL,
   sql,
 } from "drizzle-orm";
+import { citiesNear } from "@/lib/cities/cities";
 import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/core/pagination";
 import type { CompanyStatusTag } from "@/lib/crm/company-status";
 import { CLOSED_OPPORTUNITY_STATUSES } from "@/lib/crm/opportunity";
@@ -27,6 +28,7 @@ import {
 export type CompanyRow = {
   id: string;
   name: string;
+  location: string | null;
   // Derived status flags (see src/lib/company-status.ts). `isPartner` is the
   // stored manual flag; `isClient`/`isProspect` are computed from the pipeline.
   isPartner: boolean;
@@ -34,10 +36,15 @@ export type CompanyRow = {
   isProspect: boolean;
 };
 
-/** Optional filters for the companies list — name search and a single status tag. */
+/** Optional filters for the companies list — name search, a single status tag,
+ * and a location (a "City, CC" label, optionally expanded to nearby cities). */
 export type CompanyListFilters = {
   query?: string;
   status?: CompanyStatusTag;
+  /** A "City, CC" label to match on `companies.location`. */
+  city?: string;
+  /** When true, also match cities within the "nearby" radius of `city`. */
+  nearby?: boolean;
 };
 
 // A company is a **client** iff it has at least one confirmed project. There's
@@ -119,6 +126,10 @@ function companiesWhere(filters: CompanyListFilters): SQL | undefined {
   const query = filters.query?.trim();
   if (query) conditions.push(ilike(companies.name, `%${query}%`));
   if (filters.status) conditions.push(STATUS_CONDITION[filters.status]);
+  if (filters.city) {
+    const labels = filters.nearby ? citiesNear(filters.city) : [filters.city];
+    conditions.push(inArray(companies.location, labels));
+  }
   return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
@@ -150,6 +161,7 @@ export async function getCompaniesPage(
     .select({
       id: companies.id,
       name: companies.name,
+      location: companies.location,
       isPartner: companies.isPartner,
       isClient: isClientExpr,
       isProspect: isProspectExpr,

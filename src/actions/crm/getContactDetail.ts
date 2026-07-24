@@ -45,6 +45,7 @@ export type ContactDetail = {
   phone: string | null;
   role: string | null;
   linkedinUrl: string | null;
+  location: string | null;
   companyId: string | null;
   companyName: string | null;
   managerId: string | null;
@@ -90,6 +91,7 @@ export const getContactDetail = cache(
         phone: contacts.phone,
         role: contacts.role,
         linkedinUrl: contacts.linkedinUrl,
+        location: contacts.location,
         companyId: contacts.companyId,
         companyName: companies.name,
         managerId: contacts.managerId,

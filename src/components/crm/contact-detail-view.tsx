@@ -22,6 +22,7 @@ import {
 } from "./detail-parts";
 import { EditContactDialog } from "./edit-contact-dialog";
 import { EntryLog } from "./entry-log";
+import { InlineLocationField } from "./inline-location-field";
 import { InlineOwnerField } from "./inline-owner-field";
 import { InlineRelationshipStrengthField } from "./inline-relationship-strength-field";
 import { OpportunityStatusBadge } from "./opportunity-status-badge";
@@ -158,6 +159,15 @@ export function ContactDetailView({
                 </InternalLink>
               ) : null}
             </MetaField>
+          </SidebarSection>
+
+          <SidebarSection>
+            <InlineLocationField
+              kind="contact"
+              entityId={contact.id}
+              canEdit={canEdit}
+              location={contact.location}
+            />
           </SidebarSection>
 
           <SidebarSection>

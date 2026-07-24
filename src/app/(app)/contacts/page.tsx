@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getContactsPage } from "@/actions/crm/getContactsPage";
 import { AddContactDialog } from "@/components/crm/add-contact-dialog";
+import { ContactsListFilters } from "@/components/crm/contacts-list-filters";
 import { ContactsTable } from "@/components/crm/contacts-table";
 import { PaginationControls } from "@/components/pagination-controls";
 import { getCurrentUser } from "@/lib/auth/auth";
@@ -17,9 +18,11 @@ export default async function ContactsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const city = typeof params.city === "string" ? params.city : undefined;
+  const nearby = params.nearby === "1";
 
   const [contacts, user] = await Promise.all([
-    getContactsPage(parsePage(params.contactsPage)),
+    getContactsPage(parsePage(params.contactsPage), { city, nearby }),
     getCurrentUser(),
   ]);
 
@@ -43,8 +46,9 @@ export default async function ContactsPage({
           </h3>
           {canEdit ? <AddContactDialog /> : null}
         </div>
+        <ContactsListFilters params={params} />
         <div className="rounded-md border">
-          <ContactsTable rows={contacts.rows} />
+          <ContactsTable rows={contacts.rows} filtered={city !== undefined} />
           <PaginationControls
             basePath="/contacts"
             params={params}

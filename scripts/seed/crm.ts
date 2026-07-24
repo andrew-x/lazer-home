@@ -1,4 +1,5 @@
 import type { InferInsertModel } from "drizzle-orm";
+import { cityLabelsForCountries } from "@/lib/cities/cities";
 import { generateId } from "@/lib/db/ids";
 import {
   type Company,
@@ -13,6 +14,10 @@ import { chance, faker } from "./faker";
 const COMPANY_COUNT = 20;
 const CONTACT_COUNT = 40;
 
+// Seeded locations focus on US & Canada, drawn from the static world-cities list
+// so every seeded value is one the location picker would actually offer.
+const US_CA_CITIES = cityLabelsForCountries(["US", "CA"]);
+
 type CompanyInsert = InferInsertModel<typeof companies>;
 type ContactInsert = InferInsertModel<typeof contacts>;
 
@@ -26,6 +31,7 @@ export async function seedCrm(db: SeedDb, staff: Staff[]): Promise<CrmResult> {
       id: generateId("company"),
       name: faker.company.name(),
       websiteUrl: chance(0.8) ? faker.internet.url() : null,
+      location: chance(0.8) ? faker.helpers.arrayElement(US_CA_CITIES) : null,
       isPartner: chance(0.25),
       ownerId: chance(0.7) ? faker.helpers.arrayElement(staff).id : null,
     }),
@@ -52,6 +58,7 @@ export async function seedCrm(db: SeedDb, staff: Staff[]): Promise<CrmResult> {
       companyId: company.id,
       role: chance(0.8) ? faker.person.jobTitle() : null,
       linkedinUrl: chance(0.5) ? faker.internet.url() : null,
+      location: chance(0.7) ? faker.helpers.arrayElement(US_CA_CITIES) : null,
       managerId: null,
       ownerId: chance(0.7) ? faker.helpers.arrayElement(staff).id : null,
       relationshipStrength: chance(0.85)

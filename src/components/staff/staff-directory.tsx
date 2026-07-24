@@ -1,7 +1,9 @@
 "use client";
 
 import { IconSearch } from "@tabler/icons-react";
-import { useId, useMemo, useState } from "react";
+import { useAction } from "next-safe-action/hooks";
+import { useEffect, useId, useMemo, useState } from "react";
+import { nearbyCityLabels } from "@/actions/cities/nearbyCityLabels";
 import type { StaffDirectoryEntry } from "@/actions/staff/getStaffDirectory";
 import {
   ALL,
@@ -9,6 +11,7 @@ import {
   SegmentedFilter,
   SelectFilter,
 } from "@/components/form/filters";
+import { LocationFilterControl } from "@/components/form/location-filter-control";
 import { SkillsFilter } from "@/components/form/skills-filter";
 import { StaffCard } from "@/components/staff/staff-card";
 import { Input } from "@/components/ui/input";
@@ -54,6 +57,25 @@ export function StaffDirectory({
   const [skills, setSkills] = useState<string[]>([]);
   const [minLevel, setMinLevel] = useState<MinLevel>(ANY_LEVEL);
   const [showInactive, setShowInactive] = useState(false);
+  const [city, setCity] = useState<string | null>(null);
+  const [nearby, setNearby] = useState(false);
+
+  // "Search nearby" needs the world-cities dataset, which stays server-side — so
+  // resolve the nearby label set via an action whenever city + nearby are on.
+  const { execute, reset, result } = useAction(nearbyCityLabels);
+  useEffect(() => {
+    if (city && nearby) execute({ city });
+    else reset();
+  }, [city, nearby, execute, reset]);
+
+  // The set of locations that pass the filter: null = no location filter; an
+  // exact-city set; or (nearby) the resolved nearby labels — falling back to the
+  // exact city while the action is still in flight.
+  const locationSet = useMemo(() => {
+    if (!city) return null;
+    if (!nearby) return new Set([city]);
+    return new Set(result.data ?? [city]);
+  }, [city, nearby, result.data]);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -66,6 +88,8 @@ export function StaffDirectory({
       if (role !== ALL && entry.role !== role) return false;
       if (type !== ALL && entry.employmentType !== type) return false;
       if (!matchesSkillFilter(entry.skills, skills, minimum)) return false;
+      if (locationSet && !(entry.location && locationSet.has(entry.location)))
+        return false;
       return true;
     });
   }, [
@@ -77,28 +101,28 @@ export function StaffDirectory({
     skills,
     minLevel,
     showInactive,
+    locationSet,
   ]);
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1.5">
-          <FilterLabel htmlFor={searchId}>Name</FilterLabel>
-          <div className="relative">
-            <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id={searchId}
-              type="search"
-              placeholder="Search by name…"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="pl-9"
-            />
-          </div>
-        </div>
-
         <div className="grid grid-cols-4 items-end gap-4">
-          <div className="col-span-3">
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel htmlFor={searchId}>Name</FilterLabel>
+            <div className="relative">
+              <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id={searchId}
+                type="search"
+                placeholder="Search by name…"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
+          <div className={skills.length > 0 ? "col-span-2" : "col-span-3"}>
             <SkillsFilter value={skills} onChange={setSkills} />
           </div>
           {skills.length > 0 ? (
@@ -124,6 +148,18 @@ export function StaffDirectory({
             </div>
           ) : null}
         </div>
+
+        <LocationFilterControl
+          fullWidth
+          city={city}
+          nearby={nearby}
+          onCityChange={(label) => {
+            setCity(label);
+            // Clearing the city drops "nearby" too — it means nothing alone.
+            if (!label) setNearby(false);
+          }}
+          onNearbyChange={setNearby}
+        />
 
         <div className="grid grid-cols-4 items-end gap-4">
           <SelectFilter

@@ -37,6 +37,7 @@ export function CompaniesTable({
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
+          <TableHead>Location</TableHead>
           <TableHead>Status</TableHead>
         </TableRow>
       </TableHeader>
@@ -50,6 +51,7 @@ export function CompaniesTable({
                   {company.name}
                 </InternalLink>
               </TableCell>
+              <TableCell>{company.location ?? <EmptyCell />}</TableCell>
               <TableCell>
                 {tags.length > 0 ? (
                   <div className="flex flex-wrap gap-1">

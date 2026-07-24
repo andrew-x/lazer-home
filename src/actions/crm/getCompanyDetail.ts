@@ -81,6 +81,7 @@ export type CompanyDetail = {
   id: string;
   name: string;
   websiteUrl: string | null;
+  location: string | null;
   isPartner: boolean;
   ownerId: string | null;
   ownerName: string | null;
@@ -140,6 +141,7 @@ export const getCompanyDetail = cache(
         id: companies.id,
         name: companies.name,
         websiteUrl: companies.websiteUrl,
+        location: companies.location,
         isPartner: companies.isPartner,
         ownerId: companies.ownerId,
         ownerName: staff.name,
