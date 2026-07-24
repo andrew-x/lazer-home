@@ -1,8 +1,16 @@
 "use client";
 
-import { IconCheck, IconPencil, IconTrash, IconX } from "@tabler/icons-react";
+import {
+  IconCheck,
+  IconChevronDown,
+  IconChevronUp,
+  IconDotsVertical,
+  IconPencil,
+  IconTrash,
+  IconX,
+} from "@tabler/icons-react";
 import { useAction } from "next-safe-action/hooks";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { deleteOpportunity } from "@/actions/crm/deleteOpportunity";
 import type {
@@ -25,8 +33,15 @@ import {
 import { EnumSelect } from "@/components/form/enum-select";
 import { InlineEditField } from "@/components/form/inline-edit-field";
 import { IconButton } from "@/components/icon-button";
+import { InternalLink } from "@/components/internal-link";
 import { OpportunityProjectPlan } from "@/components/projects/opportunity-plan/opportunity-project-plan";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -58,25 +73,40 @@ import { STATUS_SELECT_LABELS } from "./opportunity-display";
 /**
  * The opportunity detail drawer: a wide right-side sheet opened by clicking a
  * board card. The header carries the name (edited in place with confirm/cancel)
- * and the status (a direct-edit select that saves on change). Below, an Info tab
- * holds the remaining fields — including the company — each editing one at a time
- * in place (per-field confirm/cancel, each saved via a field-scoped
- * `updateOpportunityField` write), and a
- * Project plan tab for the single project that delivers the opportunity. Detail
- * is loaded on open via `loadOpportunityDetail` and
- * re-fetched after every save so the read views reflect it. The drawer only
- * mounts for `crm.edit` users (gated on the board), so editing is always allowed.
+ * and the status (a direct-edit select that saves on change). Below, a Details
+ * tab lays the remaining fields — including the company — in a left meta column
+ * (each editing one at a time in place: per-field confirm/cancel, each saved via
+ * a field-scoped `updateOpportunityField` write) alongside next steps and notes
+ * on the right, plus a Project plan tab for the single project that delivers the
+ * opportunity. A left-edge control strip closes the drawer and (when the card has
+ * column siblings) steps to the previous/next opportunity via `onPrev`/`onNext`.
+ * Detail is loaded on open via `loadOpportunityDetail` and re-fetched after every
+ * save so the read views reflect it. The drawer only mounts for `crm.edit` users
+ * (gated on the board), so editing is always allowed.
  */
 export function OpportunityDetailSheet({
   opportunityId,
   open,
   onOpenChange,
   canCreateProject,
+  onPrev,
+  onNext,
+  position,
+  total,
 }: {
   opportunityId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   canCreateProject: boolean;
+  // Step to the previous/next opportunity in the same board column. Undefined
+  // when unavailable (boundary card). The nav controls (and the x-of-y count)
+  // show only when the column has more than one card (`total > 1`).
+  onPrev?: () => void;
+  onNext?: () => void;
+  // The open card's 1-based position within its column and the column's size,
+  // for the "x of y" indicator between the prev/next buttons.
+  position?: number;
+  total?: number;
 }) {
   const { execute: load, result, reset } = useAction(loadOpportunityDetail);
   const [detail, setDetail] = useState<OpportunityDetail | null>(null);
@@ -101,29 +131,69 @@ export function OpportunityDetailSheet({
     if (opportunityId) load({ id: opportunityId });
   }, [opportunityId, load]);
 
+  // Shared edge treatment for the left-edge control boxes: hairline border +
+  // popover fill; on lg+ it hangs off the drawer's outer edge, below that it
+  // tucks flush against the inner-left edge.
+  const edgeBox =
+    "flex flex-col rounded-l-none border border-l-0 bg-popover lg:-translate-x-full lg:rounded-l lg:rounded-r-none lg:border-r-0 lg:border-l";
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         showCloseButton={false}
-        className="w-full gap-0 data-[side=right]:sm:max-w-[64rem]"
+        className="w-full gap-0 data-[side=right]:sm:max-w-[80rem]"
       >
-        {/* Close handle as a tab on the drawer's left edge, clear of the header's
-            status control. It's a child of the (non-scrolling) popup so it can
-            escape the drawer's bounds and stays put while content scrolls. On lg+
-            (where the capped drawer leaves a left gutter) it hangs off the outside;
-            below that it tucks flush against the inner-left edge. */}
-        <SheetClose
-          render={
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="absolute top-4 left-0 z-10 h-10 w-8 rounded-l-none border border-l-0 bg-popover lg:-translate-x-full lg:rounded-l lg:rounded-r-none lg:border-r-0 lg:border-l"
-            />
-          }
-        >
-          <IconX />
-          <span className="sr-only">Close</span>
-        </SheetClose>
+        {/* Control strip on the drawer's left edge — a close box, then (when the
+            card has column siblings) a separate prev/count/next box. Children of
+            the (non-scrolling) popup so they escape the drawer's bounds and stay
+            put while content scrolls. On lg+ (where the capped drawer leaves a
+            left gutter) they hang off the outside; below that they tuck flush
+            against the inner-left edge. The gap separates close from navigation. */}
+        <div className="absolute top-4 left-0 z-10 flex flex-col gap-2">
+          <div className={edgeBox}>
+            <SheetClose
+              render={
+                <Button variant="ghost" size="icon-sm" className="h-10 w-8" />
+              }
+            >
+              <IconX />
+              <span className="sr-only">Close</span>
+            </SheetClose>
+          </div>
+          {total && total > 1 ? (
+            <div className={edgeBox}>
+              <IconButton
+                label="Previous opportunity"
+                side="right"
+                size="icon-sm"
+                className="h-10 w-8"
+                disabled={!onPrev}
+                onClick={onPrev}
+              >
+                <IconChevronUp />
+              </IconButton>
+              <span
+                className="flex flex-col items-center gap-0.5 border-t px-1 py-1.5 text-xs font-medium leading-none text-muted-foreground tabular-nums"
+                role="img"
+                aria-label={`Opportunity ${position} of ${total}`}
+              >
+                <span>{position}</span>
+                <span className="h-px w-3 bg-border" aria-hidden />
+                <span>{total}</span>
+              </span>
+              <IconButton
+                label="Next opportunity"
+                side="right"
+                size="icon-sm"
+                className="h-10 w-8 border-t"
+                disabled={!onNext}
+                onClick={onNext}
+              >
+                <IconChevronDown />
+              </IconButton>
+            </div>
+          ) : null}
+        </div>
         <div className="flex h-full flex-col overflow-y-auto">
           {/* pl clears the flush close tab below lg, where it sits inside the edge. */}
           <SheetHeader className="pl-12 lg:pl-4">
@@ -172,54 +242,60 @@ function OpportunityDetailView({
 }) {
   return (
     <div className="flex flex-col gap-4 px-4 pb-4">
-      <Tabs defaultValue="info">
+      <Tabs defaultValue="details">
         <TabsList variant="line">
-          <TabsTrigger value="info">Info</TabsTrigger>
-          <TabsTrigger value="notes">Notes</TabsTrigger>
+          <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="project-plan">Project plan</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="info" className="flex flex-col gap-4 pt-4">
-          <LineOfBusinessField detail={detail} refresh={refresh} />
-          <SourceField detail={detail} refresh={refresh} />
-          <CompanyField detail={detail} refresh={refresh} />
-          <ContactsField detail={detail} refresh={refresh} />
-          <OwnersField detail={detail} refresh={refresh} />
-        </TabsContent>
+        {/* Info as a left meta column, notes/next steps filling the right. Stacks
+            to a single column below lg, where the drawer is narrower. */}
+        <TabsContent
+          value="details"
+          className="grid grid-cols-1 gap-6 pt-4 lg:grid-cols-[18rem_1fr] lg:gap-8"
+        >
+          <div className="flex flex-col gap-4">
+            <LineOfBusinessField detail={detail} refresh={refresh} />
+            <SourceField detail={detail} refresh={refresh} />
+            <CompanyField detail={detail} refresh={refresh} />
+            <ContactsField detail={detail} refresh={refresh} />
+            <OwnersField detail={detail} refresh={refresh} />
+          </div>
 
-        <TabsContent value="notes" className="flex flex-col gap-6 pt-4">
-          <section className="flex flex-col gap-3">
-            <h3 className="text-sm font-medium">
-              Next steps{" "}
-              <span className="text-muted-foreground">
-                {detail.nextSteps.length}
-              </span>
-            </h3>
-            <EntryLog
-              variant="opportunity"
-              parentId={detail.id}
-              kind="next_step"
-              entries={detail.nextSteps}
-              canEdit
-              onChanged={refresh}
-            />
-          </section>
-          <section className="flex flex-col gap-3">
-            <h3 className="text-sm font-medium">
-              Notes{" "}
-              <span className="text-muted-foreground">
-                {detail.notes.length}
-              </span>
-            </h3>
-            <EntryLog
-              variant="opportunity"
-              parentId={detail.id}
-              kind="note"
-              entries={detail.notes}
-              canEdit
-              onChanged={refresh}
-            />
-          </section>
+          <div className="flex flex-col gap-6">
+            <section className="flex flex-col gap-3">
+              <h3 className="text-sm font-medium">
+                Next steps{" "}
+                <span className="text-muted-foreground">
+                  {detail.nextSteps.length}
+                </span>
+              </h3>
+              <EntryLog
+                variant="opportunity"
+                parentId={detail.id}
+                kind="next_step"
+                entries={detail.nextSteps}
+                canEdit
+                onChanged={refresh}
+              />
+            </section>
+            <section className="flex flex-col gap-3">
+              <h3 className="text-sm font-medium">
+                Notes{" "}
+                <span className="text-muted-foreground">
+                  {detail.notes.length}
+                </span>
+              </h3>
+              <EntryLog
+                variant="opportunity"
+                parentId={detail.id}
+                kind="note"
+                entries={detail.notes}
+                canEdit
+                onChanged={refresh}
+              />
+            </section>
+          </div>
         </TabsContent>
 
         <TabsContent value="project-plan" className="pt-4">
@@ -305,12 +381,36 @@ function useInlineSave(detail: OpportunityDetail, refresh: () => void) {
   };
 }
 
-/** Comma-joined entity names, or a muted "None" when empty. */
-function EntityNames({ items }: { items: EntityRef[] }) {
+/**
+ * Comma-separated entity links to each item's detail page (`{basePath}/{id}`),
+ * or a muted "None" when empty. Read-mode display for the people/company fields.
+ */
+function EntityLinks({
+  items,
+  basePath,
+}: {
+  items: EntityRef[];
+  basePath: string;
+}) {
   if (items.length === 0) {
     return <span className="text-muted-foreground">None</span>;
   }
-  return <>{items.map((item) => item.name).join(", ")}</>;
+  return (
+    <>
+      {items.map((item, i) => (
+        <Fragment key={item.id}>
+          {i > 0 ? ", " : null}
+          <InternalLink
+            href={`${basePath}/${item.id}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {item.name}
+          </InternalLink>
+        </Fragment>
+      ))}
+    </>
+  );
 }
 
 /**
@@ -338,7 +438,7 @@ function OpportunityHeader({
         </div>
         <div className="flex items-start gap-2">
           <HeaderStatusField detail={detail} refresh={refresh} />
-          <DeleteOpportunityButton detail={detail} onDeleted={onDeleted} />
+          <OpportunityActionsMenu detail={detail} onDeleted={onDeleted} />
         </div>
       </div>
     </>
@@ -346,12 +446,14 @@ function OpportunityHeader({
 }
 
 /**
- * Delete the opportunity (behind a confirm). If it has a project, the server
- * cleans up its delivery footprint first (deletes the project when this
- * opportunity solely owns it, else removes just its roles and unlinks). On
- * success the drawer closes; the board refreshes via revalidation.
+ * The header's overflow menu (a 3-dots dropdown), holding destructive/rare
+ * actions off to the side. Currently just Delete: it opens a confirm, and on
+ * confirm deletes the opportunity. If it has a project, the server cleans up its
+ * delivery footprint first (deletes the project when this opportunity solely
+ * owns it, else removes just its roles and unlinks). On success the drawer
+ * closes; the board refreshes via revalidation.
  */
-function DeleteOpportunityButton({
+function OpportunityActionsMenu({
   detail,
   onDeleted,
 }: {
@@ -371,14 +473,28 @@ function DeleteOpportunityButton({
 
   return (
     <>
-      <IconButton
-        label="Delete opportunity"
-        variant="ghost"
-        className="text-destructive"
-        onClick={() => setConfirmOpen(true)}
-      >
-        <IconTrash />
-      </IconButton>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Opportunity actions"
+            >
+              <IconDotsVertical />
+            </Button>
+          }
+        />
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={() => setConfirmOpen(true)}
+          >
+            <IconTrash />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={(next) => {
@@ -535,7 +651,7 @@ function OwnersField({ detail, refresh }: FieldProps) {
   return (
     <InlineEditField
       label="Owners"
-      display={<EntityNames items={detail.owners} />}
+      display={<EntityLinks items={detail.owners} basePath="/staff" />}
       editing={save.editing}
       isSaving={save.isPending}
       error={save.error}
@@ -565,7 +681,15 @@ function CompanyField({ detail, refresh }: FieldProps) {
   return (
     <InlineEditField
       label="Company"
-      display={detail.company.name}
+      display={
+        <InternalLink
+          href={`/companies/${detail.company.id}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {detail.company.name}
+        </InternalLink>
+      }
       editing={save.editing}
       isSaving={save.isPending}
       error={save.error}
@@ -595,7 +719,7 @@ function ContactsField({ detail, refresh }: FieldProps) {
   return (
     <InlineEditField
       label="Contacts"
-      display={<EntityNames items={detail.contacts} />}
+      display={<EntityLinks items={detail.contacts} basePath="/contacts" />}
       editing={save.editing}
       isSaving={save.isPending}
       error={save.error}
