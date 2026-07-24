@@ -1,4 +1,4 @@
-# 0040 — Allocation notes on `staff`: planner-inline, gated on static `staff.edit` (no owner path)
+# 0041 — Allocation notes on `staff`: planner-inline, gated on static `staff.edit` (no owner path)
 
 **Status:** accepted · 2026-07-24
 

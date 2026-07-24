@@ -48,7 +48,8 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0037](./0037-unit-tests-removed-except-rbac-matrix.md) | Unit tests removed, except the RBAC permission-matrix test | accepted |
 | [0038](./0038-allocations-planner-pto-disclosure.md) | Allocations planner: public availability, gated leave reason | accepted |
 | [0039](./0039-opportunities-list-view-and-board-column-capping.md) | Opportunities list view + board column capping (URL-driven view toggle, capped Maturing/Won/Lost) | accepted |
-| [0040](./0040-allocation-notes-on-staff.md) | Allocation notes on `staff`: planner-inline, gated on static `staff.edit` (no owner path) | accepted |
+| [0040](./0040-allocations-planner-granularity.md) | Allocations planner: selectable day/week/month granularity (nominal rate at every zoom; week prorated, month flat) | accepted |
+| [0041](./0041-allocation-notes-on-staff.md) | Allocation notes on `staff`: planner-inline, gated on static `staff.edit` (no owner path) | accepted |
 
 > **0012 is intentionally absent** (the log jumps 0011 → 0013). It was a short-lived
 > ADR documenting the *open staff-edit gap pending RBAC*; it was **withdrawn** once

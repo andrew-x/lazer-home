@@ -34,6 +34,31 @@ export function addWeeks(weekStart: string, n: number): string {
   return formatIsoDate(d);
 }
 
+/** Shift a date by `n` days (may be negative). */
+export function addDays(date: string, n: number): string {
+  const d = parseIsoDate(date);
+  d.setDate(d.getDate() + n);
+  return formatIsoDate(d);
+}
+
+/** The first of the month (as `"YYYY-MM-01"`) containing `date`. */
+export function getMonthStart(date: string): string {
+  const d = parseIsoDate(date);
+  d.setDate(1);
+  return formatIsoDate(d);
+}
+
+/**
+ * Shift a month-start date by `n` months (may be negative). Normalizes to the
+ * first of the month first, so it never overflows into the next month.
+ */
+export function addMonths(monthStart: string, n: number): string {
+  const d = parseIsoDate(monthStart);
+  d.setDate(1);
+  d.setMonth(d.getMonth() + n);
+  return formatIsoDate(d);
+}
+
 /** True for a Saturday or Sunday — timesheets only capture weekday work. */
 export function isWeekend(date: string): boolean {
   const day = parseIsoDate(date).getDay();
@@ -56,6 +81,34 @@ export function eachWeek(start: string, end: string): string[] {
   return weeks;
 }
 
+/**
+ * Every day from `start` to `end`, inclusive. Returns `[]` when `end` falls
+ * before `start`. The day-column spine for the planner's daily view (unlike
+ * `eachWeek`/`eachMonth`, days aren't normalized — the range is taken as given).
+ */
+export function eachDay(start: string, end: string): string[] {
+  const days: string[] = [];
+  for (let d = start; d <= end; d = addDays(d, 1)) {
+    days.push(d);
+  }
+  return days;
+}
+
+/**
+ * Every month-start (first of the month) from the month containing `start` to
+ * the month containing `end`, inclusive. Returns `[]` when `end` falls before
+ * `start`. The month-column spine for the planner's monthly view.
+ */
+export function eachMonth(start: string, end: string): string[] {
+  const first = getMonthStart(start);
+  const last = getMonthStart(end);
+  const months: string[] = [];
+  for (let m = first; m <= last; m = addMonths(m, 1)) {
+    months.push(m);
+  }
+  return months;
+}
+
 /** The 7 day dates (Mon→Sun) of the week beginning `weekStart`. */
 export function getWeekDays(weekStart: string): string[] {
   const monday = parseIsoDate(weekStart);
@@ -66,9 +119,19 @@ export function getWeekDays(weekStart: string): string[] {
   });
 }
 
+/** Today as a `"YYYY-MM-DD"` wall-clock date. */
+export function currentDay(): string {
+  return formatIsoDate(new Date());
+}
+
 /** The ISO Monday of the current week. */
 export function currentWeekStart(): string {
-  return getWeekStart(formatIsoDate(new Date()));
+  return getWeekStart(currentDay());
+}
+
+/** The first of the current month. */
+export function currentMonthStart(): string {
+  return getMonthStart(currentDay());
 }
 
 /** Signed whole-week distance from week `a` to week `b` (both any date in-week). */

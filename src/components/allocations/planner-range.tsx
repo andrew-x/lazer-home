@@ -14,8 +14,21 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import type { Granularity } from "@/lib/allocations/allocations-grid";
 import { formatIsoDate, parseIsoDate } from "@/lib/format/format";
-import { addWeeks } from "@/lib/timesheets/timesheet-week";
+import { addDays, addMonths, addWeeks } from "@/lib/timesheets/timesheet-week";
+
+/** Shift a date by `n` buckets of the active granularity (may be negative). */
+function shiftBy(date: string, granularity: Granularity, n: number): string {
+  switch (granularity) {
+    case "day":
+      return addDays(date, n);
+    case "week":
+      return addWeeks(date, n);
+    case "month":
+      return addMonths(date, n);
+  }
+}
 
 /** Compact endpoint label, e.g. "Jul 27, 2026". */
 function formatCompact(value: string): string {
@@ -88,21 +101,26 @@ function EndpointPicker({
 
 /**
  * The planner's date-range control: two distinct date pickers forming the range,
- * flanked by prev/next buttons that scroll the whole window one week at a time.
- * Neither endpoint can be cleared (an empty planner window makes no sense) and
- * the two can't cross.
+ * flanked by prev/next buttons that scroll the whole window one bucket (day,
+ * week, or month) at a time. Neither endpoint can be cleared (an empty planner
+ * window makes no sense) and the two can't cross.
  */
 export function PlannerRange({
   start,
   end,
+  granularity,
   onChange,
 }: {
   start: string;
   end: string;
+  granularity: Granularity;
   onChange: (start: string, end: string) => void;
 }) {
-  const shift = (weeks: number) =>
-    onChange(addWeeks(start, weeks), addWeeks(end, weeks));
+  const shift = (buckets: number) =>
+    onChange(
+      shiftBy(start, granularity, buckets),
+      shiftBy(end, granularity, buckets),
+    );
 
   return (
     <div className="flex items-center gap-1">
@@ -110,7 +128,7 @@ export function PlannerRange({
         type="button"
         variant="outline"
         size="icon"
-        aria-label="Previous week"
+        aria-label={`Previous ${granularity}`}
         onClick={() => shift(-1)}
       >
         <IconChevronLeft className="size-4" />
@@ -134,7 +152,7 @@ export function PlannerRange({
         type="button"
         variant="outline"
         size="icon"
-        aria-label="Next week"
+        aria-label={`Next ${granularity}`}
         onClick={() => shift(1)}
       >
         <IconChevronRight className="size-4" />

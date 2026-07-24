@@ -32,7 +32,7 @@ so the admin role retains its built-in capabilities) with two business resources
   metadata gated on the **static `staff.edit` capability** for both read and write
   (managers/admins only — a person cannot edit their own), *not* the owner-or-`staff.edit`
   hook the profile fields use. Same capability, no new matrix row — see
-  [ADR 0040](../decisions/0040-allocation-notes-on-staff.md) and
+  [ADR 0041](../decisions/0041-allocation-notes-on-staff.md) and
   [allocations.md](./allocations.md).
 - **`staff.viewCompensation`** — view *another* staff member's compensation (on
   their profile and in the history feed). (Your own compensation is always visible.)

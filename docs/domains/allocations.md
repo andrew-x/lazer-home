@@ -4,17 +4,18 @@
 Projects over time — the heart of capacity planning. The first concrete cut of the
 Allocation entity **already exists** as `project_roles` in the Projects domain (see
 [projects.md](./projects.md)), and a **company-wide planner view**
-(`/allocations`) now surfaces that data as a weekly grid — read-only except for a
-single manager/admin-only inline **Notes** column (see *The planner view*
+(`/allocations`) now surfaces that data as a **day/week/month grid** — read-only
+except for a single manager/admin-only inline **Notes** column (see *The planner view*
 below). The rest of the domain (a dedicated capacity model, forecast vs. actuals,
 conflict handling) is still proposed.
 
 ## The planner view (realized) — mostly a read over `project_roles`
 
 `/allocations` is a **company-wide** grid: **rows = active staff**,
-**columns = weeks** over a user-chosen date range (default: current week + next 11,
-12 columns). It's **almost entirely a view over existing tables**; the sole schema
-addition is a nullable free-text **`allocationNotes`** column on `staff`
+**columns = time buckets** over a user-chosen date range. A **"View by" segmented
+toggle** (`ToggleGroup`) picks the column granularity — **Day / Week (default) /
+Month** (`Granularity`). It's **almost entirely a view over existing tables**; the sole
+schema addition is a nullable free-text **`allocationNotes`** column on `staff`
 (`drizzle/0006_empty_whirlwind.sql`) that backs the manager-only Notes column below.
 It reads `project_roles` (the plan), `staff` + `staff_employment` (who + their current
 facts), and `staff_pto` (availability). The page is **visible to everyone signed in —
@@ -22,14 +23,41 @@ no route gate** (the same open-read posture as the staff/CRM/projects lists); it
 **read-only for everyone except that the Notes column is shown and editable only to
 `staff.edit` holders** (managers/admins).
 
-- **What a cell shows.** For each person-week, every project the person is allocated
-  to that week — project name + a **percentage of a 40-hour week**, with a tooltip
-  (project, role, duration, status). **Confirmed** roles render as a solid block,
-  **tentative** as a dashed outline. Approved time off renders as a neutral **"Away"**
-  strip (availability only), whose tooltip shows the away period's start/end dates and
-  "% of week" (reason gated — see below). Week-column headers show a compact working-week
-  (Mon–Fri) range — e.g. `Jul 6–10`, collapsing to a single month when start and end
-  share one, else `Jun 29–Jul 3` (`weekColumnLabel`).
+- **Default window + range stepping.** Before the user touches the range, the window is
+  the current bucket + the next N−1: **14 days / 12 weeks / 6 months**
+  (`DEFAULT_WINDOW`, `defaultWindow(granularity)`), anchored at today. **Switching
+  granularity re-seeds the range** to that granularity's default window (a leftover week
+  range makes no sense as days). Two calendar endpoint pickers set an explicit range;
+  the **prev/next chevrons shift the whole window by one bucket** of the active
+  granularity (`planner-range.tsx`, `shiftBy`).
+- **What a cell shows — the *nominal rate* at every granularity.** A role's cell shows
+  its steady-state load = **`hoursPerDay / 8h`** (e.g. 4h/day → 50%, 8h/day → 100%,
+  capped at 100), with a tooltip (project, role, duration, status, "% of
+  {day|week|month}"). **The granularity only changes column width and how the start/end
+  edges land**, not the headline percentage — *except* that a week still prorates its
+  partial start/end columns (the historical behavior). Specifically (`bucketPercent`):
+  - **Day** — one column per **calendar day**; **all 7 days render, weekends dimmed and
+    empty** (`bg-muted/30`, `isWeekend`) since the allocation model only counts
+    weekdays. An in-range weekday shows the nominal rate; weekends / out-of-range days
+    are empty.
+  - **Week** — **prorates** partial start/end weeks: `hoursPerDay × (active Mon–Fri
+    weekdays that week) / 40` (`weekPercent`), so a mid-week edge or a part-day shows a
+    partial %. Unchanged from before.
+  - **Month** — one column per **calendar month**; shows the **flat nominal rate** for
+    any month the role is active in — **NOT** prorated by how many working days of the
+    month it covers. The month containing `startDate`/`endDate` carries the start/end
+    edge marker. (Week-vs-month proration inconsistency is deliberate — see
+    [ADR 0040](../decisions/0040-allocations-planner-granularity.md).)
+- **Time off is prorated over the bucket's working days at every granularity** — away
+  weekdays / total weekdays in the column (`awayWeekdays / totalWeekdays`): a day is
+  100% when covered, a week divides by 5 (unchanged), a month by its working-day count.
+  It renders as a neutral **"Away"** strip (availability only), whose tooltip shows the
+  away period's start/end dates and "% of {day|week|month}" (reason gated — see below).
+- **Column headers are granularity-aware** (`columnLabel`): a day is `Mon, Jul 6`, a
+  week is a compact Mon–Fri range `Jul 6–10` / `Jun 29–Jul 3` (`weekColumnLabel`), a
+  month is `Jul 2026`. **Confirmed** roles render as a solid block, **tentative** as a
+  dashed outline; a solid bar on a cell's leading/trailing edge marks the column a role
+  starts/ends in.
 - **Staff column.** Each person's name is a **link to their `/staff/[id]` profile
   (opens in a new tab)**, and **hourly** staff (`employmentType === "HOURLY"`) carry an
   **"Hourly" badge**. `employmentType` is threaded onto the `AllocationRow` for this.
@@ -84,25 +112,38 @@ no route gate** (the same open-read posture as the staff/CRM/projects lists); it
 - **Notes write:** `src/actions/staff/updateStaffAllocationNotes.ts` (+ `.schema.ts`,
   a client-importable pure module sharing one zod schema with the inline editor). Gated
   on `metadata.permission: { staff: ["edit"] }`; revalidates `/allocations`.
-- **Pure grid math:** `src/lib/allocations/allocations-grid.ts` — builds the ISO-Monday
-  week-column spine, folds staff + roles + PTO into one row per person, and computes
-  the per-week percentage: `hoursPerDay × (active Mon–Fri weekdays that week) / 40`,
-  rounded and **capped at 100** (a mid-week end date or a part-day, e.g. 4h/day → 50%,
-  shows as a partial %). It exports **`weekPercent`** (the per-role, per-week load) and
-  `WORKING_DAYS_PER_WEEK`. Client-importable (no `db`/drizzle), reusing the timesheet
-  week helpers. **`src/lib/projects/project-planner-grid.ts`** (the opportunity planner's
-  grid) now **imports `weekPercent` from here** rather than duplicating the math, so the
-  two planners agree on a week's load — keep this the single source and update both call
-  sites when the load formula changes.
-- **UI:** `src/components/allocations/allocations-planner.tsx` (filter bar + window),
-  `allocations-grid.tsx` (grid + legend; renders the Notes column only when
-  `canEditNotes`), `allocation-note-cell.tsx` (the debounced-autosave note editor),
-  page `src/app/(app)/allocations/page.tsx`. Nav entry added to `NAV_ITEMS`
-  (`src/components/app-shell/nav.ts`), ungated. `allocationNotes` is threaded through
-  `AllocationRow`/`buildAllocationRows` in `src/lib/allocations/allocations-grid.ts`.
+- **Pure grid math:** `src/lib/allocations/allocations-grid.ts` — builds the
+  column spine at the chosen granularity (`buildColumns` → `eachDay`/`eachWeek`/
+  `eachMonth`), folds staff + roles + PTO into one row per person, and computes each
+  column's percentage via **`bucketPercent(role, granularity, colStart)`**: `weekPercent`
+  for weeks (the prorated `hoursPerDay × active weekdays / 40`), the flat `nominalRatePercent`
+  (`hoursPerDay / 8h`, capped at 100) for an in-range day or month. Exports the
+  `Granularity` type + `GRANULARITIES` / `GRANULARITY_LABELS` / `DEFAULT_WINDOW` /
+  `defaultWindow` / `buildColumns` / `columnLabel` / `bucketPercent`, and still
+  **`weekPercent`** + `WORKING_DAYS_PER_WEEK`. Client-importable (no `db`/drizzle),
+  reusing the timesheet date helpers. **Types were renamed for the multi-granularity
+  move:** `WeekCell` → **`BucketCell`**, and `AllocationRow.weeks` → **`AllocationRow.cells`**;
+  `buildAllocationRows` gained `columns` (was `weekColumns`) and `granularity` params.
+  `AllocationRow` also carries **`allocationNotes`** (threaded from the read above).
+  **`src/lib/projects/project-planner-grid.ts`** (the opportunity planner's grid, still
+  weekly-only) still **imports `weekPercent` from here** rather than duplicating the
+  math, so the two planners agree on a week's load — keep this the single source and
+  update both call sites when the load formula changes.
+- **Date helpers:** `src/lib/timesheets/timesheet-week.ts` grew the day/month math the
+  grid needs — `addDays`, `getMonthStart`, `addMonths`, `eachDay`, `eachMonth`,
+  `currentDay`, `currentMonthStart` (alongside the existing week helpers). Still **no
+  date library** — string-based local-parts arithmetic throughout.
+- **UI:** `src/components/allocations/allocations-planner.tsx` (filter bar + granularity
+  state + "View by" toggle + window), `planner-range.tsx` (granularity-aware prev/next
+  stepping + aria-labels), `allocations-grid.tsx` (render-only grid + legend, taking
+  `columns`/`granularity` props, dimming weekend day-columns, granularity-aware labels
+  and tooltip copy; renders the manager-only Notes column when `canEditNotes`),
+  `allocation-note-cell.tsx` (the debounced-autosave note editor), page
+  `src/app/(app)/allocations/page.tsx`. Nav entry added to `NAV_ITEMS`
+  (`src/components/app-shell/nav.ts`), ungated.
 
 > **This is a *view*, not the missing capacity model.** It reads one project's-worth
-> of roles per person per week but does **not** sum a person's load across projects,
+> of roles per person per column but does **not** sum a person's load across projects,
 > flag over-allocation, or reconcile against timesheet actuals — those remain the
 > open questions below.
 
@@ -154,7 +195,7 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
   (`tentative` → `confirmed`, auto-confirmed on the opportunity's win) models exactly this.
   See [ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md).
 - How are conflicts/over-allocation surfaced and resolved? (The `/allocations` planner view
-  lists each project a person is on per week with its own %, and the **opportunity planner** now
+  lists each project a person is on per column with its own %, and the **opportunity planner** now
   greys a staffed person's **other-project commitments** into the grid — a first visibility cut —
   but nothing yet **sums** those into a total weekly load or flags >100% over-allocation.)
 - How are the planner-view percentages (the *plan*) reconciled against timesheet
