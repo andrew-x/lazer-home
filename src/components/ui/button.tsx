@@ -1,8 +1,22 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { IconLoader2 } from "@tabler/icons-react";
 import { cva, type VariantProps } from "class-variance-authority";
+import { isValidElement } from "react";
 
 import { cn } from "@/lib/core/utils";
+
+/**
+ * A `render` element that carries an `href` (e.g. next/link `<Link>` or a raw
+ * `<a>`) renders an anchor, so Base UI's `nativeButton` must be false to keep
+ * button semantics correct. Other render targets (a Base UI trigger/clear that
+ * renders a real `<button>`) keep the native default.
+ */
+function rendersAnchor(render: ButtonPrimitive.Props["render"]): boolean {
+  return (
+    isValidElement(render) &&
+    (render.type === "a" || "href" in (render.props as object))
+  );
+}
 
 const buttonVariants = cva(
   "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -48,6 +62,8 @@ function Button({
   loading = false,
   disabled,
   children,
+  render,
+  nativeButton,
   ...props
 }: ButtonPrimitive.Props &
   VariantProps<typeof buttonVariants> & {
@@ -60,6 +76,10 @@ function Button({
       className={cn(buttonVariants({ variant, size, className }))}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
+      render={render}
+      // Anchor-rendering `render` elements need `nativeButton` off; everything
+      // else keeps Base UI's native default. Callers can still override.
+      nativeButton={nativeButton ?? !rendersAnchor(render)}
       {...props}
     >
       {loading ? <IconLoader2 className="animate-spin" /> : null}
