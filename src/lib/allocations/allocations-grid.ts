@@ -124,6 +124,7 @@ export type AllocationRow = {
   role: AllocationStaffRow["role"];
   lineOfBusiness: AllocationStaffRow["lineOfBusiness"];
   employmentType: AllocationStaffRow["employmentType"];
+  allocationNotes: AllocationStaffRow["allocationNotes"];
   /** One entry per column in the driving `columns`, in the same order. */
   cells: BucketCell[];
 };
@@ -450,6 +451,7 @@ export function buildAllocationRows(
       role: person.role,
       lineOfBusiness: person.lineOfBusiness,
       employmentType: person.employmentType,
+      allocationNotes: person.allocationNotes,
       cells,
     };
     return { row, confirmedEnd: latestConfirmedEnd(personRoles) };

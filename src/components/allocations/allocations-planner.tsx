@@ -55,6 +55,7 @@ export function AllocationsPlanner({
   roleOptions: string[];
   employmentTypeOptions: string[];
 }) {
+  const canEditNotes = data.canEditNotes;
   const searchId = useId();
   const initialWindow = useMemo(() => defaultWindow("week"), []);
   // Default the role filter to the billable disciplines that actually appear in
@@ -211,6 +212,7 @@ export function AllocationsPlanner({
           rows={rows}
           columns={columns}
           granularity={granularity}
+          canEditNotes={canEditNotes}
         />
       )}
     </div>

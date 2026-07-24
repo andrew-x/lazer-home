@@ -86,6 +86,7 @@ describe("buildAllocationRows", () => {
     role: null,
     employmentType: "HOURLY",
     skills: [],
+    allocationNotes: null,
   };
 
   const role: AllocationRoleRow = {
@@ -105,6 +106,17 @@ describe("buildAllocationRows", () => {
   test("carries employmentType onto the row", () => {
     const [row] = buildAllocationRows([person], [], [], ["2026-07-06"], "week");
     expect(row.employmentType).toBe("HOURLY");
+  });
+
+  test("carries allocationNotes onto the row", () => {
+    const [row] = buildAllocationRows(
+      [{ ...person, allocationNotes: "On bench after Aug 15" }],
+      [],
+      [],
+      ["2026-07-06"],
+      "week",
+    );
+    expect(row.allocationNotes).toBe("On bench after Aug 15");
   });
 
   test("an away week carries the overlapping span's start/end dates", () => {

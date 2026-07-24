@@ -113,6 +113,11 @@ export const staff = pgTable("staff", {
   resume: text(),
   resumeUpdatedAt: timestamp(),
 
+  // Free-text staffing/planning note surfaced only in the Allocations planner
+  // (e.g. "on bench after Aug 15, wants frontend work"). Manager/admin-only
+  // (`staff.edit`) — see docs/domains/allocations.md. Nullable, no default.
+  allocationNotes: text(),
+
   // Skills held, as an inline list of { name, level } picked from the hardcoded
   // catalogue in `@/lib/staff/skills` (deliberately not a normalized skills table).
   skills: jsonb().$type<StaffSkill[]>().notNull().default([]),

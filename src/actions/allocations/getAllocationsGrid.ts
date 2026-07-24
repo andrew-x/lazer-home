@@ -37,6 +37,11 @@ export type AllocationStaffRow = {
   role: StaffEmployment["role"] | null;
   employmentType: StaffEmployment["employmentType"] | null;
   skills: StaffSkill[];
+  /**
+   * Manager/admin-only staffing note. Null for viewers without `staff.edit`
+   * (never sent to unprivileged clients) — see {@link getAllocationsGrid}.
+   */
+  allocationNotes: string | null;
 };
 
 /** One staffed project-role span (a person allocated to a project over a range). */
@@ -70,6 +75,8 @@ export type AllocationsGridData = {
   staff: AllocationStaffRow[];
   roles: AllocationRoleRow[];
   timeOff: AllocationTimeOff[];
+  /** Whether the viewer may see and edit the allocation-notes column. */
+  canEditNotes: boolean;
 };
 
 /**
@@ -87,6 +94,7 @@ export async function getAllocationsGrid(): Promise<AllocationsGridData> {
       id: staff.id,
       name: staff.name,
       skills: staff.skills,
+      allocationNotes: staff.allocationNotes,
     })
     .from(staff)
     .where(eq(staff.isActive, true))
@@ -140,6 +148,12 @@ export async function getAllocationsGrid(): Promise<AllocationsGridData> {
   const canSeePtoType = currentUser
     ? userHasPermission(currentUser, { pto: ["review"] })
     : false;
+  // Allocation notes are manager/admin-only staffing metadata. Gate both the
+  // read here (never ship the value to an unprivileged client) and the write
+  // (`updateStaffAllocationNotes`) on `staff.edit`.
+  const canEditNotes = currentUser
+    ? userHasPermission(currentUser, { staff: ["edit"] })
+    : false;
 
   const ptoRows = await db
     .select({
@@ -160,6 +174,7 @@ export async function getAllocationsGrid(): Promise<AllocationsGridData> {
       lineOfBusiness: employment?.lineOfBusiness ?? null,
       role: employment?.role ?? null,
       employmentType: employment?.employmentType ?? null,
+      allocationNotes: canEditNotes ? s.allocationNotes : null,
     };
   });
 
@@ -186,5 +201,5 @@ export async function getAllocationsGrid(): Promise<AllocationsGridData> {
     type: canSeePtoType ? p.type : null,
   }));
 
-  return { staff: staffList, roles, timeOff };
+  return { staff: staffList, roles, timeOff, canEditNotes };
 }

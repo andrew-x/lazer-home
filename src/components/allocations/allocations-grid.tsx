@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AllocationNoteCell } from "@/components/allocations/allocation-note-cell";
 import {
   PLANNER_LABEL_COL,
   PLANNER_WEEK_COL,
@@ -69,10 +70,13 @@ export function AllocationsGrid({
   rows,
   columns,
   granularity,
+  canEditNotes,
 }: {
   rows: AllocationRow[];
   columns: string[];
   granularity: Granularity;
+  /** Render the manager-only Notes column (viewer holds `staff.edit`). */
+  canEditNotes: boolean;
 }) {
   const unit = UNIT_NOUN[granularity];
   const width = COLUMN_WIDTH[granularity];
@@ -91,6 +95,11 @@ export function AllocationsGrid({
             >
               Staff
             </th>
+            {canEditNotes ? (
+              <th className="min-w-56 px-3 py-2.5 text-left font-medium">
+                Allocation note
+              </th>
+            ) : null}
             {columns.map((col) => (
               <th
                 key={col}
@@ -133,6 +142,14 @@ export function AllocationsGrid({
                   {staffSublabel(row)}
                 </div>
               </td>
+              {canEditNotes ? (
+                <td className="min-w-56 max-w-72 px-2 py-1.5 align-top">
+                  <AllocationNoteCell
+                    staffId={row.staffId}
+                    initialNotes={row.allocationNotes}
+                  />
+                </td>
+              ) : null}
               {row.cells.map((cell, i) => (
                 // Columns are a fixed spine; index keys are stable here.
                 <td
