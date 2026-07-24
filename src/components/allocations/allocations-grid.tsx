@@ -1,6 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import {
+  PLANNER_LABEL_COL,
+  PLANNER_WEEK_COL,
+} from "@/components/planner/planner-columns";
 import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
@@ -48,16 +52,24 @@ export function AllocationsGrid({
 }) {
   return (
     <div className="overflow-x-auto rounded-md border">
-      <table className="w-full border-collapse text-sm">
+      <table className="table-fixed border-collapse text-sm">
         <thead>
           <tr className="border-b">
-            <th className="sticky left-0 z-10 min-w-52 bg-background px-3 py-2.5 text-left font-medium">
+            <th
+              className={cn(
+                PLANNER_LABEL_COL,
+                "sticky left-0 z-10 bg-background px-3 py-2.5 text-left font-medium",
+              )}
+            >
               Staff
             </th>
             {weekColumns.map((week) => (
               <th
                 key={week}
-                className="min-w-28 px-1 py-2.5 text-center text-xs font-medium text-muted-foreground"
+                className={cn(
+                  PLANNER_WEEK_COL,
+                  "px-1 py-2.5 text-center text-xs font-medium text-muted-foreground",
+                )}
               >
                 {weekColumnLabel(week)}
               </th>
@@ -67,23 +79,28 @@ export function AllocationsGrid({
         <tbody>
           {rows.map((row) => (
             <tr key={row.staffId} className="border-b last:border-b-0">
-              <td className="sticky left-0 z-10 bg-background px-3 py-2 align-top">
-                <div className="flex items-center gap-1.5">
+              <td
+                className={cn(
+                  PLANNER_LABEL_COL,
+                  "sticky left-0 z-10 bg-background px-3 py-2 align-top",
+                )}
+              >
+                <div className="flex min-w-0 items-center gap-1.5">
                   <Link
                     href={`/staff/${row.staffId}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium hover:underline"
+                    className="min-w-0 truncate font-medium hover:underline"
                   >
                     {row.name}
                   </Link>
                   {row.employmentType === "HOURLY" ? (
-                    <Badge variant="outline" className="font-normal">
+                    <Badge variant="outline" className="shrink-0 font-normal">
                       {EMPLOYMENT_TYPE_LABELS.HOURLY}
                     </Badge>
                   ) : null}
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="truncate text-xs text-muted-foreground">
                   {staffSublabel(row)}
                 </div>
               </td>

@@ -5,6 +5,11 @@ import { useState } from "react";
 import { searchStaff } from "@/actions/projects/searchStaff";
 import { EntityCombobox } from "@/components/form/entity-combobox";
 import type { EntityOption } from "@/components/form/entity-multi-combobox";
+import {
+  PLANNER_LABEL_COL,
+  PLANNER_SUB_LABEL_COL,
+  PLANNER_WEEK_COL,
+} from "@/components/planner/planner-columns";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
@@ -69,10 +74,15 @@ export function PlannerGrid({
           planner grid with sticky lead columns and per-cell stacked blocks the
           shared Table primitives don't model. Don't "fix" this to use the UI
           Table or copy it for ordinary data tables. */}
-      <table className="w-full border-collapse text-sm">
+      <table className="table-fixed border-collapse text-sm">
         <thead>
           <tr className="border-b">
-            <th className="sticky left-0 z-10 w-56 min-w-56 bg-background px-3 py-2 text-left font-medium">
+            <th
+              className={cn(
+                PLANNER_LABEL_COL,
+                "sticky left-0 z-10 bg-background px-3 py-2 text-left font-medium",
+              )}
+            >
               <div className="flex items-center gap-2">
                 {selectable ? (
                   <Checkbox
@@ -86,13 +96,21 @@ export function PlannerGrid({
                 Role
               </div>
             </th>
-            <th className="sticky left-56 z-10 w-48 min-w-48 bg-background px-3 py-2 text-left font-medium">
+            <th
+              className={cn(
+                PLANNER_SUB_LABEL_COL,
+                "sticky left-56 z-10 bg-background px-3 py-2 text-left font-medium",
+              )}
+            >
               Staff
             </th>
             {weekColumns.map((week) => (
               <th
                 key={week}
-                className="min-w-28 px-1 py-2 text-center text-xs font-medium text-muted-foreground"
+                className={cn(
+                  PLANNER_WEEK_COL,
+                  "px-1 py-2 text-center text-xs font-medium text-muted-foreground",
+                )}
               >
                 {weekColumnLabel(week)}
               </th>
@@ -104,7 +122,12 @@ export function PlannerGrid({
             const canEdit = row.editable && Boolean(onEditRole);
             return (
               <tr key={row.key} className="border-b last:border-b-0">
-                <td className="sticky left-0 z-10 w-56 min-w-56 bg-background px-3 py-2 align-top">
+                <td
+                  className={cn(
+                    PLANNER_LABEL_COL,
+                    "sticky left-0 z-10 bg-background px-3 py-2 align-top",
+                  )}
+                >
                   <div className="flex items-start gap-2">
                     {selectable ? (
                       <div className="pt-0.5">
@@ -123,7 +146,7 @@ export function PlannerGrid({
                       <div className="truncate font-medium">
                         {row.roleLabel}
                       </div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="truncate text-xs text-muted-foreground">
                         {row.roleTypeLabel} · {row.hoursPerDay}h/day
                       </div>
                       {canEdit ? (
@@ -139,7 +162,12 @@ export function PlannerGrid({
                     </div>
                   </div>
                 </td>
-                <td className="sticky left-56 z-10 w-48 min-w-48 bg-background px-3 py-2 align-top">
+                <td
+                  className={cn(
+                    PLANNER_SUB_LABEL_COL,
+                    "sticky left-56 z-10 bg-background px-3 py-2 align-top",
+                  )}
+                >
                   <StaffCell row={row} onAssignStaff={onAssignStaff} />
                 </td>
                 {row.weeks.map((cell, i) => (
@@ -173,7 +201,7 @@ function StaffCell({
   onAssignStaff?: (roleId: string, staffId: string | null) => void;
 }) {
   if (row.staffName) {
-    return <span className="font-medium">{row.staffName}</span>;
+    return <span className="block truncate font-medium">{row.staffName}</span>;
   }
   // Editable + unstaffed → an inline "Assign" picker; otherwise just a dash.
   if (row.editable && onAssignStaff) {
