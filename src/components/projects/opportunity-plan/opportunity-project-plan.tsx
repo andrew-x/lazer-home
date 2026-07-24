@@ -31,6 +31,7 @@ import { EntityCombobox } from "@/components/form/entity-combobox";
 import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
 import { FormField } from "@/components/form/form-field";
+import { InternalLink } from "@/components/internal-link";
 import { StatCard } from "@/components/performance/stat-card";
 import { EditProjectDialog } from "@/components/projects/opportunity-plan/edit-project-dialog";
 import { ExtendDialog } from "@/components/projects/opportunity-plan/extend-dialog";
@@ -369,7 +370,13 @@ function PlanEditor({
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-col gap-1">
             <h3 className="font-heading text-base font-medium">
-              {plan.project?.name ?? "—"}
+              {plan.project ? (
+                <InternalLink href={`/projects/${plan.project.id}`}>
+                  {plan.project.name}
+                </InternalLink>
+              ) : (
+                "—"
+              )}
             </h3>
             {plan.project && plan.project.linesOfBusiness.length > 0 ? (
               <div className="flex flex-wrap gap-1">

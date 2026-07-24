@@ -18,7 +18,8 @@ and `staff_pto` (availability). It is **visible to everyone signed in — no per
 gate** (the same open-read posture as the staff/CRM/projects lists).
 
 - **What a cell shows.** For each person-week, every project the person is allocated
-  to that week — project name + a **percentage of a 40-hour week**, with a tooltip
+  to that week — project name (a **link to `/projects/[id]`, opening in a new tab**,
+  mirroring the staff-name link) + a **percentage of a 40-hour week**, with a tooltip
   (project, role, duration, status). **Confirmed** roles render as a solid block,
   **tentative** as a dashed outline. Approved time off renders as a neutral **"Away"**
   strip (availability only), whose tooltip shows the away period's start/end dates and

@@ -30,9 +30,10 @@ import { OpportunityStatusBadge } from "./opportunity-status-badge";
  * Read view of a company: a meta sidebar (identity, website, and the inline
  * owner) beside two tabs — Contacts (the company's people directory, linking
  * through to each contact's detail page) and Opportunities & Projects (its
- * pipeline, delivery work, and referred deals/projects). Opportunities and
- * projects have no detail page yet, so they render as rows. Beneath the tabs, a
- * separated Notes section holds the company's running, authored note log.
+ * pipeline, delivery work, and referred deals/projects). Project names link
+ * through to the project detail page (`/projects/[id]`); opportunities have no
+ * detail page yet, so they render as rows. Beneath the tabs, a separated Notes
+ * section holds the company's running, authored note log.
  */
 export function CompanyDetailView({
   company,
@@ -172,7 +173,9 @@ export function CompanyDetailView({
                 {company.projects.map((project) => (
                   <TableRow key={project.id}>
                     <TableCell className="font-medium">
-                      {project.name}
+                      <InternalLink href={`/projects/${project.id}`}>
+                        {project.name}
+                      </InternalLink>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -221,7 +224,9 @@ export function CompanyDetailView({
                 {company.referredProjects.map((project) => (
                   <TableRow key={project.id}>
                     <TableCell className="font-medium">
-                      {project.name}
+                      <InternalLink href={`/projects/${project.id}`}>
+                        {project.name}
+                      </InternalLink>
                     </TableCell>
                     <TableCell>
                       <InternalLink

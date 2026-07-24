@@ -1,10 +1,11 @@
 import type { StaffProjectSummary } from "@/actions/staff/getStaffProjects";
+import { InternalLink } from "@/components/internal-link";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 
 /**
  * The projects a person has worked on — staffed roles and delivery-manager
  * seats, one row per project. Presentational; the read (`getStaffProjects`) owns
- * the query. Project names aren't links yet: there's no per-project detail route.
+ * the query. Project names link to the project detail page (`/projects/[id]`).
  */
 export function StaffProjectsSection({
   projects,
@@ -23,7 +24,12 @@ export function StaffProjectsSection({
           className="flex items-baseline justify-between gap-4"
         >
           <div className="flex min-w-0 flex-col gap-0.5">
-            <span className="font-medium">{project.name}</span>
+            <InternalLink
+              href={`/projects/${project.id}`}
+              className="truncate font-medium"
+            >
+              {project.name}
+            </InternalLink>
             <span className="text-sm text-muted-foreground">
               {project.companyName}
               {project.relationships.length > 0
