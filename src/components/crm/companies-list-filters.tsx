@@ -7,40 +7,16 @@ import { ALL, FilterLabel, SelectFilter } from "@/components/form/filters";
 import { LocationFilterControl } from "@/components/form/location-filter-control";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import {
+  buildListHref,
+  firstParam,
+  type SearchParams,
+} from "@/lib/core/list-href";
 import {
   COMPANY_STATUS_LABELS,
   COMPANY_STATUS_TAGS,
 } from "@/lib/crm/company-status";
-
-type SearchParams = Record<string, string | string[] | undefined>;
-
-/** First string value of a param (mirrors how the page reads them). */
-function str(value: string | string[] | undefined): string {
-  return typeof value === "string" ? value : "";
-}
-
-/**
- * Build a `/companies` href from the current params with `updates` applied (a
- * `null`/empty value drops the key), always resetting `companiesPage` so a
- * filter change returns to page 1. Preserves everything else. Mirrors
- * `pagination-controls`' buildHref and the opportunities list filters.
- */
-function hrefWith(
-  params: SearchParams,
-  updates: Record<string, string | null>,
-) {
-  const sp = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (key === "companiesPage" || key in updates) continue;
-    if (typeof value === "string") sp.append(key, value);
-    else if (Array.isArray(value)) for (const v of value) sp.append(key, v);
-  }
-  for (const [key, value] of Object.entries(updates)) {
-    if (value !== null && value !== "") sp.set(key, value);
-  }
-  const qs = sp.toString();
-  return qs ? `/companies?${qs}` : "/companies";
-}
 
 /**
  * The companies list filter bar: name search (debounced) and a single status
@@ -54,12 +30,13 @@ export function CompaniesListFilters({ params }: { params: SearchParams }) {
   const router = useRouter();
   const searchId = useId();
 
-  const currentQuery = str(params.q);
-  const currentStatus = str(params.status) || ALL;
-  const currentCity = str(params.city) || null;
-  const currentNearby = str(params.nearby) === "1";
+  const currentQuery = firstParam(params.q);
+  const currentStatus = firstParam(params.status) || ALL;
+  const currentCity = firstParam(params.city) || null;
+  const currentNearby = firstParam(params.nearby) === "1";
 
   const [search, setSearch] = useState(currentQuery);
+  const debouncedSearch = useDebouncedValue(search, 300);
 
   // Keep the input in sync when the URL query changes from outside (e.g. the
   // Clear button or a back-navigation).
@@ -67,16 +44,19 @@ export function CompaniesListFilters({ params }: { params: SearchParams }) {
     setSearch(currentQuery);
   }, [currentQuery]);
 
-  // Debounce search → URL: only navigate once typing settles, and only when the
-  // trimmed value actually differs from what's already in the URL.
+  // Debounce search → URL: navigate once typing settles, and only when the
+  // trimmed value actually differs from what's already in the URL. Waiting for
+  // the debounced value to catch up to `search` skips the transient window right
+  // after an external sync (Clear/back), where `search` was just reset but the
+  // debounced shadow still holds the old text.
   useEffect(() => {
-    const next = search.trim();
+    if (debouncedSearch !== search) return;
+    const next = debouncedSearch.trim();
     if (next === currentQuery) return;
-    const timer = setTimeout(() => {
-      router.replace(hrefWith(params, { q: next || null }));
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search, currentQuery, params, router]);
+    router.replace(
+      buildListHref("/companies", "companiesPage", params, { q: next || null }),
+    );
+  }, [debouncedSearch, search, currentQuery, params, router]);
 
   const hasFilters =
     currentQuery !== "" ||
@@ -109,7 +89,9 @@ export function CompaniesListFilters({ params }: { params: SearchParams }) {
           labels={COMPANY_STATUS_LABELS}
           onChange={(value) =>
             router.replace(
-              hrefWith(params, { status: value === ALL ? null : value }),
+              buildListHref("/companies", "companiesPage", params, {
+                status: value === ALL ? null : value,
+              }),
             )
           }
         />
@@ -130,7 +112,7 @@ export function CompaniesListFilters({ params }: { params: SearchParams }) {
         nearby={currentNearby}
         onCityChange={(label) =>
           router.replace(
-            hrefWith(params, {
+            buildListHref("/companies", "companiesPage", params, {
               city: label,
               // Clearing the city drops "nearby" too — it means nothing alone.
               ...(label ? {} : { nearby: null }),
@@ -138,7 +120,11 @@ export function CompaniesListFilters({ params }: { params: SearchParams }) {
           )
         }
         onNearbyChange={(checked) =>
-          router.replace(hrefWith(params, { nearby: checked ? "1" : null }))
+          router.replace(
+            buildListHref("/companies", "companiesPage", params, {
+              nearby: checked ? "1" : null,
+            }),
+          )
         }
       />
     </div>

@@ -6,6 +6,12 @@ import { useEffect, useId, useState } from "react";
 import { ALL, FilterLabel, SelectFilter } from "@/components/form/filters";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import {
+  buildListHref,
+  firstParam,
+  type SearchParams,
+} from "@/lib/core/list-href";
 import {
   LINE_OF_BUSINESS,
   LINE_OF_BUSINESS_LABELS,
@@ -15,40 +21,10 @@ import {
   type OpportunityGroupId,
 } from "@/lib/crm/opportunity-pipeline";
 
-type SearchParams = Record<string, string | string[] | undefined>;
-
 const STAGE_OPTIONS = OPPORTUNITY_GROUPS.map((g) => g.id);
 const STAGE_LABELS = Object.fromEntries(
   OPPORTUNITY_GROUPS.map((g) => [g.id, g.label]),
 ) as Record<OpportunityGroupId, string>;
-
-/** First string value of a param (mirrors how the page reads them). */
-function str(value: string | string[] | undefined): string {
-  return typeof value === "string" ? value : "";
-}
-
-/**
- * Build a `/opportunities` href from the current params with `updates` applied
- * (a `null`/empty value drops the key), always resetting `oppPage` so a filter
- * change returns to page 1. Preserves everything else (notably `view=list`) so
- * the filters and pagination compose. Mirrors `pagination-controls`' buildHref.
- */
-function hrefWith(
-  params: SearchParams,
-  updates: Record<string, string | null>,
-) {
-  const sp = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (key === "oppPage" || key in updates) continue;
-    if (typeof value === "string") sp.append(key, value);
-    else if (Array.isArray(value)) for (const v of value) sp.append(key, v);
-  }
-  for (const [key, value] of Object.entries(updates)) {
-    if (value !== null && value !== "") sp.set(key, value);
-  }
-  const qs = sp.toString();
-  return qs ? `/opportunities?${qs}` : "/opportunities";
-}
 
 /**
  * The list-view filter bar: name search (debounced), stage (kanban group), and
@@ -61,11 +37,12 @@ export function OpportunitiesListFilters({ params }: { params: SearchParams }) {
   const router = useRouter();
   const searchId = useId();
 
-  const currentQuery = str(params.q);
-  const currentStage = str(params.stage) || ALL;
-  const currentLob = str(params.lob) || ALL;
+  const currentQuery = firstParam(params.q);
+  const currentStage = firstParam(params.stage) || ALL;
+  const currentLob = firstParam(params.lob) || ALL;
 
   const [search, setSearch] = useState(currentQuery);
+  const debouncedSearch = useDebouncedValue(search, 300);
 
   // Keep the input in sync when the URL query changes from outside (e.g. the
   // Clear button or a back-navigation).
@@ -73,16 +50,19 @@ export function OpportunitiesListFilters({ params }: { params: SearchParams }) {
     setSearch(currentQuery);
   }, [currentQuery]);
 
-  // Debounce search → URL: only navigate once typing settles, and only when the
-  // trimmed value actually differs from what's already in the URL.
+  // Debounce search → URL: navigate once typing settles, and only when the
+  // trimmed value actually differs from what's already in the URL. Waiting for
+  // the debounced value to catch up to `search` skips the transient window right
+  // after an external sync (Clear/back), where `search` was just reset but the
+  // debounced shadow still holds the old text.
   useEffect(() => {
-    const next = search.trim();
+    if (debouncedSearch !== search) return;
+    const next = debouncedSearch.trim();
     if (next === currentQuery) return;
-    const timer = setTimeout(() => {
-      router.replace(hrefWith(params, { q: next || null }));
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search, currentQuery, params, router]);
+    router.replace(
+      buildListHref("/opportunities", "oppPage", params, { q: next || null }),
+    );
+  }, [debouncedSearch, search, currentQuery, params, router]);
 
   const hasFilters =
     currentQuery !== "" || currentStage !== ALL || currentLob !== ALL;
@@ -111,7 +91,9 @@ export function OpportunitiesListFilters({ params }: { params: SearchParams }) {
         labels={STAGE_LABELS}
         onChange={(value) =>
           router.replace(
-            hrefWith(params, { stage: value === ALL ? null : value }),
+            buildListHref("/opportunities", "oppPage", params, {
+              stage: value === ALL ? null : value,
+            }),
           )
         }
       />
@@ -123,7 +105,9 @@ export function OpportunitiesListFilters({ params }: { params: SearchParams }) {
         labels={LINE_OF_BUSINESS_LABELS}
         onChange={(value) =>
           router.replace(
-            hrefWith(params, { lob: value === ALL ? null : value }),
+            buildListHref("/opportunities", "oppPage", params, {
+              lob: value === ALL ? null : value,
+            }),
           )
         }
       />

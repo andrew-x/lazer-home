@@ -1,8 +1,7 @@
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-
-type SearchParams = Record<string, string | string[] | undefined>;
+import { buildListHref, type SearchParams } from "@/lib/core/list-href";
 
 /**
  * Builds a `basePath` href that changes only `paramKey` to `page`, preserving
@@ -14,18 +13,9 @@ function buildHref(
   paramKey: string,
   page: number,
 ): string {
-  const sp = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (key === paramKey) continue; // replaced below
-    if (typeof value === "string") {
-      sp.append(key, value);
-    } else if (Array.isArray(value)) {
-      for (const v of value) sp.append(key, v);
-    }
-  }
-  sp.set(paramKey, String(page));
-  const qs = sp.toString();
-  return qs ? `${basePath}?${qs}` : basePath;
+  return buildListHref(basePath, paramKey, params, {
+    [paramKey]: String(page),
+  });
 }
 
 const ELLIPSIS = "…";
