@@ -2,7 +2,7 @@
 
 import { IconPlus } from "@tabler/icons-react";
 import { useAction } from "next-safe-action/hooks";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, type UseFormReturn, useForm } from "react-hook-form";
 import { createOpportunity } from "@/actions/crm/createOpportunity";
 import {
   type CreateOpportunityInput,
@@ -105,7 +105,13 @@ function OpportunityForm({ onSaved }: { onSaved: () => void }) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
       <OpportunityFields
-        form={form}
+        // This form is a superset (it adds `companyId`/`companyName` for the
+        // company picker below), and react-hook-form's `UseFormReturn` is
+        // invariant over its value shape, so it isn't structurally assignable to
+        // the shared `OpportunityFieldValues` the fields bind — narrow it here.
+        // The extra keys are unused by `OpportunityFields`; the company picker is
+        // wired through `companySlot` against the full form instead.
+        form={form as unknown as UseFormReturn<OpportunityFieldValues>}
         idPrefix="opp"
         companySlot={
           <Controller

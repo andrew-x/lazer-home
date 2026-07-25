@@ -27,6 +27,19 @@ export function formatMoney(
 }
 
 /**
+ * Format a bare money amount with no currency, e.g. `formatAmount(150000)` →
+ * "150,000" — the fallback for a comp value whose currency is unknown. Same
+ * grouping/locale as `formatMoney`, just without the currency symbol; pass Intl
+ * options to override the defaults.
+ */
+export function formatAmount(
+  amount: number,
+  options?: Intl.NumberFormatOptions,
+): string {
+  return new Intl.NumberFormat(undefined, options).format(amount);
+}
+
+/**
  * Normalize a raw CSV cell to a known currency code; unrecognized/blank → null.
  * Never throws — compensation is optional/supplementary, so a bad cell just yields
  * no currency rather than failing the whole row.

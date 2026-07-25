@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
 import { useMemo, useState } from "react";
 import { updateStaffSkills } from "@/actions/staff/updateStaffSkills";
+import { toEnumValue } from "@/components/form/enum-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -226,7 +227,10 @@ function SelectedChip({
         <DropdownMenuContent align="start">
           <DropdownMenuRadioGroup
             value={skill.level}
-            onValueChange={(value) => onSetLevel(value as ProficiencyLevel)}
+            onValueChange={(value) => {
+              const level = toEnumValue(PROFICIENCY_LEVELS, value);
+              if (level) onSetLevel(level);
+            }}
           >
             {PROFICIENCY_LEVELS.map((level) => (
               <DropdownMenuRadioItem key={level} value={level}>

@@ -11,6 +11,7 @@ import {
   AllocationsLegend,
 } from "@/components/allocations/allocations-grid";
 import { PlannerRange } from "@/components/allocations/planner-range";
+import { toEnumValue } from "@/components/form/enum-select";
 import {
   ALL,
   FilterLabel,
@@ -172,8 +173,8 @@ export function AllocationsPlanner({
               aria-label="Planner granularity"
               value={[granularity]}
               onValueChange={(values) => {
-                if (values.length > 0)
-                  changeGranularity(values[0] as Granularity);
+                const next = toEnumValue(GRANULARITIES, values[0] ?? null);
+                if (next) changeGranularity(next);
               }}
             >
               {GRANULARITIES.map((option) => (

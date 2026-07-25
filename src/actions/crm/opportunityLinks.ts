@@ -89,9 +89,9 @@ async function insertOpportunitySourceStaff(
 }
 
 /**
- * Insert an opportunity's four people-junction rows in one transaction. Shared by
- * `createOpportunity` (fresh insert) and `updateOpportunity` (after it deletes the
- * existing rows), so the two always write the identical junction shape.
+ * Insert an opportunity's four people-junction rows in one transaction. Used by
+ * `createOpportunity` on a fresh insert, sharing the same per-junction inserts as
+ * the per-junction replace helpers below so the junction shape can't drift.
  */
 export async function writeOpportunityLinks(
   tx: Tx,
@@ -112,8 +112,7 @@ export async function writeOpportunityLinks(
 // --- Per-junction replace --------------------------------------------------
 // Clear one opportunity's rows in a single junction, then re-insert the given id
 // set. The field-scoped `updateOpportunityField` uses these to rewrite only the
-// junction a drawer edit touched, leaving the other three untouched (unlike the
-// full `updateOpportunity`, which replaces all four).
+// junction a drawer edit touched, leaving the other three untouched.
 
 export async function replaceOpportunityContacts(
   tx: Tx,

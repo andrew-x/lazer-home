@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import type { RatingRecord } from "@/actions/performance/getRatingsSummaryData";
 import type { CompensationRecord } from "@/actions/staff/getCompensationSummaryData";
 import type { ExchangeRates } from "@/actions/staff/getExchangeRates";
+import { toEnumValue } from "@/components/form/enum-select";
 import { ALL, FilterLabel, SegmentedFilter } from "@/components/form/filters";
 import { CompensationScatter } from "@/components/performance/compensation-scatter";
 import { LevelsSection } from "@/components/performance/levels-section";
@@ -150,7 +151,8 @@ export function PerformanceDashboard({
             aria-label="Display currency"
             value={[currency]}
             onValueChange={(values) => {
-              if (values.length > 0) setCurrency(values[0] as Currency);
+              const next = toEnumValue(DISPLAY_CURRENCIES, values[0] ?? null);
+              if (next) setCurrency(next);
             }}
           >
             {DISPLAY_CURRENCIES.map((code) => (

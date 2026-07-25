@@ -57,7 +57,10 @@ import {
   buildPlannerRows,
   buildWeekColumns,
 } from "@/lib/projects/project-planner-grid";
-import { PROJECT_ROLE_STATUS_LABELS } from "@/lib/projects/project-role-status";
+import {
+  PROJECT_ROLE_STATUS_LABELS,
+  ROLE_STATUS,
+} from "@/lib/projects/project-role-status";
 
 type CompanyRef = { id: string; name: string };
 
@@ -278,7 +281,7 @@ function PlanEditor({
 
   // You can only extend a confirmed role (continue a committed allocation).
   const extendableRoles = useMemo(
-    () => plan.roles.filter((r) => r.status === "confirmed"),
+    () => plan.roles.filter((r) => r.status === ROLE_STATUS.confirmed),
     [plan.roles],
   );
 
@@ -288,11 +291,11 @@ function PlanEditor({
   // Confirmed vs. tentative spans — shown as separate tiles once anything is
   // committed, so the locked-in timeline reads apart from the proposed one.
   const confirmedRange = useMemo(
-    () => rangeOf(plan.roles.filter((r) => r.status === "confirmed")),
+    () => rangeOf(plan.roles.filter((r) => r.status === ROLE_STATUS.confirmed)),
     [plan.roles],
   );
   const tentativeRange = useMemo(
-    () => rangeOf(plan.roles.filter((r) => r.status === "tentative")),
+    () => rangeOf(plan.roles.filter((r) => r.status === ROLE_STATUS.tentative)),
     [plan.roles],
   );
 

@@ -2,8 +2,8 @@
 
 import { eq, type InferInsertModel } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { assertRowExists } from "@/actions/shared/assertRowExists";
 import { secureActionClient } from "@/lib/core/action";
-import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { opportunities } from "@/lib/db/schema";
 import { assertOpportunityTransitionAllowed } from "./assertOpportunityTransitionAllowed";
@@ -25,7 +25,7 @@ type OpportunityUpdate = Partial<InferInsertModel<typeof opportunities>>;
  * `crm.edit`. A discriminated union on `field`: each variant writes only the
  * slice that changed instead of re-sending the whole record, so concurrent
  * edits to other fields aren't clobbered and unrelated people junctions aren't
- * rewritten (mirrors `updateContactOwner`). Status changes route through the
+ * rewritten (mirrors `updateContactField`). Status changes route through the
  * shared `assertOpportunityTransitionAllowed` — ADR 0024's one enforcement.
  * Every write is `.returning()`-guarded so a row deleted out from under the edit
  * surfaces as a clean error; junction edits touch the row too (bumping
@@ -46,14 +46,12 @@ export const updateOpportunityField = secureActionClient
       exec: Executor,
       values: OpportunityUpdate,
     ) => {
-      const [row] = await exec
+      const rows = await exec
         .update(opportunities)
         .set(values)
         .where(eq(opportunities.id, id))
         .returning({ id: opportunities.id });
-      if (!row) {
-        throw new UserSafeActionError("That opportunity no longer exists.");
-      }
+      assertRowExists(rows, "opportunity");
     };
 
     switch (parsedInput.field) {
@@ -73,14 +71,13 @@ export const updateOpportunityField = secureActionClient
         const nextStatus = parsedInput.status;
         await db.transaction(async (tx) => {
           // Capture the prior status to detect a genuine move into `closed_won`.
-          const [before] = await tx
+          const beforeRows = await tx
             .select({ status: opportunities.status })
             .from(opportunities)
             .where(eq(opportunities.id, id))
             .limit(1);
-          if (!before) {
-            throw new UserSafeActionError("That opportunity no longer exists.");
-          }
+          assertRowExists(beforeRows, "opportunity");
+          const before = beforeRows[0];
           await setOpportunity(tx, { status: nextStatus });
           // Won locks this opportunity's tentative roles (same transaction).
           await confirmRolesOnWon(tx, id, nextStatus, before.status);

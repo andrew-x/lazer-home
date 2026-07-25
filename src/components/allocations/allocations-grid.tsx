@@ -26,7 +26,10 @@ import {
   type LineOfBusiness,
 } from "@/lib/crm/line-of-business";
 import { formatDate } from "@/lib/format/format";
-import { PROJECT_ROLE_STATUS_LABELS } from "@/lib/projects/project-role-status";
+import {
+  PROJECT_ROLE_STATUS_LABELS,
+  ROLE_STATUS,
+} from "@/lib/projects/project-role-status";
 import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
 import {
   EMPLOYMENT_TYPE_LABELS,
@@ -203,7 +206,7 @@ function AllocationBlock({
   allocation: AllocationCell;
   unit: string;
 }) {
-  const confirmed = allocation.status === "confirmed";
+  const confirmed = allocation.status === ROLE_STATUS.confirmed;
   return (
     <Tooltip>
       <TooltipTrigger

@@ -3,8 +3,8 @@
 import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
 import { searchCities } from "@/actions/cities/searchCities";
-import { updateCompanyLocation } from "@/actions/crm/updateCompanyLocation";
-import { updateContactLocation } from "@/actions/crm/updateContactLocation";
+import { updateCompanyField } from "@/actions/crm/updateCompanyField";
+import { updateContactField } from "@/actions/crm/updateContactField";
 import { EntityCombobox } from "@/components/form/entity-combobox";
 import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { InlineEditField } from "@/components/form/inline-edit-field";
@@ -13,14 +13,15 @@ import { InlineEditField } from "@/components/form/inline-edit-field";
  * The location ("City, CC"), editable in place on a company or contact detail
  * page. Reads as text until the pencil is clicked, then swaps in a city picker
  * (backed by the static world-cities list via `searchCities`) with confirm/cancel.
- * Confirming calls the entity's *location-only* update action, which writes just
- * `location` and `revalidatePath`s its detail route, so the server-rendered
- * display refreshes on success (no manual refetch).
+ * Confirming calls the entity's field-scoped update action with the `location`
+ * variant, which writes just `location` and `revalidatePath`s its detail route,
+ * so the server-rendered display refreshes on success (no manual refetch).
  *
  * Location is stored as the label string itself, so the combobox's
  * `EntityOption` uses that label for both `id` and `name`. Company and contact
- * differ only in which location-only action they bind; the two schemas are
- * identical (`{ id, location }`), so `kind` just selects the action.
+ * differ only in which field action they bind; both expose an identical
+ * `location` variant (`{ field: "location", id, location }`), so `kind` just
+ * selects the action.
  */
 type InlineLocationFieldProps = {
   kind: "company" | "contact";
@@ -33,8 +34,7 @@ export function InlineLocationField({
   kind,
   ...props
 }: InlineLocationFieldProps) {
-  const action =
-    kind === "company" ? updateCompanyLocation : updateContactLocation;
+  const action = kind === "company" ? updateCompanyField : updateContactField;
   return <LocationField action={action} {...props} />;
 }
 
@@ -44,7 +44,7 @@ function LocationField({
   canEdit,
   location,
 }: Omit<InlineLocationFieldProps, "kind"> & {
-  action: typeof updateCompanyLocation | typeof updateContactLocation;
+  action: typeof updateCompanyField | typeof updateContactField;
 }) {
   const toOption = (value: string | null): EntityOption | null =>
     value ? { id: value, name: value } : null;
@@ -64,7 +64,11 @@ function LocationField({
     setEditing(false);
   };
   const confirm = () => {
-    save.execute({ id: entityId, location: draft?.id ?? null });
+    save.execute({
+      field: "location",
+      id: entityId,
+      location: draft?.id ?? null,
+    });
   };
 
   return (

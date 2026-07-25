@@ -3,7 +3,7 @@
 import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
 import { toast } from "sonner";
-import { updateContactRelationshipStrength } from "@/actions/crm/updateContactRelationshipStrength";
+import { updateContactField } from "@/actions/crm/updateContactField";
 import { StarRating } from "@/components/form/star-rating";
 import { Label } from "@/components/ui/label";
 import { relationshipStrengthLabel } from "@/lib/crm/relationship-strength";
@@ -12,10 +12,10 @@ import { relationshipStrengthLabel } from "@/lib/crm/relationship-strength";
  * The contact's relationship strength, edited in place in the meta sidebar: a
  * 1–5 star rating with the current level's label beneath it. Unlike the owner
  * field there's no pencil/confirm step — clicking a star *is* the edit, so it
- * writes immediately via `updateContactRelationshipStrength` (which
- * `revalidatePath`s the detail route). Optimistic local state keeps the stars in
- * sync while the write is in flight and reverts on error. Read-only stars when
- * the viewer lacks `crm.edit`.
+ * writes immediately via `updateContactField`'s `relationshipStrength` variant
+ * (which `revalidatePath`s the detail route). Optimistic local state keeps the
+ * stars in sync while the write is in flight and reverts on error. Read-only
+ * stars when the viewer lacks `crm.edit`.
  */
 export function InlineRelationshipStrengthField({
   contactId,
@@ -29,7 +29,7 @@ export function InlineRelationshipStrengthField({
   const [value, setValue] = useState<number | null>(strength);
   const [preview, setPreview] = useState<number | null>(null);
 
-  const { execute, isPending } = useAction(updateContactRelationshipStrength, {
+  const { execute, isPending } = useAction(updateContactField, {
     onError: ({ error }) => {
       setValue(strength);
       toast.error(
@@ -41,7 +41,11 @@ export function InlineRelationshipStrengthField({
 
   const handleChange = (next: number) => {
     setValue(next);
-    execute({ id: contactId, relationshipStrength: next });
+    execute({
+      field: "relationshipStrength",
+      id: contactId,
+      relationshipStrength: next,
+    });
   };
 
   const described = preview ?? value;

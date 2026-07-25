@@ -2,6 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { assertRowExists } from "@/actions/shared/assertRowExists";
 import { secureActionClient } from "@/lib/core/action";
 import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
@@ -44,7 +45,7 @@ export const extendProjectRole = secureActionClient
         );
       }
 
-      const [source] = await tx
+      const sourceRows = await tx
         .select({
           projectId: projectRoles.projectId,
           staffId: projectRoles.staffId,
@@ -56,9 +57,8 @@ export const extendProjectRole = secureActionClient
         .from(projectRoles)
         .where(eq(projectRoles.id, sourceRoleId))
         .limit(1);
-      if (!source) {
-        throw new UserSafeActionError("That role no longer exists.");
-      }
+      assertRowExists(sourceRows, "role");
+      const [source] = sourceRows;
       if (source.projectId !== opportunity.projectId) {
         throw new UserSafeActionError(
           "You can only extend a role on this opportunity's project.",

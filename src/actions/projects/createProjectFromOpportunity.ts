@@ -2,6 +2,7 @@
 
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { assertRowExists } from "@/actions/shared/assertRowExists";
 import { secureActionClient } from "@/lib/core/action";
 import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
@@ -23,7 +24,7 @@ export const createProjectFromOpportunity = secureActionClient
   })
   .inputSchema(createProjectFromOpportunitySchema)
   .action(async ({ parsedInput: { opportunityId } }) => {
-    const [opportunity] = await db
+    const opportunityRows = await db
       .select({
         name: opportunities.name,
         companyId: opportunities.companyId,
@@ -33,9 +34,8 @@ export const createProjectFromOpportunity = secureActionClient
       .where(eq(opportunities.id, opportunityId))
       .limit(1);
 
-    if (!opportunity) {
-      throw new UserSafeActionError("That opportunity no longer exists.");
-    }
+    assertRowExists(opportunityRows, "opportunity");
+    const [opportunity] = opportunityRows;
     if (opportunity.projectId) {
       throw new UserSafeActionError("This opportunity already has a project.");
     }

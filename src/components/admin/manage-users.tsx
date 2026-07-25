@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { commitUserChanges } from "@/actions/admin/commitUserChanges";
 import type { UserAdminRow } from "@/actions/admin/getUsers";
+import { toEnumValue } from "@/components/form/enum-select";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -71,7 +72,8 @@ function RoleCell({ userId }: { userId: string }) {
     <Select
       value={value}
       onValueChange={(next) => {
-        if (next) meta.update(userId, { role: next as AppRole });
+        const role = toEnumValue(ROLE_SLUGS, next);
+        if (role) meta.update(userId, { role });
       }}
     >
       <SelectTrigger size="sm" aria-label="Role" className="w-44">

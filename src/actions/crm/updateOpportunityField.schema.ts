@@ -12,7 +12,7 @@ import {
  * field owns, so a drawer edit writes just what changed instead of re-sending
  * the whole record (which last-write-wins clobbers a concurrent edit and
  * needlessly rewrites every people junction). Mirrors the rationale behind
- * `updateContactOwner` — a narrow write that skips unrelated re-validation.
+ * `updateContactField` — a narrow write that skips unrelated re-validation.
  *
  * Every field validator is reused verbatim from `opportunityBaseFields` (shared
  * with create + full-update, so the shapes can't drift). `source` carries its

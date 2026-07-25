@@ -21,6 +21,18 @@ export const PROJECT_ROLE_STATUSES = [
 
 export type ProjectRoleStatus = (typeof PROJECT_ROLE_STATUSES)[number];
 
+/**
+ * The status values as named members, so comparisons reference the single
+ * source (`ROLE_STATUS.confirmed`) instead of re-typing the bare string literal
+ * at each call site. `satisfies` keeps every key/value a valid status.
+ */
+export const ROLE_STATUS = {
+  tentative: "tentative",
+  confirmed: "confirmed",
+  paused: "paused",
+  cancelled: "cancelled",
+} as const satisfies Record<ProjectRoleStatus, ProjectRoleStatus>;
+
 /** The status a role is created with by default. */
 export const DEFAULT_PROJECT_ROLE_STATUS: ProjectRoleStatus = "tentative";
 

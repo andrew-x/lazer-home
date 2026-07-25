@@ -26,12 +26,13 @@ import { ContactsComboboxField } from "./contacts-combobox-field";
 import { STATUS_SELECT_LABELS } from "./opportunity-display";
 
 /**
- * The react-hook-form value shape for the add-opportunity dialog's fields. The
- * dialog's form is a superset — it adds `companyId`/`companyName` for its company
- * picker — which is why `OpportunityFields` below is generic over the caller's
- * form type. Keeping the field UI, the values→input mapper, and the server-issue
- * field map together here means they can't drift — mirrors how `CompanyFields`
- * serves the add + inline company forms.
+ * The react-hook-form value shape for the add-opportunity dialog's fields.
+ * `OpportunityFields` below binds exactly this shape. The dialog's form is a
+ * superset — it adds `companyId`/`companyName` for its company picker — which it
+ * narrows to this type once at the call site (see the note there). Keeping the
+ * field UI, the values→input mapper, and the server-issue field map together
+ * here means they can't drift — mirrors how `CompanyFields` serves the add +
+ * inline company forms.
  *
  * The add-opportunity dialog is the sole caller: the detail drawer edits each
  * field inline (`opportunity-detail-sheet.tsx`) and does not use this component.
@@ -84,25 +85,22 @@ export const OPPORTUNITY_FIELD_FOR_ISSUE = {
 } satisfies Record<string, keyof OpportunityFieldValues>;
 
 /**
- * The add-opportunity dialog's form fields. Generic over the caller's form type
- * only to bridge react-hook-form's invariance: the dialog's form is a superset
- * (it adds `companyId`/`companyName`), and `UseFormReturn` isn't assignable
- * across differing value shapes, so the prop is widened here and narrowed once
- * internally to the shared shape these controls actually bind. `companySlot` is
- * rendered just after the name field — the dialog passes its company picker
- * there. `idPrefix` keeps element ids unique across instances.
+ * The add-opportunity dialog's form fields. Binds exactly `OpportunityFieldValues`
+ * — the sole caller narrows its superset form (which adds `companyId`/`companyName`)
+ * to this shape at the call site, so this component stays honestly typed with no
+ * internal cast. `companySlot` is rendered just after the name field — the dialog
+ * passes its company picker there. `idPrefix` keeps element ids unique across
+ * instances.
  */
-export function OpportunityFields<TValues extends OpportunityFieldValues>({
+export function OpportunityFields({
   form,
   idPrefix,
   companySlot,
 }: {
-  form: UseFormReturn<TValues>;
+  form: UseFormReturn<OpportunityFieldValues>;
   idPrefix: string;
   companySlot?: ReactNode;
 }) {
-  // Narrow once: the sole caller passes a superset form (it adds company
-  // fields), but every control below binds only the shared `OpportunityFieldValues`.
   const {
     register,
     control,
@@ -110,7 +108,7 @@ export function OpportunityFields<TValues extends OpportunityFieldValues>({
     clearErrors,
     watch,
     formState: { errors },
-  } = form as unknown as UseFormReturn<OpportunityFieldValues>;
+  } = form;
 
   const source = watch("source");
 

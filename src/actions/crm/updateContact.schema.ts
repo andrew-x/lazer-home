@@ -13,8 +13,8 @@ export const updateContactSchema = z.object({
   ...contactFields,
   id,
   ownerId,
-  // Relationship strength (1–5) is edited inline via
-  // `updateContactRelationshipStrength`; the edit form just carries the current
+  // Relationship strength (1–5) is edited inline via `updateContactField`'s
+  // `relationshipStrength` variant; the edit form just carries the current
   // value through. A nullable int32 (null when unrated) — matches the column.
   relationshipStrength: z
     .number()

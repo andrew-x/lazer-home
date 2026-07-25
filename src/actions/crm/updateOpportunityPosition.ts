@@ -2,8 +2,8 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { assertRowExists } from "@/actions/shared/assertRowExists";
 import { secureActionClient } from "@/lib/core/action";
-import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { opportunities } from "@/lib/db/schema";
 import { assertOpportunityTransitionAllowed } from "./assertOpportunityTransitionAllowed";
@@ -36,14 +36,13 @@ export const updateOpportunityPosition = secureActionClient
       // Capture the prior status to detect a genuine move into `closed_won`
       // (a card dragged onto the Won column), so its tentative roles confirm in
       // the same transaction as the status write.
-      const [before] = await tx
+      const beforeRows = await tx
         .select({ status: opportunities.status })
         .from(opportunities)
         .where(eq(opportunities.id, parsedInput.id))
         .limit(1);
-      if (!before) {
-        throw new UserSafeActionError("That opportunity no longer exists.");
-      }
+      assertRowExists(beforeRows, "opportunity");
+      const before = beforeRows[0];
 
       await tx
         .update(opportunities)

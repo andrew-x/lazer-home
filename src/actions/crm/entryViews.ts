@@ -56,62 +56,67 @@ function toLogData(rows: EntryRow[]): EntryLogData {
   return { notes, nextSteps };
 }
 
+/** One of the three near-identical entry tables. */
+type EntryTable =
+  | typeof companyEntries
+  | typeof contactEntries
+  | typeof opportunityEntries;
+
+/** The parent FK column of one of those tables. */
+type ParentColumn =
+  | typeof companyEntries.companyId
+  | typeof contactEntries.contactId
+  | typeof opportunityEntries.opportunityId;
+
+/**
+ * Newest-first notes & next steps for one parent, with author names resolved.
+ * The three entry tables are structurally identical apart from the parent FK's
+ * name, so a representative cast (`companyEntries`) lets Drizzle infer the
+ * select while the *real* table and parent column drive the runtime SQL.
+ */
+async function selectEntries(
+  table: EntryTable,
+  parentColumn: ParentColumn,
+  parentId: string,
+): Promise<EntryLogData> {
+  const t = table as typeof companyEntries;
+  const rows = await db
+    .select({
+      id: t.id,
+      kind: t.kind,
+      body: t.body,
+      authorName: staff.name,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+    })
+    .from(t)
+    .leftJoin(staff, eq(t.authorStaffId, staff.id))
+    .where(eq(parentColumn, parentId))
+    .orderBy(desc(t.createdAt));
+  return toLogData(rows);
+}
+
 /** Newest-first notes & next steps for a contact, with author names. */
 export async function getContactEntries(
   contactId: string,
 ): Promise<EntryLogData> {
-  const rows = await db
-    .select({
-      id: contactEntries.id,
-      kind: contactEntries.kind,
-      body: contactEntries.body,
-      authorName: staff.name,
-      createdAt: contactEntries.createdAt,
-      updatedAt: contactEntries.updatedAt,
-    })
-    .from(contactEntries)
-    .leftJoin(staff, eq(contactEntries.authorStaffId, staff.id))
-    .where(eq(contactEntries.contactId, contactId))
-    .orderBy(desc(contactEntries.createdAt));
-  return toLogData(rows);
+  return selectEntries(contactEntries, contactEntries.contactId, contactId);
 }
 
 /** Newest-first notes & next steps for an opportunity, with author names. */
 export async function getOpportunityEntries(
   opportunityId: string,
 ): Promise<EntryLogData> {
-  const rows = await db
-    .select({
-      id: opportunityEntries.id,
-      kind: opportunityEntries.kind,
-      body: opportunityEntries.body,
-      authorName: staff.name,
-      createdAt: opportunityEntries.createdAt,
-      updatedAt: opportunityEntries.updatedAt,
-    })
-    .from(opportunityEntries)
-    .leftJoin(staff, eq(opportunityEntries.authorStaffId, staff.id))
-    .where(eq(opportunityEntries.opportunityId, opportunityId))
-    .orderBy(desc(opportunityEntries.createdAt));
-  return toLogData(rows);
+  return selectEntries(
+    opportunityEntries,
+    opportunityEntries.opportunityId,
+    opportunityId,
+  );
 }
 
 /** Newest-first notes & next steps for a company, with author names. */
 export async function getCompanyEntries(
   companyId: string,
 ): Promise<EntryLogData> {
-  const rows = await db
-    .select({
-      id: companyEntries.id,
-      kind: companyEntries.kind,
-      body: companyEntries.body,
-      authorName: staff.name,
-      createdAt: companyEntries.createdAt,
-      updatedAt: companyEntries.updatedAt,
-    })
-    .from(companyEntries)
-    .leftJoin(staff, eq(companyEntries.authorStaffId, staff.id))
-    .where(eq(companyEntries.companyId, companyId))
-    .orderBy(desc(companyEntries.createdAt));
-  return toLogData(rows);
+  return selectEntries(companyEntries, companyEntries.companyId, companyId);
 }

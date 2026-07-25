@@ -36,7 +36,7 @@ export type ActionAuthorize = (args: {
  *   secureActionClient.metadata({ action }).inputSchema(zod).action(fn)
  * with auth, validation, logging and safe errors all handled by the client.
  */
-export const publicActionClient = createSafeActionClient({
+const publicActionClient = createSafeActionClient({
   // Every action declares typed metadata. `role` gates the secure client below.
   defineMetadataSchema() {
     return z.object({

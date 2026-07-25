@@ -1,16 +1,12 @@
 "use server";
 
-import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { secureActionClient } from "@/lib/core/action";
-import { UserSafeActionError } from "@/lib/core/errors";
-import { db } from "@/lib/db/db";
-import { opportunityEntries } from "@/lib/db/schema";
 import { deleteEntrySchema } from "./entries.schema";
+import { deleteEntry, opportunityEntryMutations } from "./entryMutations";
 
 /**
  * Delete an opportunity entry. Gated on `crm.edit` — any CRM editor may remove
- * any entry. `.returning()` confirms the row existed.
+ * any entry. Delegates to the shared entry core (see `entryMutations.ts`).
  */
 export const deleteOpportunityEntry = secureActionClient
   .metadata({
@@ -18,15 +14,6 @@ export const deleteOpportunityEntry = secureActionClient
     permission: { crm: ["edit"] },
   })
   .inputSchema(deleteEntrySchema)
-  .action(async ({ parsedInput }) => {
-    const [row] = await db
-      .delete(opportunityEntries)
-      .where(eq(opportunityEntries.id, parsedInput.id))
-      .returning({ id: opportunityEntries.id });
-    if (!row) {
-      throw new UserSafeActionError("That entry no longer exists.");
-    }
-
-    revalidatePath("/opportunities");
-    return { id: parsedInput.id };
-  });
+  .action(({ parsedInput }) =>
+    deleteEntry(opportunityEntryMutations, { id: parsedInput.id }),
+  );

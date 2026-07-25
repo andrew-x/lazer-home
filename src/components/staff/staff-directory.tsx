@@ -5,6 +5,7 @@ import { useAction } from "next-safe-action/hooks";
 import { useEffect, useId, useMemo, useState } from "react";
 import { nearbyCityLabels } from "@/actions/cities/nearbyCityLabels";
 import type { StaffDirectoryEntry } from "@/actions/staff/getStaffDirectory";
+import { toEnumValue } from "@/components/form/enum-select";
 import {
   ALL,
   FilterLabel,
@@ -29,6 +30,12 @@ type MinLevel = ProficiencyLevel | typeof ANY_LEVEL;
 const MIN_LEVEL_OPTIONS: { value: ProficiencyLevel; label: string }[] = [
   { value: "intermediate", label: "Intermediate+" },
   { value: "senior", label: "Senior" },
+];
+
+/** Every value the min-level toggle can hold — the "Any" sentinel + the options. */
+const MIN_LEVEL_VALUES: readonly MinLevel[] = [
+  ANY_LEVEL,
+  ...MIN_LEVEL_OPTIONS.map((option) => option.value),
 ];
 
 /**
@@ -135,7 +142,8 @@ export function StaffDirectory({
                 value={[minLevel]}
                 // Single-select: keep one segment always active (see SegmentedFilter).
                 onValueChange={(values) => {
-                  if (values.length > 0) setMinLevel(values[0] as MinLevel);
+                  const next = toEnumValue(MIN_LEVEL_VALUES, values[0] ?? null);
+                  if (next) setMinLevel(next);
                 }}
               >
                 <ToggleGroupItem value={ANY_LEVEL}>Any</ToggleGroupItem>

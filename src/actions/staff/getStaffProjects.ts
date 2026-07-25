@@ -10,10 +10,7 @@ import {
 } from "@/lib/db/schema";
 import { deriveProjectStatus } from "@/lib/projects/project-derived";
 import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
-import {
-  PROJECT_ROLE_TYPE_LABELS,
-  type ProjectRoleType,
-} from "@/lib/projects/project-role-type";
+import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
 
 /** A project this person is involved with, plus how they're involved. */
 export type StaffProjectSummary = {
@@ -90,9 +87,7 @@ export async function getStaffProjects(
     upsert(row).relationships.add(DELIVERY_MANAGER_LABEL);
   }
   for (const row of roleRows) {
-    upsert(row).relationships.add(
-      PROJECT_ROLE_TYPE_LABELS[row.roleType as ProjectRoleType],
-    );
+    upsert(row).relationships.add(PROJECT_ROLE_TYPE_LABELS[row.roleType]);
   }
 
   // Derived status needs each project's full set of role statuses (not just this

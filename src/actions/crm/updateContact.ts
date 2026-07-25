@@ -1,12 +1,12 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { assertRowExists } from "@/actions/shared/assertRowExists";
 import { secureActionClient } from "@/lib/core/action";
-import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { contacts } from "@/lib/db/schema";
 import { assertValidManager, mapContactEmailConflict } from "./contactChecks";
+import { revalidateContact } from "./revalidate";
 import { updateContactSchema } from "./updateContact.schema";
 
 /**
@@ -54,11 +54,8 @@ export const updateContact = secureActionClient
       mapContactEmailConflict(error);
     }
 
-    if (updated.length === 0) {
-      throw new UserSafeActionError("That contact no longer exists.");
-    }
+    assertRowExists(updated, "contact");
 
-    revalidatePath("/contacts");
-    revalidatePath(`/contacts/${id}`);
+    revalidateContact(id);
     return { id };
   });

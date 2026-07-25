@@ -1,6 +1,7 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
+import { assertRowExists } from "@/actions/shared/assertRowExists";
 import { UserSafeActionError } from "@/lib/core/errors";
 import type { db } from "@/lib/db/db";
 import { projectRoles } from "@/lib/db/schema";
@@ -28,7 +29,7 @@ export async function assertRoleEditable(
   roleId: string,
   opportunityId: string,
 ): Promise<EditableRole> {
-  const [role] = await exec
+  const roleRows = await exec
     .select({
       id: projectRoles.id,
       projectId: projectRoles.projectId,
@@ -40,9 +41,8 @@ export async function assertRoleEditable(
     .where(eq(projectRoles.id, roleId))
     .limit(1);
 
-  if (!role) {
-    throw new UserSafeActionError("That role no longer exists.");
-  }
+  assertRowExists(roleRows, "role");
+  const [role] = roleRows;
   if (role.opportunityId !== opportunityId) {
     throw new UserSafeActionError(
       "You can only edit roles you added for this opportunity.",

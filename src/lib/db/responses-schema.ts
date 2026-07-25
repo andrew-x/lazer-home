@@ -1,4 +1,3 @@
-import type { InferSelectModel } from "drizzle-orm";
 import {
   index,
   jsonb,
@@ -59,5 +58,3 @@ export const responses = pgTable(
     index("responses_staff_idx").on(t.staffId),
   ],
 );
-
-export type Response = InferSelectModel<typeof responses>;

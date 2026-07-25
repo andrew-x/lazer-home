@@ -124,4 +124,3 @@ export const staffRating = pgTable(
 // --- Row types -------------------------------------------------------------
 
 export type Feedback = InferSelectModel<typeof feedback>;
-export type StaffRating = InferSelectModel<typeof staffRating>;

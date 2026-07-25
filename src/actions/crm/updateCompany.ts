@@ -1,11 +1,11 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { assertRowExists } from "@/actions/shared/assertRowExists";
 import { secureActionClient } from "@/lib/core/action";
-import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { companies } from "@/lib/db/schema";
+import { revalidateCompany } from "./revalidate";
 import { updateCompanySchema } from "./updateCompany.schema";
 
 /** Edit a company's core fields and owner. Gated on `crm.edit` (the single
@@ -30,11 +30,8 @@ export const updateCompany = secureActionClient
       .where(eq(companies.id, id))
       .returning({ id: companies.id });
 
-    if (updated.length === 0) {
-      throw new UserSafeActionError("That company no longer exists.");
-    }
+    assertRowExists(updated, "company");
 
-    revalidatePath("/companies");
-    revalidatePath(`/companies/${id}`);
+    revalidateCompany(id);
     return { id };
   });

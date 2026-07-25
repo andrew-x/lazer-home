@@ -42,7 +42,10 @@ import {
   buildPlannerRows,
   buildWeekColumns,
 } from "@/lib/projects/project-planner-grid";
-import { PROJECT_ROLE_STATUS_LABELS } from "@/lib/projects/project-role-status";
+import {
+  PROJECT_ROLE_STATUS_LABELS,
+  ROLE_STATUS,
+} from "@/lib/projects/project-role-status";
 import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
 import { PTO_TYPE_LABELS } from "@/lib/staff/staff-enums";
 
@@ -73,11 +76,11 @@ export function ProjectDetailView({
 
   const lengthWeeks = weekColumns.length;
   const confirmedRange = useMemo(
-    () => rangeOf(roles.filter((r) => r.status === "confirmed")),
+    () => rangeOf(roles.filter((r) => r.status === ROLE_STATUS.confirmed)),
     [roles],
   );
   const tentativeRange = useMemo(
-    () => rangeOf(roles.filter((r) => r.status === "tentative")),
+    () => rangeOf(roles.filter((r) => r.status === ROLE_STATUS.tentative)),
     [roles],
   );
 

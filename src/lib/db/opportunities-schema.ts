@@ -187,4 +187,3 @@ export const opportunityEntries = pgTable(
 // --- Row types -------------------------------------------------------------
 
 export type Opportunity = InferSelectModel<typeof opportunities>;
-export type OpportunityEntry = InferSelectModel<typeof opportunityEntries>;

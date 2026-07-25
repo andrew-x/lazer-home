@@ -11,16 +11,7 @@ import { firstPerKey } from "@/lib/core/collections";
 import { db } from "@/lib/db/db";
 import { staff, staffEmployment, staffRating } from "@/lib/db/schema";
 import { latestEmploymentFirst } from "@/lib/staff/staff-employment";
-import { STAFF_FILTER_OPTIONS } from "@/lib/staff/staff-filters";
 import { latestRatingFirst } from "@/lib/staff/staff-rating-history";
-
-/**
- * The filter dimensions offered by the Levels dashboard, sourced from the DB
- * enums. Exported here so the page/UI don't import the Drizzle schema (the
- * actions layer owns all `@/lib/db` access). `role` also drives the ordered
- * by-level and by-role breakdowns.
- */
-export const ratingsFilterOptions = STAFF_FILTER_OPTIONS;
 
 /**
  * One row per active staff member for the Levels dashboard: the person's current

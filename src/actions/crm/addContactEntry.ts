@@ -1,43 +1,24 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { secureActionClient } from "@/lib/core/action";
-import { UserSafeActionError } from "@/lib/core/errors";
-import { db } from "@/lib/db/db";
-import { isForeignKeyViolation } from "@/lib/db/foreign-key-violation";
-import { generateId } from "@/lib/db/ids";
-import { contactEntries } from "@/lib/db/schema";
 import { addContactEntrySchema } from "./entries.schema";
-import { resolveAuthorStaffId } from "./resolveAuthorStaffId";
+import { addEntry, contactEntryMutations } from "./entryMutations";
 
 /**
  * Append a timestamped note or next-step entry to a contact's log. Gated on
- * `crm.edit`. The author is resolved server-side from the session (never trusted
- * from the client); `createdAt` defaults to now. The contact FK is guarded by the
- * DB — a bad id surfaces as a clean error rather than a dangling row.
+ * `crm.edit`. Delegates to the shared entry core (see `entryMutations.ts`).
  */
 export const addContactEntry = secureActionClient
   .metadata({ action: "add-contact-entry", permission: { crm: ["edit"] } })
   .inputSchema(addContactEntrySchema)
-  .action(async ({ parsedInput, ctx }) => {
-    const authorStaffId = await resolveAuthorStaffId(ctx.user);
-    const entryId = generateId("centry");
-    try {
-      await db.insert(contactEntries).values({
-        id: entryId,
-        contactId: parsedInput.contactId,
+  .action(({ parsedInput, ctx }) =>
+    addEntry(
+      contactEntryMutations,
+      {
+        parentId: parsedInput.contactId,
         kind: parsedInput.kind,
         body: parsedInput.body,
-        authorStaffId,
-      });
-    } catch (error) {
-      if (isForeignKeyViolation(error)) {
-        throw new UserSafeActionError("That contact no longer exists.");
-      }
-      throw error;
-    }
-
-    revalidatePath(`/contacts/${parsedInput.contactId}`);
-    revalidatePath("/contacts");
-    return { id: entryId };
-  });
+      },
+      ctx.user,
+    ),
+  );

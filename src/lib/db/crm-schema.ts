@@ -73,7 +73,7 @@ export const contacts = pgTable("contacts", {
   // Unestablished … 5 Champion / Trusted Partner — see
   // `@/lib/crm/relationship-strength`). Null when not yet rated. Edited inline
   // (stars) on the contact
-  // page via `updateContactRelationshipStrength`.
+  // page via `updateContactField`.
   relationshipStrength: integer(),
 
   createdAt: timestamp().defaultNow().notNull(),
@@ -159,5 +159,3 @@ export const companyEntries = pgTable(
 
 export type Company = InferSelectModel<typeof companies>;
 export type Contact = InferSelectModel<typeof contacts>;
-export type ContactEntry = InferSelectModel<typeof contactEntries>;
-export type CompanyEntry = InferSelectModel<typeof companyEntries>;

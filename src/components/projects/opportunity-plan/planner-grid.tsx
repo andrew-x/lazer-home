@@ -26,7 +26,10 @@ import {
   type PlannerRow,
   weekColumnLabel,
 } from "@/lib/projects/project-planner-grid";
-import { PROJECT_ROLE_STATUS_LABELS } from "@/lib/projects/project-role-status";
+import {
+  PROJECT_ROLE_STATUS_LABELS,
+  ROLE_STATUS,
+} from "@/lib/projects/project-role-status";
 import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
 
 /** The block fill for a role's own load, by its edit state / status. */
@@ -34,7 +37,7 @@ function ownBlockClass(row: PlannerRow): string {
   if (row.editable) {
     return "border-primary bg-primary/15 font-medium text-foreground";
   }
-  if (row.status === "confirmed") {
+  if (row.status === ROLE_STATUS.confirmed) {
     return "border-primary/40 bg-primary/10 text-foreground";
   }
   // Tentative, from another opportunity — read-only, greyed.

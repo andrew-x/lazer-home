@@ -1,4 +1,8 @@
-import { type Currency, formatMoney } from "@/lib/format/currency";
+import {
+  type Currency,
+  formatAmount,
+  formatMoney,
+} from "@/lib/format/currency";
 
 /** A compensation label/value row, or an em dash when absent. */
 function MoneyRow({
@@ -17,9 +21,7 @@ function MoneyRow({
         <span className="font-medium text-muted-foreground">—</span>
       ) : (
         <span className="text-right font-medium">
-          {currency
-            ? formatMoney(amount, currency)
-            : new Intl.NumberFormat().format(amount)}
+          {currency ? formatMoney(amount, currency) : formatAmount(amount)}
         </span>
       )}
     </div>
