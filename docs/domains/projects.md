@@ -122,7 +122,7 @@ delivery, allocations, timesheets, and billing.
   [ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
   **Schema files are the source of truth for the current shape**; the drizzle history was
   squashed into a single baseline (`drizzle/0000_lethal_rictor.sql`) more than once, with
-  three incremental migrations now on top — two of which touch this domain.
+  six incremental migrations now on top (`0001`–`0006`) — two of which touch this domain.
   `drizzle/0002_gray_corsair.sql` applied
   [ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md): it **adds**
   the `paused`/`cancelled` values to `project_role_status`, **adds** `project_roles.line_of_business`
@@ -339,7 +339,7 @@ delivery, allocations, timesheets, and billing.
   `role-dialog.tsx` + `extend-dialog.tsx`) renders the opportunity drawer's **Project plan** tab
   as a **weekly Gantt-like planner** — effectively the project editor. It lives under
   `components/projects/` (delivery UI) but is still **mounted inside the CRM opportunity detail
-  sheet** (`components/crm/opportunity-detail-sheet.tsx`). A **summary** header shows the
+  sheet** (`components/crm/opportunity-detail/sheet.tsx`). A **summary** header shows the
   project's **derived** lines of business, an **"Edit project"** button opening an edit dialog
   wired to `updateProject` (**name + delivery managers only** — no status/LoB, since those
   derive; roles are edited in the grid below), and **"Remove project"**

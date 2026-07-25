@@ -10,6 +10,8 @@ The stack selection ([0003](./0003-stack-selection.md)) committed to Tailwind v4
 
 Use **shadcn** (copy-in, not a dependency) on **Base UI** primitives, with the **`base-nova`** preset, **Lucide** icons, and the **Geist** font. Config lives in `components.json`; vendored primitives live in `src/components/ui/**`.
 
+> **Note (icon lib superseded):** the app later migrated off Lucide to **Tabler** icons; Lucide is fully removed from `src/`. The historical choice above is left as-recorded — see [`docs/ui.md`](../ui.md) for the current icon convention and the `components.json` re-add gotcha.
+
 - **Base UI, not Radix.** shadcn's `base-nova` style sits on Base UI primitives. The practical consequence: polymorphism is a **`render` prop**, not Radix's `asChild`. This is the single most likely thing to trip a future session (and our training data).
 - **Vendored, not a package.** Primitives are copied into the repo so we own them. They're treated as generated code: don't hand-edit, and `biome.json` has an `overrides` block disabling a few lint rules (a11y label/svg-title, exhaustive-deps, document-cookie) just for `src/components/ui/**`. Update via `shadcn add --overwrite`.
 - **Theme: indigo accent, light mode only.** Tokens are oklch CSS vars in `src/app/globals.css`, surfaced to Tailwind v4 via `@theme inline`. `--primary` is the Tailwind indigo ramp over a neutral base. A `.dark` block ships with the registry but is intentionally unused — there's no toggle and no requirement for one yet.

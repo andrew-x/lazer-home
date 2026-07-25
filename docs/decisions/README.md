@@ -12,12 +12,12 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 |---|-------|--------|
 | [0001](./0001-record-architecture-decisions.md) | Record architecture decisions | accepted |
 | [0002](./0002-modified-nextjs.md) | The pinned Next.js is modified — verify against bundled docs | accepted |
-| [0003](./0003-stack-selection.md) | Core stack selection (plain Postgres, not Neon) | accepted |
+| [0003](./0003-stack-selection.md) | Core stack selection (plain Postgres driver, not Neon's serverless driver) | accepted |
 | [0004](./0004-action-layer.md) | Action layer: two-client composition + UserSafeActionError | accepted |
 | [0005](./0005-ui-stack.md) | UI stack: shadcn on Base UI (base-nova), indigo light theme | accepted |
 | [0006](./0006-google-only-auth-and-layout-gating.md) | Google-only auth + route-group/server-layout gating (not middleware) | accepted |
 | [0007](./0007-staff-employment-effective-dating.md) | Split staff into durable identity + effective-dated employment | accepted |
-| [0008](./0008-localhost-only-admin-area.md) | Localhost-only admin area, gated by host (not auth), outside `(app)` | accepted |
+| [0008](./0008-localhost-only-admin-area.md) | Localhost-only admin area, gated by env + host (not auth), outside `(app)` | accepted |
 | [0009](./0009-pto-import-cancel-as-delete.md) | PTO import treats cancellations as deletes; re-syncs are destructive | accepted |
 | [0010](./0010-actions-layer-owns-db-access.md) | The actions layer owns all DB access — reads are server-only `get<Thing>.ts`, not `'use server'` | accepted |
 | [0011](./0011-category-agnostic-history-feed.md) | The profile history feed is a category-agnostic, server-merged timeline | accepted |
@@ -28,7 +28,7 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0017](./0017-project-roles-as-first-allocation-cut.md) | `project_roles` as the first cut of Allocation (simple rows, not effective-dated) | accepted |
 | [0018](./0018-skills-inline-jsonb-catalogue.md) | Skills stored inline (jsonb) from a hardcoded catalogue, not a normalized table | accepted |
 | [0019](./0019-project-opportunity-link.md) | Project ↔ Opportunity link: FK now on `opportunities.projectId`, `restrict` (amended: inverted, many opps → one project) | accepted |
-| [0020](./0020-compensation-effective-dated-import-only.md) | Compensation as effective-dated facts on `staff_employment`; import-only, carry-forward-on-blank, view-gated | accepted |
+| [0020](./0020-compensation-effective-dated-import-only.md) | Compensation as effective-dated facts on `staff_employment`; import-only, required (no carry-forward — under-specified rows skipped), view-gated | accepted |
 | [0021](./0021-opportunity-pipeline-groups-and-fractional-ordering.md) | Opportunity pipeline: status groups in code + single global fractional ordering | accepted |
 | [0022](./0022-contact-manager-self-reference.md) | Contact "managed by" self-referential FK; same-company invariant enforced app-side | accepted |
 | [0023](./0023-feedback-privacy-tiers.md) | Peer feedback: privacy tiers as read-projections; giving open, review gated | accepted |
@@ -39,7 +39,7 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0028](./0028-generic-responses-table-app-validated-question-ids.md) | Generic `responses` table keyed by (staff, question); question ids validated in app code, not a pgEnum | accepted |
 | [0029](./0029-external-fx-rates-and-currency-normalization.md) | External FX rates (frankfurter.dev), USD-cross-rate conversion, never-throw fallback — first live external API call | accepted |
 | [0030](./0030-crm-timestamped-entries-notes-next-steps.md) | CRM notes & next steps as append logs: two concrete tables + shared kind enum, no per-entry ownership, scalar `nextSteps` dropped | accepted |
-| [0031](./0031-opportunity-project-planner-and-role-status.md) | Opportunity project planner: role `status` (tentative → confirmed), auto-confirm on won, weekly Gantt view | accepted |
+| [0031](./0031-opportunity-project-planner-and-role-status.md) | Opportunity project planner: role `status` (tentative → confirmed), auto-confirm on won, weekly Gantt view | accepted; amended by [0033](./0033-line-of-business-on-role-derived-project-status.md) |
 | [0032](./0032-staff-rating-levels-effective-dated-manager-only.md) | Staff rating levels (L0–L4): effective-dated, nullable, manager/admin-only with no self-view | accepted |
 | [0033](./0033-line-of-business-on-role-derived-project-status.md) | LoB moves to the role; project status & LoB derived (not stored); one-click create-from-opportunity + delete/detach | accepted |
 | [0034](./0034-company-status-derived-tags.md) | Company status as derived tags (Partner / Client / Prospect), not a stored column | accepted |

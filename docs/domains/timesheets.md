@@ -13,8 +13,9 @@ reconciliation) is not built yet.
 
 ## Data model — as realized
 
-Schema slice `src/lib/db/timesheets-schema.ts` (barrelled by `src/lib/db/schema.ts`;
-migration `drizzle/0026_rich_the_captain.sql`). See [ADR 0027](../decisions/0027-timesheet-weekly-model-and-edit-window.md).
+Schema slice `src/lib/db/timesheets-schema.ts` (barrelled by `src/lib/db/schema.ts`; the
+drizzle history has been squashed into a single baseline `drizzle/0000_lethal_rictor.sql`,
+so read the schema file for the definitive shape rather than a per-feature migration). See [ADR 0027](../decisions/0027-timesheet-weekly-model-and-edit-window.md).
 
 - **`timesheets`** — one person's week. `id` (prefix `ts`), `staffId` → `staff.id`
   (cascade), **`weekStartDate`** (`date`, the ISO **Monday** of the week), `status`
