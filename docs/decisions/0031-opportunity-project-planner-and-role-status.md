@@ -57,10 +57,11 @@ been **folded into the squashed baseline** `drizzle/0000_lethal_rictor.sql`.)
 **2. Auto-confirm on Closed-Won.** `src/actions/crm/confirmRolesOnWon.ts` flips every
 `tentative` role tagged with an opportunity to `confirmed` — but **only on a genuine
 transition into `closed_won`** (`nextStatus === "closed_won" && prevStatus !== "closed_won"`),
-so re-saving an already-won deal is a no-op. It's wired into all three status-mutating paths
-(`updateOpportunityField`'s status case, `updateOpportunity`, `updateOpportunityPosition`),
+so re-saving an already-won deal is a no-op. It's wired into both status-mutating paths
+(`updateOpportunityField`'s status case and `updateOpportunityPosition`),
 each of which now **captures the prior status and runs the status write + the role flip in one
-transaction** so they commit atomically.
+transaction** so they commit atomically. (The old full-record `updateOpportunity`, once a third
+path here, has since been deleted.)
 
 **3. The edit guard: `assertRoleEditable`.** You may only edit/delete a role that is
 **tentative** *and* **tagged with the current opportunity**. This lives in one shared guard

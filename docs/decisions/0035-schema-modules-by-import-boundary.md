@@ -40,9 +40,12 @@ client-reachable.
 The rule is documented in `.claude/rules/server-actions.md` and mirrored in
 `src/actions/AGENTS.md` (the Codex runtime); see the runtime-parity note in
 `AGENTS.md`. Several CRM / staff / admin schemas that back forms were migrated to
-hand-written `z.object` accordingly. Server-only owner/skills writes
-(`updateCompanyOwner`, `updateContactOwner`, `updateStaffSkills` — imported only
-by their action files) legitimately stay on drizzle-zod.
+hand-written `z.object` accordingly. Server-only writes whose schema no client
+imports (e.g. `updateStaffSkills`, imported only by its action file) legitimately
+stay on drizzle-zod. (The CRM inline-field edits went the other way: the deleted
+per-field owner/location schemas' successors, `updateCompanyField`/`updateContactField`,
+are pure client-imported `z.discriminatedUnion`s because the inline field components
+import them.)
 
 ## Consequences
 

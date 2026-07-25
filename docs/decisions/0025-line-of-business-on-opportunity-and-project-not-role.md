@@ -34,7 +34,7 @@ Separately, `src/lib/db/crm-schema.ts` had grown to hold companies, contacts, th
 **1. Line of business moves up to the entities that own it.**
 
 - **`opportunities.lineOfBusiness`** — `lineOfBusinessEnum().notNull()`, **required**.
-  Written by `createOpportunity`/`updateOpportunity`, projected by `getOpportunity`,
+  Written by `createOpportunity` / `updateOpportunityField` (its `lineOfBusiness` variant), projected by `getOpportunity`,
   edited via an `EnumSelect` in the add-opportunity dialog and the detail sheet.
 - **`projects.lineOfBusiness`** — `lineOfBusinessEnum().notNull()`, **required**, a
   **project-level** field (not per-role). Written by `createProject`, set via an

@@ -77,7 +77,7 @@ entry points**, so it can't be bypassed by hitting an action directly:
   project yet, so that state is unreachable. The error nudges the user to create it earlier
   and add a project as it advances.
 - **The guard is transition-based, not state-based.** In `updateOpportunityPosition` and
-  `updateOpportunity`, the check fires **only when the status is actually changing into a
+  `updateOpportunityField`, the check fires **only when the status is actually changing into a
   requiring stage without a project** — `newStatus !== currentStatus && requiresProject(newStatus) && !opportunityHasProject(id)`.
   Both actions first fetch the current status to compare. Editing an opportunity already in
   a delivery stage (renaming, changing owners/next-steps) or reordering a card *within* a

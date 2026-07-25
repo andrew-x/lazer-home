@@ -311,7 +311,7 @@ delivery, allocations, timesheets, and billing.
     page render **identical summary stats from one source**.
   - **Auto-confirm on won** — `src/actions/crm/confirmRolesOnWon.ts` (server-only) flips every
     tentative role tagged with an opportunity to `confirmed` on a genuine transition into
-    `closed_won`; wired into `updateOpportunityField`/`updateOpportunity`/`updateOpportunityPosition`
+    `closed_won`; wired into `updateOpportunityField`/`updateOpportunityPosition`
     inside their transactions. See [ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md)
     and [crm.md](./crm.md).
 - **UI** — `/projects` (`src/app/(app)/projects/page.tsx`) + `src/components/projects/**` —
