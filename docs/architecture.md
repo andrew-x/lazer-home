@@ -158,7 +158,7 @@ src/
       staff-schema.ts        staff / staff_employment / staff_pto + domain enums (lineOfBusinessEnum built from src/lib/crm/line-of-business.ts)
       crm-schema.ts          companies / contacts (CRM slice)
       opportunities-schema.ts opportunities + 4 junction tables + source/status pgEnums + lineOfBusiness (split out of crm-schema.ts; [ADR 0025](./decisions/0025-line-of-business-on-opportunity-and-project-not-role.md))
-      projects-schema.ts     projects (with lineOfBusiness) / project_delivery_managers / project_roles (Projects slice; project_roles = first cut of Allocation)
+      projects-schema.ts     projects (thin: name + companyId; NO stored status/lineOfBusiness — both derived from roles, [ADR 0033](./decisions/0033-line-of-business-on-role-derived-project-status.md)) / project_delivery_managers / project_roles (carries lineOfBusiness; first cut of Allocation)
       performance-schema.ts  feedback (peer feedback; from/to staff FKs, feedback_rating enum) + staff_rating (overall level L0–L4; effective-dated, nullable level, CHECK 0–4, evaluatedByUserId set-null) — the Performance slices
       timesheets-schema.ts   timesheets / time_entries (Timesheets slice; timesheet_status enum BUILT FROM src/lib/timesheets/timesheet-status.ts + time_entry_category enum; per-day actuals, project-XOR-category CHECK)
       responses-schema.ts    responses (generic survey store; (staffId, questionId) unique → upsert; app-validated text questionId, three nullable payload shapes; backs the Manual of Me — [ADR 0028](./decisions/0028-generic-responses-table-app-validated-question-ids.md))
