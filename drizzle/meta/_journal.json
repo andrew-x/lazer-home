@@ -50,6 +50,13 @@
       "when": 1784923162129,
       "tag": "0006_empty_whirlwind",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785157328564,
+      "tag": "0007_high_mister_sinister",
+      "breakpoints": true
     }
   ]
 }
