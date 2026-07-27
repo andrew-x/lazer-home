@@ -42,7 +42,7 @@ and `lineOfBusiness`; it is now just `id`, `name`, `companyId`, timestamps (plus
 delivery-managers / roles relations). The `project_status` enum and
 `src/lib/project-status.ts` are **deleted**. A new pure, client-importable module
 `src/lib/projects/project-derived.ts` computes both,
-shared by every read (`getProjectsPage`, `getOpportunityPlan`, `getStaffProjects`),
+shared by every read (`getProjectsList`, `getOpportunityPlan`, `getStaffProjects`),
 the UI, and tests:
 
 - `deriveProjectStatus(roleStatuses)` — no roles ⇒ `tentative`; all roles `cancelled`

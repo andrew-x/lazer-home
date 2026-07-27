@@ -40,6 +40,21 @@ and the test is what enforces that lockstep. It stays, and it still runs in
 - **Never delete or weaken `permissions.test.ts`.** It is the one required test
   and the guardrail on the access-control matrix.
 
+## Update (2026-07-27)
+
+"Keep exactly one test" has softened in practice into "the RBAC matrix test is the
+one that must never go — plus a *small, deliberate* set of invariant tests." A few
+`*.test.ts` files have since been (re-)added where a correctness invariant is
+**genuinely beyond the type checker**: `allocations-grid`, `timesheet-grid`,
+`timesheet-week`, and `project-derived`. The last asserts that the derived-status
+**SQL bucket filter** (`src/lib/projects/project-status-sql.ts`) agrees with its pure
+JS mirror `statusesMatchBucket` and with `deriveProjectStatus`, across all 16
+role-status presence combinations — a cross-representation (SQL↔JS) invariant types
+can't express, exactly the "raise it as a case" exception the Consequences anticipated.
+This is **not** a return to a broad pure-function suite; the "don't reflexively re-add
+unit tests" guidance still holds, and **`permissions.test.ts` remains the one test that
+must never be deleted or weakened.**
+
 ## Alternatives considered
 
 - **Keep the full pure-function suite.** Rejected — low signal relative to the

@@ -135,15 +135,41 @@ delivery, allocations, timesheets, and billing.
   a `projects` table with **no `status`/`line_of_business` columns**, and the delivery link on
   `opportunities.project_id`.
 - **Derived-fields module** — `src/lib/projects/project-derived.ts`
-  exports `deriveProjectStatus(roleStatuses)` and `deriveProjectLinesOfBusiness(roleLobs)`. A
-  **pure, client-importable** module (no `db`/drizzle) so every read, the UI, and tests share
-  one implementation of the project's now-derived status/LoB. **Replaced the deleted
+  exports `deriveProjectStatus(roleStatuses)` and `deriveProjectLinesOfBusiness(roleLobs)`, plus
+  the list-section machinery: the **`ProjectStatusBucket`** type (`tentative` | `paused` |
+  `active` | `other` — a **1:1 relabelling** of the four derived statuses: tentative→tentative,
+  paused→paused, confirmed→**active**, cancelled→**other**, so `other` is now **cancelled-only**),
+  **`PROJECT_STATUS_BUCKETS`** (all four in the order the list renders its sections — Tentative,
+  Paused, Active, Other), **`projectStatusBucket(status)`** mapping a derived status to its bucket,
+  and **`statusesMatchBucket(bucket, roleStatuses)`** — a pure, presence-based predicate that is
+  the JS mirror of the SQL bucket filter (next bullet; paused bucket = ∃ a paused role ∧ ∄ a
+  tentative role). A **pure,
+  client-importable** module (no `db`/drizzle) so every read, the UI, and tests share one
+  implementation of the project's now-derived status/LoB. **Replaced the deleted
   `src/lib/project-status.ts`** ([ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md)).
+- **Derived-status-in-SQL** — `src/lib/projects/project-status-sql.ts` (server-only) exports
+  **`derivedStatusCondition(buckets)`**: correlated `EXISTS`/`NOT EXISTS` predicates that select
+  projects by *derived-status bucket in the database*, so `getProjectsList` can paginate each
+  section server-side instead of fetching every project and deriving in JS. Returns `undefined`
+  for all four buckets (no filter — the flat filtered view) and a `false` guard for an empty
+  selection; the `other` (cancelled) bucket is defined as the **complement of the other three**
+  (`tentativeCondition`/`pausedCondition`/`activeCondition`) so the four always
+  **partition** the set. It **generalises the single-bucket `hasConfirmedProject` expression in
+  `getCompaniesPage.ts`** to all four buckets. **LOCKSTEP:** this SQL, its JS mirror
+  `statusesMatchBucket`, and `deriveProjectStatus` then `projectStatusBucket` must all agree —
+  guarded by the agreement test `src/lib/projects/project-derived.test.ts`, which enumerates all
+  16 role-status presence combinations and asserts, across **all four buckets**, both the SQL/JS
+  mirror agreement and that the buckets partition. (A **sanctioned exception** to the one-test rule of
+  [ADR 0037](../decisions/0037-unit-tests-removed-except-rbac-matrix.md) — a cross-representation
+  invariant the type system can't express.)
 - **Shared role-status module** — `src/lib/projects/project-role-status.ts` exports
   `PROJECT_ROLE_STATUSES` (**four states**: `tentative`/`confirmed`/`paused`/`cancelled`),
   the `ProjectRoleStatus` type, `DEFAULT_PROJECT_ROLE_STATUS` (`tentative`),
   `PROJECT_ROLE_STATUS_LABELS`, **and `PROJECT_ROLE_STATUS_VARIANTS`** (badge variant per
-  state: confirmed=default, tentative=secondary, paused=outline, cancelled=destructive). A
+  state: **confirmed=outline** (a neutral bordered tag — no indigo highlight, matching the
+  line-of-business badges), tentative=secondary (muted filled grey), paused=outline,
+  cancelled=destructive — so confirmed and paused share the `outline` look, disambiguated by
+  label text). A
   **pure, client-importable** module (no `db`/drizzle) so the `projectRoleStatusEnum` pgEnum,
   zod, the planner UI, **and the derived `ProjectStatusBadge`** all share one source.
 - **Shared role-type module** — `src/lib/projects/project-role-type.ts` exports `PROJECT_ROLE_TYPES`
@@ -162,15 +188,35 @@ delivery, allocations, timesheets, and billing.
   (`staff_employment`), **opportunities**, and **`project_roles`** (moved *back* onto the role;
   **no longer on `projects`**, whose LoBs are derived — [ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md)).
 - **Server layer** — `src/actions/projects/`:
-  - `getProjectsPage.ts` — server-only read (per [ADR 0010](../decisions/0010-actions-layer-owns-db-access.md)),
-    server-side offset/limit pagination via `src/lib/core/pagination.ts` (same envelope as
-    the CRM reads), `page` clamped into range. **Inner**-joins companies for
-    `companyName` (company is required), resolves delivery-manager names via a
-    **single grouped follow-up query** over just this page's ids, and role counts via
-    a **grouped count** — no N+1. It also fetches each page project's role **statuses +
-    LoBs** (one grouped query) and computes `ProjectRow.status` + `ProjectRow.linesOfBusiness[]`
-    via `deriveProjectStatus`/`deriveProjectLinesOfBusiness` — the project has no stored columns
-    for these.
+  - `getProjectsList.ts` — the server-only read (per [ADR 0010](../decisions/0010-actions-layer-owns-db-access.md))
+    backing `/projects`, **replacing the deleted `getProjectsPage.ts` + its `ProjectRow`**.
+    Exports **`ProjectListItem`** (the prior fields — id, name, derived `status`,
+    `linesOfBusiness[]`, company, delivery-manager names, role count — **plus a `startDate`/`endDate`
+    string range** aggregated from the project's roles, null when role-less),
+    **`ProjectsListFilters`** (`{ query?, lineOfBusiness?, deliveryManagerId? }` — a
+    case-insensitive substring match on project **or** company name, a single line of business,
+    and a single delivery manager: a `staff.id` matched via a **correlated `EXISTS` on
+    `project_delivery_managers`**), and two functions over a shared `assembleRows` helper:
+    - **`getProjectsInBuckets(buckets, filters?)`** — every project in the given derived-status
+      buckets (via `derivedStatusCondition`), ordered by name, **non-paginated** — backs the full
+      Tentative and Active sections.
+    - **`getProjectsPage(page, buckets, filters?, pageSize?, order?)`** — one page (offset/limit
+      + a `count`, `page` clamped, the `Page<T>` envelope from `pagination.ts`), the filter
+      `where` applied to **both** the count and the row query so the page count reflects the
+      filtered set. **`order: ProjectsListOrder`** (`"name"` | `"endDate"`, default `"name"`)
+      sets the sort: `endDate` orders by a **correlated `max(project_roles.end_date)`
+      descending, `nulls last`** (latest-ending project first, role-less projects last — the date
+      range is derived, not a column), with `name` as the stable tiebreaker. Backs the
+      name-ordered Other section **and** the flat filtered view, which the page requests with
+      `"endDate"`.
+    Both **inner**-join companies for `companyName` (required); `assembleRows` then resolves
+    delivery managers, role statuses/LoBs, role count, and the min-start/max-end date range in
+    **two grouped follow-up queries** scoped to the page's ids — **no N+1**. `status` +
+    `linesOfBusiness` are derived in JS via `deriveProjectStatus`/`deriveProjectLinesOfBusiness`;
+    the date range exploits `"YYYY-MM-DD"` being zero-padded (lexicographic min/max ==
+    chronological). Also exports **`getDeliveryManagerOptions()`** →
+    `DeliveryManagerOption[]` (`{ id, name }`) — the distinct, name-ordered staff who are a
+    delivery manager on ≥1 project, the option set for the list's delivery-manager filter.
   - `getProjectPlan.ts` — **server-only** read backing the **project detail page**
     (`/projects/[id]`). A **project-keyed sibling of `getOpportunityPlan`**: it takes a
     `projectId`, joins the owning company (`company: {id,name}`, for the header link), and returns
@@ -315,11 +361,28 @@ delivery, allocations, timesheets, and billing.
     inside their transactions. See [ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md)
     and [crm.md](./crm.md).
 - **UI** — `/projects` (`src/app/(app)/projects/page.tsx`) + `src/components/projects/**` —
-  see [../ui.md](../ui.md). `projects-table.tsx` (columns: Name, **Status**, Company, Delivery
-  managers, Roles count — Status rendered by `project-status-badge.tsx`, whose `ProjectStatusBadge`
-  now takes the **derived** `ProjectRow.status` and renders it via the shared four-state
-  `PROJECT_ROLE_STATUS_LABELS`/`_VARIANTS`: confirmed=default, tentative=secondary,
-  paused=outline, cancelled=destructive) and `add-project-dialog.tsx` (a **deliberately minimal**
+  see [../ui.md](../ui.md). The list is now a **responsive grid of project cards, not a table**
+  (the old `projects-table.tsx`/`ProjectRow` were **deleted**). `project-card.tsx` (`ProjectCard`)
+  is a clickable `Card` linking to `/projects/[id]`, showing name + company, the derived
+  `ProjectStatusBadge` (still `project-status-badge.tsx` over the four-state
+  `PROJECT_ROLE_STATUS_LABELS`/`_VARIANTS`: confirmed=outline, tentative=secondary,
+  paused=outline, cancelled=destructive) + derived LoB badges, delivery managers, and the role
+  date range (`formatDateRange` from `src/lib/format/format.ts`). `projects-grid.tsx` exports
+  `ProjectsGrid` (the grid) + `ProjectsSection` (a titled section with a count). The page
+  **groups projects by derived-status bucket into four sections in `PROJECT_STATUS_BUCKETS`
+  order — Tentative → Paused → Active → Other**: Tentative, Paused, and Active render in full
+  (`getProjectsInBuckets`), while **Other (cancelled-only) is server-paginated**
+  (`getProjectsPage`, `projectsPage` param) since it grows unbounded. `projects-list-filters.tsx`
+  (`ProjectsListFilters`) is a **URL-backed** filter bar — a debounced project-OR-company search
+  (`q`) + a line-of-business `SelectFilter` (`lob`) + a **delivery-manager
+  `SearchableSelectFilter` (`dm`, fed `getDeliveryManagerOptions`, validated against the known
+  ids, hidden when there are no delivery managers)** — the shared **searchable single-select**
+  (`src/components/form/filters.tsx`) for long option sets like staff — the same
+  `buildListHref`/`PaginationControls` pattern as the
+  opportunities/companies lists. **When any of the three filters is active the sections collapse
+  into a single flat, paginated grid across all statuses, ordered by end date descending**
+  (latest-ending first, role-less projects last — via `getProjectsPage`'s `"endDate"` order),
+  rather than the name-ordered sections; clearing filters restores the sections. `add-project-dialog.tsx` (a **deliberately minimal**
   standalone create form collecting **only name + company** — no LoB/status picker, no
   delivery-manager field, no roles repeater. Delivery managers/roles default to none
   server-side; status/LoB are derived once roles exist).
@@ -404,9 +467,10 @@ to title the tab), `notFound()`s when the plan is null (unknown id), and renders
 
 **Everything on this page is read-only** — role editing stays in the opportunity planner (see
 [Open questions](#open-questions--not-yet-built)). **Cross-links into this route are now wired
-across the app** (all via the canonical `InternalLink`, `src/components/internal-link.tsx`): the
-`/projects` list Name cell (`projects-table.tsx`), the staff/own-profile Projects section
-(`StaffProjectsSection`), the CRM company detail Projects & Referred-projects lists
+across the app**: the `/projects` list **cards** (`project-card.tsx`, a plain `next/link`
+wrapping the whole card — the one project cross-link that isn't `InternalLink`), and — all via
+the canonical `InternalLink` (`src/components/internal-link.tsx`) — the staff/own-profile
+Projects section (`StaffProjectsSection`), the CRM company detail Projects & Referred-projects lists
 (`company-detail-view.tsx`) and contact detail Referred-projects list (`contact-detail-view.tsx`),
 the opportunity Project-plan tab heading (`opportunity-project-plan.tsx`), and the allocations grid
 project cells (`allocations-grid.tsx`, opening in a new tab). The only project references still
