@@ -10,6 +10,7 @@ import { requirePermission } from "@/lib/auth/permissions";
 import { firstPerKey } from "@/lib/core/collections";
 import { db } from "@/lib/db/db";
 import { staff, staffEmployment, staffRating } from "@/lib/db/schema";
+import type { Subratings } from "@/lib/performance/rating-rubric";
 import { latestEmploymentFirst } from "@/lib/staff/staff-employment";
 import { latestRatingFirst } from "@/lib/staff/staff-rating-history";
 
@@ -23,11 +24,16 @@ import { latestRatingFirst } from "@/lib/staff/staff-rating-history";
  * still count toward headcount / the level distribution / unrated, matching the
  * edit page (which lists every active staffer), but contribute no comp/role.
  *
+ * `subratings` are the person's current per-category scores (role-specific,
+ * `null` when none) — aggregated into per-role category averages, never shown
+ * per person.
+ *
  * **Anonymized — carries no identity (no name/id/email).** Identity never leaves
  * the server; the dashboard only filters, normalizes, and aggregates these rows.
  */
 export type RatingRecord = {
   level: number | null;
+  subratings: Subratings | null;
   employment: CompensationDimensions | null;
 };
 
@@ -63,6 +69,7 @@ export async function getRatingsSummaryData(): Promise<RatingRecord[]> {
       .select({
         staffId: staffRating.staffId,
         level: staffRating.level,
+        subratings: staffRating.subratings,
       })
       .from(staffRating)
       .orderBy(...latestRatingFirst),
@@ -76,9 +83,11 @@ export async function getRatingsSummaryData(): Promise<RatingRecord[]> {
 
   return activeStaff.map(({ id: staffId }) => {
     const employment = latestEmploymentByStaff.get(staffId);
+    const rating = latestRatingByStaff.get(staffId);
     return {
       // No rating row, or a row whose level is null, both mean unrated.
-      level: latestRatingByStaff.get(staffId)?.level ?? null,
+      level: rating?.level ?? null,
+      subratings: rating?.subratings ?? null,
       employment: employment
         ? {
             lineOfBusiness: employment.lineOfBusiness,

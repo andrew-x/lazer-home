@@ -5,12 +5,14 @@ import {
   date,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
 import { FEEDBACK_RATINGS } from "@/lib/performance/feedback-rating";
+import type { Subratings } from "@/lib/performance/rating-rubric";
 import { MAX_RATING_LEVEL, MIN_RATING_LEVEL } from "@/lib/staff/staff-rating";
 import { user } from "./auth-schema";
 import { staff } from "./staff-schema";
@@ -97,6 +99,14 @@ export const staffRating = pgTable(
 
     // The overall level, 0–4. Null = explicitly unrated as of this date.
     level: integer(),
+
+    // Per-category subratings (each L1–L4), keyed by the role's rubric
+    // (`@/lib/performance/rating-rubric`). Null/absent = no subratings recorded.
+    // The overall `level` is independent — subratings are extra detail, not a
+    // derivation of it. The shape (which keys are valid per role) is owned by the
+    // rubric module and validated at the zod/action layer, not the DB — mirrors
+    // the survey `responses` jsonb, so adding a rubric needs no migration.
+    subratings: jsonb().$type<Subratings>(),
 
     // Who saved this evaluation (audit). Nullable + `set null` so a rating's
     // history survives the evaluator's staff/user record being removed.

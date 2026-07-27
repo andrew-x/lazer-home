@@ -25,6 +25,7 @@ import {
 import {
   computeAverageLevel,
   computeAverageLevelByRole,
+  computeAverageSubratingsByRole,
   computeLevelDistribution,
   countUnrated,
 } from "@/lib/performance/rating-stats";
@@ -91,6 +92,20 @@ export function LevelsSection({
       total: filtered.length,
     };
   }, [filtered, roleOrder]);
+
+  // Average subrating per category, grouped by role (only roles with a rubric
+  // and at least one scored category). Anonymized like the rest of the dashboard.
+  const subratingsByRole = useMemo(
+    () =>
+      computeAverageSubratingsByRole(
+        filtered.map((r) => ({
+          role: r.employment?.role ?? "",
+          subratings: r.subratings,
+        })),
+        roleOrder,
+      ),
+    [filtered, roleOrder],
+  );
 
   // Comp/rate per level: only RATED staff WITH an employment row contribute comp,
   // so the level rows sum to the "All levels" footer. Currency-dependent.
@@ -280,6 +295,50 @@ export function LevelsSection({
               </Table>
             </div>
           </div>
+
+          {/* Average subrating by category, per role (only when scored) */}
+          {subratingsByRole.length > 0 ? (
+            <div className="flex flex-col gap-4">
+              <h4 className="font-heading text-sm font-semibold">
+                Subratings by category
+              </h4>
+              {subratingsByRole.map(({ role: r, categories }) => (
+                <div key={r} className="flex flex-col gap-2">
+                  <h5 className="text-sm font-medium text-muted-foreground">
+                    {ROLE_LABELS[r as keyof typeof ROLE_LABELS] ?? r}
+                  </h5>
+                  <div className="rounded border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Category</TableHead>
+                          <TableHead className="text-right">
+                            Avg subrating
+                          </TableHead>
+                          <TableHead className="text-right">Rated</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {categories.map((category) => (
+                          <TableRow key={category.key}>
+                            <TableCell className="font-medium">
+                              {category.label}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {formatAverageLevel(category.average)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {category.ratedCount}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </>
       )}
     </section>

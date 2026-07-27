@@ -1,0 +1,1 @@
+ALTER TABLE "staff_rating" ADD COLUMN "subratings" jsonb;

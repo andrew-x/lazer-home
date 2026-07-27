@@ -1,7 +1,17 @@
 import type { InferInsertModel } from "drizzle-orm";
 import { generateId } from "@/lib/db/ids";
-import { feedback, type Staff, staffRating } from "@/lib/db/schema";
+import {
+  feedback,
+  type Staff,
+  staffEmployment,
+  staffRating,
+} from "@/lib/db/schema";
 import { FEEDBACK_RATINGS } from "@/lib/performance/feedback-rating";
+import {
+  rubricForRole,
+  SUBRATING_LEVELS,
+  type Subratings,
+} from "@/lib/performance/rating-rubric";
 import type { SeedDb } from "./client";
 import { chance, faker, isoDate } from "./faker";
 
@@ -57,9 +67,19 @@ const LEVEL_WEIGHTS = [
  * Seed overall levels (L0–L4) for active staff. Most get a current rating with a
  * bell-ish distribution; ~20% are left unrated; ~40% of the rated also get one
  * earlier, lower dated row so the level history (effective-dating) is non-trivial.
+ * The current rating also carries per-role subratings (random L1–L4 across the
+ * role's rubric) so the edit grid's subrating matrix has data to show.
  */
 export async function seedRatings(db: SeedDb, staff: Staff[]): Promise<number> {
   const active = staff.filter((s) => s.isActive);
+
+  // Current role per staff (subratings are role-specific). One employment row
+  // per person in the seed, so the first match is the current role.
+  const employmentRows = await db
+    .select({ staffId: staffEmployment.staffId, role: staffEmployment.role })
+    .from(staffEmployment);
+  const roleByStaff = new Map(employmentRows.map((e) => [e.staffId, e.role]));
+
   const rows: StaffRatingInsert[] = [];
 
   for (const person of active) {
@@ -68,8 +88,20 @@ export async function seedRatings(db: SeedDb, staff: Staff[]): Promise<number> {
     const currentLevel = faker.helpers.weightedArrayElement(LEVEL_WEIGHTS);
     const currentDate = faker.date.past({ years: 1 });
 
+    // Random subratings across the person's role rubric (null when none).
+    const rubric = rubricForRole(roleByStaff.get(person.id) ?? null);
+    const subratings: Subratings | null = rubric.length
+      ? Object.fromEntries(
+          rubric.map((c) => [
+            c.key,
+            faker.helpers.arrayElement(SUBRATING_LEVELS),
+          ]),
+        )
+      : null;
+
     // A prior evaluation one level lower, on a strictly earlier date (refDate
-    // guarantees ordering) — models a promotion into the current level.
+    // guarantees ordering) — models a promotion into the current level. No
+    // subratings on the historical row (they were introduced later).
     if (chance(HISTORY_FRACTION)) {
       rows.push({
         id: generateId("rating"),
@@ -86,6 +118,7 @@ export async function seedRatings(db: SeedDb, staff: Staff[]): Promise<number> {
       staffId: person.id,
       effectiveDate: isoDate(currentDate),
       level: currentLevel,
+      subratings,
     });
   }
 
