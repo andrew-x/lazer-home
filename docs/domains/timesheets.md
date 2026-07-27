@@ -37,7 +37,9 @@ so read the schema file for the definitive shape rather than a per-feature migra
   `INTERNAL_ADMIN`. Values + labels live in the pure, client-importable module
   `src/lib/timesheets/timesheet-category.ts` (the single source feeding the pgEnum, zod, and the
   form labels — same pattern as `src/lib/crm/line-of-business.ts`). The **PTO bucket is
-  independent of the `staff_pto` table** — no sync between the two in v1.
+  independent of the `staff_pto` table** — no sync between the two in v1. The one exception
+  is the *"Fill in PTO"* prefill (see [Adding rows & prefill](#adding-rows--prefill)), which
+  **reads** `staff_pto` one-way to seed hours; it is a convenience, not a two-way link.
 
 **Week math** lives in the pure module `src/lib/timesheets/timesheet-week.ts` (no `db` import,
 so UI + actions + validation agree on what a "week" is): `getWeekStart`, `addWeeks`,
@@ -46,10 +48,15 @@ Weeks are timezone-agnostic and keyed by their ISO-Monday `"YYYY-MM-DD"` string
 (matching the DB's `date` convention); it deliberately parses/formats via local Y/M/D
 parts to avoid `new Date("...")` UTC drift.
 
-**Weekday-only capture.** Although a week spans all 7 days, timesheets record
-**weekday (Mon–Fri) work only**. `isWeekend(date)` gates this on both sides: the grid
-renders Sat/Sun columns blank and muted with no input, and `saveTimesheet.schema.ts`
-rejects any entry whose date is a weekend ("Hours can't be logged on weekends.").
+**Weekends are enterable but flagged for review.** A week spans all 7 days and hours
+can be logged on **any** of them. Weekend (Sat/Sun) cells render fully-editable inputs —
+they keep a muted `bg-muted/40` shading as a visual hint that weekend work is unusual,
+but nothing blocks it. `saveTimesheet.schema.ts` does **not** reject weekend dates; any
+weekend hours instead trip the same **soft review warning** as an over-8h day or an
+over-40h week (see [Hour thresholds](#hour-thresholds--weekend-hours--soft-warnings-not-hard-caps)).
+`isWeekend(date)` (from the week-math module) drives that flagging + the muted shading —
+not a gate. **Autofill/prefill still only fill weekdays** — weekend hours are manual
+entry only.
 
 ## Key flows
 
@@ -69,7 +76,9 @@ The UX is **browse, then edit** — there is no week-arrow navigation.
 - **Log → save draft.** Clicking Edit/View opens **`/timesheets/[week]`**
   (`src/app/(app)/timesheets/[week]/page.tsx`) — the weekly grid
   (`src/components/timesheets/timesheet-week.tsx`): one row per target (project or
-  bucket), a hours cell per **weekday**, per-day column totals with a cap warning. The
+  bucket), an hours cell per **day** (weekends editable but muted-and-flagged), per-day
+  column totals with an over-standard-hours / weekend warning (see
+  [Hour thresholds](#hour-thresholds--weekend-hours--soft-warnings-not-hard-caps)). The
   grid's pure totals math (per-day / per-row / week sums) lives in
   `src/lib/timesheets/timesheet-grid.ts`, extracted from the component so the math stays
   independent of rendering. The
@@ -78,14 +87,39 @@ The UX is **browse, then edit** — there is no week-arrow navigation.
   ISO-Monday key. **`saveTimesheet`** does a **whole-week transactional replace**:
   create the `timesheets` row lazily if absent, then delete all its `time_entries` and
   re-insert the non-zero rows. Zero-hour rows (empty cells) are dropped. Validation
-  (`saveTimesheet.schema.ts`, shared client+server): one target per row, dates within
-  the week, no weekend dates, no duplicate (day, target) rows, and the 8h/day cap.
-- **Project autofill.** Adding a **project** row prefills its weekday cells with each
-  day's *remaining* capacity (8h minus hours already logged that day) — a convenience so
-  a main project soaks up unallocated weekday time. Weekends are skipped. Adding a
-  **non-billable** bucket (PTO / Unallocated Bench / Internal Admin) does **not**
-  autofill — it starts empty. This is client-only sugar in the grid; the values are
-  still editable and saved like any other.
+  (`saveTimesheet.schema.ts`, shared client+server): one target per row, the week keyed
+  by its ISO Monday, dates within the week, no duplicate (day, target) rows, and a single
+  entry ≤ 24h (`MAX_ENTRY_HOURS`). There is **no** daily/weekly total cap and **no weekend
+  rejection** — over-standard-hours *and* weekend hours are soft warnings, not rejections
+  (see [Hour thresholds](#hour-thresholds--weekend-hours--soft-warnings-not-hard-caps)).
+  When the sheet is an editable draft, a **toolbar sits above the grid** ("Add project"
+  dialog + the two prefill buttons); `Save draft` / `Submit` / `Reopen` stay in the
+  actions row **below** the grid.
+
+### Adding rows & prefill
+
+All row-adding and prefill is **client-side grid sugar** — nothing is written until
+`saveTimesheet`; every filled value stays editable. The pure helpers live in
+`src/lib/timesheets/timesheet-grid.ts` (client-importable, no `db`), unit-tested in
+`timesheet-grid.test.ts`.
+
+- **Add a row — the "Add project" dialog** (`src/components/timesheets/add-project-dialog.tsx`,
+  replacing the old inline `Select`). A searchable Dialog with three groups: **"Allocated
+  to you"** (this week's allocations, surfaced first as suggestions), **"All projects"**
+  (client-side filtered — any project stays loggable), and **"Non-billable"** (the
+  `TIMESHEET_CATEGORY` buckets). It reuses the `PROJECT_PREFIX`/`CATEGORY_PREFIX`
+  value-namespacing and hands the chosen value to `addTarget`.
+- **Adding a project autofills; buckets don't.** Adding a **project** row prefills its
+  weekday cells with each day's *remaining* capacity (8h minus hours already logged that
+  day, weekends skipped) — so a main project soaks up unallocated time
+  (`autofillProjectHours`). Adding a **non-billable** bucket starts empty.
+- **Manual "Fill in …" buttons.** Two opt-in buttons above the grid — **"Fill in
+  allocations"** and **"Fill in PTO"** — seed cells from `getTimesheetPrefill` (below).
+  They are **manual, not auto-fill on load**, and disabled with an explanatory tooltip
+  when there's nothing to fill that week. Both go through `applyAllocationFill` /
+  `applyPtoFill`, which **only fill currently-empty weekday cells** (never clobber
+  user-entered hours) and respect the 8h/day cap across the other rows. `applyAllocationFill`
+  upserts a row per allocated project; `applyPtoFill` upserts the PTO category row.
 - **Submit → lock.** **`submitTimesheet`** flips `draft → submitted` and stamps
   `submittedAt` (upsert on the unique key, so an empty week can be submitted).
   A submitted week is **locked**: `saveTimesheet` refuses to overwrite it unless the
@@ -95,13 +129,40 @@ The UX is **browse, then edit** — there is no week-arrow navigation.
 - **Read.** `getTimesheet(staffId, weekStartDate)` (server-only) returns the week with
   entries joined to project + company names; self-scoped (another person's requires
   `timesheets.edit`, else `null`). `getSelectableProjects` lists every project (+ its
-  company) for the row picker.
+  company) for the row picker. **`getTimesheetPrefill(staffId, weekStartDate)`**
+  (server-only) returns `{ allocations, ptoHoursByDate }` to seed the prefill buttons:
+  allocations are derived from **staffed, live (`tentative`/`confirmed`) `project_roles`
+  overlapping the week**, mapping each role's `hoursPerDay` onto its active weekdays
+  (summed across roles per project, clamped to the 8h cap); PTO is derived from
+  **approved (`isPending=false`) `staff_pto` spans** as a full 8h working day per off
+  weekday. Auth mirrors `getTimesheet` (own-data always; others need `timesheets.edit`),
+  failing **closed to an empty prefill**. It deliberately **never selects the PTO `type`
+  column** — that disclosure stays gated behind `pto:["review"]`, so the read leaks no
+  leave reasons.
 
-### The 8h/day cap
+### Hour thresholds & weekend hours — soft warnings, not hard caps
 
-The ceiling is **8 hours total across all rows for a single day** (not per project) —
-`DAILY_HOUR_CAP` in `saveTimesheet.schema.ts`, enforced in the shared zod schema (so
-the grid warns live and the server rejects). A single entry also can't exceed 8h.
+Over-standard hours **and weekend work** are **review signals, not blocks**.
+`saveTimesheet.schema.ts` defines two thresholds — `DAILY_HOUR_CAP = 8` (total across
+all rows for a single day) and `WEEKLY_HOUR_CAP = 40` — but **neither is validated**: a
+day over 8h or a week over 40h still saves *and* submits. They drive two things only: the
+grid's warning UI and the autofill/prefill ceiling (cells fill up to the daily cap, never
+clobbering typed hours). Weekend hours (any hours on a Sat/Sun) are treated as a **third**
+soft signal alongside these — allowed, never rejected, just flagged.
+
+The **only hard ceiling** is `MAX_ENTRY_HOURS = 24` — a single entry can't exceed 24h
+(a physical day). That's the sole hour-related rejection in the schema.
+
+When any day is over 8h, the week is over 40h, **or any weekend day has hours**, the grid
+(`timesheet-week.tsx`) shows a **warning banner** above Save/Submit — the week "will be
+flagged for review by your manager and delivery managers, make sure you've secured their
+approval first" — but leaves both buttons enabled. The banner now **enumerates the exact
+reason(s)** as a bulleted list, e.g. *"Over 8h on Tue, Wed"*, *"Week total is 46h (over
+40h)"*, *"Weekend hours on Sat"*. In the footer, the daily-total cell is highlighted for
+over-8h days **and** for weekend days that have any hours; the week-total cell is
+highlighted when over 40h. Approval is expected **out-of-band** (there is no in-app
+approval workflow — see [Open questions](#open-questions)). See
+[ADR 0027](../decisions/0027-timesheet-weekly-model-and-edit-window.md).
 
 ## Access control
 
@@ -124,7 +185,9 @@ the grid warns live and the server rejects). A single entry also can't exceed 8h
   CRM `company`); logging is allowed against **any** project, not only allocated ones.
   Entries will eventually roll up to the project (and its company) for billing.
 - **Allocations** — `time_entries` are the **actuals** that reconcile against the
-  **plan** (`project_roles`). No reconciliation is built yet.
+  **plan** (`project_roles`). No reconciliation is built yet; the only link today is the
+  **one-way "Fill in allocations" prefill**, which reads `project_roles` to seed suggested
+  hours (see [Adding rows & prefill](#adding-rows--prefill)).
 - **Staff** — a timesheet belongs to a `staff` record (via `staffId`); the current
   user resolves to it via `staff.userId`.
 - **Performance** — billable vs. available hours = utilization (future).
@@ -137,6 +200,9 @@ Resolved in v1 (recorded here so they aren't relitigated — see [ADR 0027](../d
   is a valid target, plus the three non-billable buckets.
 - **Approval granularity?** **Deferred — no manager approval in v1.** Submit merely
   locks the week; there is no approve/reject step or per-entry/per-project approval.
+  Over-standard-hours weeks (any day > 8h or the week > 40h) **and weekend hours** are
+  *allowed* but the grid flags them as **review signals** (spelling out each reason) —
+  manager + delivery-manager approval is expected **out-of-band**, not enforced in-app.
 - **Lock / correction policy?** Submit locks the week; the owner **reopens** it (within
   their window) to correct, and `timesheets.edit` holders can edit a locked week in
   place. No audit trail on corrections yet.

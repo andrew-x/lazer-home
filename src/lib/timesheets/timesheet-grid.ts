@@ -8,6 +8,7 @@
  */
 
 import type { TimesheetEntryView } from "@/actions/timesheets/getTimesheet";
+import type { AllocatedProject } from "@/actions/timesheets/getTimesheetPrefill";
 import {
   TIMESHEET_CATEGORY_LABELS,
   type TimesheetCategory,
@@ -113,6 +114,106 @@ export function autofillProjectHours(
     if (remaining > 0) filled[date] = String(remaining);
   }
   return filled;
+}
+
+/** A row's target identity, without any hours. */
+type TargetDescriptor = Pick<
+  Row,
+  "key" | "label" | "sublabel" | "projectId" | "category"
+>;
+
+/**
+ * Merge `hoursByDate` into the grid for one target (project or category),
+ * upserting its row. Prefill semantics: only fills weekday cells that are
+ * currently EMPTY (never clobbers hours the user typed), and caps each day at
+ * `dailyHourCap` across the other rows already logged that day. A brand-new row
+ * is only added if it actually receives hours (no empty ghost rows).
+ */
+function fillTarget(
+  rows: Row[],
+  target: TargetDescriptor,
+  hoursByDate: Record<string, number>,
+  weekDays: string[],
+  dailyHourCap: number,
+): Row[] {
+  const existing = rows.find((r) => r.key === target.key);
+  const row: Row = existing
+    ? { ...existing, hours: { ...existing.hours } }
+    : { ...target, hours: {} };
+
+  for (const date of weekDays) {
+    if (isWeekend(date)) continue;
+    const desired = hoursByDate[date] ?? 0;
+    if (desired <= 0) continue;
+    // Don't clobber hours already entered for this target.
+    if (parseHours(row.hours[date]) > 0) continue;
+    // Respect the per-day cap across the OTHER rows already logged that day.
+    const usedByOthers = rows.reduce(
+      (sum, r) =>
+        r.key === target.key ? sum : sum + parseHours(r.hours[date]),
+      0,
+    );
+    const fill = Math.min(desired, dailyHourCap - usedByOthers);
+    if (fill > 0) row.hours[date] = String(fill);
+  }
+
+  if (existing) return rows.map((r) => (r.key === target.key ? row : r));
+  const hasHours = weekDays.some((d) => parseHours(row.hours[d]) > 0);
+  return hasHours ? [...rows, row] : rows;
+}
+
+/**
+ * Prefill each allocated project's planned hours into the grid (one-way opt-in,
+ * behind the "Fill in allocations" button). Upserts a row per project.
+ */
+export function applyAllocationFill(
+  rows: Row[],
+  allocations: AllocatedProject[],
+  weekDays: string[],
+  dailyHourCap: number,
+): Row[] {
+  let next = rows;
+  for (const alloc of allocations) {
+    next = fillTarget(
+      next,
+      {
+        key: targetKey(alloc.projectId, null),
+        label: alloc.name,
+        sublabel: alloc.companyName,
+        projectId: alloc.projectId,
+        category: null,
+      },
+      alloc.hoursByDate,
+      weekDays,
+      dailyHourCap,
+    );
+  }
+  return next;
+}
+
+/**
+ * Prefill approved PTO hours into the grid's PTO category row (one-way opt-in,
+ * behind the "Fill in PTO" button).
+ */
+export function applyPtoFill(
+  rows: Row[],
+  ptoHoursByDate: Record<string, number>,
+  weekDays: string[],
+  dailyHourCap: number,
+): Row[] {
+  return fillTarget(
+    rows,
+    {
+      key: targetKey(null, "PTO"),
+      label: TIMESHEET_CATEGORY_LABELS.PTO,
+      sublabel: "Non-billable",
+      projectId: null,
+      category: "PTO",
+    },
+    ptoHoursByDate,
+    weekDays,
+    dailyHourCap,
+  );
 }
 
 /**

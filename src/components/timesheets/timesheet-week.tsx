@@ -1,28 +1,25 @@
 "use client";
 
-import { IconTrash } from "@tabler/icons-react";
+import { IconAlertTriangle, IconTrash } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { SelectableProject } from "@/actions/timesheets/getSelectableProjects";
 import type { TimesheetEntryView } from "@/actions/timesheets/getTimesheet";
+import type { TimesheetPrefill } from "@/actions/timesheets/getTimesheetPrefill";
 import { reopenTimesheet } from "@/actions/timesheets/reopenTimesheet";
 import { saveTimesheet } from "@/actions/timesheets/saveTimesheet";
-import { DAILY_HOUR_CAP } from "@/actions/timesheets/saveTimesheet.schema";
+import {
+  DAILY_HOUR_CAP,
+  MAX_ENTRY_HOURS,
+  WEEKLY_HOUR_CAP,
+} from "@/actions/timesheets/saveTimesheet.schema";
 import { submitTimesheet } from "@/actions/timesheets/submitTimesheet";
 import { IconButton } from "@/components/icon-button";
+import { AddProjectDialog } from "@/components/timesheets/add-project-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -39,6 +36,8 @@ import {
   TIMESHEET_CATEGORY_LABELS,
 } from "@/lib/timesheets/timesheet-category";
 import {
+  applyAllocationFill,
+  applyPtoFill,
   autofillProjectHours,
   buildPayload,
   buildRows,
@@ -58,9 +57,38 @@ type Props = {
   status: TimesheetStatus;
   initialEntries: TimesheetEntryView[];
   projects: SelectableProject[];
+  /** Allocation + approved-PTO data for the "Fill in …" prefill buttons. */
+  prefill: TimesheetPrefill;
   /** Whether this viewer may edit this week (own + in window, or the capability). */
   canEdit: boolean;
 };
+
+/**
+ * One row in the add/prefill toolbar: a title, a description of what it does (for
+ * the prefill rows, a preview of exactly what would be added this week), and a
+ * right-aligned action (a "Fill in" button, or the add-project dialog trigger).
+ */
+function ToolbarRow({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action: ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{title}</div>
+        <div className="truncate text-xs text-muted-foreground">
+          {description}
+        </div>
+      </div>
+      <div className="shrink-0">{action}</div>
+    </div>
+  );
+}
 
 /** "Mon 14" style column header for a weekday. */
 function dayHeader(date: string): { weekday: string; day: string } {
@@ -80,6 +108,7 @@ export function TimesheetWeek({
   status,
   initialEntries,
   projects,
+  prefill,
   canEdit,
 }: Props) {
   const router = useRouter();
@@ -135,7 +164,30 @@ export function TimesheetWeek({
     rows.reduce((sum, row) => sum + parseHours(row.hours[date]), 0),
   );
   const weekTotal = dayTotals.reduce((a, b) => a + b, 0);
-  const overCap = dayTotals.some((t) => t > DAILY_HOUR_CAP);
+  // Review flags are soft warnings, not blocks: an over-cap day, an over-cap week,
+  // or any weekend hours still save/submit — the grid just spells out why the week
+  // will be flagged for manager / delivery-manager review.
+  const overCapDays = weekDays.filter((_, i) => dayTotals[i] > DAILY_HOUR_CAP);
+  const weekendDays = weekDays.filter(
+    (date, i) => isWeekend(date) && dayTotals[i] > 0,
+  );
+  const weekOverCap = weekTotal > WEEKLY_HOUR_CAP;
+
+  const dayNames = (dates: string[]) =>
+    dates.map((d) => dayHeader(d).weekday).join(", ");
+  const reviewReasons: string[] = [];
+  if (overCapDays.length > 0) {
+    reviewReasons.push(`Over ${DAILY_HOUR_CAP}h on ${dayNames(overCapDays)}`);
+  }
+  if (weekOverCap) {
+    reviewReasons.push(
+      `Week total is ${weekTotal}h (over ${WEEKLY_HOUR_CAP}h)`,
+    );
+  }
+  if (weekendDays.length > 0) {
+    reviewReasons.push(`Weekend hours on ${dayNames(weekendDays)}`);
+  }
+  const needsReview = reviewReasons.length > 0;
 
   function setCell(rowKey: string, date: string, value: string) {
     setRows((prev) =>
@@ -189,6 +241,18 @@ export function TimesheetWeek({
     }
   }
 
+  function handleFillPto() {
+    setRows((prev) =>
+      applyPtoFill(prev, prefill.ptoHoursByDate, weekDays, DAILY_HOUR_CAP),
+    );
+  }
+
+  function handleFillAllocations() {
+    setRows((prev) =>
+      applyAllocationFill(prev, prefill.allocations, weekDays, DAILY_HOUR_CAP),
+    );
+  }
+
   function handleSave() {
     submitAfterSave.current = false;
     saveAction.execute(buildPayload(rows, weekDays, staffId, weekStartDate));
@@ -200,15 +264,73 @@ export function TimesheetWeek({
   }
 
   const usedKeys = new Set(rows.map((r) => r.key));
-  const availableProjects = projects.filter(
-    (p) => !usedKeys.has(targetKey(p.id, null)),
+  const allocatedProjectIds = prefill.allocations.map((a) => a.projectId);
+
+  // Previews of exactly what each "Fill in" would add this week (an empty string
+  // means there's nothing to fill, which disables the row's button).
+  const allocationPreview = prefill.allocations
+    .map((a) => {
+      const total = Object.values(a.hoursByDate).reduce((sum, h) => sum + h, 0);
+      return `${a.name} · ${total}h`;
+    })
+    .join(", ");
+  const ptoDates = Object.keys(prefill.ptoHoursByDate).sort();
+  const ptoTotal = Object.values(prefill.ptoHoursByDate).reduce(
+    (sum, h) => sum + h,
+    0,
   );
-  const availableCategories = TIMESHEET_CATEGORY.filter(
-    (c) => !usedKeys.has(targetKey(null, c)),
-  );
+  const ptoPreview = ptoDates.length
+    ? `${ptoDates.map((d) => dayHeader(d).weekday).join(", ")} · ${ptoTotal}h`
+    : "";
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Add-row + prefill toolbar */}
+      {editable ? (
+        <div className="flex flex-col gap-2">
+          <ToolbarRow
+            title="Allocations"
+            description={allocationPreview || "No allocations this week."}
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleFillAllocations}
+                disabled={!allocationPreview}
+              >
+                Fill in
+              </Button>
+            }
+          />
+          <ToolbarRow
+            title="Time off (PTO)"
+            description={ptoPreview || "No approved PTO this week."}
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleFillPto}
+                disabled={!ptoPreview}
+              >
+                Fill in
+              </Button>
+            }
+          />
+          <ToolbarRow
+            title="Other projects"
+            description="Search all projects, or add a non-billable category."
+            action={
+              <AddProjectDialog
+                projects={projects}
+                allocatedProjectIds={allocatedProjectIds}
+                usedKeys={usedKeys}
+                onSelect={addTarget}
+              />
+            }
+          />
+        </div>
+      ) : null}
+
       {/* Grid */}
       <div className="rounded-md border">
         <Table>
@@ -243,7 +365,7 @@ export function TimesheetWeek({
                 >
                   No time logged yet.
                   {editable
-                    ? " Add a project or category below to start."
+                    ? " Add a project or category above to start."
                     : null}
                 </TableCell>
               </TableRow>
@@ -273,22 +395,20 @@ export function TimesheetWeek({
                             weekend && "bg-muted/40",
                           )}
                         >
-                          {weekend ? null : (
-                            <Input
-                              type="number"
-                              step="0.25"
-                              min="0"
-                              max={DAILY_HOUR_CAP}
-                              inputMode="decimal"
-                              aria-label={`${row.label} hours on ${date}`}
-                              disabled={!editable}
-                              value={row.hours[date] ?? ""}
-                              onChange={(e) =>
-                                setCell(row.key, date, e.target.value)
-                              }
-                              className="mx-auto w-16 text-center"
-                            />
-                          )}
+                          <Input
+                            type="number"
+                            step="0.25"
+                            min="0"
+                            max={MAX_ENTRY_HOURS}
+                            inputMode="decimal"
+                            aria-label={`${row.label} hours on ${date}`}
+                            disabled={!editable}
+                            value={row.hours[date] ?? ""}
+                            onChange={(e) =>
+                              setCell(row.key, date, e.target.value)
+                            }
+                            className="mx-auto w-16 text-center"
+                          />
                         </TableCell>
                       );
                     })}
@@ -320,13 +440,20 @@ export function TimesheetWeek({
                   className={cn(
                     "text-center font-medium tabular-nums",
                     isWeekend(weekDays[i]) && "bg-muted/40",
-                    total > DAILY_HOUR_CAP && "text-destructive",
+                    (total > DAILY_HOUR_CAP ||
+                      (isWeekend(weekDays[i]) && total > 0)) &&
+                      "text-destructive",
                   )}
                 >
                   {total || "—"}
                 </TableCell>
               ))}
-              <TableCell className="text-center font-medium tabular-nums">
+              <TableCell
+                className={cn(
+                  "text-center font-medium tabular-nums",
+                  weekOverCap && "text-destructive",
+                )}
+              >
                 {weekTotal || "—"}
               </TableCell>
               {editable ? <TableCell /> : null}
@@ -337,65 +464,29 @@ export function TimesheetWeek({
 
       {/* Actions */}
       {editable ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Select
-            value={null}
-            onValueChange={(v: string | null) => v && addTarget(v)}
-          >
-            <SelectTrigger
-              className="w-72"
-              aria-label="Add a project or category"
-            >
-              <SelectValue>
-                {() => (
-                  <span className="text-muted-foreground">
-                    Add a project or category…
-                  </span>
-                )}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {availableProjects.length > 0 ? (
-                <SelectGroup>
-                  <SelectLabel>Projects</SelectLabel>
-                  {availableProjects.map((p) => (
-                    <SelectItem key={p.id} value={`${PROJECT_PREFIX}${p.id}`}>
-                      {p.name}
-                      <span className="text-muted-foreground">
-                        {" "}
-                        · {p.companyName}
-                      </span>
-                    </SelectItem>
+        <div className="flex flex-col items-end gap-2">
+          {needsReview ? (
+            <div className="flex w-full items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              <IconAlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <div>
+                <p>
+                  You can still save and submit, but this week will be flagged
+                  for review by your manager and delivery managers — make sure
+                  you've secured their approval first.
+                </p>
+                <ul className="mt-1 list-disc pl-5">
+                  {reviewReasons.map((reason) => (
+                    <li key={reason}>{reason}</li>
                   ))}
-                </SelectGroup>
-              ) : null}
-              {availableCategories.length > 0 ? (
-                <SelectGroup>
-                  <SelectLabel>Non-billable</SelectLabel>
-                  {availableCategories.map((c) => (
-                    <SelectItem key={c} value={`${CATEGORY_PREFIX}${c}`}>
-                      {TIMESHEET_CATEGORY_LABELS[c]}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              ) : null}
-            </SelectContent>
-          </Select>
-
+                </ul>
+              </div>
+            </div>
+          ) : null}
           <div className="flex items-center gap-2">
-            {overCap ? (
-              <span className="text-sm text-destructive">
-                A day exceeds the {DAILY_HOUR_CAP}h cap.
-              </span>
-            ) : null}
-            <Button
-              variant="outline"
-              onClick={handleSave}
-              disabled={pending || overCap}
-            >
+            <Button variant="outline" onClick={handleSave} disabled={pending}>
               Save draft
             </Button>
-            <Button onClick={handleSubmit} disabled={pending || overCap}>
+            <Button onClick={handleSubmit} disabled={pending}>
               Submit
             </Button>
           </div>
