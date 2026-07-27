@@ -5,6 +5,7 @@ import type {
 } from "@/actions/crm/getContactDetail";
 import { MailLink, PhoneLink } from "@/components/contact-link";
 import { ExternalLink } from "@/components/external-link";
+import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { InternalLink } from "@/components/internal-link";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -26,6 +27,7 @@ import { InlineLocationField } from "./inline-location-field";
 import { InlineOwnerField } from "./inline-owner-field";
 import { InlineRelationshipStrengthField } from "./inline-relationship-strength-field";
 import { OpportunityStatusBadge } from "./opportunity-status-badge";
+import { TaskList } from "./task-list";
 
 /** Opportunities as a table; each names and links through to its company. */
 function OpportunityTable({ rows }: { rows: ContactOpportunity[] }) {
@@ -100,7 +102,7 @@ function ProjectTable({ rows }: { rows: ContactProject[] }) {
 /**
  * Read view of a contact: a meta sidebar (identity, contact methods, employer,
  * manager — all optional — plus the inline relationship-strength rating and
- * owner) beside two tabs — Activity (next steps + notes) and Opportunities. The
+ * owner) beside two tabs — Activity (tasks + notes) and Opportunities. The
  * Opportunities section separates deals they referred from ones they're merely
  * involved in; the Projects section shows work that grew out of the deals they
  * referred (contacts don't attach to projects directly).
@@ -108,9 +110,11 @@ function ProjectTable({ rows }: { rows: ContactProject[] }) {
 export function ContactDetailView({
   contact,
   canEdit,
+  currentStaff,
 }: {
   contact: ContactDetail;
   canEdit: boolean;
+  currentStaff: EntityOption | null;
 }) {
   const name = contactName(contact);
   const opportunityCount =
@@ -201,13 +205,13 @@ export function ContactDetailView({
         </TabsList>
 
         <TabsContent value="activity" className="flex flex-col gap-12">
-          <DetailSection title="Next steps" count={contact.nextSteps.length}>
-            <EntryLog
+          <DetailSection title="Next steps" count={contact.tasks.length}>
+            <TaskList
               variant="contact"
               parentId={contact.id}
-              kind="next_step"
-              entries={contact.nextSteps}
+              tasks={contact.tasks}
               canEdit={canEdit}
+              currentStaff={currentStaff}
             />
           </DetailSection>
 
@@ -215,7 +219,6 @@ export function ContactDetailView({
             <EntryLog
               variant="contact"
               parentId={contact.id}
-              kind="note"
               entries={contact.notes}
               canEdit={canEdit}
             />

@@ -5,8 +5,8 @@ import { addContactEntrySchema } from "./entries.schema";
 import { addEntry, contactEntryMutations } from "./entryMutations";
 
 /**
- * Append a timestamped note or next-step entry to a contact's log. Gated on
- * `crm.edit`. Delegates to the shared entry core (see `entryMutations.ts`).
+ * Append a timestamped note entry to a contact's log. Gated on `crm.edit`.
+ * Delegates to the shared entry core (see `entryMutations.ts`).
  */
 export const addContactEntry = secureActionClient
   .metadata({ action: "add-contact-entry", permission: { crm: ["edit"] } })
@@ -14,11 +14,7 @@ export const addContactEntry = secureActionClient
   .action(({ parsedInput, ctx }) =>
     addEntry(
       contactEntryMutations,
-      {
-        parentId: parsedInput.contactId,
-        kind: parsedInput.kind,
-        body: parsedInput.body,
-      },
+      { parentId: parsedInput.contactId, body: parsedInput.body },
       ctx.user,
     ),
   );

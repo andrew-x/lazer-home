@@ -3,10 +3,6 @@ import "server-only";
 import { asc, eq } from "drizzle-orm";
 import { cache } from "react";
 import { contactNameSql } from "@/actions/shared/contactName";
-import {
-  latestNextStepSubquery,
-  toEpochMillis,
-} from "@/actions/shared/latestNextStep";
 import type {
   OpportunitySource,
   OpportunityStatus,
@@ -14,13 +10,18 @@ import type {
 import { db } from "@/lib/db/db";
 import {
   companies,
-  contactEntries,
   contacts,
   opportunities,
   opportunitySourceContacts,
   projects,
   staff,
 } from "@/lib/db/schema";
+import {
+  getTasksForParent,
+  type OpenTaskSummary,
+  openTasksByParent,
+  type TaskView,
+} from "./getTasks";
 
 export type CompanyOpportunity = {
   id: string;
@@ -40,10 +41,8 @@ export type CompanyContact = {
   role: string | null;
   email: string;
   phone: string | null;
-  /** Body of the contact's most recent next-step entry, or null if none. */
-  nextStep: string | null;
-  /** When that next step was logged (epoch millis), or null. */
-  nextStepAt: number | null;
+  /** The contact's open (not-done) tasks, oldest first — empty when none. */
+  openTasks: OpenTaskSummary[];
 };
 
 /**
@@ -90,6 +89,8 @@ export type CompanyDetail = {
   referredOpportunities: CompanyReferredOpportunity[];
   referredProjects: CompanyReferredProject[];
   contacts: CompanyContact[];
+  /** Tasks on the company itself — open first, then newest. */
+  tasks: TaskView[];
 };
 
 const contactName = contactNameSql(contacts);
@@ -153,19 +154,13 @@ export const getCompanyDetail = cache(
 
     if (!base) return null;
 
-    // Latest next-step per contact, left-joined onto the company's contacts
-    // below.
-    const latestNextStep = latestNextStepSubquery(
-      contactEntries,
-      contactEntries.contactId,
-    );
-
     const [
       opportunityRows,
       projectRows,
       referredOpportunityRows,
       referredProjectRows,
       contactRows,
+      tasks,
     ] = await Promise.all([
       db
         .select({
@@ -241,14 +236,18 @@ export const getCompanyDetail = cache(
           role: contacts.role,
           email: contacts.email,
           phone: contacts.phone,
-          nextStep: latestNextStep.body,
-          nextStepAt: latestNextStep.createdAt,
         })
         .from(contacts)
-        .leftJoin(latestNextStep, eq(latestNextStep.parentId, contacts.id))
         .where(eq(contacts.companyId, id))
         .orderBy(asc(contacts.lastName), asc(contacts.firstName)),
+      getTasksForParent("company", id),
     ]);
+
+    // The company's contacts each surface their open tasks — one grouped query.
+    const openTasks = await openTasksByParent(
+      "contact",
+      contactRows.map((row) => row.id),
+    );
 
     return {
       ...base,
@@ -258,8 +257,9 @@ export const getCompanyDetail = cache(
       referredProjects: groupReferrals(referredProjectRows),
       contacts: contactRows.map((row) => ({
         ...row,
-        nextStepAt: toEpochMillis(row.nextStepAt),
+        openTasks: openTasks.get(row.id) ?? [],
       })),
+      tasks,
     };
   },
 );

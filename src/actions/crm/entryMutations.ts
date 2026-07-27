@@ -12,7 +12,6 @@ import {
   contactEntries,
   opportunityEntries,
 } from "@/lib/db/schema";
-import type { EntryKind } from "./entries.schema";
 import { resolveAuthorStaffId } from "./resolveAuthorStaffId";
 import { revalidateCompany, revalidateContact } from "./revalidate";
 
@@ -88,14 +87,14 @@ export const opportunityEntryMutations: EntryMutationDescriptor = {
 };
 
 /**
- * Append a timestamped note/next-step entry to a parent's log. The author is
- * resolved server-side from the session (never trusted from the client); the
- * parent FK is guarded by the DB, so a bad id surfaces as a clean error rather
- * than a dangling row.
+ * Append a timestamped note entry to a parent's log. The author is resolved
+ * server-side from the session (never trusted from the client); the parent FK is
+ * guarded by the DB, so a bad id surfaces as a clean error rather than a dangling
+ * row.
  */
 export async function addEntry(
   descriptor: EntryMutationDescriptor,
-  input: { parentId: string; kind: EntryKind; body: string },
+  input: { parentId: string; body: string },
   user: { id: string; email: string },
 ): Promise<{ id: string }> {
   const authorStaffId = await resolveAuthorStaffId(user);
@@ -110,7 +109,6 @@ export async function addEntry(
     const values = {
       id: entryId,
       [descriptor.parentKey]: input.parentId,
-      kind: input.kind,
       body: input.body,
       authorStaffId,
     } as unknown as InferInsertModel<typeof companyEntries>;

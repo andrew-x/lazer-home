@@ -19,6 +19,7 @@ import { seedFeedback, seedRatings } from "./seed/performance";
 import { seedProjects } from "./seed/projects";
 import { seedOpportunities } from "./seed/sales";
 import { seedStaff } from "./seed/staff";
+import { seedTasks } from "./seed/tasks";
 import { seedTimesheets } from "./seed/timesheets";
 import { wipe } from "./seed/wipe";
 
@@ -73,6 +74,13 @@ async function main() {
       companies,
       staff,
     );
+    const taskCount = await seedTasks(
+      db,
+      companies,
+      contacts,
+      opportunities,
+      staff,
+    );
 
     console.log("\n✅ Done. Row counts:");
     console.table({
@@ -88,6 +96,7 @@ async function main() {
       contactEntries: entries.contactEntries,
       opportunityEntries: entries.opportunityEntries,
       companyEntries: entries.companyEntries,
+      tasks: taskCount,
     });
     console.log(
       "\n   Sign in with Google as andrew@lazertechnologies.com (admin).\n",

@@ -4,7 +4,6 @@ import {
   boolean,
   index,
   integer,
-  pgEnum,
   pgTable,
   text,
   timestamp,
@@ -84,18 +83,14 @@ export const contacts = pgTable("contacts", {
 });
 
 // ---------------------------------------------------------------------------
-// Timestamped entries — notes & next steps
+// Timestamped entries — notes
 //
 // Contacts, opportunities, and companies each carry a running, authored log of
-// free-text entries: `note` (longer, "what happened") and `next_step` (shorter,
-// "what's planned"). One table per parent entity (concrete FKs — no polymorphic
-// FK); the two kinds share a shape and differ only by `kind` + validation length.
-// (Companies only use the `note` kind in the UI, but share the same table shape.)
-// Entries are point-in-time and shown newest-first, mirroring the `feedback`
-// table. See docs/domains/crm.md.
+// free-text notes ("what happened"). One table per parent entity (concrete FKs
+// — no polymorphic FK). Notes are point-in-time and shown newest-first,
+// mirroring the `feedback` table. (The old "next step" kind on these tables was
+// replaced by the `tasks` entity — see tasks-schema.ts.) See docs/domains/crm.md.
 // ---------------------------------------------------------------------------
-
-export const crmEntryKind = pgEnum("crm_entry_kind", ["note", "next_step"]);
 
 export const contactEntries = pgTable(
   "contact_entries",
@@ -104,7 +99,6 @@ export const contactEntries = pgTable(
     contactId: text()
       .notNull()
       .references(() => contacts.id, { onDelete: "cascade" }),
-    kind: crmEntryKind().notNull(),
     body: text().notNull(),
     // Who wrote it. Set-null so an entry survives the author's staff row being
     // removed (author attribution, not ownership). Author = staff, matching the
@@ -118,11 +112,7 @@ export const contactEntries = pgTable(
       .notNull(),
   },
   (t) => [
-    index("contact_entries_contact_kind_created_idx").on(
-      t.contactId,
-      t.kind,
-      t.createdAt,
-    ),
+    index("contact_entries_contact_created_idx").on(t.contactId, t.createdAt),
   ],
 );
 
@@ -133,7 +123,6 @@ export const companyEntries = pgTable(
     companyId: text()
       .notNull()
       .references(() => companies.id, { onDelete: "cascade" }),
-    kind: crmEntryKind().notNull(),
     body: text().notNull(),
     // Who wrote it. Set-null so an entry survives the author's staff row being
     // removed (author attribution, not ownership). Author = staff, matching the
@@ -147,11 +136,7 @@ export const companyEntries = pgTable(
       .notNull(),
   },
   (t) => [
-    index("company_entries_company_kind_created_idx").on(
-      t.companyId,
-      t.kind,
-      t.createdAt,
-    ),
+    index("company_entries_company_created_idx").on(t.companyId, t.createdAt),
   ],
 );
 

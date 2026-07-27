@@ -12,7 +12,7 @@ import {
   OPPORTUNITY_SOURCES,
   OPPORTUNITY_STATUSES,
 } from "@/lib/crm/opportunity";
-import { companies, contacts, crmEntryKind } from "./crm-schema";
+import { companies, contacts } from "./crm-schema";
 import { projects } from "./projects-schema";
 import { lineOfBusinessEnum, staff } from "./staff-schema";
 
@@ -155,9 +155,10 @@ export const opportunitySourceStaff = pgTable(
   ],
 );
 
-// Timestamped notes & next steps for an opportunity — the pipeline counterpart
-// to `contactEntries` (see crm-schema.ts). Shares the `crm_entry_kind` enum;
-// cascade FK so entries die with the deal. Author = staff, set-null on removal.
+// Timestamped notes for an opportunity — the pipeline counterpart to
+// `contactEntries` (see crm-schema.ts). Cascade FK so notes die with the deal.
+// Author = staff, set-null on removal. (The old "next step" kind was replaced by
+// the `tasks` entity — see tasks-schema.ts.)
 export const opportunityEntries = pgTable(
   "opportunity_entries",
   {
@@ -165,7 +166,6 @@ export const opportunityEntries = pgTable(
     opportunityId: text()
       .notNull()
       .references(() => opportunities.id, { onDelete: "cascade" }),
-    kind: crmEntryKind().notNull(),
     body: text().notNull(),
     authorStaffId: text().references(() => staff.id, { onDelete: "set null" }),
 
@@ -176,9 +176,8 @@ export const opportunityEntries = pgTable(
       .notNull(),
   },
   (t) => [
-    index("opportunity_entries_opp_kind_created_idx").on(
+    index("opportunity_entries_opp_created_idx").on(
       t.opportunityId,
-      t.kind,
       t.createdAt,
     ),
   ],

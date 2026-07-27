@@ -3,7 +3,7 @@
 
 // Better Auth tables (user, session, account, verification).
 export * from "./auth-schema";
-// CRM domain (companies, contacts, contact notes/next-step entries).
+// CRM domain (companies, contacts, note entries).
 export * from "./crm-schema";
 // CRM sales pipeline (opportunities + junction tables + opportunity entries).
 export * from "./opportunities-schema";
@@ -15,5 +15,7 @@ export * from "./projects-schema";
 export * from "./responses-schema";
 // Staff profiles domain (staff, staff_employment, staff_pto + enums).
 export * from "./staff-schema";
+// Tasks — assignable, completable to-dos on CRM entities.
+export * from "./tasks-schema";
 // Timesheets domain (timesheets, time_entries + enums).
 export * from "./timesheets-schema";

@@ -21,6 +21,7 @@ import {
 } from "@/lib/db/schema";
 import type { EntryView } from "./entryViews";
 import { getOpportunityEntries } from "./entryViews";
+import { getTasksForParent, type TaskView } from "./getTasks";
 
 /** A picked entity, shaped for the drawer's comboboxes. */
 export type EntityRef = { id: string; name: string };
@@ -40,8 +41,8 @@ export type OpportunityDetail = {
   project: EntityRef | null;
   /** Timestamped notes, newest first. */
   notes: EntryView[];
-  /** Timestamped next steps, newest first. */
-  nextSteps: EntryView[];
+  /** Tasks on this opportunity — open first, then newest. */
+  tasks: TaskView[];
 };
 
 const contactName = contactNameSql(contacts);
@@ -77,7 +78,7 @@ export async function getOpportunity(
 
   if (!base) return null;
 
-  const [contactRows, ownerRows, srcContactRows, srcStaffRows, entries] =
+  const [contactRows, ownerRows, srcContactRows, srcStaffRows, notes, tasks] =
     await Promise.all([
       db
         .select({ id: contacts.id, name: contactName })
@@ -107,6 +108,7 @@ export async function getOpportunity(
         .where(eq(opportunitySourceStaff.opportunityId, id))
         .orderBy(asc(staff.name)),
       getOpportunityEntries(id),
+      getTasksForParent("opportunity", id),
     ]);
 
   return {
@@ -124,7 +126,7 @@ export async function getOpportunity(
       base.projectId && base.projectName
         ? { id: base.projectId, name: base.projectName }
         : null,
-    notes: entries.notes,
-    nextSteps: entries.nextSteps,
+    notes,
+    tasks,
   };
 }

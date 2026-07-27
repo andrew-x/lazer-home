@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getContactDetail } from "@/actions/crm/getContactDetail";
+import { getCurrentStaffIdentity } from "@/actions/staff/getCurrentStaffIdentity";
 import { ContactDetailView } from "@/components/crm/contact-detail-view";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { userHasPermission } from "@/lib/auth/permissions";
@@ -24,14 +25,21 @@ export default async function ContactDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [contact, user] = await Promise.all([
+  const [contact, user, currentStaff] = await Promise.all([
     getContactDetail(id),
     getCurrentUser(),
+    getCurrentStaffIdentity(),
   ]);
 
   if (!contact) notFound();
 
   const canEdit = user ? userHasPermission(user, { crm: ["edit"] }) : false;
 
-  return <ContactDetailView contact={contact} canEdit={canEdit} />;
+  return (
+    <ContactDetailView
+      contact={contact}
+      canEdit={canEdit}
+      currentStaff={currentStaff}
+    />
+  );
 }

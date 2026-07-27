@@ -16,18 +16,15 @@ type ContactEntryInsert = InferInsertModel<typeof contactEntries>;
 type OpportunityEntryInsert = InferInsertModel<typeof opportunityEntries>;
 type CompanyEntryInsert = InferInsertModel<typeof companyEntries>;
 
-type EntryKind = "note" | "next_step";
-
-/** A single synthetic entry: a note (longer prose) or a next step (a sentence). */
-function makeEntry(idPrefix: string, kind: EntryKind, staff: Staff[]) {
+/** A single synthetic note entry (a paragraph of prose). */
+function makeEntry(idPrefix: string, staff: Staff[]) {
   // Pin `updatedAt` to `createdAt` so a freshly-seeded entry reads as un-edited:
   // `updatedAt` defaults to `now()`, which would otherwise beat the backdated
   // `createdAt` and make every entry show the "edited" tag.
   const createdAt = faker.date.recent({ days: 60 });
   return {
     id: generateId(idPrefix),
-    kind,
-    body: kind === "note" ? faker.lorem.paragraph() : faker.lorem.sentence(),
+    body: faker.lorem.paragraph(),
     authorStaffId: faker.helpers.arrayElement(staff).id,
     createdAt,
     updatedAt: createdAt,
@@ -35,11 +32,10 @@ function makeEntry(idPrefix: string, kind: EntryKind, staff: Staff[]) {
 }
 
 /**
- * Seed timestamped notes & next steps across contacts, opportunities, and
- * companies. Each parent gets a handful of entries, authored by random staff and
- * dated within the last couple of months so the logs read as a real history.
- * Contacts and opportunities mix both kinds; companies carry `note`-only logs
- * (the company detail page shows only notes).
+ * Seed timestamped notes across contacts, opportunities, and companies. Each
+ * parent gets a handful of notes, authored by random staff and dated within the
+ * last couple of months so the logs read as a real history. (Next steps were
+ * replaced by the `tasks` entity — see `seedTasks`.)
  */
 export async function seedEntries(
   db: SeedDb,
@@ -56,9 +52,8 @@ export async function seedEntries(
   for (const contact of contacts) {
     const count = faker.number.int({ min: 0, max: 4 });
     for (let i = 0; i < count; i++) {
-      const kind: EntryKind = faker.datatype.boolean() ? "note" : "next_step";
       contactRows.push({
-        ...makeEntry("centry", kind, staff),
+        ...makeEntry("centry", staff),
         contactId: contact.id,
       });
     }
@@ -68,9 +63,8 @@ export async function seedEntries(
   for (const opportunity of opportunities) {
     const count = faker.number.int({ min: 0, max: 4 });
     for (let i = 0; i < count; i++) {
-      const kind: EntryKind = faker.datatype.boolean() ? "note" : "next_step";
       opportunityRows.push({
-        ...makeEntry("oentry", kind, staff),
+        ...makeEntry("oentry", staff),
         opportunityId: opportunity.id,
       });
     }
@@ -81,7 +75,7 @@ export async function seedEntries(
     const count = faker.number.int({ min: 0, max: 4 });
     for (let i = 0; i < count; i++) {
       companyRows.push({
-        ...makeEntry("coentry", "note", staff),
+        ...makeEntry("coentry", staff),
         companyId: company.id,
       });
     }

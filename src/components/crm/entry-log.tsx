@@ -10,14 +10,13 @@ import { addOpportunityEntry } from "@/actions/crm/addOpportunityEntry";
 import { deleteCompanyEntry } from "@/actions/crm/deleteCompanyEntry";
 import { deleteContactEntry } from "@/actions/crm/deleteContactEntry";
 import { deleteOpportunityEntry } from "@/actions/crm/deleteOpportunityEntry";
-import { type EntryKind, maxLengthForKind } from "@/actions/crm/entries.schema";
+import { NOTE_MAX_LENGTH } from "@/actions/crm/entries.schema";
 import type { EntryView } from "@/actions/crm/entryViews";
 import { updateCompanyEntry } from "@/actions/crm/updateCompanyEntry";
 import { updateContactEntry } from "@/actions/crm/updateContactEntry";
 import { updateOpportunityEntry } from "@/actions/crm/updateOpportunityEntry";
 import { IconButton } from "@/components/icon-button";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/core/utils";
 import { formatShortDate } from "@/lib/format/format";
@@ -26,7 +25,6 @@ type EntryLogProps = {
   /** Which parent the entries hang off — selects the action set. */
   variant: "contact" | "opportunity" | "company";
   parentId: string;
-  kind: EntryKind;
   entries: EntryView[];
   canEdit: boolean;
   /**
@@ -37,86 +35,16 @@ type EntryLogProps = {
   onChanged?: () => void;
 };
 
-const COPY: Record<
-  EntryKind,
-  { placeholder: string; addLabel: string; empty: string }
-> = {
-  note: {
-    placeholder: "Add a note…",
-    addLabel: "Add note",
-    empty: "No notes yet.",
-  },
-  next_step: {
-    placeholder: "Add a next step…",
-    addLabel: "Add next step",
-    empty: "No next steps yet.",
-  },
-};
-
 /**
- * A running log of timestamped, authored entries of one `kind` (notes or next
- * steps) for a contact or opportunity. Newest first, each with author + time.
- * CRM editors get a composer plus inline edit/delete on every entry (no per-entry
- * ownership — any editor may amend any entry). Both parents share this component;
- * `variant` picks the matching action set.
+ * A running log of timestamped, authored notes for a contact, company, or
+ * opportunity. Newest first, each with author + time. CRM editors get a composer
+ * plus inline edit/delete on every note (no per-entry ownership — any editor may
+ * amend any note). All three parents share this component; `variant` picks the
+ * matching action set.
  */
-/**
- * The composer/edit control for one entry, sized to its kind: a multi-line
- * `Textarea` for notes, a single-line `Input` for next steps. On a next-step
- * input, Enter submits (`onEnter`); the notes textarea leaves Enter to insert a
- * newline. Keeps both call sites (compose + inline edit) rendering the same
- * kind-appropriate control.
- */
-function EntryInput({
-  isNote,
-  value,
-  onChange,
-  onEnter,
-  maxLength,
-  placeholder,
-  autoFocus,
-}: {
-  isNote: boolean;
-  value: string;
-  onChange: (value: string) => void;
-  onEnter?: () => void;
-  maxLength: number;
-  placeholder?: string;
-  autoFocus?: boolean;
-}) {
-  if (isNote) {
-    return (
-      <Textarea
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        maxLength={maxLength}
-        rows={3}
-        autoFocus={autoFocus}
-      />
-    );
-  }
-  return (
-    <Input
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          onEnter?.();
-        }
-      }}
-      placeholder={placeholder}
-      maxLength={maxLength}
-      autoFocus={autoFocus}
-    />
-  );
-}
-
 export function EntryLog({
   variant,
   parentId,
-  kind,
   entries,
   canEdit,
   onChanged,
@@ -126,12 +54,6 @@ export function EntryLog({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  const copy = COPY[kind];
-  const maxLength = maxLengthForKind(kind);
-  // Notes are longer, reflective prose (a multi-line textarea); next steps are
-  // short, one-line intentions (a single-line input).
-  const isNote = kind === "note";
 
   const refresh = () => {
     onChanged?.();
@@ -197,17 +119,17 @@ export function EntryLog({
     const body = draft.trim();
     if (!body) return;
     if (variant === "contact") {
-      addContact.execute({ contactId: parentId, kind, body });
+      addContact.execute({ contactId: parentId, body });
     } else if (variant === "opportunity") {
-      addOpportunity.execute({ opportunityId: parentId, kind, body });
+      addOpportunity.execute({ opportunityId: parentId, body });
     } else {
-      addCompany.execute({ companyId: parentId, kind, body });
+      addCompany.execute({ companyId: parentId, body });
     }
   };
 
   const submitEdit = () => {
     if (!editingId) return;
-    update.execute({ id: editingId, kind, body: editDraft.trim() });
+    update.execute({ id: editingId, body: editDraft.trim() });
   };
 
   const startEdit = (entry: EntryView) => {
@@ -219,13 +141,12 @@ export function EntryLog({
     <div className="flex flex-col gap-4">
       {canEdit ? (
         <div className="flex flex-col gap-2">
-          <EntryInput
-            isNote={isNote}
+          <Textarea
             value={draft}
-            onChange={setDraft}
-            onEnter={submitAdd}
-            placeholder={copy.placeholder}
-            maxLength={maxLength}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="Add a note…"
+            maxLength={NOTE_MAX_LENGTH}
+            rows={3}
           />
           <div className="flex items-center justify-between gap-3">
             {add.result.serverError ? (
@@ -242,14 +163,14 @@ export function EntryLog({
               disabled={!draft.trim()}
               loading={add.isPending}
             >
-              {copy.addLabel}
+              Add note
             </Button>
           </div>
         </div>
       ) : null}
 
       {entries.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{copy.empty}</p>
+        <p className="text-sm text-muted-foreground">No notes yet.</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {entries.map((entry) => {
@@ -275,13 +196,13 @@ export function EntryLog({
                       )}
                     >
                       <IconButton
-                        label="Edit entry"
+                        label="Edit note"
                         onClick={() => startEdit(entry)}
                       >
                         <IconPencil />
                       </IconButton>
                       <IconButton
-                        label="Delete entry"
+                        label="Delete note"
                         loading={deletingId === entry.id}
                         onClick={() => {
                           setDeletingId(entry.id);
@@ -296,12 +217,11 @@ export function EntryLog({
 
                 {editing ? (
                   <div className="flex flex-col gap-2">
-                    <EntryInput
-                      isNote={isNote}
+                    <Textarea
                       value={editDraft}
-                      onChange={setEditDraft}
-                      onEnter={submitEdit}
-                      maxLength={maxLength}
+                      onChange={(event) => setEditDraft(event.target.value)}
+                      maxLength={NOTE_MAX_LENGTH}
+                      rows={3}
                       autoFocus
                     />
                     {update.result.serverError ? (

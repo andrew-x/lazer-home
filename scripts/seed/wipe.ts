@@ -10,6 +10,8 @@ import type { SeedDb } from "./client";
  * a table is added to the schema.
  */
 const SEEDABLE_TABLES = [
+  // tasks (reference companies/contacts/opportunities)
+  "tasks",
   // performance + survey
   "feedback",
   "staff_rating",

@@ -3,66 +3,28 @@ import { id } from "@/lib/schemas/id-schema";
 import { requiredText } from "@/lib/schemas/text-schema";
 
 /**
- * Shared validation for timestamped notes & next-step entries (contacts and
+ * Shared validation for timestamped note entries (contacts, companies, and
  * opportunities alike). A pure, client-importable module so the composer forms
- * and the actions share one schema. Notes and next steps differ only by length:
- * notes are longer prose, next steps are short reminders.
+ * and the actions share one schema. (The old "next step" kind on these logs was
+ * replaced by the `tasks` entity — see `tasks.schema.ts`.)
  */
-export const ENTRY_KINDS = ["note", "next_step"] as const;
-export const entryKindSchema = z.enum(ENTRY_KINDS);
-export type EntryKind = (typeof ENTRY_KINDS)[number];
-
 export const NOTE_MAX_LENGTH = 5000;
-export const NEXT_STEP_MAX_LENGTH = 500;
 
-/** Max body length for a given kind — the tighter cap for next steps. */
-export const maxLengthForKind = (kind: EntryKind) =>
-  kind === "next_step" ? NEXT_STEP_MAX_LENGTH : NOTE_MAX_LENGTH;
-
-// Validated against the larger cap here; the per-kind cap is enforced by
-// `refineEntryBody` once `kind` is known (both `body` and `kind` are present).
 const body = requiredText(NOTE_MAX_LENGTH);
 
-/**
- * Enforce the per-kind length cap on a parsed `{ kind, body }`. `body` is already
- * trimmed by `requiredText`, so this measures the trimmed length.
- */
-function refineEntryBody(
-  val: { kind: EntryKind; body: string },
-  ctx: z.RefinementCtx,
-) {
-  const max = maxLengthForKind(val.kind);
-  if (val.body.length > max) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["body"],
-      message: `A next step can be at most ${max} characters.`,
-    });
-  }
-}
-
-export const addContactEntrySchema = z
-  .object({ contactId: id, kind: entryKindSchema, body })
-  .superRefine(refineEntryBody);
+export const addContactEntrySchema = z.object({ contactId: id, body });
 export type AddContactEntryInput = z.input<typeof addContactEntrySchema>;
 
-export const addOpportunityEntrySchema = z
-  .object({ opportunityId: id, kind: entryKindSchema, body })
-  .superRefine(refineEntryBody);
+export const addOpportunityEntrySchema = z.object({ opportunityId: id, body });
 export type AddOpportunityEntryInput = z.input<
   typeof addOpportunityEntrySchema
 >;
 
-export const addCompanyEntrySchema = z
-  .object({ companyId: id, kind: entryKindSchema, body })
-  .superRefine(refineEntryBody);
+export const addCompanyEntrySchema = z.object({ companyId: id, body });
 export type AddCompanyEntryInput = z.input<typeof addCompanyEntrySchema>;
 
-// Updates carry `kind` only so the per-kind length cap can be validated; the
-// action never changes an entry's kind or parent, just its body.
-export const updateEntrySchema = z
-  .object({ id, kind: entryKindSchema, body })
-  .superRefine(refineEntryBody);
+// Updates carry only the new body; the action never changes an entry's parent.
+export const updateEntrySchema = z.object({ id, body });
 export type UpdateEntryInput = z.input<typeof updateEntrySchema>;
 
 export const deleteEntrySchema = z.object({ id });
