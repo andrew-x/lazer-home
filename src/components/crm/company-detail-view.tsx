@@ -4,13 +4,13 @@ import type { EntryView } from "@/actions/crm/entryViews";
 import type { CompanyDetail } from "@/actions/crm/getCompanyDetail";
 import { EmptyCell } from "@/components/empty-cell";
 import { ExternalLink } from "@/components/external-link";
+import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { InternalLink } from "@/components/internal-link";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { humanizeEnum } from "@/lib/format/format";
-import { ContactNextStepCell } from "./contact-next-step-cell";
 import {
   DetailIdentity,
   DetailLayout,
@@ -24,7 +24,9 @@ import { EditCompanyDialog } from "./edit-company-dialog";
 import { EntryLog } from "./entry-log";
 import { InlineLocationField } from "./inline-location-field";
 import { InlineOwnerField } from "./inline-owner-field";
+import { OpenTasksCell } from "./open-tasks-cell";
 import { OpportunityStatusBadge } from "./opportunity-status-badge";
+import { TaskList } from "./task-list";
 
 /**
  * Read view of a company: a meta sidebar (identity, website, and the inline
@@ -32,17 +34,19 @@ import { OpportunityStatusBadge } from "./opportunity-status-badge";
  * through to each contact's detail page) and Opportunities & Projects (its
  * pipeline, delivery work, and referred deals/projects). Project names link
  * through to the project detail page (`/projects/[id]`); opportunities have no
- * detail page yet, so they render as rows. Beneath the tabs, a separated Notes
- * section holds the company's running, authored note log.
+ * detail page yet, so they render as rows. Beneath the tabs, separated Tasks and
+ * Notes sections hold the company's tasks and its running, authored note log.
  */
 export function CompanyDetailView({
   company,
   notes,
   canEdit,
+  currentStaff,
 }: {
   company: CompanyDetail;
   notes: EntryView[];
   canEdit: boolean;
+  currentStaff: EntityOption | null;
 }) {
   const hasPipeline =
     company.opportunities.length > 0 ||
@@ -127,10 +131,7 @@ export function CompanyDetailView({
                     </TableCell>
                     <TableCell>{contact.role ?? <EmptyCell />}</TableCell>
                     <TableCell>
-                      <ContactNextStepCell
-                        nextStep={contact.nextStep}
-                        nextStepAt={contact.nextStepAt}
-                      />
+                      <OpenTasksCell tasks={contact.openTasks} />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -248,11 +249,20 @@ export function CompanyDetailView({
 
       <Separator />
 
+      <DetailSection title="Next steps" count={company.tasks.length}>
+        <TaskList
+          variant="company"
+          parentId={company.id}
+          tasks={company.tasks}
+          canEdit={canEdit}
+          currentStaff={currentStaff}
+        />
+      </DetailSection>
+
       <DetailSection title="Notes" count={notes.length}>
         <EntryLog
           variant="company"
           parentId={company.id}
-          kind="note"
           entries={notes}
           canEdit={canEdit}
         />

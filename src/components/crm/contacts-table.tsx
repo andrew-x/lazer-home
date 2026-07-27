@@ -1,5 +1,5 @@
 import type { ContactRow } from "@/actions/crm/getContactsPage";
-import { ContactNextStepCell } from "@/components/crm/contact-next-step-cell";
+import { OpenTasksCell } from "@/components/crm/open-tasks-cell";
 import { EmptyCell } from "@/components/empty-cell";
 import { EmptyState } from "@/components/empty-state";
 import { InternalLink } from "@/components/internal-link";
@@ -59,10 +59,7 @@ export function ContactsTable({
             <TableCell>{contact.role ?? <EmptyCell />}</TableCell>
             <TableCell>{contact.location ?? <EmptyCell />}</TableCell>
             <TableCell>
-              <ContactNextStepCell
-                nextStep={contact.nextStep}
-                nextStepAt={contact.nextStepAt}
-              />
+              <OpenTasksCell tasks={contact.openTasks} />
             </TableCell>
           </TableRow>
         ))}

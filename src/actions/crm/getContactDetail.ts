@@ -20,6 +20,7 @@ import {
 } from "@/lib/db/schema";
 import type { EntryView } from "./entryViews";
 import { getContactEntries } from "./entryViews";
+import { getTasksForParent, type TaskView } from "./getTasks";
 
 export type ContactOpportunity = {
   id: string;
@@ -62,8 +63,8 @@ export type ContactDetail = {
   referredProjects: ContactProject[];
   /** Timestamped notes, newest first. */
   notes: EntryView[];
-  /** Timestamped next steps, newest first. */
-  nextSteps: EntryView[];
+  /** Tasks on this contact — open first, then newest. */
+  tasks: TaskView[];
 };
 
 /**
@@ -120,29 +121,31 @@ export const getContactDetail = cache(
       companyName: companies.name,
     };
 
-    const [referredOpportunities, involvedAll, entries] = await Promise.all([
-      db
-        .select(opportunitySelection)
-        .from(opportunitySourceContacts)
-        .innerJoin(
-          opportunities,
-          eq(opportunitySourceContacts.opportunityId, opportunities.id),
-        )
-        .innerJoin(companies, eq(opportunities.companyId, companies.id))
-        .where(eq(opportunitySourceContacts.contactId, id))
-        .orderBy(asc(opportunities.name)),
-      db
-        .select(opportunitySelection)
-        .from(opportunityContacts)
-        .innerJoin(
-          opportunities,
-          eq(opportunityContacts.opportunityId, opportunities.id),
-        )
-        .innerJoin(companies, eq(opportunities.companyId, companies.id))
-        .where(eq(opportunityContacts.contactId, id))
-        .orderBy(asc(opportunities.name)),
-      getContactEntries(id),
-    ]);
+    const [referredOpportunities, involvedAll, notes, tasks] =
+      await Promise.all([
+        db
+          .select(opportunitySelection)
+          .from(opportunitySourceContacts)
+          .innerJoin(
+            opportunities,
+            eq(opportunitySourceContacts.opportunityId, opportunities.id),
+          )
+          .innerJoin(companies, eq(opportunities.companyId, companies.id))
+          .where(eq(opportunitySourceContacts.contactId, id))
+          .orderBy(asc(opportunities.name)),
+        db
+          .select(opportunitySelection)
+          .from(opportunityContacts)
+          .innerJoin(
+            opportunities,
+            eq(opportunityContacts.opportunityId, opportunities.id),
+          )
+          .innerJoin(companies, eq(opportunities.companyId, companies.id))
+          .where(eq(opportunityContacts.contactId, id))
+          .orderBy(asc(opportunities.name)),
+        getContactEntries(id),
+        getTasksForParent("contact", id),
+      ]);
 
     // A contact can be both source and named-contact on the same deal; show it
     // only under "referred" so nothing double-lists.
@@ -175,8 +178,8 @@ export const getContactDetail = cache(
       referredOpportunities,
       involvedOpportunities,
       referredProjects,
-      notes: entries.notes,
-      nextSteps: entries.nextSteps,
+      notes,
+      tasks,
     };
   },
 );

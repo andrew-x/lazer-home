@@ -1,10 +1,6 @@
 import "server-only";
 
 import { asc, eq, lte, notInArray, or, sql } from "drizzle-orm";
-import {
-  latestNextStepSubquery,
-  toEpochMillis,
-} from "@/actions/shared/latestNextStep";
 import type { LineOfBusiness } from "@/lib/crm/line-of-business";
 import type {
   OpportunitySource,
@@ -15,7 +11,8 @@ import {
   CAPPED_BOARD_STATUSES,
 } from "@/lib/crm/opportunity-pipeline";
 import { db } from "@/lib/db/db";
-import { companies, opportunities, opportunityEntries } from "@/lib/db/schema";
+import { companies, opportunities } from "@/lib/db/schema";
+import { type OpenTaskSummary, openTasksByParent } from "./getTasks";
 import { resolveOwnerNames } from "./opportunityOwnerNames";
 
 export type OpportunityBoardCard = {
@@ -34,10 +31,8 @@ export type OpportunityBoardCard = {
   // Epoch millis — the client sorts by (position, createdAt) to match the
   // server's tie-break so a tied position never flips order between renders.
   createdAt: number;
-  /** Body of the most recent next-step entry, or null if none. */
-  nextStep: string | null;
-  /** When that next step was logged (epoch millis), or null. */
-  nextStepAt: number | null;
+  /** The opportunity's open (not-done) tasks, oldest first — empty when none. */
+  openTasks: OpenTaskSummary[];
 };
 
 export type OpportunitiesBoardData = {
@@ -60,13 +55,6 @@ export type OpportunitiesBoardData = {
  * join plus a single grouped owner-name query (no N+1).
  */
 export async function getOpportunitiesBoard(): Promise<OpportunitiesBoardData> {
-  // Latest next-step per opportunity: one row per opportunity, newest
-  // `next_step` first.
-  const latestNextStep = latestNextStepSubquery(
-    opportunityEntries,
-    opportunityEntries.opportunityId,
-  );
-
   // Rank + count within each status column: `rn` (1 = most recently updated)
   // caps the high-volume columns; `statusCount` is the column's full size. Both
   // are window functions, so they must sit in a subquery to be filtered on.
@@ -75,9 +63,8 @@ export async function getOpportunitiesBoard(): Promise<OpportunitiesBoardData> {
       id: opportunities.id,
       name: opportunities.name,
       companyId: opportunities.companyId,
-      // Aliased: `companies.name` and `latestNextStep.createdAt` would otherwise
-      // emit output columns named `name`/`created_at` that collide with
-      // `opportunities.name`/`opportunities.created_at` when this select is used
+      // Aliased: `companies.name` would otherwise emit an output column named
+      // `name` that collides with `opportunities.name` when this select is used
       // as a subquery below (duplicate/ambiguous column names).
       companyName: sql<string>`${companies.name}`.as("company_name"),
       source: opportunities.source,
@@ -85,13 +72,6 @@ export async function getOpportunitiesBoard(): Promise<OpportunitiesBoardData> {
       lineOfBusiness: opportunities.lineOfBusiness,
       position: opportunities.position,
       createdAt: opportunities.createdAt,
-      nextStep: latestNextStep.body,
-      // `.mapWith` reattaches the timestamp→Date decoder that the raw `sql`
-      // alias would otherwise strip (leaving a bare string that breaks
-      // `toEpochMillis`). Nullable in practice via the left join.
-      nextStepAt: sql`${latestNextStep.createdAt}`
-        .mapWith(opportunityEntries.createdAt)
-        .as("next_step_at"),
       // The delivery link lives on the opportunity now, so `hasProject` is a
       // column read — no separate query.
       projectId: opportunities.projectId,
@@ -105,7 +85,6 @@ export async function getOpportunitiesBoard(): Promise<OpportunitiesBoardData> {
     })
     .from(opportunities)
     .innerJoin(companies, eq(opportunities.companyId, companies.id))
-    .leftJoin(latestNextStep, eq(latestNextStep.parentId, opportunities.id))
     .as("ranked");
 
   const baseRows = await db
@@ -121,9 +100,11 @@ export async function getOpportunitiesBoard(): Promise<OpportunitiesBoardData> {
     )
     .orderBy(asc(ranked.position), asc(ranked.createdAt));
 
-  const ownersByOpportunity = await resolveOwnerNames(
-    baseRows.map((r) => r.id),
-  );
+  const opportunityIds = baseRows.map((r) => r.id);
+  const [ownersByOpportunity, openTasks] = await Promise.all([
+    resolveOwnerNames(opportunityIds),
+    openTasksByParent("opportunity", opportunityIds),
+  ]);
 
   const cappedStatuses = new Set<OpportunityStatus>(CAPPED_BOARD_STATUSES);
   const cappedTotals: Partial<Record<OpportunityStatus, number>> = {};
@@ -136,7 +117,7 @@ export async function getOpportunitiesBoard(): Promise<OpportunitiesBoardData> {
   const cards = baseRows.map(({ projectId, rn, statusCount, ...r }) => ({
     ...r,
     createdAt: r.createdAt.getTime(),
-    nextStepAt: toEpochMillis(r.nextStepAt),
+    openTasks: openTasks.get(r.id) ?? [],
     ownerNames: ownersByOpportunity.get(r.id) ?? [],
     hasProject: projectId != null,
   }));

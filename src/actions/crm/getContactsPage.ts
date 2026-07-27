@@ -1,14 +1,11 @@
 import "server-only";
 
 import { asc, count, eq, inArray, type SQL } from "drizzle-orm";
-import {
-  latestNextStepSubquery,
-  toEpochMillis,
-} from "@/actions/shared/latestNextStep";
 import { citiesNear } from "@/lib/cities/cities";
 import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/core/pagination";
 import { db } from "@/lib/db/db";
-import { companies, contactEntries, contacts } from "@/lib/db/schema";
+import { companies, contacts } from "@/lib/db/schema";
+import { type OpenTaskSummary, openTasksByParent } from "./getTasks";
 
 export type ContactRow = {
   id: string;
@@ -18,19 +15,16 @@ export type ContactRow = {
   location: string | null;
   companyId: string | null;
   companyName: string | null;
-  /** Body of the most recent next-step entry, or null if the contact has none. */
-  nextStep: string | null;
-  /** When that next step was logged (epoch millis), or null. */
-  nextStepAt: number | null;
+  /** The contact's open (not-done) tasks, oldest first — empty when none. */
+  openTasks: OpenTaskSummary[];
 };
 
 /**
- * One page of contacts for the list table: name, company, role, and the most
- * recent next-step entry. Ordered by last then first name, company resolved via
- * a left join (optional). The latest next step comes from a `DISTINCT ON`
- * subquery over `contact_entries` (one row per contact, newest `next_step`
- * first), left-joined so contacts with no next step still appear. Server-side
- * paginated; `page` is clamped into range.
+ * One page of contacts for the list table: name, company, role, and each
+ * contact's open tasks. Ordered by last then first name, company resolved via a
+ * left join (optional). Open tasks are fetched in one grouped query for the whole
+ * page (see `openTasksByParent`). Server-side paginated; `page` is clamped into
+ * range.
  */
 /** Optional filters for the contacts list — a location (a "City, CC" label,
  * optionally expanded to nearby cities). */
@@ -61,11 +55,6 @@ export async function getContactsPage(
     .where(where);
   const { pageCount, safePage } = clampPage(total, page, pageSize);
 
-  const latestNextStep = latestNextStepSubquery(
-    contactEntries,
-    contactEntries.contactId,
-  );
-
   const rows = await db
     .select({
       id: contacts.id,
@@ -75,21 +64,23 @@ export async function getContactsPage(
       location: contacts.location,
       companyId: contacts.companyId,
       companyName: companies.name,
-      nextStep: latestNextStep.body,
-      nextStepAt: latestNextStep.createdAt,
     })
     .from(contacts)
     .leftJoin(companies, eq(contacts.companyId, companies.id))
-    .leftJoin(latestNextStep, eq(latestNextStep.parentId, contacts.id))
     .where(where)
     .orderBy(asc(contacts.lastName), asc(contacts.firstName))
     .limit(pageSize)
     .offset((safePage - 1) * pageSize);
 
+  const openTasks = await openTasksByParent(
+    "contact",
+    rows.map((row) => row.id),
+  );
+
   return {
     rows: rows.map((row) => ({
       ...row,
-      nextStepAt: toEpochMillis(row.nextStepAt),
+      openTasks: openTasks.get(row.id) ?? [],
     })),
     total,
     page: safePage,

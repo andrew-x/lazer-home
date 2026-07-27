@@ -91,12 +91,16 @@ export function OpportunityCardView({
       <span className="text-xs text-muted-foreground">
         {card.ownerNames.length > 0 ? card.ownerNames.join(", ") : "—"}
       </span>
-      {card.nextStep ? (
-        <span className="mt-0.5 flex items-baseline gap-1.5 border-t pt-1.5 text-xs">
-          <span className="shrink-0 font-medium text-muted-foreground">
-            Next:
-          </span>
-          <span className="line-clamp-2 text-foreground">{card.nextStep}</span>
+      {card.openTasks.length > 0 ? (
+        <span className="mt-0.5 flex flex-col gap-1 border-t pt-1.5 text-xs">
+          <span className="font-medium text-muted-foreground">Next steps</span>
+          <ul className="flex flex-col gap-0.5 text-foreground">
+            {card.openTasks.map((task) => (
+              <li key={task.id} className="line-clamp-1">
+                {task.description}
+              </li>
+            ))}
+          </ul>
         </span>
       ) : null}
     </>

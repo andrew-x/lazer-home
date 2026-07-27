@@ -14,6 +14,7 @@ import { deleteOpportunity } from "@/actions/crm/deleteOpportunity";
 import type { OpportunityDetail } from "@/actions/crm/getOpportunity";
 import { loadOpportunityDetail } from "@/actions/crm/loadOpportunityDetail";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { IconButton } from "@/components/icon-button";
 import { OpportunityProjectPlan } from "@/components/projects/opportunity-plan/opportunity-project-plan";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EntryLog } from "../entry-log";
+import { TaskList } from "../task-list";
 import { CompanyField } from "./fields/company-field";
 import { ContactsField } from "./fields/contacts-field";
 import { HeaderNameField, HeaderStatusField } from "./fields/header-fields";
@@ -47,7 +49,7 @@ import type { FieldProps } from "./use-inline-save";
  * and the status (a direct-edit select that saves on change). Below, a Details
  * tab lays the remaining fields — including the company — in a left meta column
  * (each editing one at a time in place: per-field confirm/cancel, each saved via
- * a field-scoped `updateOpportunityField` write) alongside next steps and notes
+ * a field-scoped `updateOpportunityField` write) alongside tasks and notes
  * on the right, plus a Project plan tab for the single project that delivers the
  * opportunity. A left-edge control strip closes the drawer and (when the card has
  * column siblings) steps to the previous/next opportunity via `onPrev`/`onNext`.
@@ -81,6 +83,7 @@ export function OpportunityDetailSheet({
 }) {
   const { execute: load, result, reset } = useAction(loadOpportunityDetail);
   const [detail, setDetail] = useState<OpportunityDetail | null>(null);
+  const [currentStaff, setCurrentStaff] = useState<EntityOption | null>(null);
 
   useEffect(() => {
     if (open && opportunityId) {
@@ -92,7 +95,10 @@ export function OpportunityDetailSheet({
   }, [open, opportunityId, load, reset]);
 
   useEffect(() => {
-    if (result.data) setDetail(result.data);
+    if (result.data) {
+      setDetail(result.data.detail);
+      setCurrentStaff(result.data.currentStaff);
+    }
   }, [result.data]);
 
   // Re-fetch after a field save or project create so the read views and the
@@ -185,13 +191,14 @@ export function OpportunityDetailSheet({
             <OpportunityDetailView
               key={detail.id}
               detail={detail}
+              currentStaff={currentStaff}
               canCreateProject={canCreateProject}
               refresh={refresh}
             />
           ) : (
             <p className="px-4 pb-4 text-sm text-muted-foreground">
-              {/* `data === null` = loaded but not found (vs `undefined` = still loading). */}
-              {result.serverError || result.data === null
+              {/* `detail === null` = loaded but not found (vs `undefined` = still loading). */}
+              {result.serverError || result.data?.detail === null
                 ? "Couldn't load this opportunity."
                 : "Loading…"}
             </p>
@@ -204,10 +211,12 @@ export function OpportunityDetailSheet({
 
 function OpportunityDetailView({
   detail,
+  currentStaff,
   canCreateProject,
   refresh,
 }: {
   detail: OpportunityDetail;
+  currentStaff: EntityOption | null;
   canCreateProject: boolean;
   refresh: () => void;
 }) {
@@ -219,7 +228,7 @@ function OpportunityDetailView({
           <TabsTrigger value="project-plan">Project plan</TabsTrigger>
         </TabsList>
 
-        {/* Info as a left meta column, notes/next steps filling the right. Stacks
+        {/* Info as a left meta column, tasks/notes filling the right. Stacks
             to a single column below lg, where the drawer is narrower. */}
         <TabsContent
           value="details"
@@ -238,15 +247,15 @@ function OpportunityDetailView({
               <h3 className="text-sm font-medium">
                 Next steps{" "}
                 <span className="text-muted-foreground">
-                  {detail.nextSteps.length}
+                  {detail.tasks.length}
                 </span>
               </h3>
-              <EntryLog
+              <TaskList
                 variant="opportunity"
                 parentId={detail.id}
-                kind="next_step"
-                entries={detail.nextSteps}
+                tasks={detail.tasks}
                 canEdit
+                currentStaff={currentStaff}
                 onChanged={refresh}
               />
             </section>
@@ -260,7 +269,6 @@ function OpportunityDetailView({
               <EntryLog
                 variant="opportunity"
                 parentId={detail.id}
-                kind="note"
                 entries={detail.notes}
                 canEdit
                 onChanged={refresh}

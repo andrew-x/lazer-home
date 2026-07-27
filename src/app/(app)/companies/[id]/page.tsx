@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCompanyEntries } from "@/actions/crm/entryViews";
 import { getCompanyDetail } from "@/actions/crm/getCompanyDetail";
+import { getCurrentStaffIdentity } from "@/actions/staff/getCurrentStaffIdentity";
 import { CompanyDetailView } from "@/components/crm/company-detail-view";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { userHasPermission } from "@/lib/auth/permissions";
@@ -22,10 +23,11 @@ export default async function CompanyDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [company, entries, user] = await Promise.all([
+  const [company, notes, user, currentStaff] = await Promise.all([
     getCompanyDetail(id),
     getCompanyEntries(id),
     getCurrentUser(),
+    getCurrentStaffIdentity(),
   ]);
 
   if (!company) notFound();
@@ -35,8 +37,9 @@ export default async function CompanyDetailPage({
   return (
     <CompanyDetailView
       company={company}
-      notes={entries.notes}
+      notes={notes}
       canEdit={canEdit}
+      currentStaff={currentStaff}
     />
   );
 }

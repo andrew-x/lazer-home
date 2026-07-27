@@ -14,11 +14,7 @@ export const addCompanyEntry = secureActionClient
   .action(({ parsedInput, ctx }) =>
     addEntry(
       companyEntryMutations,
-      {
-        parentId: parsedInput.companyId,
-        kind: parsedInput.kind,
-        body: parsedInput.body,
-      },
+      { parentId: parsedInput.companyId, body: parsedInput.body },
       ctx.user,
     ),
   );
