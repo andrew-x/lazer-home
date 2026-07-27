@@ -37,7 +37,9 @@ so read the schema file for the definitive shape rather than a per-feature migra
   `INTERNAL_ADMIN`. Values + labels live in the pure, client-importable module
   `src/lib/timesheets/timesheet-category.ts` (the single source feeding the pgEnum, zod, and the
   form labels — same pattern as `src/lib/crm/line-of-business.ts`). The **PTO bucket is
-  independent of the `staff_pto` table** — no sync between the two in v1.
+  independent of the `staff_pto` table** — no sync between the two in v1. The one exception
+  is the *"Fill in PTO"* prefill (see [Adding rows & prefill](#adding-rows--prefill)), which
+  **reads** `staff_pto` one-way to seed hours; it is a convenience, not a two-way link.
 
 **Week math** lives in the pure module `src/lib/timesheets/timesheet-week.ts` (no `db` import,
 so UI + actions + validation agree on what a "week" is): `getWeekStart`, `addWeeks`,
@@ -80,12 +82,34 @@ The UX is **browse, then edit** — there is no week-arrow navigation.
   re-insert the non-zero rows. Zero-hour rows (empty cells) are dropped. Validation
   (`saveTimesheet.schema.ts`, shared client+server): one target per row, dates within
   the week, no weekend dates, no duplicate (day, target) rows, and the 8h/day cap.
-- **Project autofill.** Adding a **project** row prefills its weekday cells with each
-  day's *remaining* capacity (8h minus hours already logged that day) — a convenience so
-  a main project soaks up unallocated weekday time. Weekends are skipped. Adding a
-  **non-billable** bucket (PTO / Unallocated Bench / Internal Admin) does **not**
-  autofill — it starts empty. This is client-only sugar in the grid; the values are
-  still editable and saved like any other.
+  When the sheet is an editable draft, a **toolbar sits above the grid** ("Add project"
+  dialog + the two prefill buttons); `Save draft` / `Submit` / `Reopen` stay in the
+  actions row **below** the grid.
+
+### Adding rows & prefill
+
+All row-adding and prefill is **client-side grid sugar** — nothing is written until
+`saveTimesheet`; every filled value stays editable. The pure helpers live in
+`src/lib/timesheets/timesheet-grid.ts` (client-importable, no `db`), unit-tested in
+`timesheet-grid.test.ts`.
+
+- **Add a row — the "Add project" dialog** (`src/components/timesheets/add-project-dialog.tsx`,
+  replacing the old inline `Select`). A searchable Dialog with three groups: **"Allocated
+  to you"** (this week's allocations, surfaced first as suggestions), **"All projects"**
+  (client-side filtered — any project stays loggable), and **"Non-billable"** (the
+  `TIMESHEET_CATEGORY` buckets). It reuses the `PROJECT_PREFIX`/`CATEGORY_PREFIX`
+  value-namespacing and hands the chosen value to `addTarget`.
+- **Adding a project autofills; buckets don't.** Adding a **project** row prefills its
+  weekday cells with each day's *remaining* capacity (8h minus hours already logged that
+  day, weekends skipped) — so a main project soaks up unallocated time
+  (`autofillProjectHours`). Adding a **non-billable** bucket starts empty.
+- **Manual "Fill in …" buttons.** Two opt-in buttons above the grid — **"Fill in
+  allocations"** and **"Fill in PTO"** — seed cells from `getTimesheetPrefill` (below).
+  They are **manual, not auto-fill on load**, and disabled with an explanatory tooltip
+  when there's nothing to fill that week. Both go through `applyAllocationFill` /
+  `applyPtoFill`, which **only fill currently-empty weekday cells** (never clobber
+  user-entered hours) and respect the 8h/day cap across the other rows. `applyAllocationFill`
+  upserts a row per allocated project; `applyPtoFill` upserts the PTO category row.
 - **Submit → lock.** **`submitTimesheet`** flips `draft → submitted` and stamps
   `submittedAt` (upsert on the unique key, so an empty week can be submitted).
   A submitted week is **locked**: `saveTimesheet` refuses to overwrite it unless the
@@ -95,7 +119,16 @@ The UX is **browse, then edit** — there is no week-arrow navigation.
 - **Read.** `getTimesheet(staffId, weekStartDate)` (server-only) returns the week with
   entries joined to project + company names; self-scoped (another person's requires
   `timesheets.edit`, else `null`). `getSelectableProjects` lists every project (+ its
-  company) for the row picker.
+  company) for the row picker. **`getTimesheetPrefill(staffId, weekStartDate)`**
+  (server-only) returns `{ allocations, ptoHoursByDate }` to seed the prefill buttons:
+  allocations are derived from **staffed, live (`tentative`/`confirmed`) `project_roles`
+  overlapping the week**, mapping each role's `hoursPerDay` onto its active weekdays
+  (summed across roles per project, clamped to the 8h cap); PTO is derived from
+  **approved (`isPending=false`) `staff_pto` spans** as a full 8h working day per off
+  weekday. Auth mirrors `getTimesheet` (own-data always; others need `timesheets.edit`),
+  failing **closed to an empty prefill**. It deliberately **never selects the PTO `type`
+  column** — that disclosure stays gated behind `pto:["review"]`, so the read leaks no
+  leave reasons.
 
 ### The 8h/day cap
 
@@ -124,7 +157,9 @@ the grid warns live and the server rejects). A single entry also can't exceed 8h
   CRM `company`); logging is allowed against **any** project, not only allocated ones.
   Entries will eventually roll up to the project (and its company) for billing.
 - **Allocations** — `time_entries` are the **actuals** that reconcile against the
-  **plan** (`project_roles`). No reconciliation is built yet.
+  **plan** (`project_roles`). No reconciliation is built yet; the only link today is the
+  **one-way "Fill in allocations" prefill**, which reads `project_roles` to seed suggested
+  hours (see [Adding rows & prefill](#adding-rows--prefill)).
 - **Staff** — a timesheet belongs to a `staff` record (via `staffId`); the current
   user resolves to it via `staff.userId`.
 - **Performance** — billable vs. available hours = utilization (future).

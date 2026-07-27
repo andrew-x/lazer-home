@@ -47,6 +47,16 @@ soaks up unallocated time; adding a PTO / Unallocated Bench / Internal Admin buc
 starts empty. Prefilled values are ordinary editable cells — this is UX sugar, not a
 persistence rule.
 
+> **Update (2026-07-26):** this capacity autofill still fires on adding a project, but
+> row-adding moved from an inline `Select` to a searchable **"Add project" dialog** that
+> surfaces the week's allocations first (still any project is loggable — see below). Two
+> **manual, opt-in prefill buttons** were also added — *"Fill in allocations"* (from live
+> `project_roles`) and *"Fill in PTO"* (from approved `staff_pto`) — seeded by the
+> server-only `getTimesheetPrefill` read. They only fill currently-empty cells (never
+> clobber typed hours) and respect the 8h cap; still client-side sugar, no schema change.
+> The PTO prefill reads `staff_pto` **one-way** and never reads the leave `type` (that
+> disclosure stays gated behind `pto:["review"]`), so PTO independence (below) holds.
+
 **Submit locks; reopen unlocks; no manager approval in v1.** Submitting flips the week
 to `submitted` and stamps `submittedAt`; a locked week can't be overwritten by a normal
 save. The owner **reopens** (back to `draft`) to correct. There is no approve/reject
