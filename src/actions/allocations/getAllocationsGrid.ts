@@ -77,6 +77,8 @@ export type AllocationsGridData = {
   timeOff: AllocationTimeOff[];
   /** Whether the viewer may see and edit the allocation-notes column. */
   canEditNotes: boolean;
+  /** Whether the viewer may allocate staff to open roles (`projects.edit`). */
+  canAllocate: boolean;
 };
 
 /**
@@ -154,6 +156,12 @@ export async function getAllocationsGrid(): Promise<AllocationsGridData> {
   const canEditNotes = currentUser
     ? userHasPermission(currentUser, { staff: ["edit"] })
     : false;
+  // Allocating a person to an open role writes a project role, so gate the
+  // per-row "Allocate" button (and its actions) on `projects.edit` — the same
+  // capability the opportunity planner's staffing uses.
+  const canAllocate = currentUser
+    ? userHasPermission(currentUser, { projects: ["edit"] })
+    : false;
 
   const ptoRows = await db
     .select({
@@ -201,5 +209,5 @@ export async function getAllocationsGrid(): Promise<AllocationsGridData> {
     type: canSeePtoType ? p.type : null,
   }));
 
-  return { staff: staffList, roles, timeOff, canEditNotes };
+  return { staff: staffList, roles, timeOff, canEditNotes, canAllocate };
 }

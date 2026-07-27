@@ -1,7 +1,9 @@
 "use client";
 
+import { IconUserPlus } from "@tabler/icons-react";
 import Link from "next/link";
 import { AllocationNoteCell } from "@/components/allocations/allocation-note-cell";
+import { IconButton } from "@/components/icon-button";
 import {
   PLANNER_LABEL_COL,
   PLANNER_WEEK_COL,
@@ -74,12 +76,18 @@ export function AllocationsGrid({
   columns,
   granularity,
   canEditNotes,
+  canAllocate,
+  onAllocate,
 }: {
   rows: AllocationRow[];
   columns: string[];
   granularity: Granularity;
   /** Render the manager-only Notes column (viewer holds `staff.edit`). */
   canEditNotes: boolean;
+  /** Show the per-row "Allocate" button (viewer holds `projects.edit`). */
+  canAllocate: boolean;
+  /** Open the allocate dialog for a staff row. */
+  onAllocate: (row: AllocationRow) => void;
 }) {
   const unit = UNIT_NOUN[granularity];
   const width = COLUMN_WIDTH[granularity];
@@ -139,6 +147,16 @@ export function AllocationsGrid({
                     <Badge variant="outline" className="shrink-0 font-normal">
                       {EMPLOYMENT_TYPE_LABELS.HOURLY}
                     </Badge>
+                  ) : null}
+                  {canAllocate ? (
+                    <IconButton
+                      label={`Allocate ${row.name}`}
+                      size="icon-xs"
+                      className="ml-auto shrink-0 text-muted-foreground"
+                      onClick={() => onAllocate(row)}
+                    >
+                      <IconUserPlus />
+                    </IconButton>
                   ) : null}
                 </div>
                 <div className="truncate text-xs text-muted-foreground">
