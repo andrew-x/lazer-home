@@ -1,16 +1,20 @@
 "use client";
 
-import { IconTrash } from "@tabler/icons-react";
+import { IconAlertTriangle, IconTrash } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { SelectableProject } from "@/actions/timesheets/getSelectableProjects";
 import type { TimesheetEntryView } from "@/actions/timesheets/getTimesheet";
 import type { TimesheetPrefill } from "@/actions/timesheets/getTimesheetPrefill";
 import { reopenTimesheet } from "@/actions/timesheets/reopenTimesheet";
 import { saveTimesheet } from "@/actions/timesheets/saveTimesheet";
-import { DAILY_HOUR_CAP } from "@/actions/timesheets/saveTimesheet.schema";
+import {
+  DAILY_HOUR_CAP,
+  MAX_ENTRY_HOURS,
+  WEEKLY_HOUR_CAP,
+} from "@/actions/timesheets/saveTimesheet.schema";
 import { submitTimesheet } from "@/actions/timesheets/submitTimesheet";
 import { IconButton } from "@/components/icon-button";
 import { AddProjectDialog } from "@/components/timesheets/add-project-dialog";
@@ -60,40 +64,28 @@ type Props = {
 };
 
 /**
- * One prefill option on its own line: a title, a preview of exactly what would be
- * added this week, and the "Fill in" action. When there's nothing to fill the
- * preview shows the muted reason and the button is disabled.
+ * One row in the add/prefill toolbar: a title, a description of what it does (for
+ * the prefill rows, a preview of exactly what would be added this week), and a
+ * right-aligned action (a "Fill in" button, or the add-project dialog trigger).
  */
-function PrefillRow({
+function ToolbarRow({
   title,
-  preview,
-  emptyLabel,
-  onFill,
+  description,
+  action,
 }: {
   title: string;
-  /** What would be filled — non-empty means the button is enabled. */
-  preview: string;
-  emptyLabel: string;
-  onFill: () => void;
+  description: string;
+  action: ReactNode;
 }) {
-  const hasData = preview.length > 0;
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
       <div className="min-w-0">
         <div className="text-sm font-medium">{title}</div>
         <div className="truncate text-xs text-muted-foreground">
-          {hasData ? preview : emptyLabel}
+          {description}
         </div>
       </div>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={onFill}
-        disabled={!hasData}
-        className="shrink-0"
-      >
-        Fill in
-      </Button>
+      <div className="shrink-0">{action}</div>
     </div>
   );
 }
@@ -172,7 +164,30 @@ export function TimesheetWeek({
     rows.reduce((sum, row) => sum + parseHours(row.hours[date]), 0),
   );
   const weekTotal = dayTotals.reduce((a, b) => a + b, 0);
-  const overCap = dayTotals.some((t) => t > DAILY_HOUR_CAP);
+  // Review flags are soft warnings, not blocks: an over-cap day, an over-cap week,
+  // or any weekend hours still save/submit — the grid just spells out why the week
+  // will be flagged for manager / delivery-manager review.
+  const overCapDays = weekDays.filter((_, i) => dayTotals[i] > DAILY_HOUR_CAP);
+  const weekendDays = weekDays.filter(
+    (date, i) => isWeekend(date) && dayTotals[i] > 0,
+  );
+  const weekOverCap = weekTotal > WEEKLY_HOUR_CAP;
+
+  const dayNames = (dates: string[]) =>
+    dates.map((d) => dayHeader(d).weekday).join(", ");
+  const reviewReasons: string[] = [];
+  if (overCapDays.length > 0) {
+    reviewReasons.push(`Over ${DAILY_HOUR_CAP}h on ${dayNames(overCapDays)}`);
+  }
+  if (weekOverCap) {
+    reviewReasons.push(
+      `Week total is ${weekTotal}h (over ${WEEKLY_HOUR_CAP}h)`,
+    );
+  }
+  if (weekendDays.length > 0) {
+    reviewReasons.push(`Weekend hours on ${dayNames(weekendDays)}`);
+  }
+  const needsReview = reviewReasons.length > 0;
 
   function setCell(rowKey: string, date: string, value: string) {
     setRows((prev) =>
@@ -273,25 +288,45 @@ export function TimesheetWeek({
       {/* Add-row + prefill toolbar */}
       {editable ? (
         <div className="flex flex-col gap-2">
-          <div>
-            <AddProjectDialog
-              projects={projects}
-              allocatedProjectIds={allocatedProjectIds}
-              usedKeys={usedKeys}
-              onSelect={addTarget}
-            />
-          </div>
-          <PrefillRow
+          <ToolbarRow
             title="Allocations"
-            preview={allocationPreview}
-            emptyLabel="No allocations this week."
-            onFill={handleFillAllocations}
+            description={allocationPreview || "No allocations this week."}
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleFillAllocations}
+                disabled={!allocationPreview}
+              >
+                Fill in
+              </Button>
+            }
           />
-          <PrefillRow
+          <ToolbarRow
             title="Time off (PTO)"
-            preview={ptoPreview}
-            emptyLabel="No approved PTO this week."
-            onFill={handleFillPto}
+            description={ptoPreview || "No approved PTO this week."}
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleFillPto}
+                disabled={!ptoPreview}
+              >
+                Fill in
+              </Button>
+            }
+          />
+          <ToolbarRow
+            title="Other projects"
+            description="Search all projects, or add a non-billable category."
+            action={
+              <AddProjectDialog
+                projects={projects}
+                allocatedProjectIds={allocatedProjectIds}
+                usedKeys={usedKeys}
+                onSelect={addTarget}
+              />
+            }
           />
         </div>
       ) : null}
@@ -360,22 +395,20 @@ export function TimesheetWeek({
                             weekend && "bg-muted/40",
                           )}
                         >
-                          {weekend ? null : (
-                            <Input
-                              type="number"
-                              step="0.25"
-                              min="0"
-                              max={DAILY_HOUR_CAP}
-                              inputMode="decimal"
-                              aria-label={`${row.label} hours on ${date}`}
-                              disabled={!editable}
-                              value={row.hours[date] ?? ""}
-                              onChange={(e) =>
-                                setCell(row.key, date, e.target.value)
-                              }
-                              className="mx-auto w-16 text-center"
-                            />
-                          )}
+                          <Input
+                            type="number"
+                            step="0.25"
+                            min="0"
+                            max={MAX_ENTRY_HOURS}
+                            inputMode="decimal"
+                            aria-label={`${row.label} hours on ${date}`}
+                            disabled={!editable}
+                            value={row.hours[date] ?? ""}
+                            onChange={(e) =>
+                              setCell(row.key, date, e.target.value)
+                            }
+                            className="mx-auto w-16 text-center"
+                          />
                         </TableCell>
                       );
                     })}
@@ -407,13 +440,20 @@ export function TimesheetWeek({
                   className={cn(
                     "text-center font-medium tabular-nums",
                     isWeekend(weekDays[i]) && "bg-muted/40",
-                    total > DAILY_HOUR_CAP && "text-destructive",
+                    (total > DAILY_HOUR_CAP ||
+                      (isWeekend(weekDays[i]) && total > 0)) &&
+                      "text-destructive",
                   )}
                 >
                   {total || "—"}
                 </TableCell>
               ))}
-              <TableCell className="text-center font-medium tabular-nums">
+              <TableCell
+                className={cn(
+                  "text-center font-medium tabular-nums",
+                  weekOverCap && "text-destructive",
+                )}
+              >
                 {weekTotal || "—"}
               </TableCell>
               {editable ? <TableCell /> : null}
@@ -424,21 +464,29 @@ export function TimesheetWeek({
 
       {/* Actions */}
       {editable ? (
-        <div className="flex flex-wrap items-center justify-end gap-3">
+        <div className="flex flex-col items-end gap-2">
+          {needsReview ? (
+            <div className="flex w-full items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              <IconAlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <div>
+                <p>
+                  You can still save and submit, but this week will be flagged
+                  for review by your manager and delivery managers — make sure
+                  you've secured their approval first.
+                </p>
+                <ul className="mt-1 list-disc pl-5">
+                  {reviewReasons.map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : null}
           <div className="flex items-center gap-2">
-            {overCap ? (
-              <span className="text-sm text-destructive">
-                A day exceeds the {DAILY_HOUR_CAP}h cap.
-              </span>
-            ) : null}
-            <Button
-              variant="outline"
-              onClick={handleSave}
-              disabled={pending || overCap}
-            >
+            <Button variant="outline" onClick={handleSave} disabled={pending}>
               Save draft
             </Button>
-            <Button onClick={handleSubmit} disabled={pending || overCap}>
+            <Button onClick={handleSubmit} disabled={pending}>
               Submit
             </Button>
           </div>

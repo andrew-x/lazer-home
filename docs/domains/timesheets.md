@@ -48,10 +48,15 @@ Weeks are timezone-agnostic and keyed by their ISO-Monday `"YYYY-MM-DD"` string
 (matching the DB's `date` convention); it deliberately parses/formats via local Y/M/D
 parts to avoid `new Date("...")` UTC drift.
 
-**Weekday-only capture.** Although a week spans all 7 days, timesheets record
-**weekday (Mon–Fri) work only**. `isWeekend(date)` gates this on both sides: the grid
-renders Sat/Sun columns blank and muted with no input, and `saveTimesheet.schema.ts`
-rejects any entry whose date is a weekend ("Hours can't be logged on weekends.").
+**Weekends are enterable but flagged for review.** A week spans all 7 days and hours
+can be logged on **any** of them. Weekend (Sat/Sun) cells render fully-editable inputs —
+they keep a muted `bg-muted/40` shading as a visual hint that weekend work is unusual,
+but nothing blocks it. `saveTimesheet.schema.ts` does **not** reject weekend dates; any
+weekend hours instead trip the same **soft review warning** as an over-8h day or an
+over-40h week (see [Hour thresholds](#hour-thresholds--weekend-hours--soft-warnings-not-hard-caps)).
+`isWeekend(date)` (from the week-math module) drives that flagging + the muted shading —
+not a gate. **Autofill/prefill still only fill weekdays** — weekend hours are manual
+entry only.
 
 ## Key flows
 
@@ -71,7 +76,9 @@ The UX is **browse, then edit** — there is no week-arrow navigation.
 - **Log → save draft.** Clicking Edit/View opens **`/timesheets/[week]`**
   (`src/app/(app)/timesheets/[week]/page.tsx`) — the weekly grid
   (`src/components/timesheets/timesheet-week.tsx`): one row per target (project or
-  bucket), a hours cell per **weekday**, per-day column totals with a cap warning. The
+  bucket), an hours cell per **day** (weekends editable but muted-and-flagged), per-day
+  column totals with an over-standard-hours / weekend warning (see
+  [Hour thresholds](#hour-thresholds--weekend-hours--soft-warnings-not-hard-caps)). The
   grid's pure totals math (per-day / per-row / week sums) lives in
   `src/lib/timesheets/timesheet-grid.ts`, extracted from the component so the math stays
   independent of rendering. The
@@ -80,8 +87,11 @@ The UX is **browse, then edit** — there is no week-arrow navigation.
   ISO-Monday key. **`saveTimesheet`** does a **whole-week transactional replace**:
   create the `timesheets` row lazily if absent, then delete all its `time_entries` and
   re-insert the non-zero rows. Zero-hour rows (empty cells) are dropped. Validation
-  (`saveTimesheet.schema.ts`, shared client+server): one target per row, dates within
-  the week, no weekend dates, no duplicate (day, target) rows, and the 8h/day cap.
+  (`saveTimesheet.schema.ts`, shared client+server): one target per row, the week keyed
+  by its ISO Monday, dates within the week, no duplicate (day, target) rows, and a single
+  entry ≤ 24h (`MAX_ENTRY_HOURS`). There is **no** daily/weekly total cap and **no weekend
+  rejection** — over-standard-hours *and* weekend hours are soft warnings, not rejections
+  (see [Hour thresholds](#hour-thresholds--weekend-hours--soft-warnings-not-hard-caps)).
   When the sheet is an editable draft, a **toolbar sits above the grid** ("Add project"
   dialog + the two prefill buttons); `Save draft` / `Submit` / `Reopen` stay in the
   actions row **below** the grid.
@@ -130,11 +140,29 @@ All row-adding and prefill is **client-side grid sugar** — nothing is written 
   column** — that disclosure stays gated behind `pto:["review"]`, so the read leaks no
   leave reasons.
 
-### The 8h/day cap
+### Hour thresholds & weekend hours — soft warnings, not hard caps
 
-The ceiling is **8 hours total across all rows for a single day** (not per project) —
-`DAILY_HOUR_CAP` in `saveTimesheet.schema.ts`, enforced in the shared zod schema (so
-the grid warns live and the server rejects). A single entry also can't exceed 8h.
+Over-standard hours **and weekend work** are **review signals, not blocks**.
+`saveTimesheet.schema.ts` defines two thresholds — `DAILY_HOUR_CAP = 8` (total across
+all rows for a single day) and `WEEKLY_HOUR_CAP = 40` — but **neither is validated**: a
+day over 8h or a week over 40h still saves *and* submits. They drive two things only: the
+grid's warning UI and the autofill/prefill ceiling (cells fill up to the daily cap, never
+clobbering typed hours). Weekend hours (any hours on a Sat/Sun) are treated as a **third**
+soft signal alongside these — allowed, never rejected, just flagged.
+
+The **only hard ceiling** is `MAX_ENTRY_HOURS = 24` — a single entry can't exceed 24h
+(a physical day). That's the sole hour-related rejection in the schema.
+
+When any day is over 8h, the week is over 40h, **or any weekend day has hours**, the grid
+(`timesheet-week.tsx`) shows a **warning banner** above Save/Submit — the week "will be
+flagged for review by your manager and delivery managers, make sure you've secured their
+approval first" — but leaves both buttons enabled. The banner now **enumerates the exact
+reason(s)** as a bulleted list, e.g. *"Over 8h on Tue, Wed"*, *"Week total is 46h (over
+40h)"*, *"Weekend hours on Sat"*. In the footer, the daily-total cell is highlighted for
+over-8h days **and** for weekend days that have any hours; the week-total cell is
+highlighted when over 40h. Approval is expected **out-of-band** (there is no in-app
+approval workflow — see [Open questions](#open-questions)). See
+[ADR 0027](../decisions/0027-timesheet-weekly-model-and-edit-window.md).
 
 ## Access control
 
@@ -172,6 +200,9 @@ Resolved in v1 (recorded here so they aren't relitigated — see [ADR 0027](../d
   is a valid target, plus the three non-billable buckets.
 - **Approval granularity?** **Deferred — no manager approval in v1.** Submit merely
   locks the week; there is no approve/reject step or per-entry/per-project approval.
+  Over-standard-hours weeks (any day > 8h or the week > 40h) **and weekend hours** are
+  *allowed* but the grid flags them as **review signals** (spelling out each reason) —
+  manager + delivery-manager approval is expected **out-of-band**, not enforced in-app.
 - **Lock / correction policy?** Submit locks the week; the owner **reopens** it (within
   their window) to correct, and `timesheets.edit` holders can edit a locked week in
   place. No audit trail on corrections yet.

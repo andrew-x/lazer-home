@@ -126,7 +126,7 @@ export function AddProjectDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
         render={
-          <Button variant="outline">
+          <Button variant="outline" size="sm">
             <IconPlus />
             Add project
           </Button>

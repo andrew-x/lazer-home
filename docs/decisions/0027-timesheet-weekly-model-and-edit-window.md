@@ -34,11 +34,40 @@ rows.
 **The 8h/day cap is a per-day total across all rows**, not per project — enforced in
 the shared `saveTimesheet.schema.ts` (client resolver + server).
 
+> **Update (2026-07-27):** the 8h/day cap is **no longer a hard block** — it is now a
+> **soft warning**, joined by a new **40h weekly warning** (`WEEKLY_HOUR_CAP`). The
+> daily-total `superRefine` rejection was removed from `saveTimesheet.schema.ts`: a day
+> over `DAILY_HOUR_CAP` (8h) or a week over `WEEKLY_HOUR_CAP` (40h) now **saves *and*
+> submits**. Those two constants survive as **warning thresholds + the autofill ceiling**,
+> not validation. The only hard hour ceiling left is `MAX_ENTRY_HOURS = 24` on a single
+> entry (raised from 8h — a physical day). The grid keeps Save/Submit enabled over the
+> thresholds and instead shows a banner that the over-standard-hours week "will be
+> flagged for review by your manager and delivery managers." **Rationale:** long weeks
+> are a legitimate reality for a consultancy; blocking them pushed people to under-report.
+> Allowing them while surfacing a review signal (approval expected **out-of-band** — no
+> in-app approval workflow exists yet, consistent with "no manager approval in v1" below)
+> keeps the data honest and puts the judgment where it belongs.
+
 **Timesheets capture weekday (Mon–Fri) work only.** A week is still keyed and displayed
 as 7 days, but Saturday/Sunday are non-editable: the grid renders them blank/muted with
 no input, and the shared schema rejects any weekend-dated entry (`isWeekend` in
 `src/lib/timesheets/timesheet-week.ts`). Weekend work is rare enough for a consultancy that the
 simpler, honest default is to disallow it rather than model it.
+
+> **Update (2026-07-27):** weekend hours are now **allowed but flagged for review**, not
+> disallowed. Weekend (Sat/Sun) cells render fully-editable inputs (keeping only their
+> muted shading as a visual hint), and the `superRefine` weekend rejection was removed
+> from `saveTimesheet.schema.ts` — its only remaining checks are the ISO-Monday key,
+> dates-within-the-week, and no-duplicate-(day, target). Weekend hours are **folded into
+> the same soft-review-signal model** as the over-8h/over-40h thresholds above: any hours
+> on a weekend day trip the same non-blocking warning (Save/Submit stay enabled), the
+> daily-total cell is highlighted, and the review banner now **enumerates the exact
+> reason(s)** as a bulleted list (e.g. *"Over 8h on Tue, Wed"*, *"Week total is 46h (over
+> 40h)"*, *"Weekend hours on Sat"*). Autofill/prefill still fill weekdays only — weekend
+> hours are manual entry. **Rationale:** same as the hour thresholds — weekend work is a
+> legitimate reality; blocking it drove under-reporting, whereas surfacing it as a review
+> signal (approval expected **out-of-band**) keeps the data honest and puts the judgment
+> with the manager + delivery managers.
 
 **Adding a project row autofills weekday cells; non-billable buckets don't.** As a
 client-side convenience, adding a project prefills each weekday with its remaining

@@ -2,11 +2,7 @@ import { z } from "zod";
 import { dateString } from "@/lib/schemas/date-schema";
 import { id } from "@/lib/schemas/id-schema";
 import { TIMESHEET_CATEGORY } from "@/lib/timesheets/timesheet-category";
-import {
-  getWeekDays,
-  getWeekStart,
-  isWeekend,
-} from "@/lib/timesheets/timesheet-week";
+import { getWeekDays, getWeekStart } from "@/lib/timesheets/timesheet-week";
 
 /**
  * Save-timesheet input. A pure, client-importable module (no `db`/drizzle) so the
@@ -15,8 +11,17 @@ import {
  * the pgEnum is built from. See docs/domains/timesheets.md.
  */
 
-/** The per-day hour ceiling — total across all rows for a single day. */
+/**
+ * The standard full day / full week. NOT hard caps: a day over `DAILY_HOUR_CAP`
+ * or a week over `WEEKLY_HOUR_CAP` still saves and submits — the grid just warns
+ * that it will be flagged for manager / delivery-manager review. These drive the
+ * warning thresholds and the autofill ceiling, not validation.
+ */
 export const DAILY_HOUR_CAP = 8;
+export const WEEKLY_HOUR_CAP = 40;
+
+/** Hard ceiling on a single entry's hours — a physical day. */
+export const MAX_ENTRY_HOURS = 24;
 
 /**
  * A single logged row: hours on one day against EITHER a project (billable) OR a
@@ -32,8 +37,8 @@ export const timeEntryInputSchema = z
       .number()
       .min(0, "Hours can't be negative.")
       .max(
-        DAILY_HOUR_CAP,
-        `A single entry can't exceed ${DAILY_HOUR_CAP} hours.`,
+        MAX_ENTRY_HOURS,
+        `A single entry can't exceed ${MAX_ENTRY_HOURS} hours.`,
       ),
   })
   .refine((e) => (e.projectId != null) !== (e.category != null), {
@@ -58,7 +63,6 @@ export const saveTimesheetSchema = z
     }
 
     const weekDays = new Set(getWeekDays(val.weekStartDate));
-    const hoursByDay = new Map<string, number>();
     const seen = new Set<string>();
 
     val.entries.forEach((entry, index) => {
@@ -68,14 +72,9 @@ export const saveTimesheetSchema = z
           message: "Date is outside this week.",
           path: ["entries", index, "date"],
         });
-      } else if (isWeekend(entry.date)) {
-        // Timesheets only capture weekday work (weekend cells are disabled).
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Hours can't be logged on weekends.",
-          path: ["entries", index, "date"],
-        });
       }
+      // Weekend hours ARE allowed now — the grid flags them for review rather
+      // than rejecting them (like the soft daily/weekly thresholds).
 
       // One row per (day, target). `projectId` and `category` are mutually
       // exclusive (refined above), so either uniquely identifies the target.
@@ -89,22 +88,10 @@ export const saveTimesheetSchema = z
         });
       }
       seen.add(key);
-
-      hoursByDay.set(
-        entry.date,
-        (hoursByDay.get(entry.date) ?? 0) + entry.hours,
-      );
     });
 
-    for (const [date, total] of hoursByDay) {
-      if (total > DAILY_HOUR_CAP) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `${date}: ${total}h exceeds the ${DAILY_HOUR_CAP}h daily cap.`,
-          path: ["entries"],
-        });
-      }
-    }
+    // NOTE: a day over DAILY_HOUR_CAP or a week over WEEKLY_HOUR_CAP is allowed
+    // (the grid warns it'll be flagged for review) — no hard total cap here.
   });
 
 export type SaveTimesheetInput = z.input<typeof saveTimesheetSchema>;
