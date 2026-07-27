@@ -170,15 +170,19 @@ hand-rolled inline SVG — no charting library.** This is the documented pattern
 charts in this codebase; see [ui.md](../ui.md) → *Charts (hand-rolled SVG)* for the
 dataviz styling rules.
 
-## Staff rating levels (L0–L4) — **built**
+## Staff rating levels (L0–L4) + per-role subratings — **built**
 
 Each person gets an **overall performance level** — a single integer **L0–L4** a
 manager assigns and adjusts over time — distinct from peer feedback (per-interaction)
-and compensation. **Effective-dated exactly like `staff_employment`
+and compensation, **plus optional per-category subratings** (each **L1–L4**) whose
+rubric differs per role. **Effective-dated exactly like `staff_employment`
 ([ADR 0007](../decisions/0007-staff-employment-effective-dating.md)):** saving an
-evaluation inserts a **new dated row per changed staff member**, and the current
-level is the latest row per staff. Full rationale in
-[ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md).
+evaluation inserts a **new dated row per changed staff member** carrying **both**
+the level and the subratings (co-dated, so subrating history is preserved exactly
+like the level), and the current state is the latest row per staff. Full rationale in
+[ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md)
+(level) and [ADR 0042](../decisions/0042-per-role-subratings-app-owned-jsonb.md)
+(subratings).
 
 ### Entity — `staff_rating` (`src/lib/db/performance-schema.ts`)
 
@@ -188,10 +192,34 @@ level is the latest row per staff. Full rationale in
   historied event* (a manager can set someone back to no rating); a staffer with
   **no rows** is likewise unrated — both collapse to "Unrated" in every read. A DB
   `CHECK` (`staff_rating_level_range`) enforces `level is null or 0..4`.
+- **`subratings`** — `jsonb().$type<Subratings>()`, **nullable** (`drizzle/0007_high_mister_sinister.sql`).
+  Per-category scores as `Record<categoryKey, level>` (each level **1–4**),
+  keyed by the **role's rubric**; `null`/absent = no subratings recorded. **The
+  overall `level` is independent** — subratings are extra detail, NOT a derivation
+  of it. The DB stores the raw jsonb; **the valid keys/shape are owned by the
+  rubric module and validated at the zod/action layer, not the DB** (mirrors the
+  survey `responses` jsonb — so adding/tuning a rubric needs no migration). See
+  [ADR 0042](../decisions/0042-per-role-subratings-app-owned-jsonb.md).
 - **`evaluatedByUserId`** — FK → `user.id`, `onDelete: set null` (audit; a rating
   outlives the evaluator's record).
 
-The pure, client-importable module is **`src/lib/staff/staff-rating.ts`** (`RATING_LEVELS`,
+The rubric lives in a second pure, client-importable module
+**`src/lib/performance/rating-rubric.ts`** (no drizzle) — the single source of
+truth for subratings shared by the schema's typed column, the edit grid, and the
+save action's key validation. It exports `SUBRATING_MIN`/`MAX` (1–4),
+`SUBRATING_LEVELS`, `type Subratings = Record<string, number>`,
+`type RubricCategory`, `ROLE_RUBRICS` (`Partial<Record<Role, RubricCategory[]>>` —
+**only `ENGINEER` populated so far**, 8 categories: communications, project
+management, relationship management, outcomes ownership, technical depth, technical
+breadth, output craft, AI tooling competency), `rubricForRole(role)` (→ `[]` for a
+role with no rubric or `null`), and the flattened union helpers
+`ALL_RUBRIC_CATEGORIES` / `ALL_RUBRIC_KEYS` / `RUBRIC_LABELS` the edit grid
+consumes. It reuses the `L`-prefix display + string codec from
+`staff-rating.ts` (the scale is L1–L4, no L0). **Category keys are stable
+identifiers stored in the jsonb — renaming a key needs a data migration; labels
+change freely.**
+
+The overall-level module is **`src/lib/staff/staff-rating.ts`** (`RATING_LEVELS`,
 `MIN/MAX_RATING_LEVEL`, `formatLevel` → `"L0".."L4"`/`"Unrated"`, `formatAverageLevel`
 → `"L2.3"`, and the Select-value helpers `encodeLevelValue` /
 `decodeLevelValue` / `UNRATED_SELECT_VALUE` = `"none"` that map a level ↔ the edit
@@ -223,34 +251,54 @@ compensation portion of the dashboard.
 ### Server layer (`src/actions/performance/`)
 
 - **`getRatingsSummaryData`** (server-only read, `ratings.view`) — **anonymized**
-  per-active-staff rows (`RatingRecord` = `CompensationRecord` + `level`; no
-  id/name/email), for the dashboard. Latest employment row + latest rating row per
+  per-active-staff rows (`RatingRecord` = `CompensationRecord` + `level` +
+  `subratings: Subratings | null`; no id/name/email — subratings carry no identity,
+  only aggregated), for the dashboard. Latest employment row + latest rating row per
   active staff (two queries each, `firstPerKey`, no N+1). Exports `ratingsFilterOptions`.
 - **`getStaffRatingsForEdit`** (server-only read, `ratings.view`) — one row per
   active staff (name, current role **and line of business** for context/filtering)
   for the edit table. The current level is returned **encoded as a string**
   (`level: "none" | "0".."4"` via `encodeLevelValue`) so the editor's dropdown draft
-  is a plain string, like the other bulk-edit dropdowns.
+  is a plain string, like the other bulk-edit dropdowns. `StaffRatingEditRow` also
+  carries **`subratings: Subratings`** — the current per-category scores as **raw
+  1–4** (`{}` when none, from the latest rating row); the client encodes each
+  per-cell for the role-specific columns.
 - **`saveStaffEvaluation`** (+ `.schema`, `secureActionClient`, `ratings.edit`) —
-  inserts one new dated `staff_rating` row per **genuinely-changed** staff, in a
-  transaction. Never trusts the payload: re-reads the current level, **drops
-  no-ops**, rejects unknown/inactive targets, and **rejects an effectiveDate that
-  predates a staff member's latest rating** (equal dates are fine — the `createdAt`
-  tiebreak makes the newer write current); effectiveDate defaults to today. Template
+  inserts one new dated `staff_rating` row per **genuinely-changed** staff, each
+  carrying **level + subratings** (a single multi-row insert, atomic — no explicit
+  transaction). Never trusts the payload: re-reads each target's current level,
+  current subratings, **and current role** (latest employment); **drops no-ops**
+  (skips only when BOTH the level is unchanged AND the subratings are value-equal —
+  `canonicalSubratings` = sorted-key JSON, order-independent); **sanitizes subrating
+  keys against the person's current-role rubric** (`sanitizeSubratings` drops
+  unknown/stale keys, collapsing to `null` when nothing survives — so a crafted
+  payload can't smuggle keys); rejects unknown/inactive targets; and **rejects an
+  effectiveDate that predates a staff member's latest rating** (equal dates are fine
+  — the `createdAt` tiebreak makes the newer write current); effectiveDate defaults
+  to today. The zod schema validates subratings **loosely** (`record(string, int
+  1–4)`, since valid keys are role-dependent) and the action hardens them. Template
   was `commitBulkEditEmployment`.
 
 ### Pure stats & UI
 
 - **`src/lib/performance/rating-stats.ts`** (+ test) — pure `computeLevelDistribution`,
-  `countUnrated`, `computeAverageLevel`, `computeAverageLevelByRole`. The
+  `countUnrated`, `computeAverageLevel`, `computeAverageLevelByRole`, and
+  `computeAverageSubratingsByRole` (per-role average subrating per rubric category —
+  types `SubratingStatRow` / `SubratingCategoryAverage` / `RoleSubratingAverages`;
+  only roles with a rubric **and** at least one scored category are emitted, each
+  category's average taken over the people who scored it). The
   comp/rate-**per-level** table instead **reuses `computeByRole`** from
   `performance-stats.ts`, tagging the group key with the level label.
 - Surfaced as a **section merged into the single `/performance` dashboard** (NOT a
   new route, NOT a tab, NOT a nav item — see below). `levels-section.tsx`
   (`LevelsSection`) renders: stat cards (average level / unrated), a hand-rolled SVG
   **bar chart** (`level-distribution-bar-chart.tsx`, **zero baseline**; see
-  [ui.md](../ui.md) → *Charts*), a comp/rate-by-level table, and an
-  average-level-by-role table. It is **presentational** — the parent
+  [ui.md](../ui.md) → *Charts*), a comp/rate-by-level table, an
+  average-level-by-role table, and a **"Subratings by category" breakdown** — one
+  small table per role (Category | Avg subrating | Rated), rendered only when there
+  are scored subratings, from `computeAverageSubratingsByRole`. Like everything else
+  on the dashboard it is **anonymized and filter-respecting** (subratings carry no
+  identity — only aggregated). It is **presentational** — the parent
   `performance-dashboard.tsx` owns the filter + currency state and passes the
   already-chosen `lineOfBusiness` / `role` / `employmentType` / `currency` as props,
   so levels and compensation read from **one control bar** with the **same currency
@@ -262,6 +310,27 @@ compensation portion of the dashboard.
   from the **Performance sidebar submenu** ("Edit levels", gated on `ratings.edit`),
   not from a button on the dashboard — the former in-section "Edit levels" button was
   removed (see [ui.md](../ui.md) → *App shell & sidebar* → Submenus).
+  **Subrating matrix:** selecting a **single role** in the Role filter (one that has
+  a rubric) expands the grid with that role's categories as **editable** columns (a
+  "No rating" + L1–L4 Select per category). With the **"All" filter** (or a role with
+  no rubric) the per-category cells aren't editable — instead a **read-only
+  "Subratings" column** shows each staffer's current scores as compact chips (short
+  category label + level, e.g. "Comms L3"), only for roles with a rubric. To keep
+  rows comparable it renders **every** category in the rubric in the **same fixed
+  order** (chips line up in identical columns across rows), with unscored categories
+  showing a muted "–" in a fixed-width value slot rather than being omitted; the
+  whole column is hidden for a staffer only when none of their categories are
+  scored. Each row keeps an **"Edit ›" shortcut** that
+  filters to the staffer's role to reveal the editable matrix. The chips use the
+  optional **`short`** label on `RubricCategory` (`rating-rubric.ts`), which falls
+  back to `label` (the ENGINEER rubric supplies short labels).
+  **Implementation nuance — the draft flattens each subrating category into its own
+  string field** alongside `level` (`type EditableValues = { level: string } &
+  Record<string, string>`, tracked fields = union of `ALL_RUBRIC_KEYS` across roles)
+  rather than nesting a `Subratings` object, so the shared `EditableTable`/
+  `useEditableRows` engine diffs each category with `!==` (a nested object would
+  compare by reference) and the confirm dialog lists changed categories for free.
+  **The shared engine (`src/components/admin/editable-table.tsx`) was NOT modified.**
 
 ### One dashboard, no tabs
 
@@ -282,7 +351,10 @@ standalone `/performance/levels` dashboard — was removed; see
 `scripts/seed/performance.ts` gained **`seedRatings`** (weighted levels, ~20%
 unrated, ~40% of rated also get an earlier historical row so the effective-dating
 is exercised); wired into `scripts/seed.ts`, and `staff_rating` added to
-`scripts/seed/wipe.ts`.
+`scripts/seed/wipe.ts`. It now reads each person's **current role** from
+`staff_employment` and gives engineers **random L1–L4 subratings across their
+role's rubric on the current rating row only** — historical rows are left without
+subratings, modeling that subratings were introduced later than the level.
 
 ## Still proposed
 

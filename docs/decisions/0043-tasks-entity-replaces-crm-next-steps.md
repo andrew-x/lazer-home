@@ -1,4 +1,4 @@
-# 0042 — Tasks entity replaces CRM "next steps"; the entry logs collapse to notes-only
+# 0043 — Tasks entity replaces CRM "next steps"; the entry logs collapse to notes-only
 
 **Status:** accepted · 2026-07-27 · supersedes the next-step half of [ADR 0030](./0030-crm-timestamped-entries-notes-next-steps.md)
 
@@ -23,7 +23,7 @@ Introduce a **first-class `tasks` entity** and **remove the `next_step` kind
 entirely**, leaving the entry logs as **notes-only**.
 
 - **New `tasks` table** (`src/lib/db/tasks-schema.ts`, migration
-  `drizzle/0007_numerous_dagger.sql`): `description`, `ownerStaffId` +
+  `drizzle/0008_eminent_mandroid.sql`): `description`, `ownerStaffId` +
   `creatorStaffId` (both FK → `staff`, `onDelete: set null` — attribution, not
   ownership, like `contactEntries.authorStaffId`), `done` (boolean), a nullable
   `completedAt` stamped when `done` flips true and cleared on reopen, and timestamps.

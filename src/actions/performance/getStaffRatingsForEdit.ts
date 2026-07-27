@@ -11,6 +11,7 @@ import {
   staffEmployment,
   staffRating,
 } from "@/lib/db/schema";
+import type { Subratings } from "@/lib/performance/rating-rubric";
 import { latestEmploymentFirst } from "@/lib/staff/staff-employment";
 import { encodeLevelValue } from "@/lib/staff/staff-rating";
 import { latestRatingFirst } from "@/lib/staff/staff-rating-history";
@@ -22,6 +23,9 @@ import { latestRatingFirst } from "@/lib/staff/staff-rating-history";
  * the editor's draft is a plain string, like the other bulk-edit dropdowns).
  * Mirrors `getStaffEmploymentForEdit`'s two-query, latest-per-staff approach.
  * Active only — you rate current staff, not departed ones.
+ *
+ * `subratings` are the current per-category scores (raw 1–4, `{}` when none); the
+ * client encodes them per-cell for the role-specific rubric columns.
  */
 export type StaffRatingEditRow = {
   staffId: string;
@@ -29,6 +33,7 @@ export type StaffRatingEditRow = {
   role: StaffEmployment["role"] | null;
   lineOfBusiness: StaffEmployment["lineOfBusiness"] | null;
   level: string;
+  subratings: Subratings;
 };
 
 export async function getStaffRatingsForEdit(): Promise<StaffRatingEditRow[]> {
@@ -54,7 +59,11 @@ export async function getStaffRatingsForEdit(): Promise<StaffRatingEditRow[]> {
       .from(staffEmployment)
       .orderBy(...latestEmploymentFirst),
     db
-      .select({ staffId: staffRating.staffId, level: staffRating.level })
+      .select({
+        staffId: staffRating.staffId,
+        level: staffRating.level,
+        subratings: staffRating.subratings,
+      })
       .from(staffRating)
       .orderBy(...latestRatingFirst),
   ]);
@@ -64,12 +73,14 @@ export async function getStaffRatingsForEdit(): Promise<StaffRatingEditRow[]> {
 
   return staffRows.map((s) => {
     const employment = employmentByStaff.get(s.id);
+    const rating = latestRatingByStaff.get(s.id);
     return {
       staffId: s.id,
       name: s.name,
       role: employment?.role ?? null,
       lineOfBusiness: employment?.lineOfBusiness ?? null,
-      level: encodeLevelValue(latestRatingByStaff.get(s.id)?.level ?? null),
+      level: encodeLevelValue(rating?.level ?? null),
+      subratings: rating?.subratings ?? {},
     };
   });
 }

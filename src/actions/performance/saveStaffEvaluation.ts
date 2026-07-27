@@ -7,7 +7,13 @@ import { firstPerKey } from "@/lib/core/collections";
 import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
-import { staff, staffRating } from "@/lib/db/schema";
+import { staff, staffEmployment, staffRating } from "@/lib/db/schema";
+import {
+  rubricForRole,
+  type Subratings,
+} from "@/lib/performance/rating-rubric";
+import { latestEmploymentFirst } from "@/lib/staff/staff-employment";
+import type { Role } from "@/lib/staff/staff-enums";
 import { latestRatingFirst } from "@/lib/staff/staff-rating-history";
 import { saveStaffEvaluationSchema } from "./saveStaffEvaluation.schema";
 
@@ -16,16 +22,48 @@ type StaffRatingInsert = InferInsertModel<typeof staffRating>;
 export type SaveStaffEvaluationResult = { staffAffected: number };
 
 /**
+ * Keep only rubric keys valid for `role` (drops unknown/stale keys a crafted
+ * payload might carry), returning `null` when nothing survives — so "no
+ * subratings" is stored consistently as null, not `{}`.
+ */
+function sanitizeSubratings(
+  subratings: Subratings | undefined,
+  role: Role | null,
+): Subratings | null {
+  if (!subratings) return null;
+  const allowed = new Set(rubricForRole(role).map((c) => c.key));
+  const clean: Subratings = {};
+  for (const [key, value] of Object.entries(subratings)) {
+    if (allowed.has(key)) clean[key] = value;
+  }
+  return Object.keys(clean).length > 0 ? clean : null;
+}
+
+/** Stable serialization (sorted keys) so subratings compare by value, not order. */
+function canonicalSubratings(subratings: Subratings | null): string {
+  if (!subratings) return "";
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.entries(subratings).sort(([a], [b]) => a.localeCompare(b)),
+    ),
+  );
+}
+
+/**
  * Save a staff evaluation: one new dated `staff_rating` row per genuinely-changed
  * staff member. Effective-dated (ADR 0007) — nothing is overwritten, so the level
  * history is preserved.
  *
+ * Each row carries the overall level AND per-role subratings, kept together so
+ * the subrating history is dated exactly like the level.
+ *
  * The payload is never trusted: duplicate rows per staff are collapsed (last
- * wins), the current level per staff is re-read here, no-op changes are dropped,
- * unknown/now-inactive targets are silently skipped (so one stale row can't abort
- * the batch), and the effective date must not predate a staff member's latest
- * rating. Gated by `ratings.edit` (manager/admin) via metadata — enforced before
- * the body.
+ * wins), the current level + subratings per staff are re-read here, no-op changes
+ * are dropped (level and subratings must both match to skip), subrating keys are
+ * sanitized against the person's current-role rubric, unknown/now-inactive
+ * targets are silently skipped (so one stale row can't abort the batch), and the
+ * effective date must not predate a staff member's latest rating. Gated by
+ * `ratings.edit` (manager/admin) via metadata — enforced before the body.
  */
 export const saveStaffEvaluation = secureActionClient
   .metadata({
@@ -49,9 +87,11 @@ export const saveStaffEvaluation = secureActionClient
       const deduped = [...new Map(changes.map((c) => [c.staffId, c])).values()];
       const staffIds = deduped.map((c) => c.staffId);
 
-      // Re-read the targets (active only) and each one's latest rating row. Names
-      // give readable errors; the latest level lets us drop no-ops.
-      const [staffRows, ratingRows] = await Promise.all([
+      // Re-read the targets (active only), each one's latest rating row, and
+      // their current role. Names give readable errors; the latest level +
+      // subratings let us drop no-ops; the role validates which subrating keys
+      // are legitimate for the person.
+      const [staffRows, ratingRows, employmentRows] = await Promise.all([
         db
           .select({
             id: staff.id,
@@ -64,27 +104,59 @@ export const saveStaffEvaluation = secureActionClient
           .select({
             staffId: staffRating.staffId,
             level: staffRating.level,
+            subratings: staffRating.subratings,
             effectiveDate: staffRating.effectiveDate,
           })
           .from(staffRating)
           .where(inArray(staffRating.staffId, staffIds))
           .orderBy(...latestRatingFirst),
+        db
+          .select({
+            staffId: staffEmployment.staffId,
+            role: staffEmployment.role,
+          })
+          .from(staffEmployment)
+          .where(inArray(staffEmployment.staffId, staffIds))
+          .orderBy(...latestEmploymentFirst),
       ]);
 
       const staffById = new Map(staffRows.map((s) => [s.id, s]));
       const labelFor = (staffId: string) =>
         staffById.get(staffId)?.name ?? staffId;
       const latestByStaff = firstPerKey(ratingRows, (row) => row.staffId);
+      const roleByStaff = firstPerKey(employmentRows, (row) => row.staffId);
 
       // Only rate known, active staff. A target deactivated between page load
       // and save (or an unknown id) is silently skipped rather than failing the
       // whole batch — a manager's other edits still land.
       const targets = deduped.filter((c) => staffById.get(c.staffId)?.isActive);
 
-      // Drop no-ops: same level as the person's current level (null = unrated).
+      // Sanitize each change's subratings against the person's current-role
+      // rubric up front, so both the no-op check and the insert use the same
+      // cleaned value (and a payload can't smuggle keys outside the rubric).
+      const cleanedByStaff = new Map<string, Subratings | null>(
+        targets.map((change) => [
+          change.staffId,
+          sanitizeSubratings(
+            change.subratings,
+            roleByStaff.get(change.staffId)?.role ?? null,
+          ),
+        ]),
+      );
+
+      // Drop no-ops: unchanged only when BOTH the overall level (null = unrated)
+      // and the subratings (compared by value, key order irrelevant) match the
+      // person's current rating.
       const effective = targets.filter((change) => {
-        const current = latestByStaff.get(change.staffId)?.level ?? null;
-        return change.level !== current;
+        const latest = latestByStaff.get(change.staffId);
+        const currentLevel = latest?.level ?? null;
+        const currentSubratings = latest?.subratings ?? null;
+        const nextSubratings = cleanedByStaff.get(change.staffId) ?? null;
+        return (
+          change.level !== currentLevel ||
+          canonicalSubratings(nextSubratings) !==
+            canonicalSubratings(currentSubratings)
+        );
       });
 
       if (effective.length === 0) return { staffAffected: 0 };
@@ -109,6 +181,7 @@ export const saveStaffEvaluation = secureActionClient
         staffId: c.staffId,
         effectiveDate: evaluatedOn,
         level: c.level,
+        subratings: cleanedByStaff.get(c.staffId) ?? null,
         evaluatedByUserId: ctx.user.id,
       }));
 

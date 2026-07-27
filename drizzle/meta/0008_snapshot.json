@@ -1,6 +1,6 @@
 {
-  "id": "ff005214-de72-40bb-852b-012fa692368b",
-  "prevId": "43c7a2ac-8c24-4178-b203-593f6f19f39b",
+  "id": "beda448d-4e59-4f93-87f9-c97ea1dc919d",
+  "prevId": "ff005214-de72-40bb-852b-012fa692368b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -437,13 +437,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "kind": {
-          "name": "kind",
-          "type": "crm_entry_kind",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
         "body": {
           "name": "body",
           "type": "text",
@@ -472,17 +465,11 @@
         }
       },
       "indexes": {
-        "company_entries_company_kind_created_idx": {
-          "name": "company_entries_company_kind_created_idx",
+        "company_entries_company_created_idx": {
+          "name": "company_entries_company_created_idx",
           "columns": [
             {
               "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "kind",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -550,13 +537,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "kind": {
-          "name": "kind",
-          "type": "crm_entry_kind",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
         "body": {
           "name": "body",
           "type": "text",
@@ -585,17 +565,11 @@
         }
       },
       "indexes": {
-        "contact_entries_contact_kind_created_idx": {
-          "name": "contact_entries_contact_kind_created_idx",
+        "contact_entries_contact_created_idx": {
+          "name": "contact_entries_contact_created_idx",
           "columns": [
             {
               "expression": "contact_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "kind",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1043,13 +1017,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "kind": {
-          "name": "kind",
-          "type": "crm_entry_kind",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
         "body": {
           "name": "body",
           "type": "text",
@@ -1078,17 +1045,11 @@
         }
       },
       "indexes": {
-        "opportunity_entries_opp_kind_created_idx": {
-          "name": "opportunity_entries_opp_kind_created_idx",
+        "opportunity_entries_opp_created_idx": {
+          "name": "opportunity_entries_opp_created_idx",
           "columns": [
             {
               "expression": "opportunity_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "kind",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2514,6 +2475,223 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.tasks": {
+      "name": "tasks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_staff_id": {
+          "name": "owner_staff_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creator_staff_id": {
+          "name": "creator_staff_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "done": {
+          "name": "done",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_id": {
+          "name": "contact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "opportunity_id": {
+          "name": "opportunity_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "tasks_contact_done_idx": {
+          "name": "tasks_contact_done_idx",
+          "columns": [
+            {
+              "expression": "contact_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "done",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tasks_opportunity_done_idx": {
+          "name": "tasks_opportunity_done_idx",
+          "columns": [
+            {
+              "expression": "opportunity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "done",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tasks_company_done_idx": {
+          "name": "tasks_company_done_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "done",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "tasks_owner_staff_id_staff_id_fk": {
+          "name": "tasks_owner_staff_id_staff_id_fk",
+          "tableFrom": "tasks",
+          "tableTo": "staff",
+          "columnsFrom": [
+            "owner_staff_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "tasks_creator_staff_id_staff_id_fk": {
+          "name": "tasks_creator_staff_id_staff_id_fk",
+          "tableFrom": "tasks",
+          "tableTo": "staff",
+          "columnsFrom": [
+            "creator_staff_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "tasks_company_id_companies_id_fk": {
+          "name": "tasks_company_id_companies_id_fk",
+          "tableFrom": "tasks",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tasks_contact_id_contacts_id_fk": {
+          "name": "tasks_contact_id_contacts_id_fk",
+          "tableFrom": "tasks",
+          "tableTo": "contacts",
+          "columnsFrom": [
+            "contact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tasks_opportunity_id_opportunities_id_fk": {
+          "name": "tasks_opportunity_id_opportunities_id_fk",
+          "tableFrom": "tasks",
+          "tableTo": "opportunities",
+          "columnsFrom": [
+            "opportunity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "tasks_one_parent": {
+          "name": "tasks_one_parent",
+          "value": "num_nonnulls(\"tasks\".\"company_id\", \"tasks\".\"contact_id\", \"tasks\".\"opportunity_id\") = 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.time_entries": {
       "name": "time_entries",
       "schema": "",
@@ -2726,14 +2904,6 @@
     }
   },
   "enums": {
-    "public.crm_entry_kind": {
-      "name": "crm_entry_kind",
-      "schema": "public",
-      "values": [
-        "note",
-        "next_step"
-      ]
-    },
     "public.opportunity_source": {
       "name": "opportunity_source",
       "schema": "public",

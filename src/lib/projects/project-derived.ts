@@ -1,7 +1,7 @@
 /**
  * Derived project fields. A project no longer stores a status or a line of
  * business of its own — both are computed from its roles. Declared as a pure,
- * client-importable module (no `db`/drizzle) so reads (`getProjectsPage`,
+ * client-importable module (no `db`/drizzle) so reads (`getProjectsList`,
  * `getOpportunityPlan`), UI, and tests all share one implementation.
  *
  * See docs/domains/projects.md and the 2026-07-19 design.
@@ -52,4 +52,65 @@ export function deriveProjectLinesOfBusiness(
 ): LineOfBusiness[] {
   const present = new Set(roleLinesOfBusiness);
   return LINE_OF_BUSINESS.filter((lob) => present.has(lob));
+}
+
+/**
+ * The sections the projects list groups by: `tentative`, `paused`, `active`
+ * (confirmed & ongoing), and `other` (cancelled). A one-to-one relabelling of
+ * the four derived statuses — the list page shows Tentative, Paused, and Active
+ * in full and paginates Other.
+ */
+export type ProjectStatusBucket = "tentative" | "paused" | "active" | "other";
+
+/** Every bucket, in the order the list page renders its sections. */
+export const PROJECT_STATUS_BUCKETS: ProjectStatusBucket[] = [
+  "tentative",
+  "paused",
+  "active",
+  "other",
+];
+
+/** Which list section a project's derived status belongs to. */
+export function projectStatusBucket(
+  status: ProjectRoleStatus,
+): ProjectStatusBucket {
+  if (status === "tentative") return "tentative";
+  if (status === "paused") return "paused";
+  if (status === "confirmed") return "active";
+  return "other"; // cancelled
+}
+
+/**
+ * Does a project with these role statuses belong in `bucket`? This is the pure,
+ * presence-based mirror of the correlated-`EXISTS` SQL in
+ * `src/lib/projects/project-status-sql.ts` (`derivedStatusCondition`), which the
+ * projects loader uses to paginate each section in the database.
+ *
+ * LOCKSTEP: the boolean logic here MUST match that SQL exactly, and both MUST
+ * agree with `deriveProjectStatus` composed with `projectStatusBucket`. The
+ * agreement test in `project-derived.test.ts` enumerates every role-status
+ * combination to guard all buckets against drift.
+ */
+export function statusesMatchBucket(
+  bucket: ProjectStatusBucket,
+  roleStatuses: readonly ProjectRoleStatus[],
+): boolean {
+  const has = (status: ProjectRoleStatus) => roleStatuses.includes(status);
+  // No roles reads as tentative; any tentative role wins outright.
+  const tentative = roleStatuses.length === 0 || has("tentative");
+  // Paused === derived "paused": has a paused role and no tentative role (paused
+  // outranks confirmed among live roles, but tentative outranks paused).
+  const paused = has("paused") && !has("tentative");
+  // Active === derived "confirmed": has a confirmed role, no tentative/paused.
+  const active = has("confirmed") && !has("tentative") && !has("paused");
+  switch (bucket) {
+    case "tentative":
+      return tentative;
+    case "paused":
+      return paused;
+    case "active":
+      return active;
+    default:
+      return !tentative && !paused && !active; // other == cancelled
+  }
 }

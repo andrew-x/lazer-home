@@ -1,11 +1,11 @@
 # 0030 — Timestamped notes & next steps as append logs: two concrete tables, shared kind enum, no per-entry ownership
 
-**Status:** accepted (notes) · 2026-07-18 · the **next-step half is superseded by [ADR 0042](./0042-tasks-entity-replaces-crm-next-steps.md)**
+**Status:** accepted (notes) · 2026-07-18 · the **next-step half is superseded by [ADR 0043](./0043-tasks-entity-replaces-crm-next-steps.md)**
 
 > **Superseded in part.** The **notes** half of this ADR stands as written — three
 > concrete `*_entries` tables, shared plumbing, no per-entry ownership. The
 > **next-step** half is gone: the `crm_entry_kind` enum and the `next_step` kind
-> were **removed** and replaced by a first-class `tasks` entity ([ADR 0042](./0042-tasks-entity-replaces-crm-next-steps.md)).
+> were **removed** and replaced by a first-class `tasks` entity ([ADR 0043](./0043-tasks-entity-replaces-crm-next-steps.md)).
 > Below, read every mention of "next steps", the `crm_entry_kind` enum, the
 > per-kind length caps, and the `DISTINCT ON … WHERE kind = 'next_step'` list-view
 > subqueries as **historical** — the entry tables are now notes-only, and the

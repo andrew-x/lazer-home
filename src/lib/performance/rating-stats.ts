@@ -9,6 +9,11 @@
  * the distribution, the unrated count, and average levels.
  */
 
+import {
+  rubricForRole,
+  type Subratings,
+} from "@/lib/performance/rating-rubric";
+import type { Role } from "@/lib/staff/staff-enums";
 import { RATING_LEVELS, type RatingLevel } from "@/lib/staff/staff-rating";
 
 /** One person's current level tagged with their role, for per-role averages. */
@@ -79,4 +84,56 @@ export function computeAverageLevelByRole(
         ratedCount: rated.length,
       };
     });
+}
+
+/** One person's current subratings tagged with their role, for the averages. */
+export type SubratingStatRow = {
+  role: string;
+  subratings: Subratings | null;
+};
+
+/** A rubric category's average subrating (null when nobody scored it). */
+export type SubratingCategoryAverage = {
+  key: string;
+  label: string;
+  average: number | null;
+  ratedCount: number;
+};
+
+/** A role plus the average of each of its rubric categories. */
+export type RoleSubratingAverages = {
+  role: string;
+  categories: SubratingCategoryAverage[];
+};
+
+/**
+ * Average subrating per rubric category, grouped by role — for the dashboard's
+ * anonymized subratings breakdown. Only roles with a rubric are considered, and
+ * a role is emitted only when at least one of its categories has been scored, so
+ * roles/categories with no data don't clutter the view. Each category's average
+ * is over the people who have that category set; format with `formatAverageLevel`.
+ */
+export function computeAverageSubratingsByRole(
+  rows: readonly SubratingStatRow[],
+  roleOrder: readonly string[],
+): RoleSubratingAverages[] {
+  return roleOrder
+    .map((role) => ({ role, rubric: rubricForRole(role as Role) }))
+    .filter(({ rubric }) => rubric.length > 0)
+    .map(({ role, rubric }) => {
+      const roleRows = rows.filter((r) => r.role === role);
+      const categories = rubric.map((category) => {
+        const values = roleRows
+          .map((r) => r.subratings?.[category.key])
+          .filter((v): v is number => v != null);
+        return {
+          key: category.key,
+          label: category.label,
+          average: mean(values),
+          ratedCount: values.length,
+        };
+      });
+      return { role, categories };
+    })
+    .filter((r) => r.categories.some((c) => c.ratedCount > 0));
 }

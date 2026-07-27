@@ -38,7 +38,7 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0027](./0027-timesheet-weekly-model-and-edit-window.md) | Timesheets: per-day weekly model, whole-week replace, ±1-week edit window | accepted |
 | [0028](./0028-generic-responses-table-app-validated-question-ids.md) | Generic `responses` table keyed by (staff, question); question ids validated in app code, not a pgEnum | accepted |
 | [0029](./0029-external-fx-rates-and-currency-normalization.md) | External FX rates (frankfurter.dev), USD-cross-rate conversion, never-throw fallback — first live external API call | accepted |
-| [0030](./0030-crm-timestamped-entries-notes-next-steps.md) | CRM notes & next steps as append logs: two concrete tables + shared kind enum, no per-entry ownership, scalar `nextSteps` dropped | accepted (notes); next-step half superseded by [0042](./0042-tasks-entity-replaces-crm-next-steps.md) |
+| [0030](./0030-crm-timestamped-entries-notes-next-steps.md) | CRM notes & next steps as append logs: two concrete tables + shared kind enum, no per-entry ownership, scalar `nextSteps` dropped | accepted (notes); next-step half superseded by [0043](./0043-tasks-entity-replaces-crm-next-steps.md) |
 | [0031](./0031-opportunity-project-planner-and-role-status.md) | Opportunity project planner: role `status` (tentative → confirmed), auto-confirm on won, weekly Gantt view | accepted; amended by [0033](./0033-line-of-business-on-role-derived-project-status.md) |
 | [0032](./0032-staff-rating-levels-effective-dated-manager-only.md) | Staff rating levels (L0–L4): effective-dated, nullable, manager/admin-only with no self-view | accepted |
 | [0033](./0033-line-of-business-on-role-derived-project-status.md) | LoB moves to the role; project status & LoB derived (not stored); one-click create-from-opportunity + delete/detach | accepted |
@@ -50,7 +50,8 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0039](./0039-opportunities-list-view-and-board-column-capping.md) | Opportunities list view + board column capping (URL-driven view toggle, capped Maturing/Won/Lost) | accepted |
 | [0040](./0040-allocations-planner-granularity.md) | Allocations planner: selectable day/week/month granularity (nominal rate at every zoom; week prorated, month flat) | accepted |
 | [0041](./0041-allocation-notes-on-staff.md) | Allocation notes on `staff`: planner-inline, gated on static `staff.edit` (no owner path) | accepted |
-| [0042](./0042-tasks-entity-replaces-crm-next-steps.md) | Tasks entity replaces CRM "next steps"; `crm_entry_kind` dropped, entry logs collapse to notes-only | accepted |
+| [0042](./0042-per-role-subratings-app-owned-jsonb.md) | Per-role rating subratings: app-owned jsonb on `staff_rating`, co-dated with the overall level | accepted |
+| [0043](./0043-tasks-entity-replaces-crm-next-steps.md) | Tasks entity replaces CRM "next steps"; `crm_entry_kind` dropped, entry logs collapse to notes-only | accepted |
 
 > **0012 is intentionally absent** (the log jumps 0011 → 0013). It was a short-lived
 > ADR documenting the *open staff-edit gap pending RBAC*; it was **withdrawn** once
