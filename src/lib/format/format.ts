@@ -67,3 +67,11 @@ export function formatShortDate(value: Date): string {
     day: "numeric",
   }).format(value);
 }
+
+/**
+ * Compact range of two "YYYY-MM-DD" date strings, e.g. "Jul 18, 2026 – Aug 1,
+ * 2026" (en dash). Both drift-safe via `parseIsoDate`.
+ */
+export function formatDateRange(start: string, end: string): string {
+  return `${formatShortDate(parseIsoDate(start))} – ${formatShortDate(parseIsoDate(end))}`;
+}
