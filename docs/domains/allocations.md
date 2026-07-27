@@ -4,8 +4,10 @@
 Projects over time — the heart of capacity planning. The first concrete cut of the
 Allocation entity **already exists** as `project_roles` in the Projects domain (see
 [projects.md](./projects.md)), and a **company-wide planner view**
-(`/allocations`) now surfaces that data as a **day/week/month grid** — read-only
-except for a single manager/admin-only inline **Notes** column (see *The planner view*
+(`/allocations`) now surfaces that data as a **day/week/month grid**. It is read-only
+for most viewers, but two manager-gated actions write from it: `projects.edit` holders
+(delivery-manager/manager/admin) can **allocate staff to open roles** directly from a
+staff row, and `staff.edit` holders get an inline **Notes** column (see *The planner view*
 below). The rest of the domain (a dedicated capacity model, forecast vs. actuals,
 conflict handling) is still proposed.
 
@@ -20,8 +22,9 @@ schema addition is a nullable free-text **`allocationNotes`** column on `staff`
 It reads `project_roles` (the plan), `staff` + `staff_employment` (who + their current
 facts), and `staff_pto` (availability). The page is **visible to everyone signed in —
 no route gate** (the same open-read posture as the staff/CRM/projects lists); it is
-**read-only for everyone except that the Notes column is shown and editable only to
-`staff.edit` holders** (managers/admins).
+**read-only for everyone except two manager-gated writes**: the per-row **Allocate**
+action (shown to `projects.edit` holders — see *Allocating from a staff row* below) and
+the inline **Notes** column (shown and editable to `staff.edit` holders — managers/admins).
 
 - **Default window + range stepping.** Before the user touches the range, the window is
   the current bucket + the next N−1: **14 days / 12 weeks / 6 months**
@@ -77,6 +80,20 @@ no route gate** (the same open-read posture as the staff/CRM/projects lists); it
   are cross-person staffing notes on a management planner (a person editing only their own
   row isn't the intent). See [ADR 0041](../decisions/0041-allocation-notes-on-staff.md)
   and [permissions.md](./permissions.md).
+- **Allocating from a staff row (manager-gated write).** Each staff row carries a per-row
+  **Allocate** (`+`) button, shown only to `projects.edit` holders
+  (delivery-manager/manager/admin) via a `canAllocate` flag computed in `getAllocationsGrid`
+  and threaded to the grid (mirroring the `canEditNotes` gate). It opens a dialog
+  (`allocate-dialog.tsx`) to **search unallocated roles** — open positions (`staffId IS NULL`)
+  in `tentative`/`confirmed` status, matched on project name or role description across the
+  whole company (**no line-of-business pre-filter**) via `searchUnallocatedRoles`. Picking a
+  role **prefills its date range + hours/day**; the user adjusts them, then saves. Saving
+  assigns the person to that **existing** open role — it does not create a new one.
+  `allocateStaffToRole` (gated `projects.edit`) guards, in a transaction, that the role is
+  still unallocated and in a live state before writing `staffId` + dates + hours, so a
+  placeholder can't be silently overwritten and two concurrent assignments can't both win.
+  This is a **separate action from the opportunity planner's `assignRoleStaff`**, which is
+  opportunity-scoped (`assertRoleEditable`) and only sets `staffId` — see *Code map*.
 - **What appears.** Only **staffed** roles (non-null `staffId` — placeholders/open
   positions have no person to row) with status **`tentative` or `confirmed`**;
   `paused`/`cancelled` roles are excluded (not an active allocation). Only **approved**
@@ -113,6 +130,20 @@ no route gate** (the same open-read posture as the staff/CRM/projects lists); it
 - **Notes write:** `src/actions/staff/updateStaffAllocationNotes.ts` (+ `.schema.ts`,
   a client-importable pure module sharing one zod schema with the inline editor). Gated
   on `metadata.permission: { staff: ["edit"] }`; revalidates `/allocations`.
+- **Allocate — search + write** (both gated `metadata.permission: { projects: ["edit"] }`):
+  - `src/actions/allocations/searchUnallocatedRoles.ts` — type-ahead over open roles
+    (`isNull(staffId)`, status in `tentative`/`confirmed`), `ilike` on project name **or**
+    role description. Returns a rich `UnallocatedRoleOption` (project + role type + LoB +
+    dates + hours) rather than the generic `{ id, name }` search shape, so the dialog can
+    prefill; the dialog's picker is built on the same Base UI `Combobox` as `EntityCombobox`
+    but carries that richer option.
+  - `src/actions/allocations/allocateStaffToRole.ts` (+ `.schema.ts`, a client-importable
+    pure module reusing the shared `endOnOrAfterStart` refinement from
+    `projects/projectRole.schema.ts`) — updates `staffId` + `startDate`/`endDate`/`hoursPerDay`
+    on an existing open role, guarding it is still unallocated + live (throws
+    `UserSafeActionError` otherwise); revalidates `/allocations`, `/projects`, `/opportunities`.
+    Distinct from `projects/assignRoleStaff.ts` (opportunity-scoped, staffId-only) because the
+    planner allocates over any open role without an opportunity context.
 - **Pure grid math:** `src/lib/allocations/allocations-grid.ts` — builds the
   column spine at the chosen granularity (`buildColumns` → `eachDay`/`eachWeek`/
   `eachMonth`), folds staff + roles + PTO into one row per person, and computes each
@@ -138,9 +169,11 @@ no route gate** (the same open-read posture as the staff/CRM/projects lists); it
   state + "View by" toggle + window), `planner-range.tsx` (granularity-aware prev/next
   stepping + aria-labels), `allocations-grid.tsx` (render-only grid + legend, taking
   `columns`/`granularity` props, dimming weekend day-columns, granularity-aware labels
-  and tooltip copy; renders the manager-only Notes column when `canEditNotes`),
-  `allocation-note-cell.tsx` (the debounced-autosave note editor), page
-  `src/app/(app)/allocations/page.tsx`. Nav entry added to `NAV_ITEMS`
+  and tooltip copy; renders the manager-only Notes column when `canEditNotes` and the
+  per-row Allocate button when `canAllocate`, calling an `onAllocate(row)` callback),
+  `allocation-note-cell.tsx` (the debounced-autosave note editor), `allocate-dialog.tsx`
+  (the role-search + date/hours dialog; the planner holds its open-state and renders it for
+  the targeted staff row), page `src/app/(app)/allocations/page.tsx`. Nav entry added to `NAV_ITEMS`
   (`src/components/app-shell/nav.ts`), ungated.
 
 > **This is a *view*, not the missing capacity model.** It reads one project's-worth
@@ -164,7 +197,9 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
     not a pure junction. Placeholders let a Project define needed roles before anyone is
     chosen (e.g. during an opportunity's Allocating stage). Today these are **simple
     mutable rows, NOT effective-dated history** like `staff_employment` — so they can't
-    reconstruct a past plan, and there's no flow yet to staff a placeholder after the fact.
+    reconstruct a past plan. A placeholder can now be **staffed after the fact** from the
+    allocations planner's per-row Allocate action (`allocateStaffToRole` — see *The planner
+    view*), in addition to the opportunity planner's inline assign.
     When this domain grows beyond create+read, `project_roles` may need to evolve toward
     history-as-rows. See [projects.md](./projects.md),
     [ADR 0017](../decisions/0017-project-roles-as-first-allocation-cut.md), and
@@ -179,7 +214,7 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
 
 ## Key flows
 
-- **Staffing** — given a Project's needs, find People with the right StaffProfile skills and spare capacity, then allocate them for a date range.
+- **Staffing** — given a Project's needs, find People with the right StaffProfile skills and spare capacity, then allocate them for a date range. **First realized cut:** the allocations planner's per-row **Allocate** action assigns a person to an open `project_roles` placeholder over an adjustable date range + hours/day (`allocateStaffToRole`); the opportunity planner also assigns inline. Skill/capacity matching is not yet part of the flow.
 - **Capacity planning** — sum each Person's allocations across Projects vs. their availability to spot over/under-allocation.
 - **Forecast vs. actuals** — Allocations are the *plan*; TimeEntries are the *actuals*. Comparison drives re-forecasting.
 
