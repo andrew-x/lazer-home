@@ -6,6 +6,7 @@ import type {
   AllocationStaffRow,
   AllocationsGridData,
 } from "@/actions/allocations/getAllocationsGrid";
+import { AllocateDialog } from "@/components/allocations/allocate-dialog";
 import {
   AllocationsGrid,
   AllocationsLegend,
@@ -58,6 +59,11 @@ export function AllocationsPlanner({
 }) {
   const canEditNotes = data.canEditNotes;
   const searchId = useId();
+  // The staff row whose allocate dialog is open (null = closed).
+  const [allocateFor, setAllocateFor] = useState<{
+    staffId: string;
+    name: string;
+  } | null>(null);
   const initialWindow = useMemo(() => defaultWindow("week"), []);
   // Default the role filter to the billable disciplines that actually appear in
   // the data, so the planner opens on the people who bill client work.
@@ -214,8 +220,21 @@ export function AllocationsPlanner({
           columns={columns}
           granularity={granularity}
           canEditNotes={canEditNotes}
+          canAllocate={data.canAllocate}
+          onAllocate={(row) =>
+            setAllocateFor({ staffId: row.staffId, name: row.name })
+          }
         />
       )}
+
+      {allocateFor ? (
+        <AllocateDialog
+          staffId={allocateFor.staffId}
+          staffName={allocateFor.name}
+          onClose={() => setAllocateFor(null)}
+          onSaved={() => setAllocateFor(null)}
+        />
+      ) : null}
     </div>
   );
 }
