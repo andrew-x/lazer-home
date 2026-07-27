@@ -6,6 +6,7 @@ import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
 import { canEditTimesheet } from "@/actions/timesheets/canEditTimesheet";
 import { getSelectableProjects } from "@/actions/timesheets/getSelectableProjects";
 import { getTimesheet } from "@/actions/timesheets/getTimesheet";
+import { getTimesheetPrefill } from "@/actions/timesheets/getTimesheetPrefill";
 import { TimesheetWeek } from "@/components/timesheets/timesheet-week";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -68,9 +69,10 @@ export default async function TimesheetWeekPage({
     );
   }
 
-  const [timesheet, projects, canEdit] = await Promise.all([
+  const [timesheet, projects, prefill, canEdit] = await Promise.all([
     getTimesheet(staffId, weekStartDate),
     getSelectableProjects(),
+    getTimesheetPrefill(staffId, weekStartDate),
     canEditTimesheet(user, { staffId, weekStartDate }),
   ]);
 
@@ -103,6 +105,7 @@ export default async function TimesheetWeekPage({
         status={sheet.status}
         initialEntries={sheet.entries}
         projects={projects}
+        prefill={prefill}
         canEdit={canEdit}
       />
     </div>

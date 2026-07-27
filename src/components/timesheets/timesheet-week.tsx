@@ -7,22 +7,15 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import type { SelectableProject } from "@/actions/timesheets/getSelectableProjects";
 import type { TimesheetEntryView } from "@/actions/timesheets/getTimesheet";
+import type { TimesheetPrefill } from "@/actions/timesheets/getTimesheetPrefill";
 import { reopenTimesheet } from "@/actions/timesheets/reopenTimesheet";
 import { saveTimesheet } from "@/actions/timesheets/saveTimesheet";
 import { DAILY_HOUR_CAP } from "@/actions/timesheets/saveTimesheet.schema";
 import { submitTimesheet } from "@/actions/timesheets/submitTimesheet";
 import { IconButton } from "@/components/icon-button";
+import { AddProjectDialog } from "@/components/timesheets/add-project-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -39,6 +32,8 @@ import {
   TIMESHEET_CATEGORY_LABELS,
 } from "@/lib/timesheets/timesheet-category";
 import {
+  applyAllocationFill,
+  applyPtoFill,
   autofillProjectHours,
   buildPayload,
   buildRows,
@@ -58,9 +53,50 @@ type Props = {
   status: TimesheetStatus;
   initialEntries: TimesheetEntryView[];
   projects: SelectableProject[];
+  /** Allocation + approved-PTO data for the "Fill in …" prefill buttons. */
+  prefill: TimesheetPrefill;
   /** Whether this viewer may edit this week (own + in window, or the capability). */
   canEdit: boolean;
 };
+
+/**
+ * One prefill option on its own line: a title, a preview of exactly what would be
+ * added this week, and the "Fill in" action. When there's nothing to fill the
+ * preview shows the muted reason and the button is disabled.
+ */
+function PrefillRow({
+  title,
+  preview,
+  emptyLabel,
+  onFill,
+}: {
+  title: string;
+  /** What would be filled — non-empty means the button is enabled. */
+  preview: string;
+  emptyLabel: string;
+  onFill: () => void;
+}) {
+  const hasData = preview.length > 0;
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{title}</div>
+        <div className="truncate text-xs text-muted-foreground">
+          {hasData ? preview : emptyLabel}
+        </div>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onFill}
+        disabled={!hasData}
+        className="shrink-0"
+      >
+        Fill in
+      </Button>
+    </div>
+  );
+}
 
 /** "Mon 14" style column header for a weekday. */
 function dayHeader(date: string): { weekday: string; day: string } {
@@ -80,6 +116,7 @@ export function TimesheetWeek({
   status,
   initialEntries,
   projects,
+  prefill,
   canEdit,
 }: Props) {
   const router = useRouter();
@@ -189,6 +226,18 @@ export function TimesheetWeek({
     }
   }
 
+  function handleFillPto() {
+    setRows((prev) =>
+      applyPtoFill(prev, prefill.ptoHoursByDate, weekDays, DAILY_HOUR_CAP),
+    );
+  }
+
+  function handleFillAllocations() {
+    setRows((prev) =>
+      applyAllocationFill(prev, prefill.allocations, weekDays, DAILY_HOUR_CAP),
+    );
+  }
+
   function handleSave() {
     submitAfterSave.current = false;
     saveAction.execute(buildPayload(rows, weekDays, staffId, weekStartDate));
@@ -200,15 +249,53 @@ export function TimesheetWeek({
   }
 
   const usedKeys = new Set(rows.map((r) => r.key));
-  const availableProjects = projects.filter(
-    (p) => !usedKeys.has(targetKey(p.id, null)),
+  const allocatedProjectIds = prefill.allocations.map((a) => a.projectId);
+
+  // Previews of exactly what each "Fill in" would add this week (an empty string
+  // means there's nothing to fill, which disables the row's button).
+  const allocationPreview = prefill.allocations
+    .map((a) => {
+      const total = Object.values(a.hoursByDate).reduce((sum, h) => sum + h, 0);
+      return `${a.name} · ${total}h`;
+    })
+    .join(", ");
+  const ptoDates = Object.keys(prefill.ptoHoursByDate).sort();
+  const ptoTotal = Object.values(prefill.ptoHoursByDate).reduce(
+    (sum, h) => sum + h,
+    0,
   );
-  const availableCategories = TIMESHEET_CATEGORY.filter(
-    (c) => !usedKeys.has(targetKey(null, c)),
-  );
+  const ptoPreview = ptoDates.length
+    ? `${ptoDates.map((d) => dayHeader(d).weekday).join(", ")} · ${ptoTotal}h`
+    : "";
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Add-row + prefill toolbar */}
+      {editable ? (
+        <div className="flex flex-col gap-2">
+          <div>
+            <AddProjectDialog
+              projects={projects}
+              allocatedProjectIds={allocatedProjectIds}
+              usedKeys={usedKeys}
+              onSelect={addTarget}
+            />
+          </div>
+          <PrefillRow
+            title="Allocations"
+            preview={allocationPreview}
+            emptyLabel="No allocations this week."
+            onFill={handleFillAllocations}
+          />
+          <PrefillRow
+            title="Time off (PTO)"
+            preview={ptoPreview}
+            emptyLabel="No approved PTO this week."
+            onFill={handleFillPto}
+          />
+        </div>
+      ) : null}
+
       {/* Grid */}
       <div className="rounded-md border">
         <Table>
@@ -243,7 +330,7 @@ export function TimesheetWeek({
                 >
                   No time logged yet.
                   {editable
-                    ? " Add a project or category below to start."
+                    ? " Add a project or category above to start."
                     : null}
                 </TableCell>
               </TableRow>
@@ -337,51 +424,7 @@ export function TimesheetWeek({
 
       {/* Actions */}
       {editable ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Select
-            value={null}
-            onValueChange={(v: string | null) => v && addTarget(v)}
-          >
-            <SelectTrigger
-              className="w-72"
-              aria-label="Add a project or category"
-            >
-              <SelectValue>
-                {() => (
-                  <span className="text-muted-foreground">
-                    Add a project or category…
-                  </span>
-                )}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {availableProjects.length > 0 ? (
-                <SelectGroup>
-                  <SelectLabel>Projects</SelectLabel>
-                  {availableProjects.map((p) => (
-                    <SelectItem key={p.id} value={`${PROJECT_PREFIX}${p.id}`}>
-                      {p.name}
-                      <span className="text-muted-foreground">
-                        {" "}
-                        · {p.companyName}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              ) : null}
-              {availableCategories.length > 0 ? (
-                <SelectGroup>
-                  <SelectLabel>Non-billable</SelectLabel>
-                  {availableCategories.map((c) => (
-                    <SelectItem key={c} value={`${CATEGORY_PREFIX}${c}`}>
-                      {TIMESHEET_CATEGORY_LABELS[c]}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              ) : null}
-            </SelectContent>
-          </Select>
-
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <div className="flex items-center gap-2">
             {overCap ? (
               <span className="text-sm text-destructive">
