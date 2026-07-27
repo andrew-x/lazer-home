@@ -7,6 +7,7 @@ import {
   ComboboxChipsInput,
   ComboboxContent,
   ComboboxEmpty,
+  ComboboxInput,
   ComboboxItem,
   ComboboxList,
   useComboboxAnchor,
@@ -149,6 +150,69 @@ export function MultiSelectFilter({
             {(option: string) => (
               <ComboboxItem key={option} value={option}>
                 {display(option)}
+              </ComboboxItem>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+    </div>
+  );
+}
+
+/** An `{ id, name }` option for {@link SearchableSelectFilter}. */
+export type SearchableOption = { id: string; name: string };
+
+/**
+ * Single-select filter over an `{ id, name }` list, shown as a searchable
+ * Combobox with in-memory filtering — the searchable sibling of
+ * {@link SelectFilter}, for option sets too long to scan in a plain dropdown
+ * (e.g. staff). `value` is the selected id (or `null` for no filter); clearing
+ * the field emits `null`.
+ */
+export function SearchableSelectFilter({
+  label,
+  value,
+  options,
+  placeholder,
+  onChange,
+  inputClassName = "w-56",
+}: {
+  label: string;
+  value: string | null;
+  options: SearchableOption[];
+  placeholder?: string;
+  onChange: (id: string | null) => void;
+  /** Width/layout override for the input (defaults to a fixed `w-56`). */
+  inputClassName?: string;
+}) {
+  const selected = value
+    ? (options.find((option) => option.id === value) ?? null)
+    : null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <FilterLabel>{label}</FilterLabel>
+      <Combobox
+        items={options}
+        value={selected}
+        onValueChange={(next: SearchableOption | null) =>
+          onChange(next?.id ?? null)
+        }
+        isItemEqualToValue={(item: SearchableOption, val: SearchableOption) =>
+          item.id === val.id
+        }
+        itemToStringLabel={(item: SearchableOption) => item.name}
+      >
+        <ComboboxInput
+          className={inputClassName}
+          placeholder={placeholder}
+          showClear={Boolean(selected)}
+        />
+        <ComboboxContent>
+          <ComboboxEmpty>No matches.</ComboboxEmpty>
+          <ComboboxList>
+            {(item: SearchableOption) => (
+              <ComboboxItem key={item.id} value={item}>
+                {item.name}
               </ComboboxItem>
             )}
           </ComboboxList>

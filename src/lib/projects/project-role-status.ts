@@ -45,15 +45,16 @@ export const PROJECT_ROLE_STATUS_LABELS: Record<ProjectRoleStatus, string> = {
 };
 
 /**
- * Badge variant for each status. Confirmed reads as the primary (default) badge;
- * tentative stays muted; paused is outlined; cancelled reads as destructive.
- * Shared by the role status badge and the derived project status badge.
+ * Badge variant for each status. Confirmed reads as a normal, neutral tag (no
+ * indigo highlight); tentative stays muted (filled grey); paused is outlined;
+ * cancelled reads as destructive. Shared by the role status badge and the
+ * derived project status badge.
  */
 export const PROJECT_ROLE_STATUS_VARIANTS: Record<
   ProjectRoleStatus,
   "default" | "secondary" | "outline" | "destructive"
 > = {
-  confirmed: "default",
+  confirmed: "outline",
   tentative: "secondary",
   paused: "outline",
   cancelled: "destructive",
