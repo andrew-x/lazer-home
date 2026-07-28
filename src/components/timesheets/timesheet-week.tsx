@@ -1,6 +1,10 @@
 "use client";
 
-import { IconAlertTriangle, IconTrash } from "@tabler/icons-react";
+import {
+  IconAlertTriangle,
+  IconInfoCircle,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
 import { type ReactNode, useRef, useState } from "react";
@@ -61,6 +65,11 @@ type Props = {
   prefill: TimesheetPrefill;
   /** Whether this viewer may edit this week (own + in window, or the capability). */
   canEdit: boolean;
+  /**
+   * Whether this person must account for a full 40h week before submitting
+   * (full-time staff). Hourly staff still see the unaccounted-hours nudge.
+   */
+  enforceWeeklyMinimum: boolean;
 };
 
 /**
@@ -110,6 +119,7 @@ export function TimesheetWeek({
   projects,
   prefill,
   canEdit,
+  enforceWeeklyMinimum,
 }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>(() =>
@@ -188,6 +198,16 @@ export function TimesheetWeek({
     reviewReasons.push(`Weekend hours on ${dayNames(weekendDays)}`);
   }
   const needsReview = reviewReasons.length > 0;
+
+  // The mirror image of the over-cap warning: hours the week hasn't accounted
+  // for yet. Everyone gets the nudge; only full-time staff are blocked from
+  // submitting until it's zero (the server re-checks — see `submitTimesheet`).
+  // Rounded to cents: typed hours are floats, so a week that visibly totals 40
+  // can leave a 1e-14 residue that would both read as "0h unaccounted" and keep
+  // Submit disabled forever. (The server compares exact `numeric` sums.)
+  const unaccounted = Math.round((WEEKLY_HOUR_CAP - weekTotal) * 100) / 100;
+  const shortOfFullWeek = unaccounted > 0;
+  const submitBlocked = enforceWeeklyMinimum && shortOfFullWeek;
 
   function setCell(rowKey: string, date: string, value: string) {
     setRows((prev) =>
@@ -482,11 +502,26 @@ export function TimesheetWeek({
               </div>
             </div>
           ) : null}
+          {shortOfFullWeek ? (
+            <div className="flex w-full items-start gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+              <IconInfoCircle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              <p>
+                {unaccounted}h of the {WEEKLY_HOUR_CAP}h week are unaccounted
+                for. Add the missing time as non-billable (
+                {TIMESHEET_CATEGORY_LABELS.UNALLOCATED_BENCH},{" "}
+                {TIMESHEET_CATEGORY_LABELS.INTERNAL_ADMIN}) or as{" "}
+                {TIMESHEET_CATEGORY_LABELS.PTO} if you took time off.
+                {submitBlocked
+                  ? ` You can save a draft, but you can't submit until the week totals ${WEEKLY_HOUR_CAP}h.`
+                  : null}
+              </p>
+            </div>
+          ) : null}
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={handleSave} disabled={pending}>
               Save draft
             </Button>
-            <Button onClick={handleSubmit} disabled={pending}>
+            <Button onClick={handleSubmit} disabled={pending || submitBlocked}>
               Submit
             </Button>
           </div>

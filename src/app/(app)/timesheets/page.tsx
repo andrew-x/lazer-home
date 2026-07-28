@@ -2,9 +2,14 @@ import type { Metadata } from "next";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
 import { getTimesheetList } from "@/actions/timesheets/getTimesheetList";
 import { TimesheetsList } from "@/components/timesheets/timesheets-list";
+import { UnsubmittedWeeksBanner } from "@/components/timesheets/unsubmitted-weeks-banner";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { userHasPermission } from "@/lib/auth/permissions";
-import { isWithinEditWindow } from "@/lib/timesheets/timesheet-week";
+import { unsubmittedWeekAlerts } from "@/lib/timesheets/timesheet-alerts";
+import {
+  currentDay,
+  isWithinEditWindow,
+} from "@/lib/timesheets/timesheet-week";
 
 export const metadata: Metadata = { title: "Timesheets" };
 
@@ -30,7 +35,7 @@ export default async function TimesheetsPage() {
 
   if (!staffId || !user) {
     return (
-      <div className="mx-auto flex max-w-4xl flex-col gap-8">
+      <div className="mx-auto flex max-w-5xl flex-col gap-8">
         <Header />
         <p className="text-sm text-muted-foreground">
           Your account isn't linked to a staff profile yet, so there's no
@@ -48,9 +53,14 @@ export default async function TimesheetsPage() {
   const canEdit = (week: string) => hasEditAll || isWithinEditWindow(week);
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-8">
+    <div className="mx-auto flex max-w-5xl flex-col gap-8">
       <Header />
-      <TimesheetsList rows={rows} canEdit={canEdit} />
+      <div className="flex flex-col gap-4">
+        <UnsubmittedWeeksBanner
+          alerts={unsubmittedWeekAlerts(rows, currentDay())}
+        />
+        <TimesheetsList rows={rows} canEdit={canEdit} />
+      </div>
     </div>
   );
 }

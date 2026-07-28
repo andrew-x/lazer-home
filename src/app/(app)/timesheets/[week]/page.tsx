@@ -3,21 +3,30 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
+import { getEmploymentTypeAsOf } from "@/actions/staff/getEmploymentTypeAsOf";
 import { canEditTimesheet } from "@/actions/timesheets/canEditTimesheet";
 import { getSelectableProjects } from "@/actions/timesheets/getSelectableProjects";
 import { getTimesheet } from "@/actions/timesheets/getTimesheet";
+import { getTimesheetList } from "@/actions/timesheets/getTimesheetList";
 import { getTimesheetPrefill } from "@/actions/timesheets/getTimesheetPrefill";
+import { requiresFullWeek } from "@/actions/timesheets/saveTimesheet.schema";
 import { TimesheetWeek } from "@/components/timesheets/timesheet-week";
+import { UnsubmittedWeeksBanner } from "@/components/timesheets/unsubmitted-weeks-banner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { formatDate, formatIsoDate, parseIsoDate } from "@/lib/format/format";
 import { ISO_DATE } from "@/lib/schemas/date-schema";
+import { unsubmittedWeekAlerts } from "@/lib/timesheets/timesheet-alerts";
 import {
   DEFAULT_TIMESHEET_STATUS,
   TIMESHEET_STATUS_LABELS,
 } from "@/lib/timesheets/timesheet-status";
-import { getWeekDays, getWeekStart } from "@/lib/timesheets/timesheet-week";
+import {
+  currentDay,
+  getWeekDays,
+  getWeekStart,
+} from "@/lib/timesheets/timesheet-week";
 
 export const metadata: Metadata = { title: "Timesheet" };
 
@@ -69,12 +78,22 @@ export default async function TimesheetWeekPage({
     );
   }
 
-  const [timesheet, projects, prefill, canEdit] = await Promise.all([
-    getTimesheet(staffId, weekStartDate),
-    getSelectableProjects(),
-    getTimesheetPrefill(staffId, weekStartDate),
-    canEditTimesheet(user, { staffId, weekStartDate }),
-  ]);
+  const [timesheet, projects, prefill, canEdit, weeks, employmentType] =
+    await Promise.all([
+      getTimesheet(staffId, weekStartDate),
+      getSelectableProjects(),
+      getTimesheetPrefill(staffId, weekStartDate),
+      canEditTimesheet(user, { staffId, weekStartDate }),
+      getTimesheetList(staffId),
+      // Employment as of the week being logged, not today — the 40h submission
+      // floor follows what the person's contract was that week.
+      getEmploymentTypeAsOf(staffId, weekDays[6]),
+    ]);
+
+  // Nudge about the OTHER unsubmitted week — never about the one on screen.
+  const alerts = unsubmittedWeekAlerts(weeks, currentDay()).filter(
+    (alert) => alert.weekStartDate !== weekStartDate,
+  );
 
   // The viewer's own timesheet always resolves (an empty draft when unsaved).
   const sheet = timesheet ?? {
@@ -97,6 +116,8 @@ export default async function TimesheetWeekPage({
         </Badge>
       </header>
 
+      <UnsubmittedWeeksBanner alerts={alerts} />
+
       <TimesheetWeek
         key={weekStartDate}
         staffId={staffId}
@@ -107,6 +128,7 @@ export default async function TimesheetWeekPage({
         projects={projects}
         prefill={prefill}
         canEdit={canEdit}
+        enforceWeeklyMinimum={requiresFullWeek(employmentType)}
       />
     </div>
   );

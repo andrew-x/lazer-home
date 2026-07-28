@@ -48,6 +48,32 @@ the shared `saveTimesheet.schema.ts` (client resolver + server).
 > in-app approval workflow exists yet, consistent with "no manager approval in v1" below)
 > keeps the data honest and puts the judgment where it belongs.
 
+> **Update (2026-07-28): 40h is now also a *floor* on submission — for full-time staff
+> only.** `WEEKLY_HOUR_CAP` keeps its soft-ceiling role above and gains a second, harder
+> one: a **full-time** person must account for all 40 hours before they can **submit** the
+> week. Under 40h the grid shows a neutral *"Xh unaccounted for"* notice pointing at the
+> non-billable buckets and PTO, and disables **Submit** (never **Save draft**);
+> `submitTimesheet` re-checks server-side (`requiresFullWeek` +
+> `getEmploymentTypeAsOf(staffId, <week's Sunday>)`) and rejects with a
+> `UserSafeActionError`, so the button state is an affordance, not the boundary.
+> **Hourly staff are exempt** — a short week is legitimate for them — as is anyone with no
+> `staff_employment` row yet. **Rationale:** this does *not* contradict the "blocking drove
+> under-reporting" finding above, which is about hours *over* the standard week; a floor
+> pushes the opposite way. Every hour of a full-time week has a legitimate home (a project,
+> `UNALLOCATED_BENCH`, `INTERNAL_ADMIN`, or `PTO`), so a sub-40 week is missing data rather
+> than a real short week, and the missing part is exactly the non-billable/bench signal the
+> business is worst at capturing. **Consequence:** there is deliberately **no admin
+> override** — a `timesheets.edit` holder submitting on someone's behalf hits the same
+> floor and must log the missing time.
+>
+> **Also (2026-07-28): a submission reminder, not just a lock.** The timesheets pages
+> (list + week editor) now open with a banner naming the weeks in the ±1 window that are
+> still unsubmitted: **last week is `overdue`** (destructive — it falls out of the editable
+> window on Monday), and **the current week gets a neutral reminder only from Thursday on**
+> (`SUBMISSION_REMINDER_WEEKDAY`), so nobody is nagged on Monday morning about the week
+> they're still working. The rule is a pure function with `today` injected
+> (`src/lib/timesheets/timesheet-alerts.ts`), so the cutoff is unit-testable.
+
 **Timesheets capture weekday (Mon–Fri) work only.** A week is still keyed and displayed
 as 7 days, but Saturday/Sunday are non-editable: the grid renders them blank/muted with
 no input, and the shared schema rejects any weekend-dated entry (`isWeekend` in
@@ -89,7 +115,8 @@ persistence rule.
 **Submit locks; reopen unlocks; no manager approval in v1.** Submitting flips the week
 to `submitted` and stamps `submittedAt`; a locked week can't be overwritten by a normal
 save. The owner **reopens** (back to `draft`) to correct. There is no approve/reject
-step, and no approval granularity question to answer yet.
+step, and no approval granularity question to answer yet. (Submit is now also gated on
+the 40h floor for full-time staff — see the 2026-07-28 update above.)
 
 **Ownership boundary = own record AND a ±1-week edit window.** A normal user may
 edit/submit/reopen only their own linked staff record's timesheet, and only for last /

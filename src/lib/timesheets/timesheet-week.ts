@@ -10,7 +10,11 @@
  * helpers.
  */
 
-import { formatIsoDate, parseIsoDate } from "@/lib/format/format";
+import {
+  formatDateRange,
+  formatIsoDate,
+  parseIsoDate,
+} from "@/lib/format/format";
 
 /** Whole-day index since the Unix epoch, computed in UTC to sidestep DST. */
 function dayNumber(value: string): number {
@@ -65,6 +69,18 @@ export function isWeekend(date: string): boolean {
   return day === 0 || day === 6;
 }
 
+/** Position of `date` within its ISO week: Monday = 0 … Sunday = 6. */
+export function weekdayIndex(date: string): number {
+  return (parseIsoDate(date).getDay() + 6) % 7;
+}
+
+/**
+ * The weekday (Monday = 0) from which the current week's "not submitted yet"
+ * reminder starts showing. Earlier in the week the week is still being worked,
+ * so nagging about it is noise. See `timesheet-alerts.ts`.
+ */
+export const SUBMISSION_REMINDER_WEEKDAY = 3; // Thursday
+
 /**
  * Every ISO-Monday from the week containing `start` to the week containing
  * `end`, inclusive (both ends are normalized to their week start first). Returns
@@ -117,6 +133,16 @@ export function getWeekDays(weekStart: string): string[] {
     d.setDate(monday.getDate() + i);
     return formatIsoDate(d);
   });
+}
+
+/**
+ * A week's Mon–Sun span formatted for display, e.g. "Jul 13, 2026 – Jul 19,
+ * 2026". The one formatter for a week label, shared by the browse table and the
+ * submission-reminder banner.
+ */
+export function formatWeekRange(weekStart: string): string {
+  const days = getWeekDays(weekStart);
+  return formatDateRange(days[0], days[6]);
 }
 
 /** Today as a `"YYYY-MM-DD"` wall-clock date. */

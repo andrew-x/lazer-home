@@ -6,16 +6,32 @@ import { getCurrentUser } from "@/lib/auth/auth";
 import { userHasPermission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db/db";
 import { timeEntries, timesheets } from "@/lib/db/schema";
+import type { TimesheetCategory } from "@/lib/timesheets/timesheet-category";
 import { addWeeks, currentWeekStart } from "@/lib/timesheets/timesheet-week";
 
-/** One week in the browse list, with its logged total and lifecycle state. */
+/**
+ * One week in the browse list, with its logged hours broken down and its
+ * lifecycle state. The three buckets partition the week, so they sum to
+ * `totalHours`: billable project work, PTO, and the remaining non-billable
+ * categories. Billable-ness is structural — an entry targets either a project or
+ * a category, never both (the `time_entries_target_check` constraint).
+ */
 export type TimesheetListRow = {
   weekStartDate: string;
   status: "draft" | "submitted";
+  /** Hours logged against projects (billable). */
+  projectHours: number;
+  /** Hours in the `PTO` category, broken out of the other non-billable buckets. */
+  ptoHours: number;
+  /** Non-billable hours other than PTO (bench time, internal admin). */
+  nonBillableHours: number;
   totalHours: number;
   /** False for a week that has no timesheet row yet ("Not started"). */
   started: boolean;
 };
+
+/** Typed so dropping the category from the enum fails the build, not the query. */
+const PTO: TimesheetCategory = "PTO";
 
 /**
  * A staff member's timesheets for browsing, newest week first. Every week that
@@ -41,6 +57,18 @@ export async function getTimesheetList(
     .select({
       weekStartDate: timesheets.weekStartDate,
       status: timesheets.status,
+      projectHours:
+        sql<number>`coalesce(sum(case when ${timeEntries.projectId} is not null then ${timeEntries.hours} else 0 end), 0)`.mapWith(
+          Number,
+        ),
+      ptoHours:
+        sql<number>`coalesce(sum(case when ${timeEntries.category}::text = ${PTO} then ${timeEntries.hours} else 0 end), 0)`.mapWith(
+          Number,
+        ),
+      nonBillableHours:
+        sql<number>`coalesce(sum(case when ${timeEntries.category} is not null and ${timeEntries.category}::text <> ${PTO} then ${timeEntries.hours} else 0 end), 0)`.mapWith(
+          Number,
+        ),
       totalHours: sql<number>`coalesce(sum(${timeEntries.hours}), 0)`.mapWith(
         Number,
       ),
@@ -62,6 +90,9 @@ export async function getTimesheetList(
       byWeek.set(week, {
         weekStartDate: week,
         status: "draft",
+        projectHours: 0,
+        ptoHours: 0,
+        nonBillableHours: 0,
         totalHours: 0,
         started: false,
       });
