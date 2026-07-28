@@ -35,7 +35,10 @@ so the admin role retains its built-in capabilities) with two business resources
   [ADR 0041](../decisions/0041-allocation-notes-on-staff.md) and
   [allocations.md](./allocations.md).
 - **`staff.viewCompensation`** — view *another* staff member's compensation (on
-  their profile and in the history feed). (Your own compensation is always visible.)
+  their profile and in the history feed), **and** every bulk/aggregate comp surface:
+  the Compensation dashboard (`/performance/compensation`), including its
+  comp-by-level table (which additionally needs `ratings.view`). (Your own
+  compensation is always visible.)
 - **`pto.review`** — view the aggregated PTO summary of *other* staff. (Your own
   PTO is always visible.)
 
@@ -77,10 +80,27 @@ A resource with **two actions** gates staff overall ratings (levels L0–L4), a
 sensitive read/write with **no ownership dimension** — unlike compensation or
 feedback, a staffer never sees their *own* rating:
 
-- **`ratings.view`** — view staff overall levels: the per-level analytics breakdown
-  in the `/performance` dashboard's staff-levels section (headcount, comp/rate
-  aggregates, distribution) and the edit page's current levels. Manager/admin only;
-  there is no self-view path.
+- **`ratings.view`** — view staff overall levels: the **Performance dashboard** at
+  `/performance/levels` (distribution, average level, average-by-role, per-role
+  subrating averages — **no compensation rendered there at all**) and the edit page's
+  current levels. Manager/admin only; there is no self-view path. Its sibling
+  `/performance/compensation` is gated on `staff.viewCompensation` instead, and
+  **`/performance` is a redirect** to whichever of the two the viewer may see.
+  The one **overlap** sits on the *comp* page: its **compensation-by-level** table
+  needs **both** capabilities — `staff.viewCompensation` gates the page, and the
+  levels input is fetched only for `ratings.view` holders (the optional
+  `ratingRecords` prop), so finance sees that dashboard minus that one table. See
+  [ADR 0044](../decisions/0044-performance-dashboards-split-by-permission.md).
+  The Performance **nav parent** is gated on the looser `staff.viewCompensation`,
+  which is only sound because every `ratings.view` role also holds it (row 5–6
+  below) — **if that ever changes, change the parent gate in `nav.ts`.**
+  **That coupling load-bears one more place:** `getRatingsSummaryData` is gated on
+  `ratings.view` alone, yet its rows carry comp **amounts**
+  (`RatingRecord.employment` is the full `CompensationDimensions`) — so granting
+  `ratings.view` to a role *without* `staff.viewCompensation` would make that read
+  (and `/performance/levels`, which fetches it) a bulk-comp leak, even though the
+  page renders no money. See [performance.md](performance.md) → *Compensation by
+  level*.
 - **`ratings.edit`** — assign / change levels and save an evaluation (a new dated
   `staff_rating` row). Manager/admin only. See the [performance domain](performance.md).
 

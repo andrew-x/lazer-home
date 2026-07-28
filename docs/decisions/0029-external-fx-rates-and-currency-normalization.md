@@ -4,8 +4,9 @@
 
 ## Context
 
-The performance analytics dashboard (`/performance`) shows compensation
-aggregates with a **CAD / USD display toggle**, but compensation is stored on
+The performance analytics dashboards (then one page at `/performance`; now
+`/performance/compensation` + `/performance/levels`, [ADR 0044](./0044-performance-dashboards-split-by-permission.md))
+show compensation aggregates with a **CAD / USD display toggle**, but compensation is stored on
 `staff_employment` in **each person's own currency** across the five `CURRENCY`
 values (`CAD`/`USD`/`GBP`/`EUR`/`AED`). To compare or average across people we
 must normalize every amount to one display currency, which needs live-ish FX
