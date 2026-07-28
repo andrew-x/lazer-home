@@ -144,6 +144,16 @@ the inline **Notes** column (shown and editable to `staff.edit` holders — mana
     `UserSafeActionError` otherwise); revalidates `/allocations`, `/projects`, `/opportunities`.
     Distinct from `projects/assignRoleStaff.ts` (opportunity-scoped, staffId-only) because the
     planner allocates over any open role without an opportunity context.
+- **Inbound revalidation — this grid's rows are `project_roles`, so project writes refresh it.**
+  Every projects-domain mutation now goes through **`revalidateProject`**
+  (`src/actions/projects/revalidate.ts`), which hits `/projects`, `/projects/[id]`,
+  `/opportunities` **and `/allocations`**. So a role added, re-dated, re-staffed or deleted from
+  the **project detail page** (`/projects/[id]` — the delivery-side editor, from either its Roles
+  table or its Timeline Gantt,
+  [ADR 0044](../decisions/0044-project-page-as-delivery-side-role-editor.md)) appears here
+  immediately, including on **confirmed** roles the opportunity planner won't touch. If you add
+  a new project/role write, route its revalidation through that helper rather than a bare
+  `revalidatePath("/projects")` — otherwise this grid goes stale.
 - **Pure grid math:** `src/lib/allocations/allocations-grid.ts` — builds the
   column spine at the chosen granularity (`buildColumns` → `eachDay`/`eachWeek`/
   `eachMonth`), folds staff + roles + PTO into one row per person, and computes each
