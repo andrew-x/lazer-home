@@ -85,7 +85,7 @@ export const NAV_ITEMS: NavItem[] = [
       },
     ],
   },
-  { title: "Feedback", href: "/feedback", icon: IconMessageHeart },
+  { title: "Peer Feedback", href: "/feedback", icon: IconMessageHeart },
   { title: "Settings", href: "/settings", icon: IconSettings },
 ];
 

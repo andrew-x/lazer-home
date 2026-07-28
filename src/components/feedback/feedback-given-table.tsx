@@ -3,14 +3,7 @@
 import { useState } from "react";
 import type { FeedbackIGaveRow } from "@/actions/feedback/getFeedbackIGave";
 import { EmptyState } from "@/components/empty-state";
-import { FeedbackDetailFields } from "@/components/feedback/feedback-detail-fields";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { FeedbackDetailDialog } from "@/components/feedback/feedback-detail-dialog";
 import {
   Table,
   TableBody,
@@ -20,7 +13,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatTimestamp } from "@/lib/format/format";
-import { FEEDBACK_RATING_LABELS } from "@/lib/performance/feedback-rating";
 
 /**
  * The feedback the current user has authored. Each row opens the full item in a
@@ -73,22 +65,11 @@ export function FeedbackGivenTable({ rows }: { rows: FeedbackIGaveRow[] }) {
         </TableBody>
       </Table>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
-          {selected ? (
-            <>
-              <DialogHeader>
-                <DialogTitle>Feedback for {selected.recipientName}</DialogTitle>
-                <DialogDescription>
-                  {FEEDBACK_RATING_LABELS[selected.rating]} ·{" "}
-                  {formatTimestamp(selected.createdAt)}
-                </DialogDescription>
-              </DialogHeader>
-              <FeedbackDetailFields detail={selected} />
-            </>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+      <FeedbackDetailDialog
+        item={selected}
+        open={open}
+        onOpenChange={setOpen}
+      />
     </>
   );
 }

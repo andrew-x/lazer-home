@@ -89,9 +89,17 @@ One capability gates a **read** rather than a write:
   leave feedback about any other active staff member (enforced by the
   `authorizeFeedbackCreate` hook, not a capability). And it is not needed to read
   feedback *about yourself* — recipients always see the limited recipient view
-  (message + giver name only), and givers always see the feedback they wrote. See
-  the [performance domain](performance.md) and
-  [ADR 0023](../decisions/0023-feedback-privacy-tiers.md).
+  (message + giver name only), and givers always see the feedback they wrote. It
+  backs **two** surfaces: `getFeedbackDetail` (`/feedback/[id]`, any single item) and
+  `getFeedbackAboutReports` (the **"Your reports"** tab, which lists items about the
+  caller's **direct reports**). The second is **scoping, not a second gate** — the
+  `staff.managerId` reporting line only narrows a set the caller could already open in
+  full, and **no permission check anywhere reads the reporting graph**; "manager" in
+  this matrix is always the *role*. Don't turn the reporting line into an
+  authorization input without a new ADR. See the
+  [performance domain](performance.md),
+  [ADR 0023](../decisions/0023-feedback-privacy-tiers.md) and
+  [ADR 0047](../decisions/0047-feedback-reports-scoping-not-granting.md).
 
 A resource with **two actions** gates staff overall ratings (levels L0–L4), a
 sensitive read/write with **no ownership dimension** — unlike compensation or
