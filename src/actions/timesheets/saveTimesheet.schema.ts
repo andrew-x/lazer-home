@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { dateString } from "@/lib/schemas/date-schema";
 import { id } from "@/lib/schemas/id-schema";
+import type { EmploymentType } from "@/lib/staff/staff-enums";
 import { TIMESHEET_CATEGORY } from "@/lib/timesheets/timesheet-category";
 import { getWeekDays, getWeekStart } from "@/lib/timesheets/timesheet-week";
 
@@ -12,13 +13,31 @@ import { getWeekDays, getWeekStart } from "@/lib/timesheets/timesheet-week";
  */
 
 /**
- * The standard full day / full week. NOT hard caps: a day over `DAILY_HOUR_CAP`
- * or a week over `WEEKLY_HOUR_CAP` still saves and submits — the grid just warns
- * that it will be flagged for manager / delivery-manager review. These drive the
- * warning thresholds and the autofill ceiling, not validation.
+ * The standard full day / full week. Going OVER either is a soft warning: a day
+ * over `DAILY_HOUR_CAP` or a week over `WEEKLY_HOUR_CAP` still saves and submits
+ * — the grid just warns that it will be flagged for manager / delivery-manager
+ * review. They drive the warning thresholds and the autofill ceiling, never
+ * `saveTimesheet` validation.
+ *
+ * `WEEKLY_HOUR_CAP` doubles as a FLOOR on submission: a full-time person must
+ * account for all 40 hours (project, non-billable, or PTO) before they can submit
+ * the week — enforced in `submitTimesheet`, see {@link requiresFullWeek}. Saving
+ * a short draft is always allowed.
  */
 export const DAILY_HOUR_CAP = 8;
 export const WEEKLY_HOUR_CAP = 40;
+
+/**
+ * Whether this person must account for a full `WEEKLY_HOUR_CAP` week before
+ * submitting. Full-time staff do; hourly staff legitimately work short weeks, so
+ * they see the "unaccounted hours" nudge without the block. An unknown
+ * employment type (no `staff_employment` row yet) is not gated.
+ */
+export function requiresFullWeek(
+  employmentType: EmploymentType | null,
+): boolean {
+  return employmentType === "FULL_TIME";
+}
 
 /** Hard ceiling on a single entry's hours — a physical day. */
 export const MAX_ENTRY_HOURS = 24;
