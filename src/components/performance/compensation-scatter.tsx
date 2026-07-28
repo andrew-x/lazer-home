@@ -6,16 +6,27 @@ import { useMemo, useState } from "react";
 // aspect ratio. Marks/lines use non-scaling strokes so they stay crisp.
 const VB_WIDTH = 720;
 const VB_HEIGHT = 280;
-// Left margin is generous so long currency labels (e.g. "CA$1,250,000") don't
-// overflow the frame — they're right-anchored just inside PLOT_LEFT.
-const MARGIN = { top: 16, right: 16, bottom: 20, left: 100 };
-const PLOT_LEFT = MARGIN.left;
+const MARGIN = { top: 16, right: 16, bottom: 20 };
 const PLOT_RIGHT = VB_WIDTH - MARGIN.right;
 const PLOT_TOP = MARGIN.top;
 const PLOT_BOTTOM = VB_HEIGHT - MARGIN.bottom;
-const PLOT_WIDTH = PLOT_RIGHT - PLOT_LEFT;
 const PLOT_HEIGHT = PLOT_BOTTOM - PLOT_TOP;
 const TICK_COUNT = 5;
+
+// The left gutter holds the right-anchored y-axis labels, so it's sized from the
+// widest one rather than fixed: "CA$1,250,000" needs ~90, "CA$85" only ~42, and a
+// gutter cut for the longest would waste half the width on an hourly-rate axis.
+// SVG text can't be measured without the DOM, so estimate from the character count
+// — 6.8 per char at this font size, which the tooltip's sizing shares. That's above
+// the digit advance on purpose: every label carries a wider uppercase currency
+// prefix ("CA$", "US$"), and under-estimating clips the label off the viewBox.
+// Then clamp: MIN keeps a short label (hourly rate) clear of the left edge instead
+// of flush against it, MAX caps the bite a pathological label takes out of the plot.
+const LABEL_FONT_SIZE = 11;
+const LABEL_CHAR_WIDTH = 6.8;
+const AXIS_LABEL_GAP = 8;
+const MIN_PLOT_LEFT = 60;
+const MAX_PLOT_LEFT = 108;
 
 type Point = {
   id: number;
@@ -42,7 +53,7 @@ export function CompensationScatter({
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
 
-  const { points, ticks, yOf } = useMemo(() => {
+  const { points, ticks, yOf, plotLeft } = useMemo(() => {
     const sorted = [...values].sort((a, b) => a - b);
     const min = sorted[0] ?? 0;
     const max = sorted[sorted.length - 1] ?? 0;
@@ -59,14 +70,29 @@ export function CompensationScatter({
       (_, i) => domainMin + (i / (TICK_COUNT - 1)) * (domainMax - domainMin),
     );
 
+    // Size the gutter to the labels actually rendered — the ticks, not the raw
+    // values, since the padded domain can round to a wider string.
+    const widestLabel = ticks.reduce(
+      (widest, tick) => Math.max(widest, formatValue(tick).length),
+      0,
+    );
+    const plotLeft = Math.min(
+      MAX_PLOT_LEFT,
+      Math.max(
+        MIN_PLOT_LEFT,
+        Math.ceil(widestLabel * LABEL_CHAR_WIDTH) + AXIS_LABEL_GAP,
+      ),
+    );
+    const plotWidth = PLOT_RIGHT - plotLeft;
+
     const yOf = (value: number) =>
       PLOT_BOTTOM -
       ((value - domainMin) / (domainMax - domainMin)) * PLOT_HEIGHT;
 
     const xOf = (index: number) =>
       sorted.length <= 1
-        ? PLOT_LEFT + PLOT_WIDTH / 2
-        : PLOT_LEFT + (index / (sorted.length - 1)) * PLOT_WIDTH;
+        ? plotLeft + plotWidth / 2
+        : plotLeft + (index / (sorted.length - 1)) * plotWidth;
 
     const points: Point[] = sorted.map((value, i) => ({
       id: i,
@@ -75,8 +101,8 @@ export function CompensationScatter({
       value,
     }));
 
-    return { points, ticks, yOf };
-  }, [values]);
+    return { points, ticks, yOf, plotLeft };
+  }, [values, formatValue]);
 
   const active = hovered != null ? points[hovered] : null;
 
@@ -95,7 +121,7 @@ export function CompensationScatter({
           return (
             <g key={tick}>
               <line
-                x1={PLOT_LEFT}
+                x1={plotLeft}
                 x2={PLOT_RIGHT}
                 y1={y}
                 y2={y}
@@ -104,12 +130,12 @@ export function CompensationScatter({
                 vectorEffect="non-scaling-stroke"
               />
               <text
-                x={PLOT_LEFT - 8}
+                x={plotLeft - AXIS_LABEL_GAP}
                 y={y}
                 textAnchor="end"
                 dominantBaseline="middle"
                 className="fill-muted-foreground"
-                fontSize={11}
+                fontSize={LABEL_FONT_SIZE}
               >
                 {formatValue(tick)}
               </text>
@@ -119,7 +145,7 @@ export function CompensationScatter({
 
         {/* Baseline (x-axis ticks are intentionally hidden) */}
         <line
-          x1={PLOT_LEFT}
+          x1={plotLeft}
           x2={PLOT_RIGHT}
           y1={PLOT_BOTTOM}
           y2={PLOT_BOTTOM}
@@ -153,6 +179,7 @@ export function CompensationScatter({
           <ScatterTooltip
             x={active.cx}
             y={active.cy}
+            plotLeft={plotLeft}
             label={formatValue(active.value)}
           />
         )}
@@ -168,15 +195,18 @@ export function CompensationScatter({
 function ScatterTooltip({
   x,
   y,
+  plotLeft,
   label,
 }: {
   x: number;
   y: number;
+  /** The plot's left edge — dynamic, so the clamp tracks the axis gutter. */
+  plotLeft: number;
   label: string;
 }) {
-  const width = label.length * 6.4 + 16;
+  const width = label.length * LABEL_CHAR_WIDTH + 16;
   const height = 20;
-  const left = Math.min(Math.max(x - width / 2, PLOT_LEFT), PLOT_RIGHT - width);
+  const left = Math.min(Math.max(x - width / 2, plotLeft), PLOT_RIGHT - width);
   // Prefer above the dot; drop below if it would clip the top.
   const above = y - height - 8 >= PLOT_TOP;
   const top = above ? y - height - 8 : y + 8;
@@ -199,7 +229,7 @@ function ScatterTooltip({
         textAnchor="middle"
         dominantBaseline="middle"
         className="fill-popover-foreground"
-        fontSize={11}
+        fontSize={LABEL_FONT_SIZE}
         fontWeight={500}
       >
         {label}

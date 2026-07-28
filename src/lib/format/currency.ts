@@ -40,6 +40,27 @@ export function formatAmount(
 }
 
 /**
+ * Money formatters for aggregate figures in a chosen display currency: whole
+ * dollars (no cents), and an em dash for the `null` an empty group yields — so a
+ * KPI card or table cell reads "—" rather than "NaN". Shared by the dashboards
+ * that normalize every amount to one display currency before aggregating.
+ */
+export function aggregateMoneyFormatters(currency: Currency) {
+  const money = (value: number | null) =>
+    value == null
+      ? "—"
+      : formatMoney(value, currency, {
+          maximumFractionDigits: 0,
+          minimumFractionDigits: 0,
+        });
+
+  const range = (min: number | null, max: number | null) =>
+    min == null || max == null ? "—" : `${money(min)} – ${money(max)}`;
+
+  return { money, range };
+}
+
+/**
  * Normalize a raw CSV cell to a known currency code; unrecognized/blank → null.
  * Never throws — compensation is optional/supplementary, so a bad cell just yields
  * no currency rather than failing the whole row.
