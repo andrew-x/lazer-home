@@ -80,6 +80,7 @@ export function CompaniesListFilters({ params }: { params: SearchParams }) {
       </div>
 
       <LocationFilterControl
+        fullWidth
         city={currentCity}
         nearby={currentNearby}
         onCityChange={(label) =>
