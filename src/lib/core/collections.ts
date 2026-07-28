@@ -17,3 +17,26 @@ export function firstPerKey<T, K>(
   }
   return byKey;
 }
+
+/**
+ * Fold pre-sorted rows into a Map of ALL rows per key, preserving input order.
+ *
+ * The sibling of {@link firstPerKey}, for the cases that need more than the
+ * winner — chiefly "the latest row AND the one before it", which is how a
+ * person's most recent compensation change is derived from two consecutive
+ * `staff_employment` rows. Bound the input (filter by the ids you care about)
+ * before calling: unlike `firstPerKey` this retains every row.
+ */
+export function groupPerKey<T, K>(
+  rows: readonly T[],
+  getKey: (row: T) => K,
+): Map<K, T[]> {
+  const byKey = new Map<K, T[]>();
+  for (const row of rows) {
+    const key = getKey(row);
+    const existing = byKey.get(key);
+    if (existing) existing.push(row);
+    else byKey.set(key, [row]);
+  }
+  return byKey;
+}

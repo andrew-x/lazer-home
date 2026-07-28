@@ -14,6 +14,7 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import type { PermissionCheck } from "@/lib/auth/permissions";
+import { COMPENSATION_PLAN_ACCESS } from "@/lib/performance/compensation-plan";
 
 /**
  * A sub-entry under a {@link NavItem}. Has no icon of its own — it renders
@@ -65,6 +66,13 @@ export const NAV_ITEMS: NavItem[] = [
         title: "Edit levels",
         href: "/performance/levels/edit",
         permission: { ratings: ["edit"] },
+      },
+      // Named, per-person compensation proposals — the strictest surface here,
+      // needing both the comp and the ratings-edit capabilities.
+      {
+        title: "Compensation plans",
+        href: "/performance/compensation-plans",
+        permission: COMPENSATION_PLAN_ACCESS,
       },
     ],
   },

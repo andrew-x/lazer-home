@@ -1,21 +1,25 @@
 import type { InferSelectModel } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   date,
   index,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { COMPENSATION_PLAN_STATUSES } from "@/lib/performance/compensation-plan";
 import { FEEDBACK_RATINGS } from "@/lib/performance/feedback-rating";
 import type { Subratings } from "@/lib/performance/rating-rubric";
 import { MAX_RATING_LEVEL, MIN_RATING_LEVEL } from "@/lib/staff/staff-rating";
 import { user } from "./auth-schema";
-import { staff } from "./staff-schema";
+import { currencyEnum, employmentTypeEnum, staff } from "./staff-schema";
 
 // ---------------------------------------------------------------------------
 // Performance management domain
@@ -131,6 +135,117 @@ export const staffRating = pgTable(
   ],
 );
 
+// ---------------------------------------------------------------------------
+// Compensation change plans
+//
+// A plan is a named, effective-dated PROPOSAL covering a cohort of staff: for
+// each person a proposed rating (level + subratings), a proposed compensation
+// figure, the workflow state of the review conversation, and notes.
+//
+// Committing a plan writes the ratings as new dated `staffRating` rows — and
+// nothing else. Compensation stays a proposal: Rippling remains the sole writer
+// of `staffEmployment` (ADR 0020), so a committed plan keeps comparing its
+// proposal against live comp and flags anything not yet applied upstream.
+//
+// Unlike the aggregate `/performance` reads (which are deliberately identity-
+// free), this surface is inherently per-person. It carries the stricter combined
+// gate — `staff.viewCompensation` AND `ratings.edit` — on every read and write.
+// See docs/domains/performance.md.
+// ---------------------------------------------------------------------------
+
+// Values live in `@/lib/performance/compensation-plan` (a pure module) so this
+// pgEnum, the zod schemas, and the status labels share one source of truth.
+export const compensationPlanStatusEnum = pgEnum("compensation_plan_status", [
+  ...COMPENSATION_PLAN_STATUSES,
+]);
+
+export const compensationPlan = pgTable("compensation_plan", {
+  id: text().primaryKey(),
+  name: text().notNull(),
+  status: compensationPlanStatusEnum().notNull().default("DRAFT"),
+
+  // The date committed ratings are dated with. Editable while the plan is a
+  // draft, frozen once committed.
+  effectiveDate: date().notNull(),
+
+  // Audit. `set null` on both: a plan outlives the account that made it.
+  createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
+  committedByUserId: text().references(() => user.id, { onDelete: "set null" }),
+  // Null while draft. Set in the commit transaction, and the idempotency guard
+  // that makes a second commit a no-op error rather than a duplicate write.
+  committedAt: timestamp(),
+
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp()
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+export const compensationPlanItem = pgTable(
+  "compensation_plan_item",
+  {
+    id: text().primaryKey(),
+    planId: text()
+      .notNull()
+      .references(() => compensationPlan.id, { onDelete: "cascade" }),
+    // Cascade mirrors `staffRating`: an item is meaningless without the person.
+    staffId: text()
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+
+    // The proposed rating, mirroring `staffRating`'s shape exactly — commit
+    // copies these straight across. Null level = proposing "unrated".
+    level: integer(),
+    subratings: jsonb().$type<Subratings>(),
+
+    // The proposed compensation: ONE figure, compared against `base` for
+    // FULL_TIME staff and `hourlyRate` for HOURLY (see `currentCompAmount`).
+    // Null until entered. The currency may differ from the person's current one
+    // (a CAD → USD move), which is why it is stored rather than assumed.
+    plannedAmount: numeric({ precision: 12, scale: 2, mode: "number" }),
+    plannedCurrency: currencyEnum(),
+
+    // Workflow tracking for the review conversation. Deliberately independent of
+    // content — a rating can exist before the meeting happens, and vice versa.
+    ratingDone: boolean().notNull().default(false),
+    meetingDone: boolean().notNull().default(false),
+    isComplete: boolean().notNull().default(false),
+
+    evaluationNotes: text(),
+    compensationNotes: text(),
+
+    // Frozen in the commit transaction: what the person's compensation actually
+    // was at the moment the plan was committed. Null while draft (the editor
+    // reads live comp instead). `snapshotEmploymentType` records WHICH figure
+    // `plannedAmount` was compared against, so an annual base can never later be
+    // misread as an hourly rate if the person switches.
+    snapshotAmount: numeric({ precision: 12, scale: 2, mode: "number" }),
+    snapshotCurrency: currencyEnum(),
+    snapshotEmploymentType: employmentTypeEnum(),
+
+    createdAt: timestamp().defaultNow().notNull(),
+    updatedAt: timestamp()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    index("compensation_plan_item_plan_idx").on(t.planId),
+    // One item per person per plan — makes "add staff" idempotent.
+    uniqueIndex("compensation_plan_item_plan_staff_uq").on(t.planId, t.staffId),
+    check(
+      "compensation_plan_item_level_range",
+      // Same bounds as `staff_rating` — a proposed level must be a valid level.
+      sql`${t.level} is null or (${t.level} >= ${sql.raw(String(MIN_RATING_LEVEL))} and ${t.level} <= ${sql.raw(String(MAX_RATING_LEVEL))})`,
+    ),
+  ],
+);
+
 // --- Row types -------------------------------------------------------------
 
 export type Feedback = InferSelectModel<typeof feedback>;
+export type CompensationPlan = InferSelectModel<typeof compensationPlan>;
+export type CompensationPlanItem = InferSelectModel<
+  typeof compensationPlanItem
+>;
