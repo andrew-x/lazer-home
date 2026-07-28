@@ -1,6 +1,6 @@
 import "server-only";
 
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { userHasPermission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db/db";
@@ -50,14 +50,21 @@ export type ProjectPtoView = {
  * pending state) is sensitive and gated on `pto.review`: without it, `type` is
  * null and `isPending` false. Masking happens here in the read, never in the
  * client. Reads go through the actions layer.
+ *
+ * Reviewers (`pto.review`) additionally see leave that is still **pending**, so
+ * they can plan around requests before approval. Everyone else gets approved
+ * leave only — matching the allocations grid, and deliberate: a masked pending
+ * span would otherwise be indistinguishable from an approved one, presenting an
+ * unapproved (possibly to-be-rejected) request as settled.
  */
 export async function getProjectPto(
   projectId: string,
 ): Promise<ProjectPtoView> {
   const user = await getCurrentUser();
-  const canSeeType = user
-    ? userHasPermission(user, { pto: ["review"] })
-    : false;
+  // Fail closed: no session ⇒ no leave data at all. In practice the `(app)`
+  // layout redirects first, but the read scopes itself rather than relying on it.
+  if (!user) return { upcoming: [], past: [], canSeeType: false };
+  const canSeeType = userHasPermission(user, { pto: ["review"] });
 
   // The project's people: assignees on its roles ∪ its delivery managers.
   const [roleStaffRows, dmRows] = await Promise.all([
@@ -94,7 +101,15 @@ export async function getProjectPto(
     })
     .from(staffPto)
     .innerJoin(staff, eq(staffPto.staffId, staff.id))
-    .where(inArray(staffPto.staffId, staffIds));
+    .where(
+      canSeeType
+        ? inArray(staffPto.staffId, staffIds)
+        : // Approved leave only for non-reviewers — see the note above.
+          and(
+            inArray(staffPto.staffId, staffIds),
+            eq(staffPto.isPending, false),
+          ),
+    );
 
   const today = formatIsoDate(new Date());
   const upcoming: ProjectPtoSpan[] = [];
@@ -108,7 +123,8 @@ export async function getProjectPto(
       startDate: row.startDate,
       endDate: row.endDate,
       workingDays: countWorkingDays(row.startDate, row.endDate),
-      // Mask the sensitive fields unless the viewer may review PTO.
+      // Mask the sensitive fields unless the viewer may review PTO. `false` is
+      // now truthful for non-reviewers — the query filtered pending rows out.
       isPending: canSeeType ? row.isPending : false,
       type: canSeeType ? row.type : null,
     };
