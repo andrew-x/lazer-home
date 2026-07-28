@@ -1,11 +1,11 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { secureActionClient } from "@/lib/core/action";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import { projectDeliveryManagers, projects } from "@/lib/db/schema";
+import { revalidateProject } from "./revalidate";
 import { updateProjectSchema } from "./updateProject.schema";
 
 /**
@@ -47,8 +47,6 @@ export const updateProject = secureActionClient
       }
     });
 
-    revalidatePath("/projects");
-    // A project's name/delivery managers show on the opportunity planner too.
-    revalidatePath("/opportunities");
+    revalidateProject(projectId);
     return { id: projectId };
   });

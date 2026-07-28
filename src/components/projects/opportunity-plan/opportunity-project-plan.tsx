@@ -265,12 +265,10 @@ function PlanEditor({
   const weekColumns = useMemo(() => buildWeekColumns(plan.roles), [plan.roles]);
   const rows = useMemo(
     () =>
-      buildPlannerRows(
-        plan.roles,
-        plan.externalAllocations,
-        weekColumns,
+      buildPlannerRows(plan.roles, plan.externalAllocations, weekColumns, {
+        scope: "opportunity",
         opportunityId,
-      ),
+      }),
     [plan.roles, plan.externalAllocations, weekColumns, opportunityId],
   );
 

@@ -32,15 +32,20 @@ import {
 } from "@/lib/projects/project-role-status";
 import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
 
-/** The block fill for a role's own load, by its edit state / status. */
+/**
+ * The block fill for a role's own load. Emphasis (the current deal's own lines)
+ * wins where it applies; otherwise the fill reads the role's status, which is what
+ * the project page's timeline relies on — there every row is editable, so keying
+ * this off `editable` would flatten confirmed and tentative into one colour.
+ */
 function ownBlockClass(row: PlannerRow): string {
-  if (row.editable) {
+  if (row.emphasized) {
     return "border-primary bg-primary/15 font-medium text-foreground";
   }
   if (row.status === ROLE_STATUS.confirmed) {
     return "border-primary/40 bg-primary/10 text-foreground";
   }
-  // Tentative, from another opportunity — read-only, greyed.
+  // Tentative — greyed (another opportunity's line, or simply not yet won).
   return "border-foreground/20 bg-foreground/10 text-muted-foreground";
 }
 
