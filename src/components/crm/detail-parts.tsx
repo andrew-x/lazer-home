@@ -84,13 +84,38 @@ export function DetailIdentity({
 
 /**
  * A group of sidebar content set off by a hairline divider — used for the scalar
- * meta fields and, separately, the owner section beneath them.
+ * meta fields and, separately, the inline-editable owner section beneath them.
+ *
+ * The section also owns the sidebar's **label styling** (small, uppercase, muted)
+ * via a descendant selector rather than each field applying it. Three different
+ * components emit labels in here — {@link MetaField}, `FormField` (through
+ * `InlineEditField`), and the bespoke `<Label>` in
+ * `inline-relationship-strength-field.tsx` — so styling per-field would mean
+ * threading a prop through all three and forwarding it through `InlineEditField`,
+ * and putting a `variant` on `FormField` would push a sidebar-only concern into
+ * the app's most-used form primitive. Targeting `[data-slot=label]` (not `label`)
+ * keeps the selector pinned to our own `Label`, so a checkbox/switch label inside
+ * some future edit control can't get swept up in it.
  */
 export function SidebarSection({ children }: { children: ReactNode }) {
-  return <div className="flex flex-col gap-4 border-t pt-5">{children}</div>;
+  return (
+    <div className="flex flex-col gap-5 border-t pt-5 [&_[data-slot=label]]:text-xs [&_[data-slot=label]]:font-medium [&_[data-slot=label]]:uppercase [&_[data-slot=label]]:tracking-wide [&_[data-slot=label]]:text-muted-foreground">
+      {children}
+    </div>
+  );
 }
 
-/** A stacked label/value pair in the detail sidebar; em dash when empty. */
+/**
+ * A stacked label/value pair in the detail sidebar; em dash when empty. Geometry
+ * matches `FormField`/`InlineEditField` (`gap-1.5`, a `min-h-8 py-1` value box) so
+ * read-only rows and inline-editable rows sitting in the same sidebar share one
+ * vertical rhythm.
+ *
+ * Deliberately renders a `Label` even though it labels no control: that's what
+ * carries the `data-slot="label"` {@link SidebarSection} styles. Swapping it for a
+ * `<span>` would be more correct a11y-wise but would fork the sidebar back into
+ * two label-styling paths.
+ */
 export function MetaField({
   label,
   children,
@@ -99,36 +124,44 @@ export function MetaField({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       <Label>{label}</Label>
-      <div className="text-sm">{children ?? <EmptyCell />}</div>
+      <div className="min-h-8 py-1 text-sm">{children ?? <EmptyCell />}</div>
     </div>
   );
 }
 
 /**
  * A titled section in the detail main column: a heading with an optional count,
- * then its content (a table, an empty note, or grouped subsections).
+ * then its content (a table, an empty note, or grouped subsections). `action`
+ * fills an optional right-aligned slot on the heading row (e.g. an "Add role"
+ * button), mirroring the staff profile's `TabSection` so every section's action
+ * sits in its own header.
  */
 export function DetailSection({
   title,
   count,
+  action,
   children,
 }: {
   title: string;
   count?: number;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <h3 className="flex items-center gap-2 font-heading text-base font-semibold tracking-tight">
-        {title}
-        {count !== undefined ? (
-          <span className="text-sm font-normal text-muted-foreground">
-            {count}
-          </span>
-        ) : null}
-      </h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 font-heading text-base font-semibold tracking-tight">
+          {title}
+          {count !== undefined ? (
+            <span className="text-sm font-normal text-muted-foreground">
+              {count}
+            </span>
+          ) : null}
+        </h3>
+        {action}
+      </div>
       {children}
     </section>
   );

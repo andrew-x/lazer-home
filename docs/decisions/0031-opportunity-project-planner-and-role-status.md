@@ -1,6 +1,18 @@
 # 0031 — Opportunity project planner: role `status` (tentative → confirmed), auto-confirm on won, weekly Gantt view
 
-**Status:** accepted; amended by [ADR 0033](./0033-line-of-business-on-role-derived-project-status.md) · 2026-07-18
+**Status:** accepted; amended by [ADR 0033](./0033-line-of-business-on-role-derived-project-status.md) and [ADR 0045](./0045-project-page-as-delivery-side-role-editor.md) · 2026-07-18
+
+> **Amended, 2026-07-28 ([ADR 0045](./0045-project-page-as-delivery-side-role-editor.md)) — the
+> role lock is now surface-specific.** Everything below still describes the **opportunity
+> planner** correctly: there, and only there, may you edit a role that is `tentative` *and* tagged
+> with this opportunity. But the project detail page (`/projects/[id]`) is now a **second,
+> delivery-side role editor** with its own guard, `assertProjectRoleEditable`, which scopes by
+> `projectId` and **permits `confirmed` roles** — a live engagement's staffing has to be
+> adjustable. So read every "confirmed roles are locked / read-only / frozen" statement below as
+> **"locked in the opportunity planner"**, and treat the consequence *"A confirmed role can't be
+> edited from the planner … there is no project-side role-edit flow"* as superseded. The RBAC gate
+> (`projects.edit`) is unchanged on both paths, and `assertRoleEditable` itself is unchanged —
+> **keep it strict.**
 
 > **Amended, 2026-07-19 ([ADR 0033](./0033-line-of-business-on-role-derived-project-status.md)).**
 > The role `status` enum **expanded** from `tentative | confirmed` to
@@ -52,7 +64,9 @@ been **folded into the squashed baseline** `drizzle/0000_lethal_rictor.sql`.)
 
 - **Tentative** = a role being planned against an opportunity; editable in that opportunity's
   planner.
-- **Confirmed** = locked in, read-only. A role flips to confirmed when its opportunity is won.
+- **Confirmed** = locked in. A role flips to confirmed when its opportunity is won. (**Amended by
+  [ADR 0045](./0045-project-page-as-delivery-side-role-editor.md):** locked *to the planner* — the
+  project detail page can still edit it.)
 
 **2. Auto-confirm on Closed-Won.** `src/actions/crm/confirmRolesOnWon.ts` flips every
 `tentative` role tagged with an opportunity to `confirmed` — but **only on a genuine
@@ -99,10 +113,11 @@ edit-only drawer; the underlying `getOpportunityPlan` is a server-only read. No 
   into one person line. The source may be confirmed or from another opportunity (you're
   extending *someone's* allocation), but must live on this opportunity's project.
 - **A confirmed role can't be edited from the planner.** The planner scopes role edits to this
-  opportunity's own *tentative* roles, so once a deal is won its roles are effectively frozen —
-  there is no project-side role-edit flow. (Project-level fields *are* now editable post-create
-  via `updateProject`, but that never touches roles — see [projects.md](../domains/projects.md)
-  open questions.)
+  opportunity's own *tentative* roles. ~~so once a deal is won its roles are effectively frozen —
+  there is no project-side role-edit flow~~ — **superseded by
+  [ADR 0045](./0045-project-page-as-delivery-side-role-editor.md)**: the project detail page is now
+  the delivery-side editor and *can* change a confirmed role (project-scoped, `projects.edit`).
+  The planner half of this consequence stands.
 - **`project_roles.opportunityId` is `set null`.** Deleting the originating opportunity keeps
   the role (its `projectId` still holds it) but loses the provenance — the role then reads as
   greyed/un-owned in any planner.

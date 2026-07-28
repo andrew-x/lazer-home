@@ -53,7 +53,24 @@ open: any signed-in user can browse companies, contacts, opportunities, and proj
 - **`projects.edit`** — add/edit projects and their staffing (delivery managers and
   roles). Its type-ahead staff/company pickers have their own `projects.edit`-gated
   search actions (`src/actions/projects/searchStaff.ts` / `searchCompanies.ts`), so a
-  delivery manager can staff a project without gaining CRM write access.
+  delivery manager can staff a project without gaining CRM write access. **Note the surface this
+  capability now reaches: moving a project to a different company** (`updateProjectField`'s
+  `company` variant, plus that `projects.edit`-gated `searchCompanies` picker) is a
+  **`projects.edit`** capability, **not `crm.edit`** — a delivery manager can re-parent an
+  engagement onto another client without any CRM write permission. That is deliberate (it is a
+  delivery decision about a `projects` row, the same reasoning as `associateOpportunityProject`
+  writing an `opportunities` column under `projects.edit`), and it is constrained by a
+  *data-integrity* guard rather than a permission: the action refuses while a linked opportunity
+  belongs to a different company. It covers **both**
+  role editors — the opportunity planner's opportunity-scoped actions **and** the project
+  detail page's project-scoped `updateProjectField`,
+  `createProjectRoleOnProject`, `updateProjectRoleOnProject`, `deleteProjectRoleOnProject`
+  (**no matrix change** — the capability already existed). What differs between the two
+  surfaces is the *data-integrity* guard, not the permission: `assertRoleEditable`
+  (tentative + this opportunity) vs. `assertProjectRoleEditable` (belongs to this project,
+  any status). Neither is access control; see
+  [ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md) before
+  concluding the laxer one is a hole.
 
 A capability gates editing **other people's / locked** timesheets:
 
@@ -226,6 +243,14 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
   and the `type` field is **nulled** in the projection otherwise, so the reason never
   leaves the server. Minimal disclosure, not a loosening of the PTO gate — see
   [ADR 0038](../decisions/0038-allocations-planner-pto-disclosure.md).
+- **`src/actions/projects/getProjectPto.ts`** — the project detail page's Time off tab, a
+  **third `pto.review` enforcement site** with the same shape (dates + person open to all,
+  `type`/`isPending` nulled otherwise). **Tightened:** it previously returned **pending**
+  (unapproved) leave to everyone while forcing `isPending: false`, so an unapproved request
+  read as settled. Non-reviewers now get **approved leave only**
+  (`eq(staffPto.isPending, false)` in the query — matching the allocations grid); reviewers
+  still see pending. It also **fails closed with no session** rather than relying on the
+  `(app)` layout redirect. See [projects.md](./projects.md).
 
 ## Wiring
 

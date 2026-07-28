@@ -66,8 +66,15 @@ export type PlannerRow = {
   roleTypeLabel: string;
   hoursPerDay: number;
   status: ProjectRoleStatus;
-  /** True only for this opportunity's own tentative role — the rest are read-only. */
+  /** The viewer may edit this role — drives the row's Edit affordance. */
   editable: boolean;
+  /**
+   * Highlight this row as "this deal's own line". Only the opportunity planner sets
+   * it — there, a project's grid mixes several deals' roles and the current deal's
+   * need to stand out. On the project page every row belongs to the project, so
+   * nothing is emphasised and the block fill falls back to the role's status.
+   */
+  emphasized: boolean;
   staffId: string | null;
   staffName: string | null;
   startDate: string;
@@ -92,25 +99,47 @@ export function buildWeekColumns(roles: PlanRole[]): string[] {
   return eachWeek(min, max);
 }
 
-/** Whether a role is this opportunity's own, still-editable (tentative) line. */
-function isEditable(role: PlanRole, currentOpportunityId: string): boolean {
-  return (
-    role.status === "tentative" && role.opportunityId === currentOpportunityId
-  );
+/**
+ * Which of a grid's roles the viewer may edit — the two editors of these rows:
+ *
+ * - `opportunity` — the deal-side planner. Only this opportunity's own *tentative*
+ *   lines are editable; confirmed roles and other deals' roles are read-only, and
+ *   the editable ones are emphasised so they stand out among the rest.
+ * - `project` — the delivery-side project page. Every role on the project is
+ *   editable regardless of status or provenance (see `assertProjectRoleEditable`),
+ *   and nothing is emphasised because there is no "other deal" to contrast with.
+ */
+export type RoleEditability =
+  | { scope: "opportunity"; opportunityId: string }
+  | { scope: "project" };
+
+/** A role's edit affordance and whether it reads as the current deal's own line. */
+function editStateFor(
+  role: PlanRole,
+  editability: RoleEditability,
+): { editable: boolean; emphasized: boolean } {
+  if (editability.scope === "project") {
+    return { editable: true, emphasized: false };
+  }
+  const own =
+    role.status === "tentative" &&
+    role.opportunityId === editability.opportunityId;
+  return { editable: own, emphasized: own };
 }
 
 /**
  * One row per role (staffed or placeholder). Each week cell carries this role's
  * own load and — for a staffed role — the assignee's other-project commitments
- * greyed behind it. `currentOpportunityId` drives per-role editability. Rows are
- * ordered so a person's roles sit together: staffed roles first (by staff name),
- * then open positions; within a person, by role type, then start date.
+ * greyed behind it. `editability` drives per-role editability (see
+ * {@link RoleEditability}). Rows are ordered so a person's roles sit together:
+ * staffed roles first (by staff name), then open positions; within a person, by
+ * role type, then start date.
  */
 export function buildPlannerRows(
   roles: PlanRole[],
   externalAllocations: ExternalAllocation[],
   weekColumns: string[],
-  currentOpportunityId: string,
+  editability: RoleEditability,
 ): PlannerRow[] {
   const externalByStaff = new Map<string, ExternalAllocation[]>();
   for (const ext of externalAllocations) {
@@ -165,7 +194,7 @@ export function buildPlannerRows(
       roleTypeLabel: PROJECT_ROLE_TYPE_LABELS[role.roleType],
       hoursPerDay: role.hoursPerDay,
       status: role.status,
-      editable: isEditable(role, currentOpportunityId),
+      ...editStateFor(role, editability),
       staffId: role.staffId,
       staffName: role.staffName,
       startDate: role.startDate,

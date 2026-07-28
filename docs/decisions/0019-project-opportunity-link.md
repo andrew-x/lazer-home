@@ -30,6 +30,13 @@ opportunity's, and its picker (`searchProjects`) is company-scoped structurally.
 still creates same-company by construction (it sets the opportunity's `projectId` on a project
 it just created for a locked company).
 
+A **third** enforcement point arrived with [ADR 0045](./0045-project-page-as-delivery-side-role-editor.md)'s
+amendment, which made a project's **company editable**: nothing re-checks the invariant *after*
+association, so `updateProjectField`'s `company` case **refuses to re-parent a project while any
+opportunity linked to it belongs to a different company** (naming the offending deal). Anyone adding
+a future write that changes either side of this link must do the same — there is still **no
+DB-level constraint** (rejected below).
+
 Why invert: the planner ([ADR 0031](./0031-opportunity-project-planner-and-role-status.md))
 made a project a shared delivery vehicle several deals feed into, which the project-side FK
 couldn't express. Reads got simpler too: `hasProject` on the board and `project` in the

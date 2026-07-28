@@ -1,9 +1,18 @@
 # Domain: Projects
 
 **Status: growing.** Projects data, reads, create/edit/delete flows, the `/projects` list page,
-and now a **per-project detail page** (`/projects/[id]`, the first single-project route — see
-[Project detail page](#project-detail-page) below) all exist. This is the **hub linking CRM to
-delivery** and the first concrete cut of the proposed **Allocation** concept (`project_roles`).
+and a **per-project detail page** (`/projects/[id]`, the first single-project route) that is now
+the **delivery-side editor of an engagement** (see [Project detail page](#project-detail-page)
+below) all exist. This is the **hub linking CRM to delivery** and the first concrete cut of the
+proposed **Allocation** concept (`project_roles`).
+
+**Two editors, one set of rows.** A project's roles are edited from **two** surfaces with
+**deliberately different invariants** ([ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md)):
+the opportunity planner (**deal-side** — only *this* opportunity's still-`tentative` roles,
+guarded by `assertRoleEditable`) and the project detail page (**delivery-side** — any role on
+*this* project, including `confirmed` ones, guarded by `assertProjectRoleEditable`). Both carry
+the same `projects.edit` RBAC gate. The old blanket claim "confirmed roles are locked" is now
+true **only of the opportunity planner**.
 
 The CRM → delivery link lives on **`opportunities.projectId`** — a nullable FK, and **many
 opportunities → one project** (a project can be built up from an original deal plus later
@@ -21,7 +30,9 @@ inherits that opportunity's LoB by default (still editable in the planner).
 Roles carry a **planning `status`** — now **four states**
 (`tentative`/`confirmed`/`paused`/`cancelled`; the last two are enum-only, no UI sets them
 yet) — and an **`opportunityId` provenance FK**, edited through the opportunity drawer's
-**weekly Gantt-like planner** ([ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md)).
+**weekly Gantt-like planner** ([ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md))
+**or the project detail page — from either its Roles table or its Timeline Gantt, both opening the
+same dialog** ([ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md)).
 Roles can be **placeholders/open positions** (null `staffId`) carrying a `roleType`.
 Standalone projects (no opportunity, staffed roles) still work.
 
@@ -29,8 +40,12 @@ Standalone projects (no opportunity, staffed roles) still work.
 form** (`createProjectFromOpportunity` — inherits the opportunity's name + company, creates no
 roles), or an opportunity can be **associated to an existing** project. The standalone
 `AddProjectDialog` on `/projects` collects only **name + company**; roles and delivery
-managers are added afterward in the planner. `updateProject` edits only **name + delivery
-managers** (there is no status/LoB to edit — those derive). A project can also be **removed**
+managers are added afterward in the planner **or on the project detail page**. `updateProject`
+(the planner's whole-record Edit dialog) edits **name + delivery managers**; the field-scoped
+`updateProjectField` (the detail page's inline pencils) adds **company** to that — a project **can**
+be re-parented to another client, guarded so the move can't strand a linked opportunity on someone
+else's client (see the `updateProjectField` bullet under [What's built](#whats-built)). There is no
+status/LoB to edit, those derive. A project can also be **removed**
 from an opportunity or **deleted** with the opportunity (see the detach flow below).
 
 ## Purpose
@@ -63,7 +78,11 @@ delivery, allocations, timesheets, and billing.
     [Delete / detach](#delete--detach) below). The **same-company invariant is server-enforced**
     at the link entry points (`associateOpportunityProject` checks project.companyId ==
     opportunity.companyId; `createProject`/`createProjectFromOpportunity` are same-company by
-    construction; the `searchProjects` picker is company-scoped). See
+    construction; the `searchProjects` picker is company-scoped) **and, since the project's company
+    became editable, at the one write that could break it after the fact** —
+    `updateProjectField`'s `company` case refuses to re-parent a project while a linked opportunity
+    belongs to a different company. Nothing else re-checks the invariant post-association, so that
+    guard is load-bearing. See
     [ADR 0019](../decisions/0019-project-opportunity-link.md) and
     [ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md). Schema in
     `src/lib/db/projects-schema.ts` (barrelled by `src/lib/db/schema.ts`); it and
@@ -93,17 +112,25 @@ delivery, allocations, timesheets, and billing.
     (nullable text, max 200; **renamed from `name`** by `drizzle/0002_gifted_kylun.sql`).
   - **`status`** (NOT NULL, `projectRoleStatusEnum`, **DB default `tentative`**) — the
     **planning state**, now **four values**: `tentative` while planned against an opportunity
-    (editable in that opportunity's planner), `confirmed` once the opportunity is won (locked,
-    read-only), plus **`paused`/`cancelled`** for a role on hold or dropped. The last two are
+    (editable in that opportunity's planner), `confirmed` once the opportunity is won (**locked
+    in the opportunity planner, but still editable from the project detail page** —
+    [ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md)), plus
+    **`paused`/`cancelled`** for a role on hold or dropped. The last two are
     **enum-only for now** — no user-facing control sets them yet (the seed exercises them; the
     derivation + badges handle them). Its tuple, labels, and **badge variants** live in the
     pure `src/lib/projects/project-role-status.ts` — shared by the role badge *and* the derived
     `ProjectStatusBadge`.
   - **`opportunityId`** → opportunities, **`set null`**, **NULLABLE** — the **provenance**:
-    which deal created this role. Used to scope who may edit it (only this opportunity's own
-    tentative roles) and to grey out roles from other opportunities in a planner. Null for a
-    role added to a standalone project; `set null` on delete keeps the role (its `projectId`
-    still holds it). `status` + `opportunityId` are **server-controlled, never user input**.
+    which deal created this role. Used to scope who may edit it **from a planner** (only this
+    opportunity's own tentative roles) and to grey out roles from other opportunities there.
+    Null for a role added to a standalone project **and for a role created from the project
+    detail page** (that role belongs to the engagement, not to a deal); `set null` on delete
+    keeps the role (its `projectId` still holds it). `status` + `opportunityId` are
+    **server-controlled, never user input** — the project page's editor never rewrites either,
+    so a role from a won deal keeps its provenance and its `confirmed` status even after
+    delivery re-dates it. Conversely, editing a role that *does* carry an `opportunityId` from
+    the project page **also changes that opportunity's plan** (an accepted consequence — the
+    delete confirmation says so).
   - `startDate`/`endDate` (`date`, string mode, `"YYYY-MM-DD"`), `hoursPerDay`
     (`numeric(4,2)`, number mode, default `8`, allows half-days) — **all required on
     every role**, staffed or placeholder.
@@ -225,17 +252,29 @@ delivery, allocations, timesheets, and billing.
     `externalAllocations` (the other-project commitments of everyone staffed here — same
     other-project / `tentative`|`confirmed` filter as the opportunity read). **Reuses the
     `PlanRole`/`PlanProject`/`ExternalAllocation` types from `getOpportunityPlan.ts`.** Unlike that
-    read it has **no `editable`/`currentOpportunityId` notion** — the detail page is **read-only**.
+    read it has **no `editable`/`opportunityId` notion**: per-role editability on the
+    project page isn't a property of the *read* — every role on the project is editable by a
+    `projects.edit` holder (the page's `canEdit` flag drives the affordances; the actions carry
+    the gate), which the client expresses by passing `{ scope: "project" }` to `buildPlannerRows`.
     Returns **`null` when the project id is unknown**, so the page `notFound()`s.
   - `getProjectPto.ts` — **server-only** read backing the detail page's **Time off** tab.
     Aggregates PTO for **everyone connected to the project** — its staffed role assignees (`project_roles.staffId`)
     ∪ its delivery managers — into `{ upcoming, past, canSeeType }` (`endDate >= today` ⇒ upcoming
     soonest-first, else past most-recent-first; working-day counts via the shared
-    `countWorkingDays`). **Permission nuance:** the tab is open to **anyone who can view the
-    project** — every viewer sees the person, dates, and working-day count — but the **leave `type`
-    and `isPending` state are gated on `pto.review`** and **masked in the read** (type → null,
-    isPending → false) for non-reviewers. The `canSeeType` flag drives whether the client renders
-    the Type column. Masking happens **in the read, never in the client**.
+    `countWorkingDays`). **Permission nuance (tightened — was a leak):** the tab is open to
+    **anyone who can view the project** — every viewer sees the person, dates, and working-day
+    count — but the **leave `type` and `isPending` state are gated on `pto.review`** and
+    **masked in the read** (type → null, isPending → false) for non-reviewers. The `canSeeType`
+    flag drives whether the client renders the Type column. Masking happens **in the read, never
+    in the client**.
+    - **Non-reviewers now get approved leave only.** The query adds
+      `eq(staffPto.isPending, false)` for viewers without `pto.review`. Previously *pending*
+      (unapproved) leave was returned to everyone with `isPending` forced to `false`, so an
+      unapproved — possibly to-be-rejected — request read as settled time off. Reviewers still
+      see pending spans (they plan around requests before approval). This matches the
+      allocations grid, which has always shown approved PTO only.
+    - **The read fails closed with no session** (`getCurrentUser()` null ⇒ empty spans,
+      `canSeeType: false`) rather than leaning on the `(app)` layout's redirect.
   - `createProjectFromOpportunity.ts` (+ `.schema.ts`) — **the one-click create from an
     opportunity** (no form), gated `projects.edit`. Inherits the opportunity's `name` +
     `companyId`, creates **no roles**, and sets `opportunities.projectId` under the atomic
@@ -251,11 +290,64 @@ delivery, allocations, timesheets, and billing.
     placeholder. **The action still accepts `roles`/`deliveryManagerIds`, both defaulting to
     empty** — the standalone form sends only name + company, so a fresh project starts
     role-less. Revalidates `/projects` + `/opportunities`.
-  - `updateProject.ts` (+ `.schema.ts`) — gated `projects.edit`. Edits **only `name` +
-    delivery managers** (there is no stored status/LoB to edit — those derive). One
-    `db.transaction`: updates the `projects` row, then **reconciles delivery managers with
-    set-semantics** (delete all rows, re-insert the deduped selection). **Roles are not touched
-    here.** Revalidates `/projects` + `/opportunities`.
+  - `updateProject.ts` (+ `.schema.ts`) — the **whole-record** edit behind the planner's
+    Edit-project dialog, gated `projects.edit`. Edits **only `name` + delivery managers** (there
+    is no stored status/LoB to edit — those derive). One `db.transaction`: updates the `projects`
+    row, then **reconciles delivery managers with set-semantics** (delete all rows, re-insert the
+    deduped selection). **Roles are not touched here.** Now revalidates via the shared
+    **`revalidateProject`** — it previously hit only `/projects` + `/opportunities`, missing the
+    detail route and `/allocations` entirely. Its schema exports the shared **`projectName`**
+    rule, reused by `updateProjectField`'s `name` variant so the dialog and the inline field
+    can't drift.
+  - `updateProjectField.ts` (+ `.schema.ts`) — the **field-scoped** edit behind the detail page's
+    inline pencils, gated `projects.edit`. A **discriminated union on `field`** — **`name` |
+    `company` | `deliveryManagers`** — mirroring `updateCompanyField`: each variant writes **only its
+    own slice**, so a name save can't clobber a concurrent delivery-manager edit and doesn't rewrite
+    the junction. `name` is a `.returning()`-guarded update (`assertRowExists`);
+    `deliveryManagers` re-runs the same set-semantics reconcile inside a transaction that first
+    proves the project exists. **Status and lines of business are deliberately not fields** — both
+    derive from roles. Schema is **pure/client-importable** so the inline components share it.
+    - **The `company` variant re-parents a project — with a guard worth knowing about.**
+      `associateOpportunityProject` enforces that an opportunity and its project share a company,
+      and **nothing re-checks that after association**. So the `company` case runs in a transaction
+      that proves the target company exists and then **refuses with a `UserSafeActionError` naming
+      the offending opportunity** if any opportunity linked to this project belongs to a different
+      company ("unlink or move that opportunity before changing the project's company"). Moving a
+      project therefore can't strand a deal on someone else's client — this is the **third**
+      enforcement point of the same-company invariant, next to `associateOpportunityProject` and the
+      company-scoped `searchProjects` ([ADR 0019](../decisions/0019-project-opportunity-link.md)).
+    - It revalidates **`revalidateProject`** *plus* **`revalidateCompany` for both the old and the
+      new company** (`src/actions/crm/revalidate.ts`) — a company detail page lists the projects it
+      owns (`getCompanyDetail`), so the project has to disappear from one and appear on the other.
+    - **Logged time is *not* stranded by a move.** `timeEntries.projectId` references the **project**
+      (`src/lib/db/timesheets-schema.ts`), not the company, so hours already booked follow the
+      project to its new client. That's a **billing-attribution** consequence — past time now reads
+      against the new client — not an FK problem.
+  - **Role CRUD (project detail page) — all gated `projects.edit`.**
+    `createProjectRoleOnProject`, `updateProjectRoleOnProject`, `deleteProjectRoleOnProject`
+    (+ a `.schema.ts` each, all reusing the shared `projectRoleFields`/`endOnOrAfterStart` from
+    `projectRole.schema.ts`). The **delivery-side counterparts** of the planner's
+    `createProjectRole`/`updateProjectRole`/`deleteProjectRole`: keyed by **`projectId`**, not by
+    an opportunity. Create inserts with **`opportunityId: null` and `status: "tentative"`** (the
+    role belongs to the engagement, not a deal; status stays system-driven). Update/delete run
+    **`assertProjectRoleEditable`** in a transaction and never touch `status`/`opportunityId`.
+    All revalidate via `revalidateProject`. See
+    [ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md).
+  - `assertProjectRoleEditable.ts` — the **delivery-side** business guard (server-only, not an
+    action): the role must exist and `role.projectId === projectId`. **That is the whole
+    invariant** — no status check, no opportunity check — because a live engagement's roles are
+    `confirmed` precisely *because* the deal was won, and delivery legitimately has to re-date
+    them, move hours and swap assignees. Scoping by `projectId` is the containment. It returns
+    the role's `opportunityId` so callers can warn that a destructive edit also changes that
+    opportunity's plan. **It is not a bypass of the stricter `assertRoleEditable`** — read both
+    docstrings before touching either; precedent for a non-opportunity-scoped role write predates
+    both (`allocateStaffToRole` re-dates and staffs confirmed open roles by `roleId` alone).
+    Keep `assertRoleEditable` strict.
+  - `revalidate.ts` — **`revalidateProject(projectId)`**, the shared post-write revalidation for
+    this domain (mirroring CRM's `revalidateCompany`/`revalidateContact`): `/projects`,
+    `/projects/[id]`, `/opportunities`, **and `/allocations`** — project roles *are* the
+    allocations grid's rows. Because status + LoBs derive from roles in the same read, one call
+    refreshes the badge, the LoB row, the timeline and the summary tiles together.
   - `removeProjectFromOpportunity.ts` (+ `.schema.ts`) — the planner's **"Remove project"**,
     gated `projects.edit`. Delegates to the shared `detachProjectFromOpportunity` helper (see
     [Delete / detach](#delete--detach)) and returns `{ deletedProject }` so the UI messages
@@ -284,10 +376,12 @@ delivery, allocations, timesheets, and billing.
     the source must be **confirmed** and on this opportunity's project, though it may belong to
     another opportunity). Each derives the target project from the opportunity's `projectId` (a
     role can't be planted on an unrelated project); the mutating ones (`update`/`delete`) go
-    through the shared **`assertRoleEditable`** guard: you may only edit a role that is
-    **tentative** *and* **tagged with the current opportunity** (a data-integrity invariant on
-    top of the RBAC gate, mirroring `assertOpportunityTransitionAllowed`). All revalidate
-    `/opportunities` + `/projects`.
+    through the shared **`assertRoleEditable`** guard — the **deal-side** invariant: you may only
+    edit a role that is **tentative** *and* **tagged with the current opportunity** (a
+    data-integrity invariant on top of the RBAC gate, mirroring
+    `assertOpportunityTransitionAllowed`). **Keep it strict** — the project page's laxer
+    `assertProjectRoleEditable` (below) is the sanctioned delivery-side path, not a reason to
+    relax this one. All revalidate `/opportunities` + `/projects`.
   - **Bulk role actions (planner selection) — all gated `projects.edit`.** The planner's row
     checkboxes drive three batch actions over the selected editable roles, each taking
     `{ opportunityId, roleIds }` and running **`assertRoleEditable` per id inside one
@@ -335,20 +429,38 @@ delivery, allocations, timesheets, and billing.
     separate permission gates per domain.
   - **Role planning grid math** — `src/lib/projects/project-planner-grid.ts` is a **pure,
     client-importable** module (no `db`/React): `buildWeekColumns(roles)` (the ISO-Monday week
-    spine from earliest role start to latest role end), `buildPlannerRows(roles,
-    externalAllocations, weekColumns, currentOpportunityId)`, and `weekColumnLabel`. It is now
+    spine from earliest role start to latest role end), **`buildPlannerRows(roles,
+    externalAllocations, weekColumns, editability)`**, and `weekColumnLabel`. It is
     **role-centric — one `PlannerRow` per project role** (was one row per person with a person's
     roles grouped onto a line). Exported types: `PlannerRow` (`roleId`, `roleLabel`,
-    `roleTypeLabel`, `hoursPerDay`, `status`, `editable`, `staffId`, `staffName`, `startDate`,
-    `endDate`, `weeks`), `PlannerCell` (`{ own: OwnBlock | null; external: ExternalBlock[] }`),
+    `roleTypeLabel`, `hoursPerDay`, `status`, **`editable`**, **`emphasized`**, `staffId`,
+    `staffName`, `startDate`, `endDate`, `weeks`), `PlannerCell`
+    (`{ own: OwnBlock | null; external: ExternalBlock[] }`),
     `OwnBlock` (this role's own % load for a week + start/end flags), and `ExternalBlock` (one of
-    the assignee's other-project commitments in that week, greyed behind the own block). Per-row
-    `editable` is derived from the `currentOpportunityId` (tentative + this opportunity). Rows sort
-    **editable-first, then by start date, then staff name / role label**. It **reuses `weekPercent`
+    the assignee's other-project commitments in that week, greyed behind the own block). Rows sort
+    **staffed-first, then by staff name, then role-type label, then start date** (so a person's
+    roles sit together). It **reuses `weekPercent`
     from `@/lib/allocations/allocations-grid`** so both planners agree on a week's load;
-    `weekColumnLabel` now renders the **full week range** (e.g. `"Aug 3 – Aug 9"`, was a single
-    Monday date). Mirrors `timesheet-grid.ts`; relies on `eachWeek(start, end)` in
-    `timesheet-week.ts`.
+    `weekColumnLabel` renders the **full week range** (e.g. `"Aug 3 – Aug 9"`). Mirrors
+    `timesheet-grid.ts`; relies on `eachWeek(start, end)` in `timesheet-week.ts`.
+    - **`RoleEditability` — the exported discriminated union** that tells the module which of the
+      two editors it is feeding: `{ scope: "opportunity"; opportunityId }` (only *that* deal's
+      `tentative` rows are editable) or `{ scope: "project" }` (**every** role is editable). It
+      **replaced a `currentOpportunityId: string` parameter**, and with it the old
+      "pass `""` so nothing is editable" sentinel — don't reintroduce that trick.
+    - **`editable` vs. `emphasized` are two different questions**, split apart when the project
+      timeline became an edit surface. `editable` = may the viewer edit this row. `emphasized` =
+      render as "this deal's own line" (**opportunity scope only** — on the project page every row
+      belongs to the project, so nothing is emphasised). `planner-grid.tsx`'s `ownBlockClass` keys
+      the indigo emphasis fill off **`emphasized`**; keying it off `editable` would give every row on
+      the project timeline that fill and **collapse the confirmed-vs-tentative colouring** the
+      project legend documents into one colour.
+    - **`project-planner-grid.test.ts`** (5 tests) pins both scopes and exactly that regression —
+      the module had **no** test before, despite its docstring claiming unit-testability. Another
+      sanctioned exception to the one-test rule of
+      [ADR 0037](../decisions/0037-unit-tests-removed-except-rbac-matrix.md), on the same grounds as
+      `project-derived.test.ts`: a cross-representation invariant (grid flags ↔ two surfaces' rules)
+      the type system can't express.
   - **Summary-tile helpers** — `src/lib/projects/plan-summary.ts` is a **pure, client-importable**
     module (no `db`/drizzle/React) holding `rangeOf` (min-start/max-end over dated items),
     `rangeLabel` (`"Aug 3 – Dec 12"`), `yearHint` (`"2026"` or `"2026–2027"`), and
@@ -397,8 +509,17 @@ delivery, allocations, timesheets, and billing.
   `searchArgs` prop for extra scope args, wrapped by `CompanyCombobox`/`ManagerComboboxField`)
   and `src/components/form/enum-select.tsx` (`EnumSelect`) — see [../ui.md](../ui.md).
 - **Project detail page UI** — `src/app/(app)/projects/[id]/page.tsx` (Server Component) +
-  `src/components/projects/detail/project-detail-view.tsx` (client). See
-  [Project detail page](#project-detail-page) below and [../ui.md](../ui.md).
+  `src/components/projects/detail/` — `project-detail-view.tsx` (client) plus the editing pieces
+  `project-name-field.tsx`, **`project-company-field.tsx`**, `delivery-managers-field.tsx`,
+  `use-project-inline-save.ts` and
+  `project-role-dialog.tsx`. See [Project detail page](#project-detail-page) below and
+  [../ui.md](../ui.md).
+- **Shared role form fields** — `src/components/projects/role-fields.tsx` exports `RoleFields`
+  (line of business, role type, description, staff picker, dates, hours), `RoleFormValues`,
+  `ROLE_ISSUE_FIELDS` and `roleDefaultValues(existing, defaultLineOfBusiness)`. **Extracted out of
+  `opportunity-plan/role-dialog.tsx`** so the planner dialog and the project page's
+  `ProjectRoleDialog` can't drift — the client-side mirror of the server-side shared
+  `projectRoleFields`. **`status` is deliberately absent** (system-driven, never a form field).
 - **Opportunity planner UI** — `src/components/projects/opportunity-plan/` (entry
   `opportunity-project-plan.tsx`, split into `planner-grid.tsx` + `edit-project-dialog.tsx` +
   `role-dialog.tsx` + `extend-dialog.tsx`) renders the opportunity drawer's **Project plan** tab
@@ -427,8 +548,11 @@ delivery, allocations, timesheets, and billing.
     dialog collecting a non-zero whole number → `bumpProjectRoles`, shifting start+end together).
   - This opportunity's tentative roles are **editable** (per-row Edit button, Add role, Extend a
     role — extend is **confirmed-roles only**); confirmed, paused/cancelled, and other
-    opportunities' roles render **greyed/read-only**. Editable "this deal" blocks use the indigo
-    `bg-primary` accent. The empty state offers **associate an existing project** (`searchProjects`
+    opportunities' roles render **greyed/read-only**. "This deal" blocks use the indigo
+    `bg-primary` accent — driven by `PlannerRow.emphasized`, which in this scope coincides with
+    `editable` but is a **separate flag** (the project timeline sets `editable` without it; see the
+    `project-planner-grid.ts` bullet above).
+    The empty state offers **associate an existing project** (`searchProjects`
     → `associateOpportunityProject`) or **create a new one** (one-click
     `createProjectFromOpportunity`). All write controls gated on `projects.edit`. Grid math is the
     pure `project-planner-grid.ts` (above).
@@ -463,12 +587,15 @@ See [ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status
 `/projects/[id]` (`src/app/(app)/projects/[id]/page.tsx`) is the **first per-project detail
 route** — previously the only in-depth single-project surface was the opportunity drawer's
 Project-plan tab (keyed by `opportunityId`). The Server Component `Promise.all`s
-`getProjectPlan(id)` + `getProjectPto(id)` (its `generateMetadata` also calls `getProjectPlan`
-to title the tab), `notFound()`s when the plan is null (unknown id), and renders the client
-`ProjectDetailView` (`src/components/projects/detail/project-detail-view.tsx`).
+`getProjectPlan(id)` + `getProjectPto(id)` + **`getCurrentUser()`** (its `generateMetadata` also
+calls `getProjectPlan` to title the tab), `notFound()`s when the plan is null (unknown id), and
+renders the client `ProjectDetailView` (`src/components/projects/detail/project-detail-view.tsx`)
+with **`canEdit = userHasPermission(user, { projects: ["edit"] })`**.
 
-**Everything on this page is read-only** — role editing stays in the opportunity planner (see
-[Open questions](#open-questions--not-yet-built)). **Cross-links into this route are now wired
+**This page is the delivery-side editor of the engagement** — not read-only ([ADR
+0045](../decisions/0045-project-page-as-delivery-side-role-editor.md)). `canEdit` drives the
+**affordances only**; every mutation carries its own `projects.edit` gate in the action metadata.
+**Cross-links into this route are wired
 across the app**: the `/projects` list **cards** (`project-card.tsx`, a plain `next/link`
 wrapping the whole card — the one project cross-link that isn't `InternalLink`), and — all via
 the canonical `InternalLink` (`src/components/internal-link.tsx`) — the staff/own-profile
@@ -478,36 +605,89 @@ the opportunity Project-plan tab heading (`opportunity-project-plan.tsx`), and t
 project cells (`allocations-grid.tsx`, opening in a new tab). The only project references still
 left as plain text by design are the **editable timesheet week grid** row labels.
 
-- **Header + summary tiles** — project name + derived `ProjectStatusBadge`, a company link
-  (`/companies/[id]`), derived LoB badges, then the **same summary `StatCard` tiles** as the
-  opportunity Project-plan tab (Length, Dates, Confirmed span, Tentative span, Delivery managers),
-  rendered from the shared `plan-summary.ts` helpers so the two surfaces agree.
-- **Three tabs:**
-  - **Timeline** — a **read-only reuse of the opportunity planner's `PlannerGrid`**
-    (`opportunity-plan/planner-grid.tsx`) fed by the pure `buildWeekColumns`/`buildPlannerRows`.
-    Read-only is achieved by passing **`""` as the `currentOpportunityId`** so no role is marked
-    editable (a real `opportunityId` can never be the empty string). It uses a **project-specific
-    legend** (Confirmed / Tentative / Other project) instead of the opportunity planner's "This
-    deal" legend.
-  - **Roles** — all roles as a table (staffed first, then open/unstaffed placeholders shown as
-    "Open role"), columns Staff · Role · Line of business · Status · Dates · Hrs/day.
+- **Sidebar — three fields editable in place, one deliberately not.** All three are gated on
+  `canEdit` and write through `updateProjectField`:
+  - **Name** — `project-name-field.tsx`, rendered as the sidebar `<h2>` with a pencil, *not* an
+    `InlineEditField` (which would demote the heading to a label/value pair).
+  - **Company** — `project-company-field.tsx`: an `InlineEditField` reading as a link to
+    `/companies/[id]`, swapping to an `EntityCombobox` over the **`projects.edit`-gated**
+    `searchCompanies`, so a delivery manager can **re-parent a project without CRM write access**.
+    A company is **required** (`projects.companyId` is `notNull`), so confirming with an empty
+    picker reports the requirement client-side instead of writing/unassigning. The server's refusal
+    when a linked opportunity belongs to another company surfaces as the field's inline error, so
+    the field stays open with an actionable message (see the `updateProjectField` bullet above).
+  - **Delivery managers** — `delivery-managers-field.tsx`: an `InlineEditField` +
+    `EntityMultiCombobox` over `searchStaff`, each manager linking to `/staff/[id]`.
+  - **Line of business stays read-only** because it is *derived from the roles*, not a field; it
+    renders as plain comma-separated text rather than `Badge` chips.
+  - **`use-project-inline-save.ts`** is the sibling of the opportunity drawer's `useInlineSave`,
+    with one deliberate difference: it takes **no `refresh` callback**. The drawer fetches its own
+    data client-side, whereas this page is a **Server Component passing `plan` down as a prop** —
+    so `revalidatePath("/projects/[id]")` inside `updateProjectField` is what refreshes the
+    rendered values (the same mechanism as the CRM company/contact inline fields). Each field owns
+    its own hook instance, so pending/error state is isolated; `commit` client-side `safeParse`s
+    the field's own slice before the round-trip.
+- **Header + summary tiles** — project name (editable, above) + derived `ProjectStatusBadge`, the
+  editable company field, derived LoB text, then the **same summary `StatCard` tiles** as
+  the opportunity Project-plan tab (Length, Dates, Confirmed span, Tentative span, Delivery
+  managers), rendered from the shared `plan-summary.ts` helpers so the two surfaces agree.
+- **Three tabs. Roles are editable from *two* of them** — the Timeline Gantt and the Roles table
+  both open the same `ProjectRoleDialog`, so there is no "read-only view + edit view" split here:
+  - **Timeline — an *editable* reuse of the opportunity planner's `PlannerGrid`**
+    (`opportunity-plan/planner-grid.tsx`) fed by the pure `buildWeekColumns`/`buildPlannerRows` with
+    **`{ scope: "project" }`** (every row editable, nothing emphasised — see the
+    `project-planner-grid.ts` bullet above; the old `currentOpportunityId = ""` sentinel is gone).
+    It passes `onEditRole` **only when `canEdit`**, and deliberately passes **neither `onAssignStaff`
+    nor the selection/bulk props**: that inline staff picker (`assignRoleStaff`) and the bulk
+    delete/duplicate/bump actions are **opportunity-scoped** (`assertRoleEditable`), so wiring them
+    here would put deal-side semantics on a delivery-side page. Open roles are staffed through the
+    role dialog's staff picker instead. **"Add role" lives in the Roles tab header only.**
+    It uses a **project-specific legend** (Confirmed / Tentative / Other project) instead of the
+    opportunity planner's "This deal" legend — which is exactly why the emphasis fill must key off
+    `emphasized` and not `editable`.
+  - **Roles — the same editor as a table.** All roles as a table (staffed first, then
+    open/unstaffed placeholders shown as "Open role"), columns Staff · Role · Line of business ·
+    Status · Dates · Hrs/day, plus — when `canEdit` — a trailing per-row **pencil** and an **"Add
+    role"** button in the section header (the `DetailSection` `action` slot). Both open
+    **`project-role-dialog.tsx`** (`ProjectRoleDialog`), keyed per target so the form remounts with
+    fresh defaults. Staffed role names link to `/staff/[id]`.
+    - It shares the **`RoleFields`** fragment (`src/components/projects/role-fields.tsx`) with the
+      planner's `role-dialog.tsx`, extracted so the two editors can't drift — the client-side
+      mirror of the server-side shared `projectRoleFields`.
+    - Its actions are the project-scoped trio, so unlike the planner's dialog it **can adjust a
+      `confirmed` role**. Deleting is therefore behind a **`ConfirmDialog`** (the planner's isn't —
+      there only tentative drafts are removable), and when the role carries an `opportunityId` the
+      confirmation says removing it **changes that opportunity's plan too**. Both wordings note
+      that time already logged against the project is kept (`timeEntries.projectId` hangs off the
+      *project*, not the role).
+    - **Ripples:** adding/removing a role can shift the project's **derived status** and derived
+      lines of business (`deriveProjectStatus` / `deriveProjectLinesOfBusiness`), and every write
+      revalidates `/allocations` because project roles are that grid's rows.
   - **Time off** — the project's PTO from `getProjectPto`, split Upcoming / Past. The **Type
-    column renders only for `pto.review` reviewers** (driven by `canSeeType`; see the read's
-    permission nuance above).
+    column renders only for `pto.review` reviewers** (driven by `canSeeType`), and **non-reviewers
+    see approved leave only** — see the read's permission nuance above.
 
 ## Authorization
 
 **Reads are open** — any signed-in user can browse all projects, including the **detail
 page** (`getProjectPlan`/`getProjectPto` are server-only; the `(app)` gate is the boundary).
 **One field is masked, not gated:** the project detail page's Time off tab shows dates + who to
-everyone but masks each leave's **type/pending state** unless the viewer has **`pto.review`**
-(`getProjectPto` nulls those fields in the read — see [Project detail page](#project-detail-page)).
+everyone but masks each leave's **type/pending state** unless the viewer has **`pto.review`** —
+and **non-reviewers only get approved leave at all** (`getProjectPto` filters pending rows out and
+nulls those fields in the read; it also fails closed with no session — see
+[Project detail page](#project-detail-page)).
 **All project writes** are gated by a single flat capability (no
 ownership dimension): **`projects.edit`**, granted to `delivery-manager`, `manager`,
 `admin`. It covers creating projects and their staffing (`createProject`,
 **`createProjectFromOpportunity`**), **editing a project** (`updateProject` — name + delivery
-managers), **removing a project from an opportunity** (`removeProjectFromOpportunity`), **all
+managers — and the field-scoped **`updateProjectField`** behind the detail page's inline
+pencils, which also **moves a project between companies**: re-parenting is a **`projects.edit`**
+capability, *not* `crm.edit`, and its picker is the `projects.edit`-gated `searchCompanies` — a
+delivery manager re-parents an engagement without any CRM write access), **removing a project from
+an opportunity** (`removeProjectFromOpportunity`), **all
 planner role CRUD** (`createProjectRole`/`updateProjectRole`/`deleteProjectRole`/`extendProjectRole`),
+**the project-page role CRUD**
+(`createProjectRoleOnProject`/`updateProjectRoleOnProject`/`deleteProjectRoleOnProject`),
 **the bulk role actions + inline staff assignment**
 (`deleteProjectRoles`/`duplicateProjectRoles`/`bumpProjectRoles`/`assignRoleStaff`),
 **associating an opportunity to an existing project** (`associateOpportunityProject` — a
@@ -516,19 +696,43 @@ delivery decision even though it writes an `opportunities` column), and the type
 `deleteOpportunity`, which detaches the project — is a CRM write, gated `crm.edit`; see
 [crm.md](./crm.md).) The interactive planner *read*
 (`loadOpportunityPlan`) is gated `crm.edit` (it lives in the edit-only drawer); the underlying
-`getOpportunityPlan` is server-only. On top of the RBAC gate, `assertRoleEditable` restricts
-role edits to **this opportunity's own tentative roles**. No matrix change (`/audit-rbac`
-clean). See [permissions.md](./permissions.md).
+`getOpportunityPlan` is server-only. On top of the RBAC gate, **two data-integrity guards** scope
+role writes by surface: `assertRoleEditable` restricts *opportunity-scoped* actions to **this
+opportunity's own tentative roles**, and `assertProjectRoleEditable` restricts *project-scoped*
+actions to **roles on this project** (any status). Neither is access control, and the laxer one is
+**not a bypass** — see [ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md).
+The detail page's `canEdit` prop is an **affordance flag only**. No matrix change
+(`projects.edit` already existed; `/audit-rbac` clean, `permissions.test.ts` untouched). See
+[permissions.md](./permissions.md).
 
 ## Key flows
 
 - **Create a standalone project, then staff it** (built) — creation is minimal: pick a company
   and a name (no LoB/status — those derive). The project starts with **no roles and no delivery
-  managers** (so it reads `tentative` with no LoBs). Staffing then happens **in the planner**
-  (the opportunity drawer's Project plan tab): add role lines (role type + line of business +
-  optional staff + optional name + date range + hours/day; leaving staff blank creates a
-  **placeholder / open position**) and edit the project's name/delivery managers via the
-  Edit-project dialog (`updateProject`).
+  managers** (so it reads `tentative` with no LoBs). Staffing then happens on **either editor**:
+  the **project detail page's Roles tab** (`/projects/[id]` — the natural home for a project with
+  no opportunity, since the planner needs a deal to scope to) or the **opportunity planner** (the
+  drawer's Project plan tab). Either way a role line is role type + line of business + optional
+  staff + optional description + date range + hours/day; leaving staff blank creates a
+  **placeholder / open position**. The project's name/company/delivery managers edit via the detail
+  page's inline pencils (`updateProjectField`) — the planner's Edit-project dialog
+  (`updateProject`) covers name + delivery managers only.
+- **Adjust a live engagement's staffing** (built) — from `/projects/[id]`, a `projects.edit`
+  holder re-dates a role, moves its hours, swaps its assignee, adds a role, or removes one —
+  from **either the Timeline Gantt or the Roles table** (same dialog), and
+  **including `confirmed` roles from a won deal**, which the opportunity planner locks. Removing a
+  role that carries an `opportunityId` also changes that deal's plan (the confirm dialog warns);
+  removing the last live role shifts the project's derived status. Every write revalidates
+  `/projects`, `/projects/[id]`, `/opportunities` and `/allocations`. See
+  [ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md).
+- **Move a project to another client** (built) — from `/projects/[id]`'s sidebar, a `projects.edit`
+  holder picks a different company (`updateProjectField`'s `company` variant). The action **refuses**
+  while any opportunity linked to this project belongs to a different company, naming it and telling
+  the user to unlink or move that deal first — otherwise the same-company invariant
+  `associateOpportunityProject` established would break silently. On success it revalidates the
+  project's pages **and both companies'** detail pages (each lists the projects it owns). Time
+  already logged **follows the project** (`timeEntries.projectId` → project, not company), so the
+  consequence is billing attribution, not orphaned hours.
 - **Opportunity → Project handoff** (built) — an opportunity gets a project by **creating one
   from it** — now **one-click** (`createProjectFromOpportunity`, inheriting name + company, no
   form) — or **associating an existing one** (`associateOpportunityProject`). Entry points: the
@@ -550,8 +754,11 @@ clean). See [permissions.md](./permissions.md).
 
 ## Connects to
 
-- **CRM** — every project belongs to a `companies` row (required FK, `restrict`). The
-  opportunity link now lives on the **opportunity** side (`opportunities.projectId`, nullable
+- **CRM** — every project belongs to a `companies` row (required FK, `restrict`) — and that
+  parent **can be changed** from the project detail page (`updateProjectField`'s `company` variant),
+  which is why that write revalidates **both** companies' detail pages and refuses to break the
+  same-company invariant with a linked opportunity. The
+  opportunity link lives on the **opportunity** side (`opportunities.projectId`, nullable
   FK, `restrict`, **many opportunities → one project**), populated by the handoff/planner flow
   ([ADR 0019](../decisions/0019-project-opportunity-link.md),
   [ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md)); the
@@ -569,15 +776,18 @@ clean). See [permissions.md](./permissions.md).
 - **Allocations** — `project_roles` is the first concrete cut of the Allocation entity, now
   with a soft/hard `status` (`tentative` → `confirmed`) (see [allocations.md](./allocations.md),
   [ADR 0017](../decisions/0017-project-roles-as-first-allocation-cut.md),
-  [ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md)).
+  [ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md)). **Project roles
+  are the `/allocations` grid's rows**, so every project write revalidates that route via
+  `revalidateProject` — a role edited from the project page shows up on the planner immediately.
 - **Timesheets / billing** — projects will be the thing time is logged against and
   billed for (proposed).
 
 ## Open questions / not yet built
 
-- **Project edit is name + delivery managers only; company is fixed** — `updateProject` edits
-  only those (there is no stored status/LoB to edit — both derive from roles), and **roles**
-  have full CRUD via the planner. The project's **company** is fixed after create. A project
+- **Project edit is name + company + delivery managers** — no more than that (there is no stored
+  status/LoB to edit — both derive from roles), while **roles** have full CRUD via the planner *and*
+  the project detail page. ~~The project's company is fixed after create~~ **no longer true:**
+  re-parenting landed with `updateProjectField`'s `company` variant. A project
   *can* now be **deleted** (implicitly, via `removeProjectFromOpportunity`/`deleteOpportunity`
   when sole-owned — see [Delete / detach](#delete--detach)), but there is **no standalone
   project-delete action** on `/projects`. The `onDelete: restrict` on `projects.companyId`,
@@ -585,14 +795,24 @@ clean). See [permissions.md](./permissions.md).
   flow must handle live references.
 - ~~**Same-company invariant is UI-only**~~ **Resolved** — `associateOpportunityProject`
   enforces project.companyId == opportunity.companyId server-side, `searchProjects` is
-  company-scoped, and both create paths are same-company by construction. See
-  [ADR 0019](../decisions/0019-project-opportunity-link.md).
-- **Roles can only be edited via the opportunity planner** — a role (placeholder or staffed)
-  can be edited through the drawer's planner only while it's **tentative and this
-  opportunity's**, so a **confirmed** (or paused/cancelled) role, one on a standalone project
-  with no opportunity, or one owned by a different opportunity can't be changed. `updateProject`
-  never touches roles. The new **project detail page's Timeline tab is deliberately read-only**
-  too — it reuses the planner grid purely for display (`currentOpportunityId = ""`).
+  company-scoped, both create paths are same-company by construction, and **re-parenting a project
+  refuses rather than breaking it**. See
+  [ADR 0019](../decisions/0019-project-opportunity-link.md). Still **not** a DB-level constraint —
+  any *future* write that changes either side of the link must re-check it by hand.
+- ~~**Roles can only be edited via the opportunity planner**~~ **Resolved** — the project detail
+  page is a second, **delivery-side** role editor, reachable from **both its Roles table and its
+  Timeline Gantt**
+  ([ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md)): any role on the
+  project, **any status**, including confirmed roles from a won deal and roles on a standalone
+  project with no opportunity. The **planner's** restriction is unchanged and intentional (this
+  opportunity's own tentative roles, `assertRoleEditable`). `updateProject`/`updateProjectField`
+  still never touch roles. What the project timeline deliberately does *not* get is the
+  **opportunity-scoped** interactions — inline staff assignment and the bulk delete/duplicate/bump
+  bar, which run `assertRoleEditable`.
+- **No role-status control anywhere** — neither editor lets a user set `status` (or
+  `opportunityId`): both remain server-controlled provenance. So a confirmed role can be re-dated
+  and re-staffed from the project page but never demoted to tentative, paused or cancelled. See the
+  `paused`/`cancelled` gap below.
 - **`paused`/`cancelled` role states have no UI yet** — the enum values and their derivation
   (into the project's derived status) + badges exist, and the seed exercises them, but **no
   user-facing control sets a role to paused/cancelled**. Added when the planner grows role-state
