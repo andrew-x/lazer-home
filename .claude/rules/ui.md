@@ -30,6 +30,15 @@ Aim for a distinctive, editorial look — not the default rounded/shadowed AI-ap
 - The login page is deliberately **minimal** (logo + name + one button); keep auth/marketing surfaces uncluttered.
 - Brand: mark is `/public/icon.svg` (`<LogoMark>` / `<LogoWordmark>` in `src/components/brand/`). Product name is `APP_NAME` in `src/lib/core/constants.ts`.
 
+## Editable tables — two patterns, not interchangeable
+
+Pick by **when the write happens**, and don't bend one into the other:
+
+- **Batch edit (draft → confirm)** — `EditableTable` / `useEditableRows` (`src/components/admin/editable-table.tsx`). Accumulates a diff, shows a floating "N changed" bar, confirms in a dialog, saves once. Used by edit-levels, bulk-edit-roles, manage-users. **Gotcha:** cell editors must read the draft via the `useEditableDraft()` context, NOT TanStack `table.options.meta` — `cell.getContext()` is memoized, so cells silently freeze. Draft values must be a **flat** `Record<string, string>` for `!==` diffing.
+- **Save on edit (autosave)** — the shared queue in `src/hooks/use-autosave-queue.ts`: a dirty set of keys, per-key debounce, single-flight drain, per-key `SaveState`, `flush`/`flushAll`/`abandon`. Consumers supply `save(key)` and own their own values. Two consumers today: `use-response-autosave.ts` (profile surveys) and `compensation-plans/use-plan-autosave.ts`. Status shows through `SaveIndicator` (`src/components/form/save-indicator.tsx`) — **never a toast**; toasts are for discrete actions. On revalidation, see the autosave note in `server-actions.md`.
+
+`EditableTable` renders exactly one `<tr>` per row, so **expandable rows can't be built on it.** The one expandable table (`performance/compensation-plans/plan-editor.tsx`) uses the `Table` primitives directly with a `Set<string>` of expanded ids and a second `<tr>` whose `colSpan` comes from a shared column list — keep the header and that `colSpan` sourced from the same array or the layout breaks silently. Flush a row's pending saves *before* collapsing it, or the panel unmounts with unsaved text.
+
 ## App structure & navigation
 
 - `src/app/(app)/**` — **authenticated** pages. The `(app)/layout.tsx` Server Component calls `getCurrentUser()` and `redirect("/login")` if absent, then renders `AppShell`. Route protection lives here, not in middleware.

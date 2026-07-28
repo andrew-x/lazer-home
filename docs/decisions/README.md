@@ -52,6 +52,7 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0041](./0041-allocation-notes-on-staff.md) | Allocation notes on `staff`: planner-inline, gated on static `staff.edit` (no owner path) | accepted |
 | [0042](./0042-per-role-subratings-app-owned-jsonb.md) | Per-role rating subratings: app-owned jsonb on `staff_rating`, co-dated with the overall level | accepted |
 | [0043](./0043-tasks-entity-replaces-crm-next-steps.md) | Tasks entity replaces CRM "next steps"; `crm_entry_kind` dropped, entry logs collapse to notes-only | accepted |
+| [0044](./0044-compensation-change-plans-rating-writing-proposals.md) | Compensation change plans: commit writes ratings only, never `staff_employment`; snapshot + drift badge reconcile against Rippling | accepted (0020 stands) |
 
 > **0012 is intentionally absent** (the log jumps 0011 → 0013). It was a short-lived
 > ADR documenting the *open staff-edit gap pending RBAC*; it was **withdrawn** once

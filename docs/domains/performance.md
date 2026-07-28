@@ -1,11 +1,12 @@
 # Domain: Performance management
 
-**Status: partially built.** Three concrete slices are realized: **peer feedback**,
-a **compensation & headcount analytics dashboard**, and **staff rating levels
+**Status: partially built.** Four concrete slices are realized: **peer feedback**,
+a **compensation & headcount analytics dashboard**, **staff rating levels
 (L0–L4)** — the latter two share the **single `/performance` dashboard** (levels
 render as a section on that page, sharing its filter bar + currency toggle; there
-are **no tabs** — see below). The broader review/goal machinery (ReviewCycle,
-PerformanceReview, Goal) is still **proposed**.
+are **no tabs** — see below) — and **compensation change plans** (`/performance/compensation-plans`,
+the one identity-bearing surface here). The broader review/goal machinery
+(ReviewCycle, PerformanceReview, Goal) is still **proposed**.
 
 ## Purpose
 
@@ -219,6 +220,14 @@ consumes. It reuses the `L`-prefix display + string codec from
 identifiers stored in the jsonb — renaming a key needs a data migration; labels
 change freely.**
 
+It also owns the two **write-hardening helpers** every path that persists subratings
+must run them through — **`sanitizeSubratings(subratings, role)`** (drop keys not in
+that role's rubric, collapsing to `null` when nothing survives — load-bearing
+validation, since the zod layer can only check *values*, not role-dependent *keys*)
+and **`canonicalSubratings`** (sorted-key JSON, so no-op detection compares by value).
+They were extracted here out of `saveStaffEvaluation.ts` once compensation-plan commit
+became a **second writer of `staff_rating`**; change them here, never in one action.
+
 The overall-level module is **`src/lib/staff/staff-rating.ts`** (`RATING_LEVELS`,
 `MIN/MAX_RATING_LEVEL`, `formatLevel` → `"L0".."L4"`/`"Unrated"`, `formatAverageLevel`
 → `"L2.3"`, and the Select-value helpers `encodeLevelValue` /
@@ -272,7 +281,9 @@ compensation portion of the dashboard.
   `canonicalSubratings` = sorted-key JSON, order-independent); **sanitizes subrating
   keys against the person's current-role rubric** (`sanitizeSubratings` drops
   unknown/stale keys, collapsing to `null` when nothing survives — so a crafted
-  payload can't smuggle keys); rejects unknown/inactive targets; and **rejects an
+  payload can't smuggle keys — **both helpers now live in the pure
+  `rating-rubric.ts`**, shared with `commitCompensationPlan`); rejects
+  unknown/inactive targets; and **rejects an
   effectiveDate that predates a staff member's latest rating** (equal dates are fine
   — the `createdAt` tiebreak makes the newer write current); effectiveDate defaults
   to today. The zod schema validates subratings **loosely** (`record(string, int
@@ -356,6 +367,249 @@ is exercised); wired into `scripts/seed.ts`, and `staff_rating` added to
 role's rubric on the current rating row only** — historical rows are left without
 subratings, modeling that subratings were introduced later than the level.
 
+## Compensation change plans — **built**
+
+A **plan** is a named, effective-dated **proposal** covering a cohort of staff: for
+each person a proposed rating (level + subratings), a proposed compensation figure,
+three workflow checkboxes, and two note fields. **Committing a plan writes the
+ratings as each person's latest `staff_rating` — and deliberately does NOT write
+compensation.** Rippling remains the sole writer of `staff_employment`
+([ADR 0020](../decisions/0020-compensation-effective-dated-import-only.md) **stands,
+un-superseded**); the planned figure stays a proposal, and commit instead freezes a
+snapshot of what comp *was* so a committed plan can show a stable before/after and
+flag drift. Full rationale — including the separable seam for a possible future comp
+write, and why it would still need a new ADR — in
+[ADR 0044](../decisions/0044-compensation-change-plans-rating-writing-proposals.md).
+
+### Entities — `compensation_plan` + `compensation_plan_item`
+
+Both in `src/lib/db/performance-schema.ts` (`drizzle/0009_jittery_wolfsbane.sql`).
+Neither is effective-dated: a plan is a **document**, not a fact about a person, so
+[ADR 0007](../decisions/0007-staff-employment-effective-dating.md)'s pattern doesn't
+apply — the *history* it produces lives on `staff_rating`.
+
+**`compensation_plan`** — `name`; `status` (new `compensation_plan_status` pgEnum,
+`DRAFT` | `COMMITTED`, values from the pure module below per
+[ADR 0016](../decisions/0016-junction-table-and-shared-enum-conventions.md));
+`effectiveDate` (`date`, string mode — the date committed ratings are dated with,
+editable while draft); `createdByUserId` / `committedByUserId` (FK → `user`,
+`set null`, audit); **`committedAt`** — null while draft, and the **idempotency
+guard** that makes a second commit an error rather than a duplicate write.
+
+**`compensation_plan_item`** — one row per staff member per plan:
+
+- **`planId`** (FK → plan, cascade) / **`staffId`** (FK → `staff`, cascade — an item
+  is meaningless without the person, mirroring `staff_rating`). Index on `planId`; a
+  **unique index on `(planId, staffId)`** makes a membership reconcile idempotent.
+- **`level`** (`integer`, nullable, same `0..4` `CHECK` as `staff_rating`) +
+  **`subratings`** (jsonb `Subratings`) — the proposed rating, mirroring
+  `staff_rating`'s shape exactly so commit copies it straight across.
+- **`plannedAmount`** (`numeric(12,2)`) + **`plannedCurrency`** — **one** figure per
+  person, compared against **`base` for `FULL_TIME` and `hourlyRate` for `HOURLY`**
+  (`currentCompAmount` in the pure module is the single place that mapping lives;
+  **bonuses are untouched**). The currency is stored, not assumed, so a CAD → USD
+  move is expressible. `plannedAmount` is deliberately **not** seeded from current
+  comp — pre-filling would make "not yet proposed" indistinguishable from "reviewed,
+  deliberately no change".
+- **`ratingDone` / `meetingDone` / `isComplete`** — workflow booleans, independent of
+  content (a rating can exist before the meeting and vice versa).
+- **`evaluationNotes` / `compensationNotes`**.
+- **`snapshotAmount` / `snapshotCurrency` / `snapshotEmploymentType`** — frozen in the
+  commit transaction; null while draft. The employment type is recorded because
+  `plannedAmount`'s *meaning* depends on it — otherwise a years-old annual base could
+  later be misread as an hourly rate.
+
+### Pure module — `src/lib/performance/compensation-plan.ts`
+
+Client-importable, no drizzle. Owns the status tuple + labels (feeding the pgEnum),
+the display-currency modes, and the row math: `planChange` (the four money columns),
+`currentCompAmount` / `compAmountLabel`, `monthsSince` + `NEW_JOINER_MONTHS` (the
+tenure chip), `PLAN_LOCKED_MESSAGE`, and `COMPENSATION_PLAN_ACCESS`.
+
+**The percentage change is invariant across display currencies by construction** —
+`planChangePercent` computes from the **native** amounts, not the converted ones, so
+switching the toggle re-denominates the money columns but can never move the
+percentage. Cross-currency proposals convert both legs before subtracting.
+
+### Access control — the conjunction of two existing capabilities (no matrix change)
+
+Every plan surface (all three pages, the nav sub-item, and every action — three reads
++ six mutations) requires **both
+`staff.viewCompensation` AND `ratings.edit`**, expressed once as the shared
+**`COMPENSATION_PLAN_ACCESS: PermissionCheck`** constant so the actions, pages, and
+nav entry can't drift. Better Auth's `authorize` **ANDs across resources**, so this
+is a genuine conjunction — **`finance` (comp but not ratings) is denied**, leaving
+manager/admin. **The permission matrix is unchanged.**
+
+> **This surface is identity-bearing by design** — unlike `getCompensationSummaryData`
+> / `getRatingsSummaryData`, whose anonymised rows exist because an *aggregate* comp
+> view is bulk exposure. A plan names people by definition; the response was to raise
+> the gate, not to pretend the rows could be identity-free. See
+> [permissions.md](./permissions.md).
+
+Defense in depth: all three pages `notFound()` unauthorized users (matching the hidden
+nav item), `generateMetadata` on the detail route refuses to leak a plan's *name*
+through the tab title, and every read/write re-checks server-side.
+
+### Server layer (`src/actions/performance/`)
+
+**Reads** (server-only, all `requirePermission(COMPENSATION_PLAN_ACCESS)`):
+
+- **`getCompensationPlans`** — the list: name, status, effective date, headcount,
+  creator, `committedAt`. **Carries no compensation figures** — a navigation surface
+  doesn't need them.
+- **`getCompensationPlan(planId)`** — the editor payload. Four queries, no N+1 (plan
+  header; items joined to `staff`; every employment row for those staff; every rating
+  row), folded in JS with `firstPerKey` and the new **`groupPerKey`**
+  (`src/lib/core/collections.ts` — the sibling that keeps *all* rows per key, for
+  "the latest row AND the one before it"; bound your input before calling). Each item
+  carries three comp snapshots: **`current`** (the baseline the plan is written
+  against — *live* while draft, the *frozen snapshot* once committed, so a committed
+  plan's before/after never shifts), **`live`** (always current Rippling comp, what a
+  committed plan reconciles against), and **`previous`** (the employment row before
+  the current one — their last actual comp change). `monthsSinceJoin` is computed
+  **server-side** (a client `new Date()` would mismatch on hydration).
+- **`getStaffForCompensationPlan`** — the whole active roster for the membership
+  page's client-side search/filters (hundreds of rows; same choice as the staff
+  directory). **Deliberately carries no compensation** — it only identifies people.
+
+**Mutations** — **six**, all `metadata.permission: COMPENSATION_PLAN_ACCESS`:
+`createCompensationPlan`, `updateCompensationPlan` (rename + effective date, draft
+only — the editor's Edit dialog), `deleteCompensationPlan` (the plans-list confirm),
+`setCompensationPlanStaff`, `saveCompensationPlanItem`, `commitCompensationPlan`.
+Shared server helpers live in **`compensationPlanWrites.ts`**:
+
+- **`requireDraftPlan(planId)`** — every mutation re-reads status rather than trusting
+  the client: a co-manager can commit while someone else has the editor open. Rejects
+  with the shared `PLAN_LOCKED_MESSAGE` so the client can recognise *that* failure
+  (retrying is pointless) apart from a network error (retrying is right).
+- **`buildPlanItems`** — seeds new items from the person's current level + subratings
+  (re-sanitized against their **current** role, since a stored rating may predate a
+  role change) and their comp currency. `plannedAmount` stays null (see above).
+  Unknown/inactive ids are dropped silently.
+- **`planPaths`** — the paths every plan mutation revalidates.
+
+**`setCompensationPlanStaff` is a set, not a delta.** Its input is `{ planId,
+staffIds }` where `staffIds` is the **complete desired membership** — the action reads
+what's stored, diffs, and applies the inserts and deletes in **one transaction**. An
+empty list is legal and means "remove everyone". This replaced a separate
+add/remove pair for two reasons: the membership page submits the whole checked set
+anyway, so the diff belongs server-side where it can be **atomic**; and two people
+reconciling membership concurrently then land a coherent set instead of interleaving
+partial adds and removes. **Existing members are left completely untouched** — only
+genuinely new ids are inserted (seeded by `buildPlanItems`) and only genuinely absent
+ones deleted — so a member's proposed rating, planned figure and notes survive a
+reconcile they weren't part of. Removing someone *does* discard their row (cascade),
+which is why the UI confirms it. Returns `{ added, removed }` for the toast.
+
+**`saveCompensationPlanItem` is the autosave endpoint** — it runs on every debounced
+keystroke, tick and select change. It writes **only the fields present in `patch`**
+(so concurrent edits to different fields of a row don't clobber each other), asserts
+the item belongs to the named plan (an item id from another plan can't be reached by
+naming one you *do* have access to), re-sanitizes subratings against the person's
+current role, refuses an amount with no currency, and **deliberately does not
+`revalidatePath`** — invalidating the route on every keystroke would re-render the
+editor out from under the typist.
+
+**`commitCompensationPlan`** — one transaction:
+
+1. **Ratings written.** One new dated `staff_rating` row per **genuinely-changed**
+   item, reusing `saveStaffEvaluation`'s hardening: subratings re-sanitized against
+   each person's **current** role, no-ops dropped (untouched items were seeded from
+   the current rating, so most of a large plan may legitimately write nothing),
+   inactive/unknown staff **skipped rather than aborting** (the rest of the cohort's
+   decisions still land), and an effective date that **predates anyone's latest
+   rating is rejected by name** (it would file as history and never become current;
+   equal dates are fine — `createdAt` breaks the tie). Rejecting rather than skipping
+   is deliberate: the plan's date is editable, so it's actionable.
+2. **Compensation snapshotted, not written.** Per item, freeze
+   `snapshotAmount`/`snapshotCurrency`/`snapshotEmploymentType`.
+3. Plan → `COMMITTED` + `committedAt` + `committedByUserId`.
+
+Then revalidates `/performance` and `/performance/levels/edit` (new levels move the
+dashboard distribution and the edit grid) plus the plan paths.
+
+> **Shared rating-write hardening.** `sanitizeSubratings` and `canonicalSubratings`
+> were extracted out of `saveStaffEvaluation.ts` into the pure
+> `src/lib/performance/rating-rubric.ts` so the two rating-write paths share one
+> implementation. **`staff_rating` now has two writers** — change the hardening in
+> the pure module, never in one action.
+
+### UI
+
+**Three** routes: **`/performance/compensation-plans`** (list),
+**`[planId]`** (editor), and **`[planId]/staff`** ("Plan staff" — the membership
+roster); one sub-item under Performance in `nav.ts`, gated on
+`COMPENSATION_PLAN_ACCESS`. Components in
+`src/components/performance/compensation-plans/`.
+
+- **`plans-list`** + **`new-plan-dialog`** — the list table (name link, effective
+  date, headcount, status badge, creator), plus a per-plan delete affordance behind
+  the shared `ConfirmDialog`.
+- **`plan-editor`** — the client root: display-currency toggle, expanded-row set,
+  autosave hook, Edit / **Manage staff** (a link, not a dialog) / Commit. **Not built
+  on the shared `EditableTable`** — see [ui.md](../ui.md) → *Save-on-edit vs. batch
+  edit* and *Expandable rows*. There is **no Save button**; a committed plan renders
+  the same table read-only, as does a draft the server locked underneath the editor.
+  Its empty state links to the membership page rather than opening a picker.
+- **`edit-plan-dialog`** — rename + change the effective date, **draft only**
+  (`updateCompensationPlan`).
+- **`manage-plan-staff`** (on `[planId]/staff`) — the searchable/filterable checkbox
+  roster over the preloaded active staff (search + line of business / role /
+  employment type + select-all-matching), with a live "N to add · N to remove"
+  counter. It submits the **entire checked set** through `setCompensationPlanStaff`
+  and returns to the editor. **Membership deliberately lives on its own page, not in
+  the editor:** keeping "who is in this round" separate from "what are we giving
+  them" keeps the editor a pure comparison grid, with no destructive per-row control
+  sitting next to the money columns — and it turns adding and removing into one
+  reviewable change rather than a series of immediate side effects. It confirms
+  before removing anyone whose row already holds work (a planned figure, either note,
+  or any ticked checkbox), because removal discards the row. Read-only for a
+  committed plan.
+- **`plan-row`** + **`plan-expanded-panel`** — the row is Name · Rating · Current ·
+  Planned · Change · Change % · three checkboxes · a trailing column carrying **only**
+  the committed-plan **Applied / "Not applied · $X"** drift badge (its `plan-columns`
+  key is `applied`; it no longer doubles as a remove slot). Cell contents are
+  **vertically centred** — `TableCell`'s default `align-middle`, with no `align-top`
+  overrides. The expanded panel holds tenure/join context (with a new-joiner chip),
+  the person's **own role rubric** as subrating selects, the previous comp change, and
+  the two notes — subratings live here rather than as columns precisely because the
+  rubric is per-role, so a mixed-role plan can be scored in one pass (the edit-levels
+  grid instead makes you filter to one role). The panel's stats strip is a
+  `sm:grid-cols-2 lg:grid-cols-4` **grid** matching the subratings grid below it, and
+  the "last evaluation" / "previous change" **dates are an `IconInfoCircle` tooltip,
+  not inline text** — occasional context, and spelling them out made every fact
+  ragged and two-line.
+- **`planned-comp-field`** — the amount input + currency select. The planned amount is
+  **the one money column never re-denominated** (it's an input); a muted `≈` echo
+  carries the conversion when the row is displayed in another currency.
+- **`commit-plan-dialog`** — surfaces the incomplete count; the editor `flushAll()`s
+  and refuses to open it if anything is still unsaved.
+- **`use-plan-autosave`** — one key per **(row, field)** over the shared
+  `useAutosaveQueue`; discrete controls (selects, checkboxes) save immediately, text
+  and numbers debounce; `flushRow` on collapse, `flushAll` before commit. A
+  `PLAN_LOCKED_MESSAGE` response **abandons the queue** and refreshes into read-only,
+  because retrying can never succeed.
+- **`plan-columns`** / **`plan-format`** — the column list (declared once so the
+  header row and the expanded panel's `colSpan` can't drift) and the change
+  formatting/tone helpers.
+
+### Tests — a deliberate ADR 0037 exception
+
+`src/lib/performance/compensation-plan.test.ts` pins two invariants beyond the type
+checker: the **percentage change is identical in every display currency**, and **every
+missing/zero input yields `null`** rather than NaN/Infinity. Money-correctness rules a
+type can't express — not a return to a broad suite; see
+[ADR 0037](../decisions/0037-unit-tests-removed-except-rbac-matrix.md).
+
+### Seed
+
+`seedCompensationPlans` (`scripts/seed/performance.ts`, wired into `scripts/seed.ts`
+**after `seedRatings`** since items seed their proposed level from the current one;
+both tables added to `scripts/seed/wipe.ts`) creates **one draft + one committed
+plan, 12 staff each**. The committed plan's planned figures deliberately differ from
+live comp, so the frozen snapshot and the "Not applied" drift badge both have data.
+
 ## Still proposed
 
 - **ReviewCycle** — a period in which reviews happen (quarterly, annual).
@@ -372,14 +626,24 @@ utilization, and project contributions as review context.
 - **Staff profiles** — feedback is staff↔staff; both endpoints are `staff` rows.
   Only **active** staff participate. The analytics dashboard reads the latest
   `staff_employment` compensation for every **active** staff member; ratings are
-  keyed to `staff` (cascade) and shown only for **active** staff. Future reviews
-  would target a Person and may update role/seniority.
+  keyed to `staff` (cascade) and shown only for **active** staff. Compensation plans
+  read `staff_employment` heavily (current, previous, and live comp per person) but
+  **never write it** — see [ADR 0044](../decisions/0044-compensation-change-plans-rating-writing-proposals.md).
+  Future reviews would target a Person and may update role/seniority.
+- **Rippling (external)** — the system of record for pay
+  ([ADR 0020](../decisions/0020-compensation-effective-dated-import-only.md)). A
+  committed compensation plan is a standing instruction *to* Rippling: the editor
+  keeps comparing the proposal against live imported comp and badges each row
+  **Applied** / **Not applied**.
 - **Timesheets / Allocations** — utilization and delivery are intended review
   inputs (not yet wired).
 - **Permissions** — `feedback.review` (manager + admin) is the reviewer tier; the
   comp dashboard reuses `staff.viewCompensation` (finance/manager/admin); the
   levels section uses the new `ratings.view` / `ratings.edit` (manager/admin **only**
-  — not finance, no self-view). See [domains/permissions.md](./permissions.md).
+  — not finance, no self-view); compensation plans require **both**
+  `staff.viewCompensation` **and** `ratings.edit` (the strictest surface in the
+  domain, and the only identity-bearing one). See
+  [domains/permissions.md](./permissions.md).
 
 ## Open questions (for the proposed pieces)
 
