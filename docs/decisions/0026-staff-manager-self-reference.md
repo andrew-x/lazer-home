@@ -29,8 +29,10 @@ clears their reports' pointers rather than deleting or blocking.
 We treat "reports to" as a **durable identity fact** — a property of the person right
 now — deliberately **not** history-as-rows like role/billability/compensation
 ([ADR 0007](./0007-staff-employment-effective-dating.md)). The import is authoritative
-and the field is display-only, so there's no demand to reconstruct "who was your
-manager on date X"; adding it to `staff_employment` would mean carrying it forward on
+and every reader wants the *current* line, so there's no demand to reconstruct "who was
+your manager on date X" (the field was display-only when this was written; it now also
+scopes a feedback list — see the amendment under *Consequences* — but still only
+as-of now); adding it to `staff_employment` would mean carrying it forward on
 every effective-dated write (like `isManagement`/`billableType`/comp) for a value
 nobody queries as-of. Keeping it on `staff` keeps the read a plain self-join and the
 write a single `set` clause on the existing `staff` upsert. If reporting-line *history*
@@ -97,8 +99,10 @@ established or changed** this import — creates that got a manager, plus update
 manager changed to a non-null value. A cleared link or an unchanged pointer riding along
 an unrelated field change doesn't count.
 
-**No cycle detection beyond self-reference** — intentional for a display-only field
-(`contacts.managerId` doesn't guard cycles either).
+**No cycle detection beyond self-reference** — intentional (`contacts.managerId` doesn't
+guard cycles either), and the reason the one reader that *walks* the link
+(`getFeedbackAboutReports`, one hop only) guards against self-reference itself rather
+than trusting the data — [ADR 0047](./0047-feedback-reports-scoping-not-granting.md).
 
 ## Consequences
 
@@ -111,7 +115,19 @@ an unrelated field change doesn't count.
   file that omits the manager column) is safe.
 - **Display is a plain self-join.** `getStaffProfile` aliases `staff` and left-joins on
   `managerId` to project `{ managerId, managerName }`; `profile-view.tsx` shows a
-  "Reports to <link>" line. No "direct reports" (inverse) view exists yet.
+  "Reports to <link>" line.
+- **No longer display-only (amended 2026-07-28).** The field now has a **second reader,
+  in the inverse direction**: `getFeedbackAboutReports` scopes the "Your reports" tab on
+  `/feedback` with `recipient.managerId = <caller's staff id>`
+  ([ADR 0047](./0047-feedback-reports-scoping-not-granting.md)). Decision §1 still
+  holds — the tab reads the *current* reporting line, so there's still no as-of demand
+  and no reason to effective-date it — but two consequences sharpen: a wrong or missing
+  manager link now affects **what a manager can conveniently see**, not just a profile
+  line, which is why the "unresolvable and column-absent **preserve**, only a blank cell
+  clears" rule above is load-bearing; and the **self-reference warning case matters more**
+  — the feedback read explicitly excludes `recipient.id = callerStaffId` because a
+  self-pointing row would otherwise expose the caller's own feedback in full. No
+  "direct reports" (inverse) view exists on the **profile** yet.
 - **Manager deleted later → pointer clears** via `onDelete: set null` (a leaver is
   normally marked inactive, not deleted — see [ADR 0007](./0007-staff-employment-effective-dating.md)
   — so this mainly bites hard deletes).

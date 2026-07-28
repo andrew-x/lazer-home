@@ -69,14 +69,55 @@ never leave the server for unauthorized callers. Three tiers:
    recipient.
 3. **Reviewer (`feedback.review`) — full view.** Managers/admins can view **any
    individual** feedback item in full via `getFeedbackDetail` (full content for
-   any id — the detail page `/feedback/[id]`). A dedicated **browse-all list** of
-   everyone's feedback is **deferred / planned** — it existed briefly
-   (`getAllFeedbackPage` + an `all-feedback-table`) but was removed for now; the
-   `feedback.review` capability itself is unchanged and still the reviewer gate.
+   any id — the detail page `/feedback/[id]`), **plus one browse list: their own
+   direct reports** ("Your reports" tab, `getFeedbackAboutReports` — see below).
+   A **browse-all list** of *everyone's* feedback is still **deferred / planned** —
+   it existed briefly (`getAllFeedbackPage` + an `all-feedback-table`) and was
+   removed; the reports tab reinstates that idea only in the narrowed,
+   reporting-line-scoped form. The `feedback.review` capability itself is
+   unchanged and still the only reviewer gate
+   ([ADR 0047](../decisions/0047-feedback-reports-scoping-not-granting.md)).
 
-> **"Manager" here means the `feedback.review` role capability, not a reporting
-> line.** There is **no per-person manager/report graph** anywhere in this
-> codebase — visibility is purely role-based (manager/admin see everything).
+> **"Manager" in the *authorization* model still means the `feedback.review`
+> capability, never a reporting line** — no permission check anywhere consults the
+> reporting graph. But the graph itself **does** exist (`staff.managerId`, a durable
+> self-FK, [ADR 0026](../decisions/0026-staff-manager-self-reference.md)) and is now
+> **read to scope** the "Your reports" tab. Scoping ≠ granting: the tab's gate is the
+> plain `feedback.review` capability, and the reporting line only *narrows* a result
+> set the caller was already entitled to see in full. (Older docs asserting "there is
+> no manager/report graph in this codebase" are wrong — that was true before ADR 0026.)
+
+### "Your reports" — the one relationship-scoped browse list
+
+The third tab on `/feedback` (after "About you" and "You've given"), backed by
+**`getFeedbackAboutReports`** (`src/actions/feedback/`, server-only read). It lists
+feedback whose **recipient is a direct report of the caller** — newest first, with
+**full content**, opening in the shared detail dialog. Load-bearing details:
+
+- **Gate: `userHasPermission(user, { feedback: ["review"] })`** — the *same*
+  capability `getFeedbackDetail` already requires. Every row listed is therefore one
+  the caller could already open in full at `/feedback/[id]`. This is a **browse
+  surface over existing authorization**, not a new tier: the reporting line only
+  *narrows*, never grants. **No matrix change** — `permissions.ts`, the matrix test
+  and [permissions.md](./permissions.md) are untouched.
+- **Direct reports only, one hop** — `staff.managerId = caller's staff id`. **No
+  recursion**, so a skip-level report doesn't appear. (Not a security property, just
+  the chosen scope; widening it would still be inside the same capability.)
+- **`null` vs `[]`** — `null` means "not permitted, or the caller has no linked
+  active `staff` row", and the page **hides the tab entirely**; `[]` means
+  "permitted, nothing to show" and renders an empty state. Keep that distinction —
+  collapsing them would either leak the tab's existence or hide it from an
+  entitled manager with no feedback yet.
+- **Self-exclusion is deliberate:** the query also `ne(recipient.id, callerStaffId)`.
+  `managerId` is CSV-import-populated with **no in-app editor** and has no cycle
+  guard beyond the importer's `self` warning, so a row pointing at itself is
+  possible — without the guard it would hand the caller *their own* feedback in
+  full, the exact thing the recipient tier withholds. (The reviewer self-view gap
+  below still exists via `/feedback/[id]`; this guard just refuses to widen it into
+  a list.)
+
+Full rationale in
+[ADR 0047](../decisions/0047-feedback-reports-scoping-not-granting.md).
 
 ### Deliberate gap — reviewers see their own feedback
 
@@ -92,19 +133,36 @@ view) is flagged **future work**. See [ADR 0023](../decisions/0023-feedback-priv
 - Actions in `src/actions/feedback/`: `createFeedback` (+ `.schema`),
   `authorizeFeedback` (`canGiveFeedback` + `authorizeFeedbackCreate`),
   `getFeedbackAboutMe`, `getFeedbackIGave`, `getFeedbackDetail`,
+  **`getFeedbackAboutReports`** (the reviewer's direct-reports list — above),
   `searchStaffForFeedback` (auth-only recipient picker, active staff excluding
   self — no capability, since giving is open).
-- UI: nav item `/feedback` (`IconMessageHeart`), pages
-  `src/app/(app)/feedback/page.tsx` (a **two-tab** view — "About you" /
-  "You've given"), `feedback/new/page.tsx` (the **dedicated give-feedback page**),
-  and `[id]/page.tsx` (detail). Components under `src/components/feedback/`:
-  `feedback-form` (the give-feedback form, rendered on the `/new` page — replaced
-  the old dialog), `feedback-about-me`, `feedback-given-table`, and
-  `feedback-detail-fields` (renders a single feedback item's full content, backing
-  the `[id]` detail page). New vendored
-  primitive `src/components/ui/radio-group.tsx` (Base UI `Radio`/`RadioGroup`)
-  for the rating picker. The recipient tab warns that only the message-to-recipient
-  is visible; the detail page gates full content via `getFeedbackDetail`.
+- UI: nav item **"Peer Feedback"** → `/feedback` (`IconMessageHeart`; the route and
+  its children are unchanged — only the label and the page `<h2>`/`metadata.title`
+  say "Peer Feedback"). Pages: `src/app/(app)/feedback/page.tsx` (a **three-tab**
+  view — "About you" / "You've given" / **"Your reports (N)"**, the last rendered
+  only when `getFeedbackAboutReports` returns non-`null`),
+  `feedback/new/page.tsx` ("Give feedback" — the **dedicated give-feedback page**),
+  and `[id]/page.tsx` ("Feedback detail"). Components under
+  `src/components/feedback/`: `feedback-form` (the give-feedback form, rendered on
+  the `/new` page — replaced the old dialog), `feedback-about-me`,
+  `feedback-given-table`, **`feedback-about-reports-table`**,
+  **`feedback-detail-dialog`** (the full-content dialog, **extracted from
+  `feedback-given-table` and now shared by both tables** — change it in one place;
+  callers keep `item` and `open` in separate state so the content survives the close
+  animation), and `feedback-detail-fields` (a single item's full content, shared by
+  that dialog and the `[id]` detail page). Vendored primitive
+  `src/components/ui/radio-group.tsx` (Base UI `Radio`/`RadioGroup`) for the rating
+  picker. The recipient tab warns that only the message-to-recipient is visible; the
+  reports tab says the reverse out loud ("you can see each item in full — they
+  can't"); the detail page gates full content via `getFeedbackDetail`.
+- **The reports table filters in memory** (For / Author / From / To over the
+  once-fetched rows, via the shared `SearchableSelectFilter` + `DatePicker`) — the
+  **staff-directory** pattern, *not* the URL-backed [list filter bar](../ui.md#list-filter-bars).
+  Deliberate: the controls sit inside an **uncontrolled `Tabs`**, so URL-backed
+  filters would force tab selection into the URL too, and one manager's reports is a
+  small set. The date filter compares `formatIsoDate(createdAt)` strings so it agrees
+  with the Date column (`createdAt` is a timezone-less timestamp); the two endpoints
+  can't cross (setting one past the other clears the other).
 
 ## The two analytics dashboards + the `/performance` redirect
 
@@ -744,7 +802,12 @@ utilization, and project contributions as review context.
 ## Connects to
 
 - **Staff profiles** — feedback is staff↔staff; both endpoints are `staff` rows.
-  Only **active** staff participate. Both analytics reads join the latest
+  Only **active** staff participate. **`staff.managerId` (the import-populated
+  "reports to" self-FK, [ADR 0026](../decisions/0026-staff-manager-self-reference.md))
+  is read here** — `getFeedbackAboutReports` is its **first non-display consumer** and
+  the first query in the *inverse* direction ("who reports to me"), so a bad import
+  now has a visibility consequence, not just a wrong profile line. Both analytics
+  reads join the latest
   `staff_employment` row per **active** staff member — the Compensation dashboard to
   display money, the levels read for filter dimensions (**though `RatingRecord.employment`
   still carries the amounts** — see the caveat under *Compensation by level*).
@@ -760,7 +823,10 @@ utilization, and project contributions as review context.
   **Applied** / **Not applied**.
 - **Timesheets / Allocations** — utilization and delivery are intended review
   inputs (not yet wired).
-- **Permissions** — `feedback.review` (manager + admin) is the reviewer tier; the
+- **Permissions** — `feedback.review` (manager + admin) is the reviewer tier, and the
+  **only** feedback gate: the "Your reports" tab scopes by reporting line *inside*
+  that capability rather than adding one
+  ([ADR 0047](../decisions/0047-feedback-reports-scoping-not-granting.md)); the
   Compensation dashboard reuses `staff.viewCompensation` (finance/manager/admin);
   the Performance (levels) dashboard + editor use `ratings.view` / `ratings.edit`
   (manager/admin **only** — not finance, no self-view), and its comp-by-level table

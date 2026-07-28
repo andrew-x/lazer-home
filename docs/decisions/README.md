@@ -31,7 +31,7 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0020](./0020-compensation-effective-dated-import-only.md) | Compensation as effective-dated facts on `staff_employment`; import-only, required (no carry-forward — under-specified rows skipped), view-gated | accepted |
 | [0021](./0021-opportunity-pipeline-groups-and-fractional-ordering.md) | Opportunity pipeline: status groups in code + single global fractional ordering | accepted |
 | [0022](./0022-contact-manager-self-reference.md) | Contact "managed by" self-referential FK; same-company invariant enforced app-side | accepted |
-| [0023](./0023-feedback-privacy-tiers.md) | Peer feedback: privacy tiers as read-projections; giving open, review gated | accepted |
+| [0023](./0023-feedback-privacy-tiers.md) | Peer feedback: privacy tiers as read-projections; giving open, review gated | accepted; **factually corrected** by [0047](./0047-feedback-reports-scoping-not-granting.md) (a reporting graph now exists — the decision itself stands) |
 | [0024](./0024-opportunity-project-handoff-and-placeholder-roles.md) | Opportunity → Project handoff: delivery-stage project requirement + placeholder roles + role type (amended: link inverted, same-company enforced) | accepted |
 | [0025](./0025-line-of-business-on-opportunity-and-project-not-role.md) | Line of business belongs to the opportunity & project, not the role; opportunities split to own schema file | superseded (project point) by 0033 |
 | [0026](./0026-staff-manager-self-reference.md) | Staff "reports to": durable self-FK, import-resolved by email in two passes | accepted |
@@ -55,6 +55,7 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0044](./0044-performance-dashboards-split-by-permission.md) | `/performance` split into two gated dashboards (Compensation + Performance/levels); `/performance` becomes a permission-aware redirect | accepted |
 | [0045](./0045-project-page-as-delivery-side-role-editor.md) | Two role editors — deal-side (opportunity planner, tentative-only) vs. delivery-side (project page, any status); "confirmed roles are locked" narrowed to the planner | accepted; self-amended same-day — the project **Gantt** is an edit surface too (`editable` vs. `emphasized` split) and the project's **company** is editable, guarded against stranding a linked opportunity |
 | [0046](./0046-compensation-change-plans-rating-writing-proposals.md) | Compensation change plans: commit writes ratings only, never `staff_employment`; snapshot + drift badge reconcile against Rippling | accepted (0020 stands) |
+| [0047](./0047-feedback-reports-scoping-not-granting.md) | "Your reports" feedback list: `staff.managerId` **scopes** an already-permitted set, it never grants; `feedback.review` unchanged (0023 stands, corrected) | accepted |
 
 > **0012 is intentionally absent** (the log jumps 0011 → 0013). It was a short-lived
 > ADR documenting the *open staff-edit gap pending RBAC*; it was **withdrawn** once
