@@ -22,11 +22,11 @@ export default async function EditLevelsPage() {
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
       <div className="flex flex-col gap-2">
         <Link
-          href="/performance"
+          href="/performance/levels"
           className="flex w-fit items-center gap-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
           <IconArrowLeft className="size-4" />
-          Back to performance
+          Back to performance dashboard
         </Link>
         <div>
           <h2 className="font-heading text-2xl font-semibold tracking-tight">
