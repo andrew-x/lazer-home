@@ -41,6 +41,8 @@ export type CompanyContact = {
   role: string | null;
   email: string;
   phone: string | null;
+  /** Free-text "City, CC" home base — null when unknown. */
+  location: string | null;
   /** The contact's open (not-done) tasks, oldest first — empty when none. */
   openTasks: OpenTaskSummary[];
 };
@@ -236,6 +238,7 @@ export const getCompanyDetail = cache(
           role: contacts.role,
           email: contacts.email,
           phone: contacts.phone,
+          location: contacts.location,
         })
         .from(contacts)
         .where(eq(contacts.companyId, id))

@@ -93,7 +93,7 @@ sorted-key JSON, so key order is irrelevant) before a row is skipped.
 - **The overall level and subratings can disagree**, by design. Any future
   aggregate that wants "average of subratings" must compute it explicitly; it is
   not the level.
-- **The read-only `/performance` dashboard aggregates over subratings too** — a
+- **The read-only Performance dashboard (`/performance/levels`) aggregates over subratings too** — a
   purely additive per-role average-subrating-by-category breakdown
   (`computeAverageSubratingsByRole`), fully anonymized like the rest of the
   dashboard. This is read/aggregation only; the storage decision above is unchanged.

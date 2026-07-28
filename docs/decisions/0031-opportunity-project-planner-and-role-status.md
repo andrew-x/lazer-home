@@ -1,8 +1,8 @@
 # 0031 — Opportunity project planner: role `status` (tentative → confirmed), auto-confirm on won, weekly Gantt view
 
-**Status:** accepted; amended by [ADR 0033](./0033-line-of-business-on-role-derived-project-status.md) and [ADR 0044](./0044-project-page-as-delivery-side-role-editor.md) · 2026-07-18
+**Status:** accepted; amended by [ADR 0033](./0033-line-of-business-on-role-derived-project-status.md) and [ADR 0045](./0045-project-page-as-delivery-side-role-editor.md) · 2026-07-18
 
-> **Amended, 2026-07-28 ([ADR 0044](./0044-project-page-as-delivery-side-role-editor.md)) — the
+> **Amended, 2026-07-28 ([ADR 0045](./0045-project-page-as-delivery-side-role-editor.md)) — the
 > role lock is now surface-specific.** Everything below still describes the **opportunity
 > planner** correctly: there, and only there, may you edit a role that is `tentative` *and* tagged
 > with this opportunity. But the project detail page (`/projects/[id]`) is now a **second,
@@ -65,7 +65,7 @@ been **folded into the squashed baseline** `drizzle/0000_lethal_rictor.sql`.)
 - **Tentative** = a role being planned against an opportunity; editable in that opportunity's
   planner.
 - **Confirmed** = locked in. A role flips to confirmed when its opportunity is won. (**Amended by
-  [ADR 0044](./0044-project-page-as-delivery-side-role-editor.md):** locked *to the planner* — the
+  [ADR 0045](./0045-project-page-as-delivery-side-role-editor.md):** locked *to the planner* — the
   project detail page can still edit it.)
 
 **2. Auto-confirm on Closed-Won.** `src/actions/crm/confirmRolesOnWon.ts` flips every
@@ -115,7 +115,7 @@ edit-only drawer; the underlying `getOpportunityPlan` is a server-only read. No 
 - **A confirmed role can't be edited from the planner.** The planner scopes role edits to this
   opportunity's own *tentative* roles. ~~so once a deal is won its roles are effectively frozen —
   there is no project-side role-edit flow~~ — **superseded by
-  [ADR 0044](./0044-project-page-as-delivery-side-role-editor.md)**: the project detail page is now
+  [ADR 0045](./0045-project-page-as-delivery-side-role-editor.md)**: the project detail page is now
   the delivery-side editor and *can* change a confirmed role (project-scoped, `projects.edit`).
   The planner half of this consequence stands.
 - **`project_roles.opportunityId` is `set null`.** Deleting the originating opportunity keeps

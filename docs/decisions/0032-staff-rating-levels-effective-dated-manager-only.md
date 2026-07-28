@@ -1,6 +1,13 @@
 # 0032 — Staff rating levels (L0–L4): effective-dated, nullable, manager/admin-only with no self-view
 
-**Status:** accepted · 2026-07-18
+**Status:** accepted · 2026-07-18 — **except the UI half**: the "one page, one
+shared control bar, no tabs" layout below was **superseded by
+[ADR 0044](./0044-performance-dashboards-split-by-permission.md)** (2026-07-28),
+which split the merged dashboard into two gated sibling routes
+(`/performance/compensation` + `/performance/levels`) and turned `/performance`
+into a permission-aware redirect. **The data model, effective dating, and the
+`ratings` capability decided here are unchanged and still authoritative** — read
+the *Surfaced as a section…* section below as history, not current shape.
 
 ## Context
 
@@ -31,6 +38,8 @@ Three prior decisions frame the shape:
 exactly, with the level a nullable integer, gated by a new manager/admin-only
 `ratings` capability that has no owner-visible path, surfaced as a section merged
 into the single `/performance` dashboard (sharing one filter bar — no tabs).**
+*(That last clause — the surfacing — is the part [ADR 0044](./0044-performance-dashboards-split-by-permission.md)
+superseded; levels now have their own route, `/performance/levels`.)*
 
 ### Effective-dated, like employment
 
@@ -78,6 +87,14 @@ else. Defense in depth. Matrix, `permissions.test.ts`, and
 
 ### Surfaced as a section on the single `/performance` dashboard — no tabs
 
+> **Superseded by [ADR 0044](./0044-performance-dashboards-split-by-permission.md).**
+> Kept for the reasoning trail. What survives: the levels *editor* at
+> `/performance/levels/edit` (reached via the Performance submenu, `ratings.edit`),
+> and the rule that the server fetches ratings data only for `ratings.view`
+> holders. What changed: the levels analytics are now their own
+> `ratings.view`-gated route (`/performance/levels`) with their **own** control-bar
+> instance, and `/performance` is a redirect rather than a page.
+
 The levels **analytics** render **inline on the existing `/performance` page**, below
 the compensation section, via `levels-section.tsx` (`LevelsSection`) — **not** a
 separate route, **not** a tab bar, **not** a new sidebar entry of their own. (The
@@ -98,6 +115,13 @@ cross-route `performance-tabs.tsx` bar and a standalone `/performance/levels`
 dashboard route; both were removed in favor of the merged single-page layout.)
 
 ### Reuses the compensation dashboard's machinery
+
+> Still true of the *math*, but the placement moved: per
+> [ADR 0044](./0044-performance-dashboards-split-by-permission.md) the
+> **comp/rate-per-level table now renders on the Compensation dashboard** (needing
+> both capabilities), and `/performance/levels` shows no money and no currency
+> toggle. `getRatingsSummaryData` still carries comp amounts, which is why that ADR
+> flags the `ratings.view`-only gate on it as matrix-coupled.
 
 The Levels section reads anonymized per-active-staff rows (`RatingRecord` =
 `CompensationRecord` + `level`, no identity leaves the server), and the
@@ -141,8 +165,13 @@ dashboard ([ADR 0029](./0029-external-fx-rates-and-currency-normalization.md)).
 - **Granting `ratings.view` to finance** (reusing the comp audience). Rejected:
   levels are a management judgment, not a financial fact; finance's interest is
   compensation, which they already see. Ratings are a narrower audience.
-- **A separate top-level nav item (or its own route/tab) for ratings.** Rejected:
-  it's a second lens on the same workforce-analytics base as compensation, so it
-  lives as a section on the one `/performance` dashboard sharing its filter bar —
-  keeping the two adjacent without widening the sidebar or duplicating controls. (A
-  cross-route tab bar was tried first, then collapsed into this single page.)
+- **A separate top-level nav item (or its own route/tab) for ratings.** Rejected
+  *at the time*: it's a second lens on the same workforce-analytics base as
+  compensation, so it lived as a section on the one `/performance` dashboard
+  sharing its filter bar — keeping the two adjacent without widening the sidebar or
+  duplicating controls. (A cross-route tab bar was tried first, then collapsed into
+  this single page.) **Revisited and reversed in
+  [ADR 0044](./0044-performance-dashboards-split-by-permission.md)**: levels got
+  their own route after all (as a *submenu child*, still not a top-level nav item),
+  because the two views have different permission gates and the merged page hid
+  that boundary. Tabs are still rejected.

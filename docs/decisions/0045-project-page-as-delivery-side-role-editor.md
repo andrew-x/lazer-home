@@ -1,4 +1,4 @@
-# 0044 — Two role editors: deal-side (opportunity planner) vs. delivery-side (project page); "confirmed roles are locked" narrowed
+# 0045 — Two role editors: deal-side (opportunity planner) vs. delivery-side (project page); "confirmed roles are locked" narrowed
 
 **Status:** accepted · 2026-07-28 · amends [ADR 0031](./0031-opportunity-project-planner-and-role-status.md) · **self-amended the same day** — decision points 5 and 6 were reversed (the Gantt is an edit surface; the project's company is editable). Read the [Amendment](#amendment-2026-07-28-the-gantt-is-an-edit-surface-and-company-is-editable) before trusting those two points.
 

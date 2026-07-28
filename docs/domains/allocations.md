@@ -150,7 +150,7 @@ the inline **Notes** column (shown and editable to `staff.edit` holders — mana
   `/opportunities` **and `/allocations`**. So a role added, re-dated, re-staffed or deleted from
   the **project detail page** (`/projects/[id]` — the delivery-side editor, from either its Roles
   table or its Timeline Gantt,
-  [ADR 0044](../decisions/0044-project-page-as-delivery-side-role-editor.md)) appears here
+  [ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md)) appears here
   immediately, including on **confirmed** roles the opportunity planner won't touch. If you add
   a new project/role write, route its revalidation through that helper rather than a bare
   `revalidatePath("/projects")` — otherwise this grid goes stale.

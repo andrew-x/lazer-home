@@ -90,3 +90,44 @@ entirely**, leaving the entry logs as **notes-only**.
   entity-scoped for now. The `staff` FK + per-owner indexing leave the door open.
 - **Per-task ownership (only owner/creator may edit)** — rejected as over-engineered,
   same as notes: `crm.edit` already scopes who can touch the domain.
+
+## Since
+
+- **Contact "Next steps" cells are no longer read-only.** This ADR shipped every
+  list/board cell as the read-only `open-tasks-cell.tsx`; **both** contact tables — the
+  contacts list and the company detail page's Contacts tab — have since been made
+  **editable in place** (`contact-tasks-cell.tsx` — complete / edit / delete / add,
+  through the same four `crm.edit`-gated actions), because task upkeep is the main reason
+  to open a contact at all. No model change: `OpenTaskSummary` just gained
+  `ownerId`/`ownerName` so the cell can round-trip the owner through `updateTask`.
+  `open-tasks-cell.tsx` now has **exactly one caller** — it is `ContactTasksCell`'s
+  fallback for viewers without `crm.edit`, no longer a cell any page renders itself (the
+  kanban card mirrors the shape inline rather than importing it). See
+  [domains/crm.md](../domains/crm.md#tasks).
+- **That cell's editor is a popover, and the summary row now carries the owner.** The
+  first cut expanded a row into an inline `TaskFields` editor with hover-revealed
+  pencil/trash buttons, which made rows jump several lines tall mid-table. Replaced by a
+  fixed one-line row — `checkbox · truncated description · owner avatar` — where the
+  **description itself triggers a popover** holding the fields, Cancel/Save *and*
+  Delete; "Add" opens the same popover empty. `open-tasks-cell.tsx` was restyled to the
+  identical row, keeping the editable cell and its read-only fallback visually the same. The owner
+  glyph is the shared `task-owner-avatar.tsx`.
+- **Completing a task in that cell no longer removes the row — it becomes a one-click
+  undo.** A ticked task keeps rendering below the open ones, struck through; unticking
+  calls `setTaskDone { done: false }`. The state is a **`Map<id, { task, done }>` of
+  *overrides*** (tasks whose done-state this cell changed during the visit), **not** a
+  simple "completed" list, because the server list carries only *open* tasks and lags a
+  `router.refresh()` behind every toggle — so the gap has to be papered over in **both**
+  directions: a just-completed task is **still in** `tasks` (render it struck, not
+  twice), and a just-reopened one has **left** the local pile but hasn't reappeared in
+  `tasks` yet (keep rendering it, or undo blinks the row away). Overrides are
+  session-scoped — a navigation or hard reload clears them, the intended lifetime for an
+  undo affordance. **Completed rows are deliberately not editable** (plain text, no
+  popover trigger): the cell is holding the last copy it saw of a task the server no
+  longer returns, so an edit there would silently drift from the row.
+- **The company's own task section moved into a tab and is titled "Next steps".** This
+  ADR added it as a `<DetailSection title="Tasks">` sitting *below* the company detail
+  tabs; it now lives (with the Notes log) inside a third, **default** company tab named
+  **Notes**, and the section header reads "Next steps" — matching the contact page,
+  whose equivalent tab is still named **Activity**. See
+  [domains/crm.md](../domains/crm.md) and [ui.md](../ui.md).

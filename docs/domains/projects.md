@@ -7,7 +7,7 @@ below) all exist. This is the **hub linking CRM to delivery** and the first conc
 proposed **Allocation** concept (`project_roles`).
 
 **Two editors, one set of rows.** A project's roles are edited from **two** surfaces with
-**deliberately different invariants** ([ADR 0044](../decisions/0044-project-page-as-delivery-side-role-editor.md)):
+**deliberately different invariants** ([ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md)):
 the opportunity planner (**deal-side** — only *this* opportunity's still-`tentative` roles,
 guarded by `assertRoleEditable`) and the project detail page (**delivery-side** — any role on
 *this* project, including `confirmed` ones, guarded by `assertProjectRoleEditable`). Both carry
@@ -32,7 +32,7 @@ Roles carry a **planning `status`** — now **four states**
 yet) — and an **`opportunityId` provenance FK**, edited through the opportunity drawer's
 **weekly Gantt-like planner** ([ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md))
 **or the project detail page — from either its Roles table or its Timeline Gantt, both opening the
-same dialog** ([ADR 0044](../decisions/0044-project-page-as-delivery-side-role-editor.md)).
+same dialog** ([ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md)).
 Roles can be **placeholders/open positions** (null `staffId`) carrying a `roleType`.
 Standalone projects (no opportunity, staffed roles) still work.
 
@@ -114,7 +114,7 @@ delivery, allocations, timesheets, and billing.
     **planning state**, now **four values**: `tentative` while planned against an opportunity
     (editable in that opportunity's planner), `confirmed` once the opportunity is won (**locked
     in the opportunity planner, but still editable from the project detail page** —
-    [ADR 0044](../decisions/0044-project-page-as-delivery-side-role-editor.md)), plus
+    [ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md)), plus
     **`paused`/`cancelled`** for a role on hold or dropped. The last two are
     **enum-only for now** — no user-facing control sets them yet (the seed exercises them; the
     derivation + badges handle them). Its tuple, labels, and **badge variants** live in the
@@ -332,7 +332,7 @@ delivery, allocations, timesheets, and billing.
     role belongs to the engagement, not a deal; status stays system-driven). Update/delete run
     **`assertProjectRoleEditable`** in a transaction and never touch `status`/`opportunityId`.
     All revalidate via `revalidateProject`. See
-    [ADR 0044](../decisions/0044-project-page-as-delivery-side-role-editor.md).
+    [ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md).
   - `assertProjectRoleEditable.ts` — the **delivery-side** business guard (server-only, not an
     action): the role must exist and `role.projectId === projectId`. **That is the whole
     invariant** — no status check, no opportunity check — because a live engagement's roles are
@@ -491,7 +491,9 @@ delivery, allocations, timesheets, and billing.
   ids, hidden when there are no delivery managers)** — the shared **searchable single-select**
   (`src/components/form/filters.tsx`) for long option sets like staff — the same
   `buildListHref`/`PaginationControls` pattern as the
-  opportunities/companies lists. **When any of the three filters is active the sections collapse
+  opportunities/companies/contacts lists, with the search box + its debounce-to-URL effect coming
+  from the shared `useUrlSearchFilter`/`SearchFilter` (`src/components/form/search-filter.tsx`; see
+  [../ui.md](../ui.md#list-filter-bars)). **When any of the three filters is active the sections collapse
   into a single flat, paginated grid across all statuses, ordered by end date descending**
   (latest-ending first, role-less projects last — via `getProjectsPage`'s `"endDate"` order),
   rather than the name-ordered sections; clearing filters restores the sections. `add-project-dialog.tsx` (a **deliberately minimal**
@@ -591,7 +593,7 @@ renders the client `ProjectDetailView` (`src/components/projects/detail/project-
 with **`canEdit = userHasPermission(user, { projects: ["edit"] })`**.
 
 **This page is the delivery-side editor of the engagement** — not read-only ([ADR
-0044](../decisions/0044-project-page-as-delivery-side-role-editor.md)). `canEdit` drives the
+0045](../decisions/0045-project-page-as-delivery-side-role-editor.md)). `canEdit` drives the
 **affordances only**; every mutation carries its own `projects.edit` gate in the action metadata.
 **Cross-links into this route are wired
 across the app**: the `/projects` list **cards** (`project-card.tsx`, a plain `next/link`
@@ -698,7 +700,7 @@ delivery decision even though it writes an `opportunities` column), and the type
 role writes by surface: `assertRoleEditable` restricts *opportunity-scoped* actions to **this
 opportunity's own tentative roles**, and `assertProjectRoleEditable` restricts *project-scoped*
 actions to **roles on this project** (any status). Neither is access control, and the laxer one is
-**not a bypass** — see [ADR 0044](../decisions/0044-project-page-as-delivery-side-role-editor.md).
+**not a bypass** — see [ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md).
 The detail page's `canEdit` prop is an **affordance flag only**. No matrix change
 (`projects.edit` already existed; `/audit-rbac` clean, `permissions.test.ts` untouched). See
 [permissions.md](./permissions.md).
@@ -722,7 +724,7 @@ The detail page's `canEdit` prop is an **affordance flag only**. No matrix chang
   role that carries an `opportunityId` also changes that deal's plan (the confirm dialog warns);
   removing the last live role shifts the project's derived status. Every write revalidates
   `/projects`, `/projects/[id]`, `/opportunities` and `/allocations`. See
-  [ADR 0044](../decisions/0044-project-page-as-delivery-side-role-editor.md).
+  [ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md).
 - **Move a project to another client** (built) — from `/projects/[id]`'s sidebar, a `projects.edit`
   holder picks a different company (`updateProjectField`'s `company` variant). The action **refuses**
   while any opportunity linked to this project belongs to a different company, naming it and telling
@@ -800,7 +802,7 @@ The detail page's `canEdit` prop is an **affordance flag only**. No matrix chang
 - ~~**Roles can only be edited via the opportunity planner**~~ **Resolved** — the project detail
   page is a second, **delivery-side** role editor, reachable from **both its Roles table and its
   Timeline Gantt**
-  ([ADR 0044](../decisions/0044-project-page-as-delivery-side-role-editor.md)): any role on the
+  ([ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md)): any role on the
   project, **any status**, including confirmed roles from a won deal and roles on a standalone
   project with no opportunity. The **planner's** restriction is unchanged and intentional (this
   opportunity's own tentative roles, `assertRoleEditable`). `updateProject`/`updateProjectField`

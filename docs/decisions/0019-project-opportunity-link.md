@@ -30,7 +30,7 @@ opportunity's, and its picker (`searchProjects`) is company-scoped structurally.
 still creates same-company by construction (it sets the opportunity's `projectId` on a project
 it just created for a locked company).
 
-A **third** enforcement point arrived with [ADR 0044](./0044-project-page-as-delivery-side-role-editor.md)'s
+A **third** enforcement point arrived with [ADR 0045](./0045-project-page-as-delivery-side-role-editor.md)'s
 amendment, which made a project's **company editable**: nothing re-checks the invariant *after*
 association, so `updateProjectField`'s `company` case **refuses to re-parent a project while any
 opportunity linked to it belongs to a different company** (naming the offending deal). Anyone adding

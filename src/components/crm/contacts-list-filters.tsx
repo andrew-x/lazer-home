@@ -2,6 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { LocationFilterControl } from "@/components/form/location-filter-control";
+import {
+  SearchFilter,
+  useUrlSearchFilter,
+} from "@/components/form/search-filter";
 import { Button } from "@/components/ui/button";
 import {
   buildListHref,
@@ -10,11 +14,12 @@ import {
 } from "@/lib/core/list-href";
 
 /**
- * The contacts list filter bar: a single location filter (city + "search
- * nearby"). State lives in the URL — the control navigates via `router.replace`,
- * so the server page re-fetches the filtered page and the back button restores
- * prior filters. Reads its current values from the `params` the page already
- * parsed (no `useSearchParams`, so no Suspense boundary needed).
+ * The contacts list filter bar: a name search (debounced) and a location filter
+ * (city + "search nearby"), on one wrapping row. State lives in the URL — each
+ * control navigates via `router.replace`, so the server page re-fetches the
+ * filtered page and the back button restores prior filters. Reads its current
+ * values from the `params` the page already parsed (no `useSearchParams`, so no
+ * Suspense boundary needed).
  */
 export function ContactsListFilters({ params }: { params: SearchParams }) {
   const router = useRouter();
@@ -22,10 +27,24 @@ export function ContactsListFilters({ params }: { params: SearchParams }) {
   const currentCity = firstParam(params.city) || null;
   const currentNearby = firstParam(params.nearby) === "1";
 
+  const { search, setSearch, currentQuery } = useUrlSearchFilter({
+    basePath: "/contacts",
+    pageKey: "contactsPage",
+    params,
+  });
+
+  const hasFilters =
+    currentQuery !== "" || currentCity !== null || currentNearby;
+
   return (
     <div className="flex flex-wrap items-end gap-3">
+      <SearchFilter
+        value={search}
+        onChange={setSearch}
+        placeholder="Search by name…"
+      />
+
       <LocationFilterControl
-        fullWidth
         city={currentCity}
         nearby={currentNearby}
         onCityChange={(label) =>
@@ -46,7 +65,7 @@ export function ContactsListFilters({ params }: { params: SearchParams }) {
         }
       />
 
-      {currentCity !== null || currentNearby ? (
+      {hasFilters ? (
         <Button
           variant="ghost"
           size="sm"
