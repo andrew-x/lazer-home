@@ -8,6 +8,7 @@
 import type { ReactNode } from "react";
 import { EmptyCell } from "@/components/empty-cell";
 import { EmptyState } from "@/components/empty-state";
+import { ROOMY_TABLE } from "@/components/table-density";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -150,7 +151,7 @@ export function DetailTable({
 }) {
   return (
     <div className="rounded-md border">
-      <Table>
+      <Table className={ROOMY_TABLE}>
         <TableHeader>
           <TableRow>
             {headers.map((header) => (

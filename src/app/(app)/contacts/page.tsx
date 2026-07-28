@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getContactsPage } from "@/actions/crm/getContactsPage";
+import { getCurrentStaffIdentity } from "@/actions/staff/getCurrentStaffIdentity";
 import { AddContactDialog } from "@/components/crm/add-contact-dialog";
 import { ContactsListFilters } from "@/components/crm/contacts-list-filters";
 import { ContactsTable } from "@/components/crm/contacts-table";
@@ -18,12 +19,14 @@ export default async function ContactsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const query = typeof params.q === "string" ? params.q : undefined;
   const city = typeof params.city === "string" ? params.city : undefined;
   const nearby = params.nearby === "1";
 
-  const [contacts, user] = await Promise.all([
-    getContactsPage(parsePage(params.contactsPage), { city, nearby }),
+  const [contacts, user, currentStaff] = await Promise.all([
+    getContactsPage(parsePage(params.contactsPage), { query, city, nearby }),
     getCurrentUser(),
+    getCurrentStaffIdentity(),
   ]);
 
   const canEdit = user ? userHasPermission(user, { crm: ["edit"] }) : false;
@@ -45,7 +48,12 @@ export default async function ContactsPage({
       <section className="flex flex-col gap-3">
         <ContactsListFilters params={params} />
         <div className="rounded-md border">
-          <ContactsTable rows={contacts.rows} filtered={city !== undefined} />
+          <ContactsTable
+            rows={contacts.rows}
+            filtered={query !== undefined || city !== undefined}
+            canEdit={canEdit}
+            currentStaff={currentStaff}
+          />
           <PaginationControls
             basePath="/contacts"
             params={params}
