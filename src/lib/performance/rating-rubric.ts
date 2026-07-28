@@ -101,3 +101,43 @@ export const ALL_RUBRIC_KEYS: readonly string[] = ALL_RUBRIC_CATEGORIES.map(
 export const RUBRIC_LABELS: Record<string, string> = Object.fromEntries(
   ALL_RUBRIC_CATEGORIES.map((c) => [c.key, c.label]),
 );
+
+/**
+ * Keep only rubric keys valid for `role` (dropping unknown or stale keys a
+ * crafted payload might carry), returning `null` when nothing survives — so "no
+ * subratings" is stored consistently as null rather than `{}`.
+ *
+ * The rubric is role-specific, so the zod layer can only validate the *values*
+ * (1–4); which *keys* are legitimate depends on the person's current role and is
+ * therefore only knowable server-side. Every write path that persists subratings
+ * must run them through here against a freshly-read role — this is load-bearing
+ * validation, not tidying.
+ */
+export function sanitizeSubratings(
+  subratings: Subratings | null | undefined,
+  role: Role | null,
+): Subratings | null {
+  if (!subratings) return null;
+  const allowed = new Set(rubricForRole(role).map((c) => c.key));
+  const clean: Subratings = {};
+  for (const [key, value] of Object.entries(subratings)) {
+    if (allowed.has(key)) clean[key] = value;
+  }
+  return Object.keys(clean).length > 0 ? clean : null;
+}
+
+/**
+ * Stable serialization (sorted keys) so two subrating objects compare by value,
+ * not by key insertion order. Used to detect genuine changes — a no-op write
+ * must not spawn a new dated rating row.
+ */
+export function canonicalSubratings(
+  subratings: Subratings | null | undefined,
+): string {
+  if (!subratings) return "";
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.entries(subratings).sort(([a], [b]) => a.localeCompare(b)),
+    ),
+  );
+}
