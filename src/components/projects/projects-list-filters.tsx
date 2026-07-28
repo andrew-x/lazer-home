@@ -1,18 +1,17 @@
 "use client";
 
-import { IconSearch } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useState } from "react";
 import type { DeliveryManagerOption } from "@/actions/projects/getProjectsList";
 import {
   ALL,
-  FilterLabel,
   SearchableSelectFilter,
   SelectFilter,
 } from "@/components/form/filters";
+import {
+  SearchFilter,
+  useUrlSearchFilter,
+} from "@/components/form/search-filter";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   buildListHref,
   firstParam,
@@ -39,9 +38,7 @@ export function ProjectsListFilters({
   deliveryManagers: DeliveryManagerOption[];
 }) {
   const router = useRouter();
-  const searchId = useId();
 
-  const currentQuery = firstParam(params.q);
   const currentLob = firstParam(params.lob) || ALL;
   // Resolve to a known option id (else null) so the client and server agree on
   // whether a delivery-manager filter is active even for a stale `dm` param.
@@ -49,24 +46,11 @@ export function ProjectsListFilters({
     deliveryManagers.find((option) => option.id === firstParam(params.dm))
       ?.id ?? null;
 
-  const [search, setSearch] = useState(currentQuery);
-  const debouncedSearch = useDebouncedValue(search, 300);
-
-  // Keep the input in sync when the URL query changes from outside (Clear/back).
-  useEffect(() => {
-    setSearch(currentQuery);
-  }, [currentQuery]);
-
-  // Debounce search → URL: navigate once typing settles and only when the
-  // trimmed value differs from what's already in the URL.
-  useEffect(() => {
-    if (debouncedSearch !== search) return;
-    const next = debouncedSearch.trim();
-    if (next === currentQuery) return;
-    router.replace(
-      buildListHref("/projects", "projectsPage", params, { q: next || null }),
-    );
-  }, [debouncedSearch, search, currentQuery, params, router]);
+  const { search, setSearch, currentQuery } = useUrlSearchFilter({
+    basePath: "/projects",
+    pageKey: "projectsPage",
+    params,
+  });
 
   const hasFilters =
     currentQuery !== "" ||
@@ -75,20 +59,11 @@ export function ProjectsListFilters({
 
   return (
     <div className="flex flex-wrap items-end gap-3">
-      <div className="flex min-w-56 flex-1 flex-col gap-1.5">
-        <FilterLabel htmlFor={searchId}>Search</FilterLabel>
-        <div className="relative">
-          <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            id={searchId}
-            type="search"
-            placeholder="Search by project or company name…"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="pl-9"
-          />
-        </div>
-      </div>
+      <SearchFilter
+        value={search}
+        onChange={setSearch}
+        placeholder="Search by project or company name…"
+      />
 
       <SelectFilter
         label="Line of business"

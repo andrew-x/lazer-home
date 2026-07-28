@@ -23,8 +23,17 @@ export type TaskView = {
   creatorName: string | null;
 };
 
-/** A minimal open-task summary for list cells / board cards. */
-export type OpenTaskSummary = { id: string; description: string };
+/**
+ * A minimal open-task summary for list cells / board cards. Carries the owner so
+ * the contacts list's inline editor can round-trip it through `updateTask`
+ * (which always takes an `ownerId`) without a second fetch.
+ */
+export type OpenTaskSummary = {
+  id: string;
+  description: string;
+  ownerId: string | null;
+  ownerName: string | null;
+};
 
 /**
  * All tasks for one parent, open first then newest — the detail-page Tasks card.
@@ -78,14 +87,18 @@ export async function openTasksByParent(
   const grouped = new Map<string, OpenTaskSummary[]>();
   if (parentIds.length === 0) return grouped;
 
+  const owner = alias(staff, "task_owner");
   const parentColumn = TASK_PARENT_COLUMN[kind];
   const rows = await db
     .select({
       parentId: parentColumn,
       id: tasks.id,
       description: tasks.description,
+      ownerId: tasks.ownerStaffId,
+      ownerName: owner.name,
     })
     .from(tasks)
+    .leftJoin(owner, eq(tasks.ownerStaffId, owner.id))
     .where(and(inArray(parentColumn, parentIds), eq(tasks.done, false)))
     .orderBy(asc(tasks.createdAt));
 
@@ -94,7 +107,12 @@ export async function openTasksByParent(
     // guarantees a non-null value on every returned row.
     const key = row.parentId as string;
     const list = grouped.get(key) ?? [];
-    list.push({ id: row.id, description: row.description });
+    list.push({
+      id: row.id,
+      description: row.description,
+      ownerId: row.ownerId,
+      ownerName: row.ownerName,
+    });
     grouped.set(key, list);
   }
   return grouped;

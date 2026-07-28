@@ -7,10 +7,10 @@ import { ExternalLink } from "@/components/external-link";
 import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { InternalLink } from "@/components/internal-link";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { humanizeEnum } from "@/lib/format/format";
+import { ContactTasksCell } from "./contact-tasks-cell";
 import {
   DetailIdentity,
   DetailLayout,
@@ -24,18 +24,22 @@ import { EditCompanyDialog } from "./edit-company-dialog";
 import { EntryLog } from "./entry-log";
 import { InlineLocationField } from "./inline-location-field";
 import { InlineOwnerField } from "./inline-owner-field";
-import { OpenTasksCell } from "./open-tasks-cell";
 import { OpportunityStatusBadge } from "./opportunity-status-badge";
 import { TaskList } from "./task-list";
 
 /**
  * Read view of a company: a meta sidebar (identity, website, and the inline
- * owner) beside two tabs — Contacts (the company's people directory, linking
- * through to each contact's detail page) and Opportunities & Projects (its
- * pipeline, delivery work, and referred deals/projects). Project names link
- * through to the project detail page (`/projects/[id]`); opportunities have no
- * detail page yet, so they render as rows. Beneath the tabs, separated Tasks and
- * Notes sections hold the company's tasks and its running, authored note log.
+ * owner) beside three tabs.
+ *
+ * - **Notes** (the default) — the company's own next steps and its running,
+ *   authored note log. First because it's what you come to a company for.
+ * - **Contacts** — the company's people directory, linking through to each
+ *   contact's detail page, each person's next steps editable in the row via
+ *   `ContactTasksCell` exactly as on the contacts list.
+ * - **Opportunities & Projects** — its pipeline, delivery work, and referred
+ *   deals/projects. Project names link through to the project detail page
+ *   (`/projects/[id]`); opportunities have no detail page yet, so they render as
+ *   rows.
  */
 export function CompanyDetailView({
   company,
@@ -56,6 +60,10 @@ export function CompanyDetailView({
 
   return (
     <DetailLayout
+      // Full width rather than the default `max-w-6xl`: the Contacts tab now
+      // carries Name · Location · Next steps, and the tasks cell needs room to
+      // stay one line per task. Matches the project detail page.
+      fullWidth
       sidebar={
         <>
           <DetailIdentity
@@ -108,30 +116,62 @@ export function CompanyDetailView({
         </>
       }
     >
-      <Tabs defaultValue="contacts">
+      <Tabs defaultValue="notes">
         <TabsList variant="line" className="mb-4">
+          <TabsTrigger value="notes">Notes</TabsTrigger>
           <TabsTrigger value="contacts">Contacts</TabsTrigger>
           <TabsTrigger value="pipeline">
             Opportunities &amp; Projects
           </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="notes" className="flex flex-col gap-8">
+          <DetailSection title="Next steps" count={company.tasks.length}>
+            <TaskList
+              variant="company"
+              parentId={company.id}
+              tasks={company.tasks}
+              canEdit={canEdit}
+              currentStaff={currentStaff}
+            />
+          </DetailSection>
+
+          <DetailSection title="Notes" count={notes.length}>
+            <EntryLog
+              variant="company"
+              parentId={company.id}
+              entries={notes}
+              canEdit={canEdit}
+            />
+          </DetailSection>
+        </TabsContent>
+
         <TabsContent value="contacts">
           <DetailSection title="Contacts" count={company.contacts.length}>
             {company.contacts.length === 0 ? (
               <TableEmpty>No contacts at this company yet.</TableEmpty>
             ) : (
-              <DetailTable headers={["Name", "Role", "Next steps"]}>
+              <DetailTable headers={["Name", "Location", "Next steps"]}>
                 {company.contacts.map((contact) => (
                   <TableRow key={contact.id}>
                     <TableCell className="font-medium">
                       <InternalLink href={`/contacts/${contact.id}`}>
                         {contact.name}
                       </InternalLink>
+                      {contact.role ? (
+                        <div className="text-xs font-normal text-muted-foreground">
+                          {contact.role}
+                        </div>
+                      ) : null}
                     </TableCell>
-                    <TableCell>{contact.role ?? <EmptyCell />}</TableCell>
+                    <TableCell>{contact.location ?? <EmptyCell />}</TableCell>
                     <TableCell>
-                      <OpenTasksCell tasks={contact.openTasks} />
+                      <ContactTasksCell
+                        contactId={contact.id}
+                        tasks={contact.openTasks}
+                        canEdit={canEdit}
+                        currentStaff={currentStaff}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -246,27 +286,6 @@ export function CompanyDetailView({
           )}
         </TabsContent>
       </Tabs>
-
-      <Separator />
-
-      <DetailSection title="Next steps" count={company.tasks.length}>
-        <TaskList
-          variant="company"
-          parentId={company.id}
-          tasks={company.tasks}
-          canEdit={canEdit}
-          currentStaff={currentStaff}
-        />
-      </DetailSection>
-
-      <DetailSection title="Notes" count={notes.length}>
-        <EntryLog
-          variant="company"
-          parentId={company.id}
-          entries={notes}
-          canEdit={canEdit}
-        />
-      </DetailSection>
     </DetailLayout>
   );
 }

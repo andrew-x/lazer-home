@@ -3,23 +3,19 @@
 import { IconPencil, IconTrash } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
-import { type ReactNode, useId, useState } from "react";
+import { useState } from "react";
 import { createTask } from "@/actions/crm/createTask";
 import { deleteTask } from "@/actions/crm/deleteTask";
 import type { TaskView } from "@/actions/crm/getTasks";
-import { searchStaff } from "@/actions/crm/searchStaff";
 import { setTaskDone } from "@/actions/crm/setTaskDone";
-import { TASK_MAX_LENGTH } from "@/actions/crm/tasks.schema";
 import { updateTask } from "@/actions/crm/updateTask";
-import { EntityCombobox } from "@/components/form/entity-combobox";
 import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { IconButton } from "@/components/icon-button";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/core/utils";
 import { formatShortDate } from "@/lib/format/format";
+import { TaskFields } from "./task-fields";
 
 type TaskListProps = {
   /** Which parent the tasks hang off — selects the create action's parent kind. */
@@ -45,63 +41,6 @@ function ownerOption(task: TaskView): EntityOption | null {
   return task.ownerId
     ? { id: task.ownerId, name: task.ownerName ?? task.ownerId }
     : null;
-}
-
-/**
- * The labelled task fields — a single-line description input beside an owner
- * staff-picker on one row (stacking below `sm`). Shared by the composer and the
- * inline editor so both capture a task the same way. `trailing` holds the row's
- * end control (the composer's Add button); Enter in the description submits.
- */
-function TaskFields({
-  description,
-  onDescriptionChange,
-  owner,
-  onOwnerChange,
-  onSubmit,
-  autoFocus,
-  trailing,
-}: {
-  description: string;
-  onDescriptionChange: (next: string) => void;
-  owner: EntityOption | null;
-  onOwnerChange: (next: EntityOption | null) => void;
-  onSubmit: () => void;
-  autoFocus?: boolean;
-  trailing?: ReactNode;
-}) {
-  const descriptionId = useId();
-  return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-      <div className="flex flex-1 flex-col gap-1.5">
-        <Label htmlFor={descriptionId}>Next step</Label>
-        <Input
-          id={descriptionId}
-          value={description}
-          onChange={(event) => onDescriptionChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              onSubmit();
-            }
-          }}
-          placeholder="What's the next step?"
-          maxLength={TASK_MAX_LENGTH}
-          autoFocus={autoFocus}
-        />
-      </div>
-      <div className="flex flex-col gap-1.5 sm:w-56">
-        <Label>Owner</Label>
-        <EntityCombobox
-          value={owner}
-          onChange={onOwnerChange}
-          searchAction={searchStaff}
-          placeholder="Assign to…"
-        />
-      </div>
-      {trailing}
-    </div>
-  );
 }
 
 /**
@@ -248,6 +187,7 @@ export function TaskList({
                           owner={editOwner}
                           onOwnerChange={setEditOwner}
                           onSubmit={submitEdit}
+                          onCancel={() => setEditingId(null)}
                           autoFocus
                         />
                         {update.result.serverError ? (

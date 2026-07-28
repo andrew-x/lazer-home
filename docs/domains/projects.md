@@ -379,7 +379,9 @@ delivery, allocations, timesheets, and billing.
   ids, hidden when there are no delivery managers)** — the shared **searchable single-select**
   (`src/components/form/filters.tsx`) for long option sets like staff — the same
   `buildListHref`/`PaginationControls` pattern as the
-  opportunities/companies lists. **When any of the three filters is active the sections collapse
+  opportunities/companies/contacts lists, with the search box + its debounce-to-URL effect coming
+  from the shared `useUrlSearchFilter`/`SearchFilter` (`src/components/form/search-filter.tsx`; see
+  [../ui.md](../ui.md#list-filter-bars)). **When any of the three filters is active the sections collapse
   into a single flat, paginated grid across all statuses, ordered by end date descending**
   (latest-ending first, role-less projects last — via `getProjectsPage`'s `"endDate"` order),
   rather than the name-ordered sections; clearing filters restores the sections. `add-project-dialog.tsx` (a **deliberately minimal**
