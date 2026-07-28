@@ -10,8 +10,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDate } from "@/lib/format/format";
-import { getWeekDays } from "@/lib/timesheets/timesheet-week";
+import { cn } from "@/lib/core/utils";
+import { formatWeekRange } from "@/lib/timesheets/timesheet-week";
 
 type Props = {
   rows: TimesheetListRow[];
@@ -19,13 +19,20 @@ type Props = {
   canEdit: (weekStartDate: string) => boolean;
 };
 
-/** Format a week's Mon–Sun span, e.g. "Jul 13 – Jul 19, 2026". */
-function weekRange(weekStartDate: string): string {
-  const days = getWeekDays(weekStartDate);
-  return `${formatDate(days[0])} – ${formatDate(days[6])}`;
+/** An hours cell: right-aligned, and blank rather than a bare zero. */
+function HoursCell({ hours, bold }: { hours: number; bold?: boolean }) {
+  return (
+    <TableCell className={cn("text-right tabular-nums", bold && "font-medium")}>
+      {hours || "—"}
+    </TableCell>
+  );
 }
 
-/** The browse table of a person's timesheet weeks; each row links into its editor. */
+/**
+ * The browse table of a person's timesheet weeks; each row links into its editor.
+ * The hour columns partition the week — PTO is broken out of the other
+ * non-billable buckets, so Project + PTO + Non-billable = Total.
+ */
 export function TimesheetsList({ rows, canEdit }: Props) {
   return (
     <div className="rounded-md border">
@@ -34,7 +41,10 @@ export function TimesheetsList({ rows, canEdit }: Props) {
           <TableRow>
             <TableHead>Week</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead className="text-right">Hours</TableHead>
+            <TableHead className="text-right">Project</TableHead>
+            <TableHead className="text-right">PTO</TableHead>
+            <TableHead className="text-right">Non-billable</TableHead>
+            <TableHead className="text-right">Total</TableHead>
             <TableHead className="w-24" />
           </TableRow>
         </TableHeader>
@@ -44,7 +54,7 @@ export function TimesheetsList({ rows, canEdit }: Props) {
             return (
               <TableRow key={row.weekStartDate}>
                 <TableCell className="font-medium">
-                  {weekRange(row.weekStartDate)}
+                  {formatWeekRange(row.weekStartDate)}
                 </TableCell>
                 <TableCell>
                   {!row.started ? (
@@ -61,9 +71,10 @@ export function TimesheetsList({ rows, canEdit }: Props) {
                     </Badge>
                   )}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {row.totalHours || "—"}
-                </TableCell>
+                <HoursCell hours={row.projectHours} />
+                <HoursCell hours={row.ptoHours} />
+                <HoursCell hours={row.nonBillableHours} />
+                <HoursCell hours={row.totalHours} bold />
                 <TableCell className="text-right">
                   <Button
                     variant={editable ? "default" : "outline"}
