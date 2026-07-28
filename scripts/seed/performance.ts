@@ -1,11 +1,14 @@
 import type { InferInsertModel } from "drizzle-orm";
 import { generateId } from "@/lib/db/ids";
 import {
+  compensationPlan,
+  compensationPlanItem,
   feedback,
   type Staff,
   staffEmployment,
   staffRating,
 } from "@/lib/db/schema";
+import { currentCompAmount } from "@/lib/performance/compensation-plan";
 import { FEEDBACK_RATINGS } from "@/lib/performance/feedback-rating";
 import {
   rubricForRole,
@@ -19,6 +22,8 @@ const FEEDBACK_COUNT = 50;
 
 type FeedbackInsert = InferInsertModel<typeof feedback>;
 type StaffRatingInsert = InferInsertModel<typeof staffRating>;
+type CompensationPlanInsert = InferInsertModel<typeof compensationPlan>;
+type CompensationPlanItemInsert = InferInsertModel<typeof compensationPlanItem>;
 
 /** Seed peer feedback between random pairs of active staff. */
 export async function seedFeedback(
@@ -124,4 +129,105 @@ export async function seedRatings(db: SeedDb, staff: Staff[]): Promise<number> {
 
   if (rows.length > 0) await db.insert(staffRating).values(rows);
   return rows.length;
+}
+
+// --- Compensation plans ----------------------------------------------------
+
+const PLAN_STAFF_COUNT = 12;
+/** Roughly the spread of a real review round: mostly modest, a few standouts. */
+const RAISE_WEIGHTS = [
+  { value: 0, weight: 2 },
+  { value: 0.03, weight: 4 },
+  { value: 0.05, weight: 5 },
+  { value: 0.08, weight: 3 },
+  { value: 0.15, weight: 1 },
+];
+
+/**
+ * Seed one draft plan and one committed plan so both renderings of the editor
+ * have data: the draft exercises save-on-edit against live compensation, and the
+ * committed one exercises the frozen snapshot plus the "not applied" drift badge
+ * (its planned figures deliberately differ from live comp, because this app never
+ * writes compensation — Rippling does).
+ */
+export async function seedCompensationPlans(
+  db: SeedDb,
+  staff: Staff[],
+): Promise<number> {
+  const active = staff.filter((s) => s.isActive);
+  if (active.length === 0) return 0;
+
+  const employmentRows = await db
+    .select({
+      staffId: staffEmployment.staffId,
+      employmentType: staffEmployment.employmentType,
+      base: staffEmployment.base,
+      hourlyRate: staffEmployment.hourlyRate,
+      currency: staffEmployment.currency,
+    })
+    .from(staffEmployment);
+  const employmentByStaff = new Map(
+    employmentRows.map((row) => [row.staffId, row]),
+  );
+
+  const ratingRows = await db
+    .select({ staffId: staffRating.staffId, level: staffRating.level })
+    .from(staffRating);
+  const levelByStaff = new Map(
+    ratingRows.map((row) => [row.staffId, row.level]),
+  );
+
+  const plans: CompensationPlanInsert[] = [];
+  const items: CompensationPlanItemInsert[] = [];
+
+  for (const status of ["DRAFT", "COMMITTED"] as const) {
+    const planId = generateId("cplan");
+    const committed = status === "COMMITTED";
+    const effectiveDate = isoDate(
+      committed ? faker.date.past({ years: 1 }) : faker.date.soon({ days: 45 }),
+    );
+
+    plans.push({
+      id: planId,
+      name: committed ? "2025 annual review" : "H2 2026 review",
+      status,
+      effectiveDate,
+      committedAt: committed ? faker.date.past({ years: 1 }) : null,
+    });
+
+    for (const person of faker.helpers.arrayElements(
+      active,
+      Math.min(PLAN_STAFF_COUNT, active.length),
+    )) {
+      const employment = employmentByStaff.get(person.id);
+      const current = currentCompAmount(employment ?? null);
+      const raise = faker.helpers.weightedArrayElement(RAISE_WEIGHTS);
+      const planned =
+        current == null ? null : Math.round(current * (1 + raise));
+
+      items.push({
+        id: generateId("cplanitem"),
+        planId,
+        staffId: person.id,
+        level: levelByStaff.get(person.id) ?? null,
+        plannedAmount: planned,
+        plannedCurrency: employment?.currency ?? null,
+        ratingDone: committed || chance(0.6),
+        meetingDone: committed || chance(0.4),
+        isComplete: committed || chance(0.3),
+        evaluationNotes: chance(0.5) ? faker.lorem.sentences(2) : null,
+        compensationNotes: chance(0.4) ? faker.lorem.sentence() : null,
+        // Committed plans carry the frozen before-figures; drafts read live.
+        snapshotAmount: committed ? current : null,
+        snapshotCurrency: committed ? (employment?.currency ?? null) : null,
+        snapshotEmploymentType: committed
+          ? (employment?.employmentType ?? null)
+          : null,
+      });
+    }
+  }
+
+  await db.insert(compensationPlan).values(plans);
+  if (items.length > 0) await db.insert(compensationPlanItem).values(items);
+  return plans.length;
 }

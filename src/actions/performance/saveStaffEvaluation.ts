@@ -9,45 +9,17 @@ import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import { staff, staffEmployment, staffRating } from "@/lib/db/schema";
 import {
-  rubricForRole,
+  canonicalSubratings,
   type Subratings,
+  sanitizeSubratings,
 } from "@/lib/performance/rating-rubric";
 import { latestEmploymentFirst } from "@/lib/staff/staff-employment";
-import type { Role } from "@/lib/staff/staff-enums";
 import { latestRatingFirst } from "@/lib/staff/staff-rating-history";
 import { saveStaffEvaluationSchema } from "./saveStaffEvaluation.schema";
 
 type StaffRatingInsert = InferInsertModel<typeof staffRating>;
 
 export type SaveStaffEvaluationResult = { staffAffected: number };
-
-/**
- * Keep only rubric keys valid for `role` (drops unknown/stale keys a crafted
- * payload might carry), returning `null` when nothing survives — so "no
- * subratings" is stored consistently as null, not `{}`.
- */
-function sanitizeSubratings(
-  subratings: Subratings | undefined,
-  role: Role | null,
-): Subratings | null {
-  if (!subratings) return null;
-  const allowed = new Set(rubricForRole(role).map((c) => c.key));
-  const clean: Subratings = {};
-  for (const [key, value] of Object.entries(subratings)) {
-    if (allowed.has(key)) clean[key] = value;
-  }
-  return Object.keys(clean).length > 0 ? clean : null;
-}
-
-/** Stable serialization (sorted keys) so subratings compare by value, not order. */
-function canonicalSubratings(subratings: Subratings | null): string {
-  if (!subratings) return "";
-  return JSON.stringify(
-    Object.fromEntries(
-      Object.entries(subratings).sort(([a], [b]) => a.localeCompare(b)),
-    ),
-  );
-}
 
 /**
  * Save a staff evaluation: one new dated `staff_rating` row per genuinely-changed

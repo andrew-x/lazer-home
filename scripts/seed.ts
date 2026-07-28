@@ -15,7 +15,11 @@
 import { createSeedDb, describeTarget, looksProduction } from "./seed/client";
 import { seedCrm } from "./seed/crm";
 import { seedEntries } from "./seed/entries";
-import { seedFeedback, seedRatings } from "./seed/performance";
+import {
+  seedCompensationPlans,
+  seedFeedback,
+  seedRatings,
+} from "./seed/performance";
 import { seedProjects } from "./seed/projects";
 import { seedOpportunities } from "./seed/sales";
 import { seedStaff } from "./seed/staff";
@@ -67,6 +71,8 @@ async function main() {
     const timesheets = await seedTimesheets(db, staff, projects);
     const feedbackCount = await seedFeedback(db, staff);
     const ratingsCount = await seedRatings(db, staff);
+    // After ratings: plan items seed their proposed level from the current one.
+    const compPlanCount = await seedCompensationPlans(db, staff);
     const entries = await seedEntries(
       db,
       contacts,
@@ -93,6 +99,7 @@ async function main() {
       timeEntries: timesheets.entries,
       feedback: feedbackCount,
       ratings: ratingsCount,
+      compensationPlans: compPlanCount,
       contactEntries: entries.contactEntries,
       opportunityEntries: entries.opportunityEntries,
       companyEntries: entries.companyEntries,

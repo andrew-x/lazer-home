@@ -1,6 +1,6 @@
 # Key flows (cross-domain)
 
-**Status: mixed.** The end-to-end paths the platform must support. Each crosses multiple domains, which is why they live here rather than in a single domain doc. The auth, CRM create, staff browse/edit (incl. resume), peer-feedback, timesheet capture, and localhost-only admin flows are **built** and described as realized; the rest of the core sell → staff → deliver → bill → review lifecycle (allocations capacity planning, timesheet approval/billing, formal reviews) remains **proposed** until those slices exist.
+**Status: mixed.** The end-to-end paths the platform must support. Each crosses multiple domains, which is why they live here rather than in a single domain doc. The auth, CRM create, staff browse/edit (incl. resume), peer-feedback, compensation review-cycle, timesheet capture, and localhost-only admin flows are **built** and described as realized; the rest of the core sell → staff → deliver → bill → review lifecycle (allocations capacity planning, timesheet approval/billing, formal reviews) remains **proposed** until those slices exist.
 
 ## The core lifecycle: sell → staff → deliver → bill → review
 
@@ -8,7 +8,7 @@
 2. **Staff (Allocations).** Managers allocate People to the Project over a date range, using StaffProfile skills and current availability/utilization to choose who. _(First cut built: a Project carries delivery managers + `project_roles` staffing lines, which can be **placeholders / open positions** (null `staffId`, identified by a `roleType`) defined before they're staffed — see [domains/projects.md](./domains/projects.md), [domains/allocations.md](./domains/allocations.md), [ADR 0024](./decisions/0024-opportunity-project-handoff-and-placeholder-roles.md). A **company-wide allocations planner** (`/allocations`, ungated) now surfaces those staffing lines as a staff × time grid over `project_roles` at **selectable day/week/month granularity** (week is the default), and lets `projects.edit` holders **allocate a person to an open role** inline from a staff row (`allocateStaffToRole`) — see [domains/allocations.md](./domains/allocations.md). Capacity planning / conflict handling — summing a person's load across projects — is still proposed.)_
 3. **Deliver + log (Timesheets).** People log per-day TimeEntries against a Project (or a non-billable bucket) into their weekly Timesheet, then submit to lock the week. _(Built: weekly capture with a draft→submitted lifecycle at `/timesheets`, logging allowed against **any** project — see [domains/timesheets.md](./domains/timesheets.md), [ADR 0027](./decisions/0027-timesheet-weekly-model-and-edit-window.md). No manager approval step in v1.)_
 4. **Bill (Timesheets → finance).** Approved billable hours × charge rate become the billing basis. Margin = (charge − cost) × hours. _(Proposed — charge rates, approval, and invoicing are not built.)_
-5. **Review (Performance).** A Person's project work and utilization inform assessment and growth. _(Three slices built: continuous **peer feedback** (staff → staff — see the peer-feedback flow below); a **compensation & headcount analytics dashboard** (`/performance/compensation`, `staff.viewCompensation`-gated, CAD/USD toggle over live FX rates — see [ADR 0029](./decisions/0029-external-fx-rates-and-currency-normalization.md)); and **staff rating levels L0–L4** (their own `ratings.view`-gated dashboard at `/performance/levels`, managers/admins only — effective-dated `staff_rating`, no self-view, [ADR 0032](./decisions/0032-staff-rating-levels-effective-dated-manager-only.md); the two dashboards were split apart by [ADR 0044](./decisions/0044-performance-dashboards-split-by-permission.md), leaving `/performance` a permission-aware redirect). See [domains/performance.md](./domains/performance.md). The formal machinery — ReviewCycle, PerformanceReview, Goals — is still proposed.)_
+5. **Review (Performance).** A Person's project work and utilization inform assessment and growth. _(Three slices built: continuous **peer feedback** (staff → staff — see the peer-feedback flow below); a **compensation & headcount analytics dashboard** (`/performance/compensation`, `staff.viewCompensation`-gated, CAD/USD toggle over live FX rates — see [ADR 0029](./decisions/0029-external-fx-rates-and-currency-normalization.md)); and **staff rating levels L0–L4** (their own `ratings.view`-gated dashboard at `/performance/levels`, managers/admins only — effective-dated `staff_rating`, no self-view, [ADR 0032](./decisions/0032-staff-rating-levels-effective-dated-manager-only.md); the two dashboards were split apart by [ADR 0044](./decisions/0044-performance-dashboards-split-by-permission.md), leaving `/performance` a permission-aware redirect). A fourth slice — **compensation change plans** — turns the review round itself into a first-class object; see the comp review-cycle flow below. See [domains/performance.md](./domains/performance.md). The formal machinery — ReviewCycle, PerformanceReview, Goals — is still proposed.)_
 
 ## Supporting flows
 
@@ -124,6 +124,67 @@ How continuous peer feedback moves from a giver to a subject, and who can read w
 4. **Feeds performance.** This is the first captured signal for performance management; the proposed ReviewCycle/PerformanceReview machinery will draw on it (not yet wired).
 
 > "Manager" here is the `feedback.review` **capability**, not a reporting line — there is no per-person manager/report graph in the system. Visibility is purely role-based.
+
+## Compensation review-cycle flow (plan → rate → commit → reconcile with Rippling)
+
+How a round of compensation changes runs. It crosses **Performance** (ratings),
+**Staff profiles** (employment/comp), and an **external system** (Rippling), which is
+why it lives here. The load-bearing fact: **this app never writes pay.** Committing a
+plan writes ratings and freezes a snapshot; the money is still changed in Rippling.
+See [domains/performance.md](./domains/performance.md) and
+[ADR 0046](./decisions/0046-compensation-change-plans-rating-writing-proposals.md).
+
+1. **Create the plan** (`/performance/compensation-plans`, gated on the conjunction
+   `staff.viewCompensation` **AND** `ratings.edit` — manager/admin; finance is
+   denied). A plan is a name + one **effective date** (the date its committed ratings
+   will carry). Status starts `DRAFT`.
+2. **Choose the cohort** — on its **own page**, `[planId]/staff` ("Plan staff"),
+   reached from the editor's *Manage staff* button (or its empty state). Membership is
+   deliberately not editable inside the editor, so the grid stays a pure comparison
+   view with no destructive control next to the money columns. The roster preloads the
+   whole active staff list and filters client-side (search + line of business / role /
+   employment type + select-all-matching), and you submit the **entire checked set**
+   at once through `setCompensationPlanStaff` — one reviewable change, not a stream of
+   immediate adds and removes. The server diffs that set against what's stored and
+   applies inserts + deletes in **one transaction**, so two managers reconciling
+   concurrently land a coherent membership; people already in the plan are untouched,
+   keeping their proposal and notes. Removing someone discards their row, so the UI
+   confirms first if that row holds any work.
+   Each new item is **seeded server-side** from what we already know: the person's
+   current level + subratings (re-sanitized against their **current** role, since a
+   stored rating may predate a role change) and their comp currency.
+   **`plannedAmount` is deliberately left null** — pre-filling it would make "not yet
+   proposed" indistinguishable from "reviewed, deliberately no change", which is the
+   distinction the plan exists to track. Unknown/inactive ids are dropped silently.
+3. **Work the round — everything autosaves.** Per (row, field) writes through
+   `saveCompensationPlanItem`; there is **no Save button**. Managers set the proposed
+   rating (+ per-role subratings in the row's expanded panel), the planned figure
+   (one number: annual base for salaried, hourly rate for hourly — bonuses untouched),
+   tick **rating done / meeting done / complete**, and leave evaluation/compensation
+   notes. A CAD/USD/Default display toggle re-denominates the money columns; the
+   **percentage change never moves**, because it's computed from native amounts.
+4. **Commit** (one-way, once). The editor `flushAll()`s first and refuses to open the
+   dialog if anything is unsaved. In one transaction: **(a)** one new dated
+   `staff_rating` row per genuinely-changed item — sharing `saveStaffEvaluation`'s
+   hardening (subratings re-sanitized against the current role, no-ops dropped,
+   inactive staff skipped rather than aborting, an effective date predating anyone's
+   latest rating **rejected by name**); **(b)** a per-item **comp snapshot** frozen;
+   **(c)** the plan flipped to `COMMITTED` with `committedAt` (the idempotency guard —
+   a second commit is rejected, and every item write against a committed plan is too).
+   Revalidates `/performance` and `/performance/levels/edit`, since new levels move
+   the dashboard distribution and the edit grid.
+5. **Apply in Rippling (outside this app), then reconcile.** A committed plan renders
+   read-only and compares its proposal against **live** comp on every load, badging
+   each row **Applied** or **Not applied · $X**. The comp itself arrives back here the
+   normal way — the Rippling CSV import writing a new effective-dated
+   `staff_employment` row ([ADR 0020](./decisions/0020-compensation-effective-dated-import-only.md)),
+   at which point the badge flips.
+
+> **Concurrency:** every plan mutation re-reads status server-side (`requireDraftPlan`)
+> rather than trusting the client, because a co-manager can commit while someone else
+> has the editor open. That specific rejection is recognised by the client, which
+> abandons its autosave queue and refreshes into the read-only view instead of
+> retrying forever.
 
 ## The technical request flow (every mutation)
 

@@ -121,6 +121,42 @@ feedback, a staffer never sees their *own* rating:
 - **`ratings.edit`** — assign / change levels and save an evaluation (a new dated
   `staff_rating` row). Manager/admin only. See the [performance domain](performance.md).
 
+### Composite gates — requiring two capabilities at once (no new matrix row)
+
+A `PermissionCheck` naming **two resources** is a genuine **conjunction**: Better
+Auth's `authorize` ANDs across resources (`connector = "AND"` in
+`node_modules/better-auth/dist/plugins/access/access.mjs`), so the caller must hold
+*both*. That is how a surface stricter than any single existing capability is built
+**without adding a matrix row**.
+
+- **`COMPENSATION_PLAN_ACCESS = { staff: ["viewCompensation"], ratings: ["edit"] }`**
+  (`src/lib/performance/compensation-plan.ts`) — the gate on **every**
+  compensation-change-plan surface: all three pages (list, editor, **plan staff**),
+  the nav sub-item, and every action (three reads + six mutations).
+  Effective audience: **manager + admin**; **`finance` is correctly denied**
+  (it has comp but not ratings). Defined **once** as a shared constant so the actions,
+  pages, and nav entry can never drift apart. **It is a request against the existing
+  matrix, not new access-control logic** — `permissions.ts` remains the only place
+  that lives. See [ADR 0046](../decisions/0046-compensation-change-plans-rating-writing-proposals.md).
+
+### Anonymised aggregates vs. identity-bearing surfaces
+
+Two different disciplines apply to compensation reads, and the distinction is
+deliberate — don't "fix" one to match the other:
+
+- **Aggregate dashboards are anonymised.** `getCompensationSummaryData` and
+  `getRatingsSummaryData` return **identity-free** rows (dimensions + amounts, no
+  id/name/email). An aggregate comp view is **bulk exposure**, so identity never
+  leaves the server even for authorized viewers — the client only filters, converts,
+  and aggregates. Keep any new dashboard read in this shape.
+- **Compensation plans are identity-bearing by design.** A plan is inherently
+  per-person and named — anonymising it is meaningless. The response is the
+  **stricter combined gate** above (plus `notFound()` on all three pages, and a
+  `generateMetadata` that won't leak a plan's *name* through the tab title). The
+  narrower reads still minimise: the plans **list** carries no money at all, and the
+  staff **roster** behind the membership page carries no compensation — only the
+  editor read, scoped to one plan's members, carries figures.
+
 ## Roles → permissions (the canonical matrix — THIS IS THE CONTRACT)
 
 Single role per user. Roles are stored in `user.role` (text). This table is the
@@ -251,6 +287,16 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
   (`eq(staffPto.isPending, false)` in the query — matching the allocations grid); reviewers
   still see pending. It also **fails closed with no session** rather than relying on the
   `(app)` layout redirect. See [projects.md](./projects.md).
+- **`src/actions/performance/` compensation plans** — the **composite-gate** site.
+  All three reads (`getCompensationPlans`, `getCompensationPlan`,
+  `getStaffForCompensationPlan`) call `requirePermission(user, COMPENSATION_PLAN_ACCESS)`
+  and all **six** mutations declare `metadata.permission: COMPENSATION_PLAN_ACCESS`. Two
+  further **input-dependent** checks live inside the write helpers rather than the
+  metadata, because they are integrity rules rather than authorization:
+  `requireDraftPlan` (a committed plan is immutable — every mutation re-reads status
+  instead of trusting the client) and `saveCompensationPlanItem`'s assertion that the
+  item **belongs to the named plan**, so an item id from another plan can't be reached
+  by naming one you do have access to.
 
 ## Wiring
 

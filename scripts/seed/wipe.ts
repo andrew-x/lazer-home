@@ -13,6 +13,8 @@ const SEEDABLE_TABLES = [
   // tasks (reference companies/contacts/opportunities)
   "tasks",
   // performance + survey
+  "compensation_plan_item",
+  "compensation_plan",
   "feedback",
   "staff_rating",
   "responses",
