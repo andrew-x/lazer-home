@@ -35,7 +35,10 @@ so the admin role retains its built-in capabilities) with two business resources
   [ADR 0041](../decisions/0041-allocation-notes-on-staff.md) and
   [allocations.md](./allocations.md).
 - **`staff.viewCompensation`** — view *another* staff member's compensation (on
-  their profile and in the history feed). (Your own compensation is always visible.)
+  their profile and in the history feed), **and** every bulk/aggregate comp surface:
+  the Compensation dashboard (`/performance/compensation`), including its
+  comp-by-level table (which additionally needs `ratings.view`). (Your own
+  compensation is always visible.)
 - **`pto.review`** — view the aggregated PTO summary of *other* staff. (Your own
   PTO is always visible.)
 
@@ -50,7 +53,24 @@ open: any signed-in user can browse companies, contacts, opportunities, and proj
 - **`projects.edit`** — add/edit projects and their staffing (delivery managers and
   roles). Its type-ahead staff/company pickers have their own `projects.edit`-gated
   search actions (`src/actions/projects/searchStaff.ts` / `searchCompanies.ts`), so a
-  delivery manager can staff a project without gaining CRM write access.
+  delivery manager can staff a project without gaining CRM write access. **Note the surface this
+  capability now reaches: moving a project to a different company** (`updateProjectField`'s
+  `company` variant, plus that `projects.edit`-gated `searchCompanies` picker) is a
+  **`projects.edit`** capability, **not `crm.edit`** — a delivery manager can re-parent an
+  engagement onto another client without any CRM write permission. That is deliberate (it is a
+  delivery decision about a `projects` row, the same reasoning as `associateOpportunityProject`
+  writing an `opportunities` column under `projects.edit`), and it is constrained by a
+  *data-integrity* guard rather than a permission: the action refuses while a linked opportunity
+  belongs to a different company. It covers **both**
+  role editors — the opportunity planner's opportunity-scoped actions **and** the project
+  detail page's project-scoped `updateProjectField`,
+  `createProjectRoleOnProject`, `updateProjectRoleOnProject`, `deleteProjectRoleOnProject`
+  (**no matrix change** — the capability already existed). What differs between the two
+  surfaces is the *data-integrity* guard, not the permission: `assertRoleEditable`
+  (tentative + this opportunity) vs. `assertProjectRoleEditable` (belongs to this project,
+  any status). Neither is access control; see
+  [ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md) before
+  concluding the laxer one is a hole.
 
 A capability gates editing **other people's / locked** timesheets:
 
@@ -77,10 +97,27 @@ A resource with **two actions** gates staff overall ratings (levels L0–L4), a
 sensitive read/write with **no ownership dimension** — unlike compensation or
 feedback, a staffer never sees their *own* rating:
 
-- **`ratings.view`** — view staff overall levels: the per-level analytics breakdown
-  in the `/performance` dashboard's staff-levels section (headcount, comp/rate
-  aggregates, distribution) and the edit page's current levels. Manager/admin only;
-  there is no self-view path.
+- **`ratings.view`** — view staff overall levels: the **Performance dashboard** at
+  `/performance/levels` (distribution, average level, average-by-role, per-role
+  subrating averages — **no compensation rendered there at all**) and the edit page's
+  current levels. Manager/admin only; there is no self-view path. Its sibling
+  `/performance/compensation` is gated on `staff.viewCompensation` instead, and
+  **`/performance` is a redirect** to whichever of the two the viewer may see.
+  The one **overlap** sits on the *comp* page: its **compensation-by-level** table
+  needs **both** capabilities — `staff.viewCompensation` gates the page, and the
+  levels input is fetched only for `ratings.view` holders (the optional
+  `ratingRecords` prop), so finance sees that dashboard minus that one table. See
+  [ADR 0044](../decisions/0044-performance-dashboards-split-by-permission.md).
+  The Performance **nav parent** is gated on the looser `staff.viewCompensation`,
+  which is only sound because every `ratings.view` role also holds it (row 5–6
+  below) — **if that ever changes, change the parent gate in `nav.ts`.**
+  **That coupling load-bears one more place:** `getRatingsSummaryData` is gated on
+  `ratings.view` alone, yet its rows carry comp **amounts**
+  (`RatingRecord.employment` is the full `CompensationDimensions`) — so granting
+  `ratings.view` to a role *without* `staff.viewCompensation` would make that read
+  (and `/performance/levels`, which fetches it) a bulk-comp leak, even though the
+  page renders no money. See [performance.md](performance.md) → *Compensation by
+  level*.
 - **`ratings.edit`** — assign / change levels and save an evaluation (a new dated
   `staff_rating` row). Manager/admin only. See the [performance domain](performance.md).
 
@@ -100,7 +137,7 @@ Auth's `authorize` ANDs across resources (`connector = "AND"` in
   (it has comp but not ratings). Defined **once** as a shared constant so the actions,
   pages, and nav entry can never drift apart. **It is a request against the existing
   matrix, not new access-control logic** — `permissions.ts` remains the only place
-  that lives. See [ADR 0044](../decisions/0044-compensation-change-plans-rating-writing-proposals.md).
+  that lives. See [ADR 0046](../decisions/0046-compensation-change-plans-rating-writing-proposals.md).
 
 ### Anonymised aggregates vs. identity-bearing surfaces
 
@@ -242,6 +279,14 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
   and the `type` field is **nulled** in the projection otherwise, so the reason never
   leaves the server. Minimal disclosure, not a loosening of the PTO gate — see
   [ADR 0038](../decisions/0038-allocations-planner-pto-disclosure.md).
+- **`src/actions/projects/getProjectPto.ts`** — the project detail page's Time off tab, a
+  **third `pto.review` enforcement site** with the same shape (dates + person open to all,
+  `type`/`isPending` nulled otherwise). **Tightened:** it previously returned **pending**
+  (unapproved) leave to everyone while forcing `isPending: false`, so an unapproved request
+  read as settled. Non-reviewers now get **approved leave only**
+  (`eq(staffPto.isPending, false)` in the query — matching the allocations grid); reviewers
+  still see pending. It also **fails closed with no session** rather than relying on the
+  `(app)` layout redirect. See [projects.md](./projects.md).
 - **`src/actions/performance/` compensation plans** — the **composite-gate** site.
   All three reads (`getCompensationPlans`, `getCompensationPlan`,
   `getStaffForCompensationPlan`) call `requirePermission(user, COMPENSATION_PLAN_ACCESS)`

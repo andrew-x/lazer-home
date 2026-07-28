@@ -160,8 +160,8 @@ export const saveStaffEvaluation = secureActionClient
       // A single multi-row insert is already atomic — no transaction needed.
       await db.insert(staffRating).values(rows);
 
-      // The Levels section lives on the main /performance dashboard now.
-      revalidatePath("/performance");
+      // The Performance dashboard reads levels; its editor lists them.
+      revalidatePath("/performance/levels");
       revalidatePath("/performance/levels/edit");
 
       return { staffAffected: effective.length };

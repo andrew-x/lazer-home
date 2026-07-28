@@ -1,4 +1,4 @@
-# 0044 — Compensation change plans: rating-writing proposals that never write compensation
+# 0046 — Compensation change plans: rating-writing proposals that never write compensation
 
 **Status:** accepted · 2026-07-28
 

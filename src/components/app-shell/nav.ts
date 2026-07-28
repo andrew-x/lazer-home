@@ -56,11 +56,20 @@ export const NAV_ITEMS: NavItem[] = [
     title: "Performance",
     href: "/performance",
     icon: IconChartBar,
-    // Surfaces aggregate compensation → gate on the comp-viewing capability.
+    // The section's loosest gate: every role granting `ratings.view` also grants
+    // `staff.viewCompensation` (see permissions.ts), so this never hides Levels
+    // from someone entitled to it. The parent href redirects to the first
+    // dashboard the viewer may see.
     permission: { staff: ["viewCompensation"] },
     children: [
-      // Same page as the parent, named explicitly so the submenu reads as a pair.
-      { title: "Dashboard", href: "/performance" },
+      // Compensation & headcount analytics — same gate as the parent.
+      { title: "Compensation", href: "/performance/compensation" },
+      // Levels are stricter than comp: manager/admin only, not finance.
+      {
+        title: "Levels",
+        href: "/performance/levels",
+        permission: { ratings: ["view"] },
+      },
       // Assigning levels is more sensitive than viewing them → its own gate.
       {
         title: "Edit levels",

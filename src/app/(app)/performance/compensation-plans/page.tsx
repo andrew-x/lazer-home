@@ -24,12 +24,15 @@ export default async function CompensationPlansPage() {
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
       <div className="flex flex-col gap-2">
+        {/* Straight to the Compensation dashboard, not the `/performance`
+            redirect (ADR 0044): COMPENSATION_PLAN_ACCESS already implies
+            `staff.viewCompensation`, so this link can never 404. */}
         <Link
-          href="/performance"
+          href="/performance/compensation"
           className="flex w-fit items-center gap-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
           <IconArrowLeft className="size-4" />
-          Back to performance
+          Back to compensation
         </Link>
         <div>
           <h2 className="font-heading text-2xl font-semibold tracking-tight">

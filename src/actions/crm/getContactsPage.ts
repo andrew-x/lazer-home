@@ -1,7 +1,18 @@
 import "server-only";
 
-import { asc, count, eq, inArray, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  eq,
+  ilike,
+  inArray,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import { citiesNear } from "@/lib/cities/cities";
+import { escapeLike } from "@/lib/core/like";
 import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/core/pagination";
 import { db } from "@/lib/db/db";
 import { companies, contacts } from "@/lib/db/schema";
@@ -26,9 +37,11 @@ export type ContactRow = {
  * page (see `openTasksByParent`). Server-side paginated; `page` is clamped into
  * range.
  */
-/** Optional filters for the contacts list — a location (a "City, CC" label,
- * optionally expanded to nearby cities). */
+/** Optional filters for the contacts list — a name search and a location (a
+ * "City, CC" label, optionally expanded to nearby cities). */
 export type ContactListFilters = {
+  /** Free-text name search, matched case-insensitively (see `contactsWhere`). */
+  query?: string;
   /** A "City, CC" label to match on `contacts.location`. */
   city?: string;
   /** When true, also match cities within the "nearby" radius of `city`. */
@@ -37,9 +50,28 @@ export type ContactListFilters = {
 
 /** Build the `where` for the given filters (undefined when none apply). */
 function contactsWhere(filters: ContactListFilters): SQL | undefined {
-  if (!filters.city) return undefined;
-  const labels = filters.nearby ? citiesNear(filters.city) : [filters.city];
-  return inArray(contacts.location, labels);
+  const conditions: SQL[] = [];
+
+  const query = filters.query?.trim();
+  if (query) {
+    // Escaped so `%`/`_` in the term match literally. Matching the joined
+    // "First Last" as well as each part means "jane sm" finds Jane Smith; both
+    // name columns are notNull, so the concatenation is never null.
+    const term = `%${escapeLike(query)}%`;
+    const nameMatch = or(
+      ilike(contacts.firstName, term),
+      ilike(contacts.lastName, term),
+      ilike(sql`${contacts.firstName} || ' ' || ${contacts.lastName}`, term),
+    );
+    if (nameMatch) conditions.push(nameMatch);
+  }
+
+  if (filters.city) {
+    const labels = filters.nearby ? citiesNear(filters.city) : [filters.city];
+    conditions.push(inArray(contacts.location, labels));
+  }
+
+  return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
 export async function getContactsPage(

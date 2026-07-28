@@ -6,8 +6,11 @@ import {
   IconCalendarStats,
   IconCircleCheck,
   IconClock,
+  IconPencil,
+  IconPlus,
 } from "@tabler/icons-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import type { PlanRole } from "@/actions/projects/getOpportunityPlan";
 import type { ProjectDetailPlan } from "@/actions/projects/getProjectPlan";
 import type {
   ProjectPtoSpan,
@@ -23,21 +26,18 @@ import {
   TableEmpty,
 } from "@/components/crm/detail-parts";
 import { EmptyCell } from "@/components/empty-cell";
+import { IconButton } from "@/components/icon-button";
 import { InternalLink } from "@/components/internal-link";
 import { StatCard } from "@/components/performance/stat-card";
 import { PlannerGrid } from "@/components/projects/opportunity-plan/planner-grid";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
 import { formatDate } from "@/lib/format/format";
-import {
-  deliveryManagerLabel,
-  rangeLabel,
-  rangeOf,
-  yearHint,
-} from "@/lib/projects/plan-summary";
+import { rangeLabel, rangeOf, yearHint } from "@/lib/projects/plan-summary";
 import {
   buildPlannerRows,
   buildWeekColumns,
@@ -48,31 +48,72 @@ import {
 } from "@/lib/projects/project-role-status";
 import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
 import { PTO_TYPE_LABELS } from "@/lib/staff/staff-enums";
+import { DeliveryManagersField } from "./delivery-managers-field";
+import { ProjectCompanyField } from "./project-company-field";
+import { ProjectNameField } from "./project-name-field";
+import { ProjectRoleDialog } from "./project-role-dialog";
 
 /**
  * The standalone project detail page: a meta sidebar (name, company, lines of
  * business, delivery managers) beside a main column of summary stats and three
- * tabs — a read-only Gantt timeline of the project's roles (the same planner
- * grid the opportunity's Project-plan tab uses), the roles as a table, and the
- * time off of everyone connected to the project (split upcoming/past).
- * Everything is read-only here; role editing stays in the opportunity planner.
+ * tabs — a Gantt timeline of the project's roles (the same planner grid the
+ * opportunity's Project-plan tab uses), the roles as a table, and the time off of
+ * everyone connected to the project (split upcoming/past).
+ *
+ * This is the **delivery-side** editor of the engagement: with `projects.edit`, the
+ * name, company and delivery managers are editable in place in the sidebar, and roles
+ * can be added, edited and removed — from the Roles table *or* straight off the
+ * timeline, both opening the same {@link ProjectRoleDialog}. That includes confirmed
+ * roles, which the opportunity planner locks (see `assertProjectRoleEditable`). The
+ * project's status and lines of business are derived from its roles, so neither is
+ * editable.
  */
 export function ProjectDetailView({
   plan,
   pto,
+  canEdit,
 }: {
   plan: ProjectDetailPlan;
   pto: ProjectPtoView;
+  canEdit: boolean;
 }) {
   const { project, company, roles, timeline, externalAllocations } = plan;
 
+  // null = closed; { role: null } = adding.
+  const [roleDialog, setRoleDialog] = useState<{
+    role: PlanRole | null;
+  } | null>(null);
+
   const weekColumns = useMemo(() => buildWeekColumns(roles), [roles]);
-  // Read-only: pass "" as the "current opportunity" so no role is marked
-  // editable (a role's opportunityId can never be the empty string).
+  // Project scope: every role on the project is editable here, whatever its status
+  // or provenance, and nothing is emphasised (there's no "other deal" to contrast
+  // with — the block fill reads the role's status instead).
   const rows = useMemo(
-    () => buildPlannerRows(roles, externalAllocations, weekColumns, ""),
+    () =>
+      buildPlannerRows(roles, externalAllocations, weekColumns, {
+        scope: "project",
+      }),
     [roles, externalAllocations, weekColumns],
   );
+
+  const openRole = (roleId: string) => {
+    const role = roles.find((r) => r.id === roleId);
+    if (role) setRoleDialog({ role });
+  };
+
+  // Shared by the Timeline and Roles tabs so the two entry points can't drift.
+  // Rendered outside each tab's empty/non-empty branch, so adding the *first*
+  // role is reachable from either tab.
+  const addRoleButton = canEdit ? (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => setRoleDialog({ role: null })}
+    >
+      <IconPlus />
+      Add role
+    </Button>
+  ) : null;
 
   const lengthWeeks = weekColumns.length;
   const confirmedRange = useMemo(
@@ -112,36 +153,35 @@ export function ProjectDetailView({
             }
             title={
               <>
-                <h2 className="font-heading text-lg font-semibold tracking-tight">
-                  {project.name}
-                </h2>
+                <ProjectNameField
+                  projectId={project.id}
+                  name={project.name}
+                  canEdit={canEdit}
+                />
                 <ProjectStatusBadge status={project.status} />
               </>
             }
           />
 
           <SidebarSection>
-            <MetaField label="Company">
-              <InternalLink href={`/companies/${company.id}`}>
-                {company.name}
-              </InternalLink>
-            </MetaField>
+            <ProjectCompanyField
+              projectId={project.id}
+              company={company}
+              canEdit={canEdit}
+            />
+            {/* Derived from the project's roles, so it isn't an editable field. */}
             <MetaField label="Line of business">
-              {project.linesOfBusiness.length > 0 ? (
-                <div className="flex flex-wrap gap-1">
-                  {project.linesOfBusiness.map((lob) => (
-                    <Badge key={lob} variant="outline">
-                      {LINE_OF_BUSINESS_LABELS[lob]}
-                    </Badge>
-                  ))}
-                </div>
-              ) : null}
-            </MetaField>
-            <MetaField label="Delivery managers">
-              {project.deliveryManagers.length > 0
-                ? deliveryManagerLabel(project.deliveryManagers)
+              {project.linesOfBusiness.length > 0
+                ? project.linesOfBusiness
+                    .map((lob) => LINE_OF_BUSINESS_LABELS[lob])
+                    .join(", ")
                 : null}
             </MetaField>
+            <DeliveryManagersField
+              projectId={project.id}
+              deliveryManagers={project.deliveryManagers}
+              canEdit={canEdit}
+            />
           </SidebarSection>
         </>
       }
@@ -186,18 +226,29 @@ export function ProjectDetailView({
         </TabsList>
 
         <TabsContent value="timeline" className="flex flex-col gap-4">
+          {addRoleButton ? (
+            <div className="flex justify-end">{addRoleButton}</div>
+          ) : null}
           {rows.length === 0 ? (
             <TableEmpty>No roles on this project yet.</TableEmpty>
           ) : (
             <>
-              <PlannerGrid rows={rows} weekColumns={weekColumns} />
+              <PlannerGrid
+                rows={rows}
+                weekColumns={weekColumns}
+                onEditRole={canEdit ? openRole : undefined}
+              />
               <ProjectPlanLegend />
             </>
           )}
         </TabsContent>
 
         <TabsContent value="roles">
-          <DetailSection title="Roles" count={roles.length}>
+          <DetailSection
+            title="Roles"
+            count={roles.length}
+            action={addRoleButton}
+          >
             {rolesSorted.length === 0 ? (
               <TableEmpty>No roles on this project yet.</TableEmpty>
             ) : (
@@ -209,12 +260,19 @@ export function ProjectDetailView({
                   "Status",
                   "Dates",
                   "Hrs/day",
+                  // Trailing actions column — one blank header only (DetailTable
+                  // keys headers by their text).
+                  ...(canEdit ? [""] : []),
                 ]}
               >
                 {rolesSorted.map((role) => (
                   <TableRow key={role.id}>
                     <TableCell className="font-medium">
-                      {role.staffName ?? (
+                      {role.staffId && role.staffName ? (
+                        <InternalLink href={`/staff/${role.staffId}`}>
+                          {role.staffName}
+                        </InternalLink>
+                      ) : (
                         <span className="text-muted-foreground">Open role</span>
                       )}
                     </TableCell>
@@ -234,6 +292,16 @@ export function ProjectDetailView({
                     <TableCell className="tabular-nums">
                       {role.hoursPerDay}
                     </TableCell>
+                    {canEdit ? (
+                      <TableCell className="w-0 text-right">
+                        <IconButton
+                          label={`Edit ${role.staffName ?? "open"} role`}
+                          onClick={() => setRoleDialog({ role })}
+                        >
+                          <IconPencil />
+                        </IconButton>
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
               </DetailTable>
@@ -256,6 +324,19 @@ export function ProjectDetailView({
           />
         </TabsContent>
       </Tabs>
+
+      {roleDialog ? (
+        <ProjectRoleDialog
+          // Remount per target so the form picks up fresh defaults.
+          key={roleDialog.role?.id ?? "create"}
+          projectId={project.id}
+          // A standalone project has no opportunity to inherit from; fall back to
+          // the project's own first derived line of business, else force a choice.
+          defaultLineOfBusiness={project.linesOfBusiness[0] ?? ""}
+          existing={roleDialog.role}
+          onClose={() => setRoleDialog(null)}
+        />
+      ) : null}
     </DetailLayout>
   );
 }
