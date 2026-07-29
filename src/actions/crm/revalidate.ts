@@ -32,3 +32,21 @@ export function revalidateCompanyContactRelationship(
   revalidateCompany(companyId);
   revalidateContact(contactId);
 }
+
+/**
+ * Revalidate after writing a contact ↔ contact relationship. The row renders on
+ * **both** contacts' detail pages — as "Reports to" on one and "Direct reports" on
+ * the other, "Previously"/"Moved to", or symmetrically under "Also connected" —
+ * and either page can create, edit, or remove it, so one write must refresh both
+ * sides or the other page shows a stale list.
+ *
+ * `revalidateContact` also covers `/contacts`, which a `succeeds` write changes:
+ * the predecessor is marked inactive and drops out of the default list.
+ */
+export function revalidateContactRelationship(
+  contactId: string,
+  relatedContactId: string,
+): void {
+  revalidateContact(contactId);
+  revalidateContact(relatedContactId);
+}

@@ -22,9 +22,15 @@ export default async function ContactsPage({
   const query = typeof params.q === "string" ? params.q : undefined;
   const city = typeof params.city === "string" ? params.city : undefined;
   const nearby = params.nearby === "1";
+  const includeInactive = params.inactive === "1";
 
   const [contacts, user, currentStaff] = await Promise.all([
-    getContactsPage(parsePage(params.contactsPage), { query, city, nearby }),
+    getContactsPage(parsePage(params.contactsPage), {
+      query,
+      city,
+      nearby,
+      includeInactive,
+    }),
     getCurrentUser(),
     getCurrentStaffIdentity(),
   ]);

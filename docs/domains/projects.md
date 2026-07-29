@@ -522,7 +522,8 @@ delivery, allocations, timesheets, and billing.
   **confirm dialog**, not the old form). A "Projects" nav entry (`IconBriefcase`) is in
   `src/components/app-shell/nav.ts`. Reusable form components used here:
   `src/components/form/entity-combobox.tsx` (`EntityCombobox`, the single-select base with a
-  `searchArgs` prop for extra scope args, wrapped by `CompanyCombobox`/`ManagerComboboxField`)
+  `searchArgs` prop for extra scope args, wrapped by `CompanyCombobox`; the CRM
+  contact-relationship dialog is the other `searchArgs` consumer)
   and `src/components/form/enum-select.tsx` (`EnumSelect`) — see [../ui.md](../ui.md).
 - **Project detail page UI** — `src/app/(app)/projects/[id]/page.tsx` (Server Component) +
   `src/components/projects/detail/` — `project-detail-view.tsx` (client) plus the editing pieces

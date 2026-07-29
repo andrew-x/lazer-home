@@ -8,10 +8,13 @@ import { ExternalLink } from "@/components/external-link";
 import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { InternalLink } from "@/components/internal-link";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { contactName } from "@/lib/crm/contact-name";
+import { INACTIVE_LABEL } from "@/lib/crm/contact-status";
 import { humanizeEnum, initialsFor } from "@/lib/format/format";
+import { ContactRelationshipsSection } from "./contact-relationships-section";
 import {
   DetailIdentity,
   DetailLayout,
@@ -101,10 +104,18 @@ function ProjectTable({ rows }: { rows: ContactProject[] }) {
 }
 
 /**
- * Read view of a contact: a meta sidebar (identity, contact methods, employer,
- * manager — all optional — plus the inline relationship-strength rating and
+ * Read view of a contact: a meta sidebar (identity, contact methods, employer, the
+ * Relationships group, plus the inline location, relationship-strength rating and
  * owner) beside three tabs — Activity (tasks + notes), Companies, and
- * Opportunities. Companies sits in the middle, mirroring the company page's
+ * Opportunities.
+ *
+ * Every person-to-person link — manager included — lives in the sidebar's
+ * Relationships group, which is also the only place they're added or removed; the
+ * contact form deliberately has no manager picker. An inactive record whose person has
+ * a newer record elsewhere says so right under the name, because that page is a
+ * dead end and "where did they go" is the only question worth answering there.
+ *
+ * Companies sits in the middle, mirroring the company page's
  * people-before-pipeline order: it lists the companies they're linked to *without*
  * working there (their employer stays in the sidebar). The Opportunities section
  * separates deals they referred from ones they're merely involved in; the Projects
@@ -137,11 +148,37 @@ export function ContactDetailView({
               </Avatar>
             }
             title={
-              <h2 className="font-heading text-lg font-semibold tracking-tight">
-                {name}
-              </h2>
+              <>
+                <h2 className="font-heading text-lg font-semibold tracking-tight">
+                  {name}
+                </h2>
+                {contact.isActive ? null : (
+                  <Badge variant="secondary">{INACTIVE_LABEL}</Badge>
+                )}
+              </>
             }
-            subtitle={contact.role}
+            subtitle={
+              <>
+                {contact.role}
+                {/* An inactive record with a successor is a dead end someone reached
+                    by accident — a stale link, an old note. Their only question is
+                    "where did they go", so the answer sits here rather than four
+                    sidebar sections down. The reverse case (a current record with a
+                    predecessor) gets nothing extra: you're already in the right
+                    place, and the history is context, not a redirect. */}
+                {contact.successor ? (
+                  <div>
+                    Moved to{" "}
+                    <InternalLink href={`/contacts/${contact.successor.id}`}>
+                      {contact.successor.name}
+                    </InternalLink>
+                    {contact.successor.companyName
+                      ? ` at ${contact.successor.companyName}`
+                      : null}
+                  </div>
+                ) : null}
+              </>
+            }
             action={canEdit ? <EditContactDialog contact={contact} /> : null}
           />
 
@@ -164,21 +201,32 @@ export function ContactDetailView({
                 </InternalLink>
               ) : null}
             </MetaField>
-            <MetaField label="Manager">
-              {contact.managerId && contact.managerName ? (
-                <InternalLink href={`/contacts/${contact.managerId}`}>
-                  {contact.managerName}
-                </InternalLink>
-              ) : null}
-            </MetaField>
-          </SidebarSection>
-
-          <SidebarSection>
+            {/* Location sits with the contact methods rather than in a section of
+                its own: it's another "where to find them" fact, and it reads as one
+                block with Company above it. `SidebarSection` already expects mixed
+                label sources, so the inline editor's `FormField` picks up the same
+                label styling as the `MetaField`s around it. */}
             <InlineLocationField
               kind="contact"
               entityId={contact.id}
               canEdit={canEdit}
               location={contact.location}
+            />
+          </SidebarSection>
+
+          {/* Where the read-only "Manager" field used to be — management is now
+              one kind of relationship among several, all managed here. */}
+          <SidebarSection>
+            <ContactRelationshipsSection
+              contactId={contact.id}
+              contactName={name}
+              employerCompanyId={contact.companyId}
+              manager={contact.manager}
+              directReports={contact.directReports}
+              predecessor={contact.predecessor}
+              successor={contact.successor}
+              relatedContacts={contact.relatedContacts}
+              canEdit={canEdit}
             />
           </SidebarSection>
 

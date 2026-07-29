@@ -1,14 +1,17 @@
-import type { InferSelectModel } from "drizzle-orm";
+import { type InferSelectModel, sql } from "drizzle-orm";
 import {
-  type AnyPgColumn,
   boolean,
+  check,
   index,
   integer,
+  pgEnum,
   pgTable,
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { CONTACT_RELATIONSHIP_KINDS } from "@/lib/crm/contact-relationship";
 import { staff } from "./staff-schema";
 
 // ---------------------------------------------------------------------------
@@ -58,13 +61,6 @@ export const contacts = pgTable("contacts", {
   // picked from the static world-cities list (`@/lib/cities`). Free text, not a
   // FK/enum — see docs/data-model.md. Null when unknown.
   location: text(),
-  // Optional "managed by" link to another contact. Self-referential; set-null on
-  // delete so removing a manager just clears their reports' pointer (mirrors the
-  // optional-FK convention on `companyId`). By our rules a manager is always a
-  // contact at the same company (enforced in `createContact`).
-  managerId: text().references((): AnyPgColumn => contacts.id, {
-    onDelete: "set null",
-  }),
   // Optional owner — the staff member accountable for this contact. Null when
   // unassigned or once the staff row is removed (set-null, like the other
   // optional FKs). Owner = staff, matching `companies.ownerId`.
@@ -75,6 +71,15 @@ export const contacts = pgTable("contacts", {
   // (stars) on the contact
   // page via `updateContactField`.
   relationshipStrength: integer(),
+  // Whether this is still someone we deal with. Mirrors `staff.isActive`. A
+  // deactivated contact stays in the CRM for its history — old opportunities, notes,
+  // and the `succeeds` chain pointing at it — but drops out of the default
+  // contacts list and the pickers. Flipped automatically when a successor record
+  // is linked (`createContactRelationship`), or by hand via the Status field in the
+  // contact's edit dialog (`updateContact`). "Inactive" rather than "former"
+  // because it also covers a record that's simply no longer relevant or valid —
+  // see `@/lib/crm/contact-status`.
+  isActive: boolean().notNull().default(true),
 
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp()
@@ -82,6 +87,123 @@ export const contacts = pgTable("contacts", {
     .$onUpdate(() => new Date())
     .notNull(),
 });
+
+// ---------------------------------------------------------------------------
+// Contact ↔ contact relationships
+//
+// ONE junction for every person-to-person link, typed by `kind` — replacing the
+// old single-purpose `contacts.managerId` self-FK (ADR 0022, superseded):
+//
+//   reports_to — directional: `contactId` reports to `relatedContactId`, both at
+//                the SAME company (the pre-existing manager rule). At most one
+//                per contact; the reverse lookup is that contact's direct
+//                reports, a capability `managerId` never had.
+//   succeeds   — directional: `contactId` (the NEW record, at the new employer)
+//                succeeds `relatedContactId` (the OLD record at the previous
+//                one). The same human as two rows, so it's 1:1 in both
+//                directions, and creating a link marks the predecessor inactive.
+//   related    — SYMMETRIC, with a required free-text `description` ("Worked
+//                together at Acme"). Stored once, read from either side.
+//
+// A data-carrying junction (it holds `description`), so it follows the FK and
+// index halves of the junction convention (ADR 0016) like
+// `companyContactRelationships`. The cardinality rules are PARTIAL unique
+// indexes, which a table-level `unique()` cannot express — see below.
+// See docs/domains/crm.md.
+// ---------------------------------------------------------------------------
+
+// A closed set the code branches on — different cardinality, different
+// validation, a different read bucket and a side effect per kind — so a pgEnum,
+// unlike the open-ended `description`/`role`/`location` text columns. Values come
+// from the pure module so the enum, the zod union and the labels can't drift.
+export const contactRelationshipKindEnum = pgEnum("contact_relationship_kind", [
+  ...CONTACT_RELATIONSHIP_KINDS,
+]);
+
+export const contactRelationships = pgTable(
+  "contact_relationships",
+  {
+    id: text().primaryKey(),
+    kind: contactRelationshipKindEnum().notNull(),
+    // Both endpoints cascade: a link is meaningless without them. Deliberately
+    // unlike the old `managerId`'s set-null — that was an optional *attribute* of
+    // a contact, this is a row whose whole identity is the pair.
+    contactId: text()
+      .notNull()
+      .references(() => contacts.id, { onDelete: "cascade" }),
+    relatedContactId: text()
+      .notNull()
+      .references(() => contacts.id, { onDelete: "cascade" }),
+    // Required for `related`, NULL for the two directional kinds — the zod
+    // discriminated union owns the message, the CHECK below owns the invariant.
+    description: text(),
+
+    createdAt: timestamp().defaultNow().notNull(),
+    // Editable (a `related` description can be reworded), like
+    // `companyContactRelationships` and unlike the pure junctions.
+    updatedAt: timestamp()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    // --- invariants that hold for every kind --------------------------------
+    check(
+      "contact_relationships_no_self",
+      sql`${t.contactId} <> ${t.relatedContactId}`,
+    ),
+    // `description` belongs to `related` and only to `related`, both directions
+    // in one expression (`kind` is notNull, so this is never NULL/unknown).
+    check(
+      "contact_relationships_description_kind",
+      sql`(${t.kind} = 'related') = (${t.description} is not null)`,
+    ),
+
+    // --- cardinality --------------------------------------------------------
+    // Partial uniques, because a Postgres table constraint can't carry a WHERE.
+    // Named explicitly so `isUniqueViolation(error, …)` can turn each into its
+    // own precise message: Postgres reports the INDEX name in a 23505's
+    // constraint field, exactly as it does for a table-level `unique()`.
+    //
+    // These are what actually make "at most one" true — the app-level checks in
+    // `contactRelationshipChecks.ts` are reads, so two concurrent writes can both
+    // pass them. Enum literals are inlined rather than interpolated: drizzle-kit
+    // serialises an index's `where` through `sqlToQuery`, so a bound value would
+    // become a `$1` placeholder and emit broken DDL.
+    uniqueIndex("contact_relationships_one_manager_uq")
+      .on(t.contactId)
+      .where(sql`${t.kind} = 'reports_to'`),
+    uniqueIndex("contact_relationships_one_predecessor_uq")
+      .on(t.contactId)
+      .where(sql`${t.kind} = 'succeeds'`),
+    uniqueIndex("contact_relationships_one_successor_uq")
+      .on(t.relatedContactId)
+      .where(sql`${t.kind} = 'succeeds'`),
+    // `related` is symmetric, so (A,B) and (B,A) are the SAME link. Canonicalise
+    // in the index rather than in the writer, so the invariant can't be
+    // forgotten and can't race. `least`/`greatest` over text reduce to the type's
+    // btree comparator, so they're immutable and index-legal.
+    uniqueIndex("contact_relationships_related_uq")
+      .on(
+        sql`least(${t.contactId}, ${t.relatedContactId})`,
+        sql`greatest(${t.contactId}, ${t.relatedContactId})`,
+      )
+      .where(sql`${t.kind} = 'related'`),
+
+    // --- read paths ---------------------------------------------------------
+    // The detail read is one query with `contact_id = $1 OR related_contact_id =
+    // $1`, which the planner serves as a BitmapOr of these two. Both are needed:
+    // the partial uniques above cover only subsets of the table, so neither
+    // doubles as a general-purpose index on either column.
+    index("contact_relationships_contact_idx").on(t.contactId),
+    index("contact_relationships_related_contact_idx").on(t.relatedContactId),
+
+    // Deliberately NO `unique(contactId, relatedContactId, kind)`: the four
+    // partial uniques already reject every duplicate (an exact `reports_to`
+    // repeat trips the manager index, a reversed `related` trips the symmetric
+    // one), and adding it would only muddy which name a violation reports.
+  ],
+);
 
 // ---------------------------------------------------------------------------
 // Non-employee company ↔ contact relationships
@@ -191,6 +313,7 @@ export const companyEntries = pgTable(
 
 export type Company = InferSelectModel<typeof companies>;
 export type Contact = InferSelectModel<typeof contacts>;
+export type ContactRelationship = InferSelectModel<typeof contactRelationships>;
 export type CompanyContactRelationship = InferSelectModel<
   typeof companyContactRelationships
 >;

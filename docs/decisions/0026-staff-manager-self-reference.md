@@ -16,7 +16,15 @@ matches people by `ripplingId` and create-ids don't exist until commit.
 The relationship is populated **exclusively by the staff CSV import** (a new
 `Manager - Work email` column) and shown **read-only** on the profile. There is no
 in-app editor — the import is the sole writer, so re-imports never fight a manual edit.
-It mirrors the `contacts.managerId` self-FK ([ADR 0022](./0022-contact-manager-self-reference.md)).
+It was modelled on the `contacts.managerId` self-FK ([ADR 0022](./0022-contact-manager-self-reference.md)).
+
+> **Since 2026-07-29 that mirror is gone.** `contacts.managerId` was dropped for the
+> `contact_relationships` junction ([ADR 0052](./0052-contact-relationships-one-typed-junction.md)),
+> so **`staff.managerId` is now the schema's only self-referential FK**. Two divergences
+> matter: the CRM side gained a **cycle check** (a bounded walk) and can be read in the
+> *reverse* direction (direct reports) from one query, while `staff.managerId` still has
+> **neither** — every staff-side reader must keep guarding itself (below). Nothing in this
+> ADR's decision changes; the staff link stays a durable, import-only column.
 
 ## Decision
 
@@ -101,8 +109,10 @@ established or changed** this import — creates that got a manager, plus update
 manager changed to a non-null value. A cleared link or an unchanged pointer riding along
 an unrelated field change doesn't count.
 
-**No cycle detection beyond self-reference** — intentional (`contacts.managerId` doesn't
-guard cycles either), and the reason **every reader that walks the link guards against
+**No cycle detection beyond self-reference** — intentional (`contacts.managerId` didn't guard
+cycles either; its successor `contact_relationships` now **does**, so the CRM side is no
+longer a precedent for this — see [ADR 0052](./0052-contact-relationships-one-typed-junction.md)),
+and the reason **every reader that walks the link guards against
 self-reference itself** rather than trusting the data: `getFeedbackAboutReports` (one
 hop, excludes the caller as recipient —
 [ADR 0047](./0047-feedback-reports-scoping-not-granting.md)) and `getReviewNoteAccess`

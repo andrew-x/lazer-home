@@ -10,8 +10,10 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyCell } from "@/components/empty-cell";
 import { IconButton } from "@/components/icon-button";
 import { InternalLink } from "@/components/internal-link";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { INACTIVE_LABEL } from "@/lib/crm/contact-status";
 import { DetailSection, DetailTable, TableEmpty } from "./detail-parts";
 import { RelationshipDialog } from "./relationship-dialog";
 
@@ -72,9 +74,14 @@ export function RelatedContactsSection({
           {rows.map((row) => (
             <TableRow key={row.relationshipId}>
               <TableCell className="font-medium">
-                <InternalLink href={`/contacts/${row.id}`}>
-                  {row.name}
-                </InternalLink>
+                <span className="flex flex-wrap items-center gap-2">
+                  <InternalLink href={`/contacts/${row.id}`}>
+                    {row.name}
+                  </InternalLink>
+                  {row.isActive ? null : (
+                    <Badge variant="secondary">{INACTIVE_LABEL}</Badge>
+                  )}
+                </span>
                 {row.role ? (
                   <div className="text-xs font-normal text-muted-foreground">
                     {row.role}
