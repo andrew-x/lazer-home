@@ -56,44 +56,76 @@ export function deriveProjectLinesOfBusiness(
 
 /**
  * The sections the projects list groups by: `tentative`, `paused`, `active`
- * (confirmed & ongoing), and `other` (cancelled). A one-to-one relabelling of
- * the four derived statuses — the list page shows Tentative, Paused, and Active
- * in full and paginates Other.
+ * (confirmed & still running), `past` (confirmed & finished) and `cancelled`.
+ *
+ * Four of the five are a relabelling of the derived status, but the confirmed
+ * status splits in two on the calendar: a delivered engagement is still
+ * "confirmed", so `active` vs `past` is decided by whether the project's latest
+ * role end date has passed. The list page shows Tentative, Paused and Active in
+ * full and paginates Past and Cancelled.
  */
-export type ProjectStatusBucket = "tentative" | "paused" | "active" | "other";
+export type ProjectStatusBucket =
+  | "tentative"
+  | "paused"
+  | "active"
+  | "past"
+  | "cancelled";
 
 /** Every bucket, in the order the list page renders its sections. */
 export const PROJECT_STATUS_BUCKETS: ProjectStatusBucket[] = [
   "tentative",
   "paused",
   "active",
-  "other",
+  "past",
+  "cancelled",
 ];
 
-/** Which list section a project's derived status belongs to. */
-export function projectStatusBucket(
-  status: ProjectRoleStatus,
-): ProjectStatusBucket {
-  if (status === "tentative") return "tentative";
-  if (status === "paused") return "paused";
-  if (status === "confirmed") return "active";
-  return "other"; // cancelled
+/**
+ * Has the engagement finished — is its latest role end date before `today`? A
+ * project ending *today* still counts as running. `endDate` is the project's
+ * latest role end date (null when it has no roles, which reads as tentative
+ * anyway); both dates are zero-padded "YYYY-MM-DD", so a lexicographic compare
+ * is chronological.
+ */
+export function projectHasEnded(
+  endDate: string | null,
+  today: string,
+): boolean {
+  return endDate !== null && endDate < today;
 }
 
 /**
- * Does a project with these role statuses belong in `bucket`? This is the pure,
- * presence-based mirror of the correlated-`EXISTS` SQL in
+ * Which list section a project belongs to, from its derived `status` and its
+ * latest role `endDate` compared against `today` (see `projectHasEnded` — only
+ * the confirmed status is date-sensitive).
+ */
+export function projectStatusBucket(
+  status: ProjectRoleStatus,
+  endDate: string | null,
+  today: string,
+): ProjectStatusBucket {
+  if (status === "tentative") return "tentative";
+  if (status === "paused") return "paused";
+  if (status === "cancelled") return "cancelled";
+  return projectHasEnded(endDate, today) ? "past" : "active";
+}
+
+/**
+ * Does a project with these role statuses and this latest role end date belong
+ * in `bucket`? This is the pure mirror of the correlated-`EXISTS` SQL in
  * `src/lib/projects/project-status-sql.ts` (`derivedStatusCondition`), which the
  * projects loader uses to paginate each section in the database.
  *
  * LOCKSTEP: the boolean logic here MUST match that SQL exactly, and both MUST
  * agree with `deriveProjectStatus` composed with `projectStatusBucket`. The
  * agreement test in `project-derived.test.ts` enumerates every role-status
- * combination to guard all buckets against drift.
+ * combination × ended/running to guard all buckets against drift.
  */
 export function statusesMatchBucket(
   bucket: ProjectStatusBucket,
   roleStatuses: readonly ProjectRoleStatus[],
+  endDate: string | null,
+  today: string,
 ): boolean {
   const has = (status: ProjectRoleStatus) => roleStatuses.includes(status);
   // No roles reads as tentative; any tentative role wins outright.
@@ -101,16 +133,20 @@ export function statusesMatchBucket(
   // Paused === derived "paused": has a paused role and no tentative role (paused
   // outranks confirmed among live roles, but tentative outranks paused).
   const paused = has("paused") && !has("tentative");
-  // Active === derived "confirmed": has a confirmed role, no tentative/paused.
-  const active = has("confirmed") && !has("tentative") && !has("paused");
+  // Confirmed: has a confirmed role, no tentative/paused. Splits into
+  // active/past on the end date.
+  const confirmed = has("confirmed") && !has("tentative") && !has("paused");
+  const ended = projectHasEnded(endDate, today);
   switch (bucket) {
     case "tentative":
       return tentative;
     case "paused":
       return paused;
     case "active":
-      return active;
+      return confirmed && !ended;
+    case "past":
+      return confirmed && ended;
     default:
-      return !tentative && !paused && !active; // other == cancelled
+      return !tentative && !paused && !confirmed; // cancelled
   }
 }
