@@ -19,10 +19,9 @@ import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { OpportunityBoardCard } from "@/actions/crm/getOpportunitiesBoard";
 import { updateOpportunityPosition } from "@/actions/crm/updateOpportunityPosition";
-import { createProjectFromOpportunity } from "@/actions/projects/createProjectFromOpportunity";
-import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ALL, FilterLabel, SelectFilter } from "@/components/form/filters";
 import { IconButton } from "@/components/icon-button";
+import { CreateProjectFromOpportunityDialog } from "@/components/projects/opportunity-plan/create-project-dialog";
 import { Input } from "@/components/ui/input";
 import {
   LINE_OF_BUSINESS,
@@ -53,6 +52,8 @@ type PendingMove = { id: string; status: OpportunityStatus; position: number };
 type ProjectPrompt = {
   opportunityId: string;
   opportunityName: string;
+  /** The client the new project belongs to — named in the create dialog. */
+  companyName: string;
   pendingMove: PendingMove;
 };
 
@@ -185,18 +186,10 @@ export function OpportunityBoard({
     },
   });
 
-  // The delivery-stage prompt creates a project for the opportunity (one-click,
-  // inheriting its name + company) then completes the pending status move.
-  const createProject = useAction(createProjectFromOpportunity, {
-    onSuccess: () => {
-      toast.success("Project created.");
-      completePendingMove();
-    },
-    onError: ({ error }) => {
-      setProjectPrompt(null);
-      toast.error(error.serverError ?? "Couldn't create the project.");
-    },
-  });
+  // In-flight state of the delivery-stage prompt's create, reported by the dialog
+  // so dismissing it mid-submit can't drop the pending stage move while the
+  // project is still being created.
+  const [creatingProject, setCreatingProject] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -354,6 +347,7 @@ export function OpportunityBoard({
         setProjectPrompt({
           opportunityId: activeCardId,
           opportunityName: current.name,
+          companyName: current.companyName,
           pendingMove: {
             id: activeCardId,
             status: newStatus,
@@ -574,26 +568,22 @@ export function OpportunityBoard({
             position={navPosition}
             total={navTotal}
           />
-          <ConfirmDialog
-            open={projectPrompt !== null}
-            onOpenChange={(next) => {
-              if (!next && !createProject.isPending) setProjectPrompt(null);
-            }}
-            title="Create a project?"
-            description={
-              projectPrompt
-                ? `"${projectPrompt.opportunityName}" needs a project before it can move to a delivery stage. Create one now? It inherits the opportunity's name and company.`
-                : undefined
-            }
-            confirmLabel="Create project"
-            loading={createProject.isPending}
-            onConfirm={() =>
-              projectPrompt &&
-              createProject.execute({
-                opportunityId: projectPrompt.opportunityId,
-              })
-            }
-          />
+          {/* Dismissing without creating drops the pending move, so the card
+              snaps back to its origin column (the same contract the one-click
+              confirm had before the budget form replaced it). */}
+          {projectPrompt ? (
+            <CreateProjectFromOpportunityDialog
+              opportunityId={projectPrompt.opportunityId}
+              companyName={projectPrompt.companyName}
+              open
+              onOpenChange={(next) => {
+                if (!next && !creatingProject) setProjectPrompt(null);
+              }}
+              onPendingChange={setCreatingProject}
+              description={`"${projectPrompt.opportunityName}" needs a project before it can move to a delivery stage. The new project inherits the opportunity's name and company — set how it bills to create it.`}
+              onCreated={completePendingMove}
+            />
+          ) : null}
         </>
       ) : null}
     </div>

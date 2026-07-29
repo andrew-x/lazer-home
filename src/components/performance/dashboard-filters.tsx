@@ -6,14 +6,8 @@ import { toEnumValue } from "@/components/form/enum-select";
 import { ALL, FilterLabel, SegmentedFilter } from "@/components/form/filters";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
-import type { Currency } from "@/lib/format/currency";
+import { type Currency, DISPLAY_CURRENCIES } from "@/lib/format/currency";
 import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff/staff-enums";
-
-/** Only CAD and USD are offered as display currencies. */
-const DISPLAY_CURRENCIES = [
-  "CAD",
-  "USD",
-] as const satisfies readonly Currency[];
 
 /**
  * The enum option lists backing the three dimension filters, sourced from the DB

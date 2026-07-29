@@ -1,5 +1,6 @@
-import type { InferSelectModel } from "drizzle-orm";
+import { type InferSelectModel, sql } from "drizzle-orm";
 import {
+  check,
   date,
   index,
   numeric,
@@ -9,6 +10,7 @@ import {
   timestamp,
   unique,
 } from "drizzle-orm/pg-core";
+import { BILLING_TYPES } from "@/lib/projects/project-billing";
 import {
   DEFAULT_PROJECT_ROLE_STATUS,
   PROJECT_ROLE_STATUSES,
@@ -16,7 +18,7 @@ import {
 import { PROJECT_ROLE_TYPES } from "@/lib/projects/project-role-type";
 import { companies } from "./crm-schema";
 import { opportunities } from "./opportunities-schema";
-import { lineOfBusinessEnum, staff } from "./staff-schema";
+import { currencyEnum, lineOfBusinessEnum, staff } from "./staff-schema";
 
 // ---------------------------------------------------------------------------
 // Projects domain
@@ -28,26 +30,65 @@ import { lineOfBusinessEnum, staff } from "./staff-schema";
 // `project_delivery_managers` is a junction to the staff who run the project.
 // `project_roles` are the staffing lines: a person for a date range at N
 // hours/day (the first cut of the proposed Allocation entity).
+// A time-and-materials project has no stored rates: it bills at the company's
+// standard rate card, which lives in code (`@/lib/projects/bill-rates`).
 // See docs/data-model.md and docs/domains/projects.md.
 // ---------------------------------------------------------------------------
 
-export const projects = pgTable("projects", {
-  id: text().primaryKey(),
-  name: text().notNull(),
-  // A project always belongs to a company. `restrict`: a company with live
-  // projects can't be deleted (mirrors opportunities).
-  companyId: text()
-    .notNull()
-    .references(() => companies.id, { onDelete: "restrict" }),
-  // The CRM → delivery link now lives on `opportunities.projectId` (many
-  // opportunities can build up one project). See docs/decisions/0019 and 0024.
+// How a project bills — one total fee, or hourly rates per role type. Built from
+// the shared client-safe module so the pgEnum, zod, and form labels can't drift.
+export const projectBillingTypeEnum = pgEnum("project_billing_type", [
+  ...BILLING_TYPES,
+]);
 
-  createdAt: timestamp().defaultNow().notNull(),
-  updatedAt: timestamp()
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
-});
+export const projects = pgTable(
+  "projects",
+  {
+    id: text().primaryKey(),
+    name: text().notNull(),
+    // A project always belongs to a company. `restrict`: a company with live
+    // projects can't be deleted (mirrors opportunities).
+    companyId: text()
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    // The CRM → delivery link now lives on `opportunities.projectId` (many
+    // opportunities can build up one project). See docs/decisions/0019 and 0024.
+
+    // --- Billing / budget --------------------------------------------------
+    // How this project bills. NULLABLE with no default, and that null is
+    // *meaningful*: every project created before budgets existed genuinely has no
+    // budget, and the UI reads it as "No budget set" rather than inventing a zero
+    // (the same "no target ≠ a target of nothing" rule as `compTargetAnnual`).
+    // The create form requires it going forward.
+    billingType: projectBillingTypeEnum(),
+    // The total fee, for FIXED_FEE only. A time-and-materials project has no
+    // total and no stored rates — it bills hours at the standard rate card in
+    // `@/lib/projects/bill-rates` — so both of these stay null there, and the
+    // check constraint below makes the mismatched combinations unrepresentable
+    // rather than merely discouraged.
+    budgetAmount: numeric({ precision: 12, scale: 2, mode: "number" }),
+    budgetCurrency: currencyEnum(),
+
+    createdAt: timestamp().defaultNow().notNull(),
+    updatedAt: timestamp()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    // The billing shape as a DB invariant, so a half-written budget can't exist:
+    // no budget at all, or a FIXED_FEE carrying both an amount and its currency,
+    // or a TIME_AND_MATERIALS carrying neither. Mirrors the zod discriminated
+    // union in `projectBudget.schema.ts` — one rule, enforced at both ends. Every
+    // pre-budget row satisfies the first branch, so this needed no backfill.
+    check(
+      "projects_budget_shape",
+      sql`(${t.billingType} is null and ${t.budgetAmount} is null and ${t.budgetCurrency} is null)
+       or (${t.billingType} = 'FIXED_FEE' and ${t.budgetAmount} is not null and ${t.budgetCurrency} is not null)
+       or (${t.billingType} = 'TIME_AND_MATERIALS' and ${t.budgetAmount} is null and ${t.budgetCurrency} is null)`,
+    ),
+  ],
+);
 
 // Delivery managers: many staff per project. Junction table following the CRM
 // convention — surrogate `text` PK, a unique on the FK pair for set-semantics,

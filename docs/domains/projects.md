@@ -20,9 +20,18 @@ extensions / change requests), while an opportunity still has at most one projec
 [ADR 0019](../decisions/0019-project-opportunity-link.md) and
 [ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md).
 
-**A project stores almost nothing of its own** — just `id`, `name`, `companyId`, timestamps
-(plus delivery-managers + roles relations). It carries **no stored `status` and no stored
-`lineOfBusiness`**: both are **derived from its roles** by the pure module
+**A project now carries its commercial terms** — `billingType` + `budgetAmount`/`budgetCurrency`
+(and **nothing more**: a time-and-materials project bills at the company's **one standard rate
+card, which lives in code**, not per project) — and the app computes **revenue, cost and margin**
+over its roles ([Budget & margin](#budget--margin) below,
+[ADR 0053](../decisions/0053-project-budgets-and-margin.md)). **Cost and margin are gated on the
+new read capability `projects.viewMargin`; revenue is not** — a role's cost *is* an individual's
+compensation, so this is the projects domain's first (and carefully masked) contact with
+`staff_employment`.
+
+**Otherwise a project stores little of its own** — `id`, `name`, `companyId`, the budget columns,
+timestamps (plus delivery-managers + roles relations). It carries **no stored `status` and no
+stored `lineOfBusiness`**: both are **derived from its roles** by the pure module
 `src/lib/projects/project-derived.ts` ([ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md)).
 Line of business is now a **per-role** field again; a role created from an opportunity
 inherits that opportunity's LoB by default (still editable in the planner).
@@ -36,16 +45,20 @@ same dialog** ([ADR 0045](../decisions/0045-project-page-as-delivery-side-role-e
 Roles can be **placeholders/open positions** (null `staffId`) carrying a `roleType`.
 Standalone projects (no opportunity, staffed roles) still work.
 
-**Two ways a project appears:** creating one **from** an opportunity is now **one-click, no
-form** (`createProjectFromOpportunity` — inherits the opportunity's name + company, creates no
-roles), or an opportunity can be **associated to an existing** project. The standalone
-`AddProjectDialog` on `/projects` collects only **name + company**; roles and delivery
+**Two ways a project appears:** creating one **from** an opportunity
+(`createProjectFromOpportunity` — inherits the opportunity's name + company, creates no roles,
+but **now asks for the budget**: it is a small dialog, no longer the one-click confirm it was
+before [ADR 0053](../decisions/0053-project-budgets-and-margin.md)), or an opportunity can be
+**associated to an existing** project. The standalone `AddProjectDialog` on `/projects` collects
+**name + company + budget**; roles and delivery
 managers are added afterward in the planner **or on the project detail page**. `updateProject`
 (the planner's whole-record Edit dialog) edits **name + delivery managers**; the field-scoped
 `updateProjectField` (the detail page's inline pencils) adds **company** to that — a project **can**
 be re-parented to another client, guarded so the move can't strand a linked opportunity on someone
 else's client (see the `updateProjectField` bullet under [What's built](#whats-built)). There is no
-status/LoB to edit, those derive. A project can also be **removed**
+status/LoB to edit, those derive. The **budget is edited by neither** — it has its own action and
+its own dialog (`updateProjectBudget` / `ProjectBudgetDialog`), shared by both surfaces, so
+renaming a project never re-submits its price. A project can also be **removed**
 from an opportunity or **deleted** with the opportunity (see the detach flow below).
 
 ## Purpose
@@ -56,10 +69,24 @@ delivery, allocations, timesheets, and billing.
 
 ## Key entities
 
-- **Project** (built) — billable work that **always belongs to a Company**. A project is
-  **deliberately thin**: just `name` (required), required `companyId` (FK → `companies`,
+- **Project** (built) — billable work that **always belongs to a Company**. `name` (required),
+  required `companyId` (FK → `companies`,
   **`onDelete: restrict`** — a company with live projects can't be deleted, exactly like
-  `opportunities`), and timestamps. Table `projects`, id prefix `proj`.
+  `opportunities`), **three budget columns** (below), and timestamps. Table `projects`, id prefix `proj`.
+  - **Billing / budget** (`drizzle/0016_violet_whistler.sql`, [ADR 0053](../decisions/0053-project-budgets-and-margin.md)) —
+    **`billingType`** (the new `project_billing_type` pgEnum: `FIXED_FEE` | `TIME_AND_MATERIALS`,
+    values from the pure `src/lib/projects/project-billing.ts`), **`budgetAmount`**
+    (`numeric(12,2)`, number mode) and **`budgetCurrency`** (the shared `currencyEnum`). **All
+    three nullable, and `billingType: null` is a real permanent state** — every project that
+    predates budgets has none, and the UI says "No budget set" rather than inventing a zero (the
+    same "no target ≠ a target of nothing" rule as `compTargetAnnual`). Budget is **required in
+    both create paths** going forward.
+  - **`check("projects_budget_shape")`** makes the shape a DB invariant: *all three null*, **or**
+    `FIXED_FEE` with amount **and** currency set, **or** `TIME_AND_MATERIALS` with **both null**
+    (a T&M project has no total — it bills hours at the code-owned rate card). Mirrored by the zod
+    **discriminated union** in `projectBudget.schema.ts`, so a half-written budget is
+    *unrepresentable* at both ends. Every pre-existing row satisfies the first branch ⇒ **the
+    migration needed no backfill.**
   - **No stored `status` and no stored `lineOfBusiness`.** Both were **dropped** and are now
     **derived from the project's roles** ([ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md);
     the old `project_status` pgEnum and `src/lib/project-status.ts` are **deleted**):
@@ -92,6 +119,19 @@ delivery, allocations, timesheets, and billing.
   junction convention exactly ([ADR 0016](../decisions/0016-junction-table-and-shared-enum-conventions.md)):
   surrogate `text` PK (`proj-dm`), a `unique(projectId, staffId)` for set-semantics,
   an `index` on `staffId` for reverse lookups, and **both FKs `onDelete: cascade`**.
+- **Bill rates are NOT an entity.** There is **one company-wide rate card, in code** —
+  `BILL_RATES` in `src/lib/projects/bill-rates.ts` — and a T&M project stores nothing about
+  pricing at all.
+  - ⚠️ **A `project_role_rates` table existed briefly on the branch and was dropped before
+    shipping.** It was carried as an honest create-then-drop migration pair, but merging `main`
+    renumbered those migrations anyway, so they were regenerated as a single
+    `drizzle/0016_violet_whistler.sql` holding only the surviving columns. **No migration
+    mentions the table** — [ADR 0053 §1–2](../decisions/0053-project-budgets-and-margin.md) is
+    the only record it was tried.
+  - A rate card is **policy**, revised centrally, not negotiated per engagement — and storing a
+    copy per project invites two projects **silently disagreeing about what an engineer-hour is
+    worth** for no product benefit. Don't reintroduce per-project rates as a field; that's a
+    schema decision to reopen deliberately.
 - **Project role** (built) — a **staffing line**: a person (or an open position) of a
   given discipline for a date range at N hours/day. Table `project_roles`, id prefix
   `proj-role`. **Not a pure junction** — it carries columns:
@@ -144,7 +184,7 @@ delivery, allocations, timesheets, and billing.
 ## What's built
 
 - **Schema** — `src/lib/db/projects-schema.ts` (`projects`, `project_delivery_managers`,
-  `project_roles`), barrelled by `src/lib/db/schema.ts`; imports `opportunities` from
+  `project_roles` — **three tables**), barrelled by `src/lib/db/schema.ts`; imports `opportunities` from
   `./opportunities-schema` (opportunities were split out of `crm-schema.ts` —
   [ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
   **Schema files are the source of truth for the current shape**; the drizzle history was
@@ -159,7 +199,12 @@ delivery, allocations, timesheets, and billing.
   `RENAME COLUMN`; still nullable text, max 200 in the schema). The projects domain now relies on:
   the `project_role_type` + (four-state) `project_role_status` enums, a nullable
   `project_roles.staff_id` with `line_of_business`/`description`/`role_type`/`status`/`opportunity_id`,
-  a `projects` table with **no `status`/`line_of_business` columns**, and the delivery link on
+  a `projects` table with **no `status`/`line_of_business` columns** but **three budget
+  columns + the `projects_budget_shape` CHECK** and the
+  `project_billing_type` enum (`drizzle/0016_violet_whistler.sql`; there is **no rate-card
+  table** — see the bill-rates bullet under
+  [Key entities](#key-entities) and
+  [ADR 0053](../decisions/0053-project-budgets-and-margin.md)), and the delivery link on
   `opportunities.project_id`.
 - **Derived-fields module** — `src/lib/projects/project-derived.ts`
   exports `deriveProjectStatus(roleStatuses)` and `deriveProjectLinesOfBusiness(roleLobs)`, plus
@@ -213,6 +258,35 @@ delivery, allocations, timesheets, and billing.
   `projectRoleTypeEnum` pgEnum, the create-project zod schema, and the form share one
   source — the same single-source pattern as `line-of-business.ts`. Role type is a role's
   **discipline**, orthogonal to line of business.
+  - It also exports **`STAFF_ROLE_FOR_PROJECT_ROLE_TYPE`** — the `staff_employment.role` each
+    project role type corresponds to, used to cost an **open** role from the company-wide average
+    for that discipline. Four map 1:1; **`SPECIALIST` maps to `null`** (the catch-all discipline
+    has no staff-role counterpart), so the caller falls back to averaging *every billable*
+    discipline. Keep the `Role` import **`import type`** — `projects-schema.ts` imports this module
+    for **values** (the pgEnum), and `staff-enums` reads its unions out of `staff-schema.ts`, so a
+    value import would close a runtime cycle through the schema (same caveat as
+    `compensation-targets.ts`).
+- **Shared billing-type module** — `src/lib/projects/project-billing.ts` exports `BILLING_TYPES`
+  (`FIXED_FEE`/`TIME_AND_MATERIALS`), the `BillingType` type and `BILLING_TYPE_LABELS`. **Pure,
+  client-importable**, so the `projectBillingTypeEnum` pgEnum, the zod discriminated union, and the
+  dialogs' labels share one source ([ADR 0016](../decisions/0016-junction-table-and-shared-enum-conventions.md)).
+- **The rate card (code as policy — the whole of it)** — `src/lib/projects/bill-rates.ts`:
+  **`BILL_RATES`** (a **total** map over `PROJECT_ROLE_TYPES` — every discipline must have a rate,
+  unlike the `Partial` `COMP_TARGETS`), **`BILL_RATE_CURRENCY`** (one currency for the whole card),
+  `BILL_RATES_REVIEWED_ON`, **`standardRateCard()`** (the rows in canonical order, *derived* from
+  `BILL_RATES` so the form can't show a rate the margin math doesn't use) and
+  **`isFlatRateCard()`** (lets the UI say "225/hr for every discipline" in one line instead of five
+  identical rows). It is **not** a set of defaults copied anywhere — it **is** the card every T&M
+  project bills at. Rates are **policy**, revised centrally by human judgement, so they live in
+  code (a review, not a migration), and one shared card means two projects can't disagree about
+  what an engineer-hour is worth — the `compensation-targets.ts` /
+  [ADR 0042](../decisions/0042-per-role-subratings-app-owned-jsonb.md) precedent. ⚠️ **The shipped
+  numbers are a flat 225 USD placeholder**, not our real rate card.
+- **Margin math** — `src/lib/projects/project-margin.ts` (+ `project-margin.test.ts`, 22 tests — a
+  sanctioned [ADR 0037](../decisions/0037-unit-tests-removed-except-rbac-matrix.md) exception, same
+  grounds as `compensation-plan.test.ts`). **Pure and client-importable**, so the server read and
+  the client's currency toggle share one implementation. See
+  [Budget & margin](#budget--margin) below for the rules it encodes.
 - **Shared line-of-business module** — `src/lib/crm/line-of-business.ts` exports the
   `LINE_OF_BUSINESS` tuple, the `LineOfBusiness` type, and `LINE_OF_BUSINESS_LABELS`.
   A **pure, client-importable** module (no `db`/drizzle) so the `lineOfBusinessEnum`
@@ -262,7 +336,9 @@ delivery, allocations, timesheets, and billing.
     **every** role on the project (all opportunities), the overall `timeline`, `roleCount`, and
     `externalAllocations` (the other-project commitments of everyone staffed here — same
     other-project / `tentative`|`confirmed` filter as the opportunity read). **Reuses the
-    `PlanRole`/`PlanProject`/`ExternalAllocation` types from `getOpportunityPlan.ts`.** Unlike that
+    `PlanRole`/`PlanProject`/`ExternalAllocation` types from
+    `getOpportunityPlan.ts`**, and like it returns **`costBasis` + `exchangeRates`** (see the
+    `getOpportunityPlan` bullet). Unlike that
     read it has **no `editable`/`opportunityId` notion**: per-role editability on the
     project page isn't a property of the *read* — every role on the project is editable by a
     `projects.edit` holder (the page's `canEdit` flag drives the affordances; the actions carry
@@ -286,16 +362,20 @@ delivery, allocations, timesheets, and billing.
       allocations grid, which has always shown approved PTO only.
     - **The read fails closed with no session** (`getCurrentUser()` null ⇒ empty spans,
       `canSeeType: false`) rather than leaning on the `(app)` layout's redirect.
-  - `createProjectFromOpportunity.ts` (+ `.schema.ts`) — **the one-click create from an
-    opportunity** (no form), gated `projects.edit`. Inherits the opportunity's `name` +
-    `companyId`, creates **no roles**, and sets `opportunities.projectId` under the atomic
+  - `createProjectFromOpportunity.ts` (+ `.schema.ts`) — **create from an
+    opportunity**, gated `projects.edit`. Its input is now `{ opportunityId, budget }` — the
+    project still inherits the opportunity's `name` +
+    `companyId` (so the dialog asks only how the work bills), creates **no roles**, and sets
+    `opportunities.projectId` under the atomic
     one-project-per-opportunity `isNull` guard (a concurrent link leaves 0 rows updated ⇒ throws
     ⇒ the insert rolls back, no orphan). Revalidates `/projects` + `/opportunities`. This backs
-    the planner's empty-state "Create project" button and the board's delivery-stage confirm
-    dialog. See [ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md).
+    the planner's empty-state "Create project" button and the board's delivery-stage prompt —
+    **both now a budget dialog, not a one-click confirm**
+    ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)). See
+    [ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md).
   - `createProject.ts` (+ `.schema.ts`) — **standalone project create** (the `/projects`
     dialog), gated `projects.edit`. One `db.transaction`: inserts the project (name + company
-    only), optionally links an `opportunityId` (same `isNull` guard as above), then bulk-inserts
+    + the budget columns), optionally links an `opportunityId` (same `isNull` guard as above), then bulk-inserts
     deduped delivery-manager rows and role rows — each role carries its own `lineOfBusiness`,
     is tagged with the `opportunityId` (provenance), created `tentative`, null `staffId` ⇒
     placeholder. **The action still accepts `roles`/`deliveryManagerIds`, both defaulting to
@@ -334,6 +414,55 @@ delivery, allocations, timesheets, and billing.
       (`src/lib/db/timesheets-schema.ts`), not the company, so hours already booked follow the
       project to its new client. That's a **billing-attribution** consequence — past time now reads
       against the new client — not an FK problem.
+  - **Budget writes** ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)):
+    - `projectBudget.schema.ts` — the budget half of **all three** write paths (both creates +
+      the update). A **pure, client-importable** zod **discriminated union on `billingType`**
+      mirroring the `projects_budget_shape` CHECK: `FIXED_FEE` ⇒ `budgetAmount` +
+      `budgetCurrency`; **`TIME_AND_MATERIALS` ⇒ `z.object({ billingType })` and nothing else** —
+      it bills at the code-owned card, so **picking the billing type is the whole decision**. One
+      non-obvious rule: `budgetAmount` is `.positive()` **because `z.coerce.number()` turns a blank
+      input's empty string into 0**, so without it an untouched field would silently save a $0
+      budget instead of failing with a message.
+    - `projectBudgetWrite.ts` — one server-only helper, `projectBudgetColumns(budget)`, shared by
+      those three actions (**nothing here authorizes**; each caller carries its own `projects.edit`
+      gate). It returns the three columns with
+      **explicit nulls on the T&M branch** — load-bearing on update, since switching away from a
+      fixed fee must *clear* the total or the CHECK rejects the write. **There is nothing else to
+      write**: a T&M project stores no rates.
+    - `updateProjectBudget.ts` (+ `.schema.ts`) — **re-price a project**: set a budget on one that
+      predates budgets, or switch billing model. Gated **`projects.edit`** (seeing the resulting
+      *margin* is the separate `projects.viewMargin` read capability). **A dedicated action, not a
+      field on `updateProject`**, which owns name + delivery managers and re-sends everything it
+      holds: folding the budget in would make a rename re-submit the project's price — the
+      last-write-wins clobbering `updateProjectField` exists to avoid. **One statement, no
+      transaction** — a single `UPDATE ... RETURNING`, which doubles as the existence check (the
+      returned-nothing case throws "That project no longer exists", so there's no separate
+      `assertRowExists` pre-read), and switching to T&M clears the fee in the same `set`.
+      Revalidates via `revalidateProject`.
+  - **Cost basis reads** (the compensation-touching half —
+    [ADR 0053](../decisions/0053-project-budgets-and-margin.md)):
+    - `src/actions/shared/staffHourlyCost.ts` — **what an hour of someone's time costs.**
+      `hourlyCostOf(row)` takes an hourly worker's `hourlyRate` as-is and restates a salaried
+      person's annual `base` hourly via **`convertCompUnit` / the flat `HOURS_PER_YEAR`
+      convention** — deliberately **not** scaled by `utilizationTarget`, so the same salary always
+      yields the same hourly cost and a project's margin doesn't move when a utilization target is
+      revised. **Bonuses excluded** (`base` is the committed number).
+      `getStaffHourlyCosts(ids)` is two queries + a JS fold over `latestEmploymentFirst` +
+      `firstPerKey` (the ADR 0007 effective-dated shape, no N+1); somebody with no employment row
+      is simply **absent** from the map. `getRoleTypeAverageCostsUsd(rates)` averages active staff
+      per discipline **in USD** (so the client's currency toggle needs no re-read *and* no
+      individual amount ever leaves the server); `SPECIALIST` pools every **billable** role
+      (`isBillableRole` — leadership/sales/ops salaries are overhead and would drag a delivery cost
+      basis); a role type with **no matching staff is absent, never 0**.
+      ⚠️ **Everything this module produces is compensation-derived — never call it directly from a
+      reader; go through `getProjectCostBasis`.**
+    - `getProjectCostBasis.ts` — **the one place the `projects.viewMargin` decision is made**, and
+      it lives **in the read**. Returns `PlanCostBasis` or **`null`**, and `null` *is* "may not see
+      margin" (one signal, not a parallel boolean that could drift into a payload saying "not
+      allowed" while carrying the numbers). It returns **before touching `staff_employment` at
+      all**, and it **masks rather than throws** (the plan is the whole page — the same choice
+      `getProjectPto` makes for the leave type). A null user falls through to a default-deny role.
+      See [Authorization](#authorization).
   - **Role CRUD (project detail page) — all gated `projects.edit`.**
     `createProjectRoleOnProject`, `updateProjectRoleOnProject`, `deleteProjectRoleOnProject`
     (+ a `.schema.ts` each, all reusing the shared `projectRoleFields`/`endOnOrAfterStart` from
@@ -426,6 +555,17 @@ delivery, allocations, timesheets, and billing.
     project is **not** this one and the status is `tentative`/`confirmed` (the allocations grid's
     filter), joined to `projects.name`. The planner greys these behind each staffed row's own
     load so an over-allocation is visible while planning the deal. Empty when no one is staffed.
+    - **It also carries the money** ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)):
+      `PlanProject.budget` is a **`PlanBudget`** — just the three columns
+      (`billingType` + `budgetAmount`/`budgetCurrency`), **no rate card**, since the client imports
+      the one card from `bill-rates.ts` — plus top-level **`costBasis: PlanCostBasis | null`** (null
+      ⇒ the viewer
+      lacks `projects.viewMargin`) and **`exchangeRates`** (the USD table + its `asOf`/`stale`
+      provenance, so the client converts — and can *name* the rates it used — without a refetch;
+      `FxRateNote` renders both the rate and its freshness from this —
+      [ADR 0029](../decisions/0029-external-fx-rates-and-currency-normalization.md)). Rates are
+      fetched **up front** so every early-return path (`emptyPlan()`) carries them; the fetch is a
+      12h-cached `fetch` that never throws, so that's effectively free.
   - `loadOpportunityPlan.ts` — the **interactive-read** `'use server'` wrapper (like
     `loadOpportunityDetail`), gated **`crm.edit`** because the planner lives in the edit-only
     drawer; write controls are separately `projects.edit`-gated per mutating action.
@@ -513,16 +653,19 @@ delivery, allocations, timesheets, and billing.
   into a single flat, paginated grid across all statuses, ordered by end date descending**
   (latest-ending first, role-less projects last — via `getProjectsPage`'s `"endDate"` order),
   rather than the name-ordered sections; clearing filters restores the sections. `add-project-dialog.tsx` (a **deliberately minimal**
-  standalone create form collecting **only name + company** — no LoB/status picker, no
+  standalone create form collecting **name + company + budget** — no LoB/status picker, no
   delivery-manager field, no roles repeater. Delivery managers/roles default to none
   server-side; status/LoB are derived once roles exist).
-  **`AddProjectDialog` serves the standalone `/projects` create button** (name + company). The
-  **create-from-opportunity** paths no longer use it — the planner's empty state and the board's
-  delivery-stage prompt call `createProjectFromOpportunity` directly (the board prompt is a
-  **confirm dialog**, not the old form). A "Projects" nav entry (`IconBriefcase`) is in
+  **`AddProjectDialog` serves the standalone `/projects` create button.** The
+  **create-from-opportunity** paths use their own `CreateProjectFromOpportunityDialog` (name +
+  company are inherited, so it collects **only** the budget) from the planner's empty state and the
+  board's delivery-stage prompt — **which is why that prompt is no longer a `ConfirmDialog`**
+  ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)).
+  A "Projects" nav entry (`IconBriefcase`) is in
   `src/components/app-shell/nav.ts`. Reusable form components used here:
   `src/components/form/entity-combobox.tsx` (`EntityCombobox`, the single-select base with a
-  `searchArgs` prop for extra scope args, wrapped by `CompanyCombobox`/`ManagerComboboxField`)
+  `searchArgs` prop for extra scope args, wrapped by `CompanyCombobox`; the CRM
+  contact-relationship dialog is the other `searchArgs` consumer)
   and `src/components/form/enum-select.tsx` (`EnumSelect`) — see [../ui.md](../ui.md).
 - **Project detail page UI** — `src/app/(app)/projects/[id]/page.tsx` (Server Component) +
   `src/components/projects/detail/` — `project-detail-view.tsx` (client) plus the editing pieces
@@ -536,6 +679,56 @@ delivery, allocations, timesheets, and billing.
   `opportunity-plan/role-dialog.tsx`** so the planner dialog and the project page's
   `ProjectRoleDialog` can't drift — the client-side mirror of the server-side shared
   `projectRoleFields`. **`status` is deliberately absent** (system-driven, never a form field).
+- **Budget UI** (`src/components/projects/`, [ADR 0053](../decisions/0053-project-budgets-and-margin.md)):
+  - **`budget-fields.tsx`** — the form fragment behind **all three** budget editors (deliberately
+    the mirror of `role-fields.tsx`): a billing-type picker plus a fee + currency.
+    `BudgetFormValues` is just `{ billingType, budgetAmount, budgetCurrency }`. **Both modes'
+    fields exist at all times** so switching billing type doesn't discard typed input;
+    `toBudgetInput` drops the fee on the T&M branch, so a phantom total can never reach the server.
+    Its issue map is
+    keyed by `AllKeys<ProjectBudgetInput>` rather than `keyof` — plain `keyof` on a discriminated
+    union yields only the discriminant, which would let the map omit the fee fields.
+    - **T&M renders a read-only `StandardRateCard` panel**, not an editable grid: there is nothing
+      to decide, and *showing* the rates is the point — it's what makes "time & materials" a
+      priced choice rather than a blank cheque. Built from `BILL_RATES` (via `isFlatRateCard()` /
+      `standardRateCard()`), so **a rate revision surfaces here without anyone touching the
+      form**, captioned "Company-wide and set in code, not per project — last reviewed
+      {`BILL_RATES_REVIEWED_ON`}".
+  - **`budget-dialog.tsx`** (`ProjectBudgetDialog`) — set/edit a budget, wired to
+    `updateProjectBudget`. Its own dialog rather than fields bolted onto the planner's
+    Edit-project dialog (that one is name + delivery managers and carries a destructive "Remove
+    project"), and the detail page has no such dialog at all — one shared dialog is the only way
+    both surfaces get the identical affordance.
+  - **`budget-summary-panel.tsx`** (`BudgetSummaryPanel`) — Revenue / Cost / Margin with a
+    **CAD↔USD `ToggleGroup`**, the **`FxRateNote`** immediately left of it, the billing badge, and
+    the edit affordance. Mounted on **both** the
+    opportunity Project-plan tab and the project detail page (above its tabs). A **bordered panel,
+    not more `StatCard`s**: the money shouldn't sit in the same undifferentiated wrap as the date
+    tiles, and the panel header gives the toggle, the rate note, the badge and the edit button
+    somewhere to live (its local `BudgetFigure` borrows `StatCard`'s typography without its `Card`,
+    with `value` as a **node** so the margin can carry its loss colouring).
+    **Cost and Margin render only when the server sent a cost basis**; revenue always shows.
+    **The Margin figure leads with the money amount, with the percentage as its hint line** — what
+    the plan earns is the decision; the rate is how to read it. The T&M revenue hint reads
+    "*N* hrs · standard rate card". Two honesty notices remain: no roles yet, and roles with no comp
+    on record (cost partial). The **unpriced-role and mixed-currency notices are gone** with the
+    per-project card — one total card in one currency makes both states unrepresentable.
+  - **`plan-summary-tiles.tsx`** — a pure extraction of the Length/Dates/Confirmed/Tentative/
+    Delivery-managers tile row **both** plan surfaces had duplicated.
+  - **`use-project-margin.ts`** — the client hook owning the display currency and calling
+    `computeProjectMargin`, so a surface's panel and its grid can never disagree. Conversion happens
+    **client-side** from the native amounts + shipped rate table, so the toggle never refetches
+    ([ADR 0029](../decisions/0029-external-fx-rates-and-currency-normalization.md)). The currency is
+    lazily defaulted by `resolveDisplayCurrency` and then owned by the toggle — it deliberately
+    doesn't re-derive when the budget changes, so re-pricing doesn't move it under you.
+  - Two new **app-wide** atoms came out of this: **`src/components/fx-rate-note.tsx`**
+    (`FxRateNote({ rates, from, to })` — **one** muted line stating the rates the panel's figures
+    were converted at, rendered beside the currency selector that caused the conversion; one
+    currency renders its rate inline (`1 USD = 1.37 CAD`), several summarise as "Converted at
+    today's rates" with the pairs in the tooltip, and it renders **`null`** when nothing was
+    converted) and
+    **`src/components/inline-notice.tsx`** (the hairline notice strip, extracted from the two
+    open-coded timesheet banners, which were migrated onto it). See [../ui.md](../ui.md).
 - **Opportunity planner UI** — `src/components/projects/opportunity-plan/` (entry
   `opportunity-project-plan.tsx`, split into `planner-grid.tsx` + `edit-project-dialog.tsx` +
   `role-dialog.tsx` + `extend-dialog.tsx`) renders the opportunity drawer's **Project plan** tab
@@ -557,6 +750,21 @@ delivery, allocations, timesheets, and billing.
     **other-project commitments** (from `getOpportunityPlan`'s `externalAllocations`) are greyed in
     behind the own block (project name + % + tooltip), mirroring the allocations grid's block style —
     surfacing over-allocation while planning.
+  - **Per-role money is a third line in the sticky label cell**, driven by one optional
+    **`margins`** prop (`{ byRoleId, currency }`) — so "off" (no budget, or no
+    `projects.viewMargin`) is a single `undefined` rather than several flags. It carries **no FX
+    affordance of its own** (that lives once in the panel header), and it is **always led by the
+    amount**, matching the panel: `"CA$8,000 margin"` when both sides are known, else the **cost**
+    (a fixed fee, where revenue isn't attributable per role), else the **revenue** — which is what a
+    viewer without `projects.viewMargin` gets. A cancelled role reads "Excluded from budget"; a role
+    with nothing true to say (unpriced, no visible cost) renders **nothing** rather than an em dash,
+    since the panel already counts it. The tooltip carries hours, the breakdown, the **percentage**,
+    **and where the cost came from**, so an averaged figure never reads as a real person's pay.
+    **Deliberately not
+    a new column:** `PLANNER_SUB_LABEL_COL`'s `sticky left-56` is hand-twinned to
+    `PLANNER_LABEL_COL` and those widths are **shared with the allocations grid**, so a third
+    sticky column would shift the week spine on every planner
+    ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)).
   - **Selection + bulk actions.** Editable rows carry checkboxes (the vendored
     `src/components/ui/checkbox.tsx`); a header checkbox toggles all editable rows. When any are
     selected a **bulk bar** offers **Delete** (`deleteProjectRoles`), **Duplicate**
@@ -569,9 +777,72 @@ delivery, allocations, timesheets, and billing.
     `editable` but is a **separate flag** (the project timeline sets `editable` without it; see the
     `project-planner-grid.ts` bullet above).
     The empty state offers **associate an existing project** (`searchProjects`
-    → `associateOpportunityProject`) or **create a new one** (one-click
-    `createProjectFromOpportunity`). All write controls gated on `projects.edit`. Grid math is the
-    pure `project-planner-grid.ts` (above).
+    → `associateOpportunityProject`) or **create a new one** (`CreateProjectFromOpportunityDialog`
+    → `createProjectFromOpportunity`, which asks for the budget). All write controls gated on
+    `projects.edit`. Grid math is the pure `project-planner-grid.ts` (above).
+
+## Budget & margin
+
+The commercial layer, added by [ADR 0053](../decisions/0053-project-budgets-and-margin.md) — read
+that for the *why* behind each rule below. Math lives in the pure
+`src/lib/projects/project-margin.ts`; the schema is in [Key entities](#key-entities).
+
+- **Revenue.** A **fixed fee** is the `projects` total, converted once — and it is **project-level
+  only**: per-role `revenue` is `null`, because apportioning one price across roles would invent a
+  number. A **T&M** role's revenue is `hours × BILL_RATES[roleType]` in `BILL_RATE_CURRENCY`, and the
+  project's is the sum over its counted roles. `computeProjectMargin` takes **no rate-card
+  argument** — it imports the one card. Because `BILL_RATES` is **total** over `ProjectRoleType`,
+  **"a role type with no bill rate" is unrepresentable**: there is no partial-revenue state and no
+  `unpricedRoleCount`. The flip side: **revising `BILL_RATES` re-prices every T&M plan
+  retroactively**, since revenue is always computed from the current card.
+- **Hours = `countWorkingDays(start, end) × hoursPerDay`** (reusing the PTO module's Mon–Fri math).
+  **Never the planner grids' `weekPercent`/`bucketPercent`:** per
+  [ADR 0040](../decisions/0040-allocations-planner-granularity.md) a grid column is a **flat nominal
+  rate**, not a prorated quantity, so money derived from one would be wrong by whole weeks at month
+  granularity. Statutory holidays aren't modelled, so hours are a slight overstatement —
+  **symmetrically on revenue and cost.**
+- **`countsTowardBudget(status)` = everything except `cancelled`.** `paused` still counts (it's
+  expected to resume on the dates it carries). This is **not** the allocations grid's
+  `["tentative","confirmed"]` filter, which answers a different question. **PTO is deliberately
+  ignored**: a salaried person's cost accrues on leave, so netting leave off hours would move
+  revenue without moving cost and swing margin for a non-commercial reason. Leave stays on the
+  project's Time-off tab.
+- **Cost** is per role: the **assignee's own** compensation restated hourly (`PERSON`), or — for an
+  **open** role only — the company-wide average for the matching discipline (`ROLE_AVERAGE`).
+  Someone assigned but with no employment row is `UNKNOWN`, **not** averaged (averaging would put a
+  stranger's number under a named person), and is excluded from the total rather than deflating it.
+  `SPECIALIST` averages all billable disciplines — an approximation the UI labels. Every row carries
+  its **`RoleCostBasis`** (`PERSON`/`ROLE_AVERAGE`/`UNKNOWN`/**`HIDDEN`**) so an estimate never
+  reads as a fact.
+- **`marginPercent` is null whenever revenue is 0** — that guards the divide *and* stops an empty
+  plan reporting a triumphant 100%. **Two tone helpers, deliberately at different precisions:**
+  `marginTone(percent)` rounds to one decimal, `marginAmountTone(amount)` rounds to **whole
+  dollars** — because that's how `aggregateMoneyFormatters` renders an aggregate, so a −$0.30 margin
+  displays as "CA$0" and must not come out red. Both colour **losses only**. (They reimplement
+  `changeTone` rather than importing it: a lib module mustn't depend on a component directory, and
+  "zero is neutral" reads as *no change*, which is not what a 0% margin means.)
+- **The FX caveat is stated once per panel, and it names the rates.** Every amount in a
+  `ProjectMargin` is already in the display currency; the module tracks **`convertedFrom:
+  Currency[]`** — the distinct currencies a rate was *actually applied to*, in canonical `CURRENCY`
+  order, collected by an internal `noteConversion(from)` that **no-ops when `from` is already the
+  display currency** (so a USD figure shown in USD is never claimed as converted). The UI
+  renders that once via `FxRateNote`, beside the currency selector. **There is no mixed-currency
+  case any more** — one card, one `BILL_RATE_CURRENCY`; `mixedRateCurrencies` and
+  `ProjectMargin.mixedCurrencies` are gone. A plan can still need a rate when its fee, the card and
+  someone's compensation aren't all denominated alike.
+  **This is deliberately a per-*panel* fact, not a per-value one** — "this figure was converted" is
+  only half the information, and per-figure markers become noise as soon as more than one value is
+  converted; what a reader needs is the **rate** and how fresh it is
+  ([ADR 0053](../decisions/0053-project-budgets-and-margin.md) §8). There is **no per-value
+  provenance type** — `fx.ts` is just `AED_PER_USD` + `FALLBACK_USD_RATES` + `convert()`; don't
+  reintroduce one. Rates come from the existing
+  `getExchangeRates()` ([ADR 0029](../decisions/0029-external-fx-rates-and-currency-normalization.md)),
+  now called inside **both** plan readers. `resolveDisplayCurrency({ budgetCurrency })` takes a
+  fixed fee's own denomination, else the card's currency, else **USD** — not a blanket CAD like the
+  compensation dashboards, which would put a conversion note on every T&M project whose figures
+  needed no conversion at all.
+- **It's a *plan* margin, not an actual** — it costs the allocation, not the logged time.
+  `time_entries` are untouched; forecast-vs-actual reconciliation is still unbuilt.
 
 ## Delete / detach
 
@@ -643,10 +914,13 @@ left as plain text by design are the **editable timesheet week grid** row labels
     rendered values (the same mechanism as the CRM company/contact inline fields). Each field owns
     its own hook instance, so pending/error state is isolated; `commit` client-side `safeParse`s
     the field's own slice before the round-trip.
-- **Header + summary tiles** — project name (editable, above) + derived `ProjectStatusBadge`, the
-  editable company field, derived LoB text, then the **same summary `StatCard` tiles** as
-  the opportunity Project-plan tab (Length, Dates, Confirmed span, Tentative span, Delivery
-  managers), rendered from the shared `plan-summary.ts` helpers so the two surfaces agree.
+- **Header + summary tiles + budget panel** — project name (editable, above) + derived
+  `ProjectStatusBadge`, the editable company field, derived LoB text, then the **same summary
+  `StatCard` tiles** as the opportunity Project-plan tab (Length, Dates, Confirmed span, Tentative
+  span, Delivery managers) — now the shared `PlanSummaryTiles` component over `plan-summary.ts`, so
+  the two surfaces can't drift — and, **above the tabs, the shared `BudgetSummaryPanel`** (revenue /
+  cost / margin + the currency toggle + Set/Edit budget). Its per-role counterpart is the
+  Timeline grid's `margins` prop. See [Budget & margin](#budget--margin).
 - **Three tabs. Roles are editable from *two* of them** — the Timeline Gantt and the Roles table
   both open the same `ProjectRoleDialog`, so there is no "read-only view + edit view" split here:
   - **Timeline — an *editable* reuse of the opportunity planner's `PlannerGrid`**
@@ -686,16 +960,37 @@ left as plain text by design are the **editable timesheet week grid** row labels
 ## Authorization
 
 **Reads are open** — any signed-in user can browse all projects, including the **detail
-page** (`getProjectPlan`/`getProjectPto` are server-only; the `(app)` gate is the boundary).
-**One field is masked, not gated:** the project detail page's Time off tab shows dates + who to
-everyone but masks each leave's **type/pending state** unless the viewer has **`pto.review`** —
-and **non-reviewers only get approved leave at all** (`getProjectPto` filters pending rows out and
-nulls those fields in the read; it also fails closed with no session — see
-[Project detail page](#project-detail-page)).
+page** (`getProjectPlan`/`getProjectPto` are server-only; the `(app)` gate is the boundary) — with
+**two carve-outs, both masked inside the read rather than hidden in the UI**:
+
+- **Cost & margin need `projects.viewMargin`** (a **new** capability —
+  `admin`/`manager`/`finance`/`delivery-manager`; **not `sales`, not `user`**). **Revenue — the
+  fixed fee, and the rate card it bills at — is *not* gated**: it's commercial, not personal (and
+  the card is a code constant every client bundle already has). Cost is, because a
+  role's cost **is an individual's compensation** (their pay ÷ `HOURS_PER_YEAR`), so on a one-role
+  project even the aggregate discloses a salary, and the open-role figure is a per-discipline comp
+  average — the same bulk exposure `getCompensationSummaryData` gates. It is **deliberately not
+  `projects.edit`**: `finance` needs margin without editing projects, and moving a role must not
+  imply the right to read someone's salary.
+  **`getProjectCostBasis` is the single decision point, and it belongs in the read** — it returns
+  `null` before touching `staff_employment`. That's load-bearing because both plan readers ship to
+  client components: `getProjectPlan` SSRs into a client component, and `loadOpportunityPlan` is
+  gated only on **`crm.edit`**, so `sales` legitimately reaches an opportunity's plan. **Never
+  filter cost in the UI, and never widen `loadOpportunityPlan`'s gate to compensate.** See
+  [permissions.md](./permissions.md) and
+  [ADR 0053](../decisions/0053-project-budgets-and-margin.md).
+- **PTO type/pending state needs `pto.review`:** the detail page's Time off tab shows dates + who to
+  everyone but masks each leave's **type/pending state** otherwise — and **non-reviewers only get
+  approved leave at all** (`getProjectPto` filters pending rows out and nulls those fields in the
+  read; it also fails closed with no session — see
+  [Project detail page](#project-detail-page)).
+
 **All project writes** are gated by a single flat capability (no
 ownership dimension): **`projects.edit`**, granted to `delivery-manager`, `manager`,
 `admin`. It covers creating projects and their staffing (`createProject`,
-**`createProjectFromOpportunity`**), **editing a project** (`updateProject` — name + delivery
+**`createProjectFromOpportunity`**), **re-pricing a project** (**`updateProjectBudget`** — the billing model and, for a fixed fee, the total;
+`projects.edit`, *not* `projects.viewMargin`, which only reveals the resulting margin),
+**editing a project** (`updateProject` — name + delivery
 managers — and the field-scoped **`updateProjectField`** behind the detail page's inline
 pencils, which also **moves a project between companies**: re-parenting is a **`projects.edit`**
 capability, *not* `crm.edit`, and its picker is the `projects.edit`-gated `searchCompanies` — a
@@ -717,14 +1012,24 @@ role writes by surface: `assertRoleEditable` restricts *opportunity-scoped* acti
 opportunity's own tentative roles**, and `assertProjectRoleEditable` restricts *project-scoped*
 actions to **roles on this project** (any status). Neither is access control, and the laxer one is
 **not a bypass** — see [ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md).
-The detail page's `canEdit` prop is an **affordance flag only**. No matrix change
-(`projects.edit` already existed; `/audit-rbac` clean, `permissions.test.ts` untouched). See
-[permissions.md](./permissions.md).
+The detail page's `canEdit` prop is an **affordance flag only**. **The matrix gained one column —
+`projects.viewMargin`** — updated in lockstep across `permissions.ts`, `permissions.test.ts` and
+[permissions.md](./permissions.md); no *write* gate changed.
 
 ## Key flows
 
-- **Create a standalone project, then staff it** (built) — creation is minimal: pick a company
-  and a name (no LoB/status — those derive). The project starts with **no roles and no delivery
+- **Price an engagement and watch its margin** (built,
+  [ADR 0053](../decisions/0053-project-budgets-and-margin.md)) — a `projects.edit` holder states
+  how the work bills **at create time** — a fixed fee (amount + currency), or time & materials,
+  which needs **no further input** since it bills at the standard `BILL_RATES` card the dialog shows
+  read-only — or re-prices later via the shared budget dialog
+  (`updateProjectBudget` — the only route for a project that predates budgets). From then on both
+  plan surfaces — the opportunity's Project-plan tab and `/projects/[id]` — show a **Budget & margin
+  panel** above the grid and a **per-role margin line inside it**, recomputed from the roles on every
+  staffing change. A viewer **without `projects.viewMargin`** sees the same page with revenue only;
+  the cost numbers are never sent. See [Budget & margin](#budget--margin).
+- **Create a standalone project, then staff it** (built) — creation is minimal: a company,
+  a name, and **how it bills** (no LoB/status — those derive). The project starts with **no roles and no delivery
   managers** (so it reads `tentative` with no LoBs). Staffing then happens on **either editor**:
   the **project detail page's Roles tab** (`/projects/[id]` — the natural home for a project with
   no opportunity, since the planner needs a deal to scope to) or the **opportunity planner** (the
@@ -750,11 +1055,13 @@ The detail page's `canEdit` prop is an **affordance flag only**. No matrix chang
   already logged **follows the project** (`timeEntries.projectId` → project, not company), so the
   consequence is billing attribution, not orphaned hours.
 - **Opportunity → Project handoff** (built) — an opportunity gets a project by **creating one
-  from it** — now **one-click** (`createProjectFromOpportunity`, inheriting name + company, no
-  form) — or **associating an existing one** (`associateOpportunityProject`). Entry points: the
+  from it** (`createProjectFromOpportunity`, inheriting name + company, **asking only for the
+  budget**) or **associating an existing one** (`associateOpportunityProject`). Entry points: the
   opportunity **detail drawer's** Project-plan empty state and the board's **delivery-stage
-  prompt** (a **confirm dialog** auto-opened when a card is dragged into Allocating+ with no
-  project — see the `requiresProject` rule in [crm.md](./crm.md) and
+  prompt** (the `CreateProjectFromOpportunityDialog` auto-opened when a card is dragged into
+  Allocating+ with no project — it **replaced a `ConfirmDialog`** when budgets landed, and reports
+  in-flight state so the board can refuse to close mid-submit and lose its pending stage move; see
+  the `requiresProject` rule in [crm.md](./crm.md) and
   [ADR 0024](../decisions/0024-opportunity-project-handoff-and-placeholder-roles.md)). The
   **same-company invariant is server-enforced** (associate checks it; both create paths are
   same-company by construction). Roles are then added in the planner, each defaulting to the
@@ -795,8 +1102,17 @@ The detail page's `canEdit` prop is an **affordance flag only**. No matrix chang
   [ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md)). **Project roles
   are the `/allocations` grid's rows**, so every project write revalidates that route via
   `revalidateProject` — a role edited from the project page shows up on the planner immediately.
-- **Timesheets / billing** — projects will be the thing time is logged against and
-  billed for (proposed).
+- **Staff compensation (new, and the sensitive one)** — margin joins `projects` →
+  `project_roles` → **`staff_employment`**, the projects domain's **first contact with
+  compensation** ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)). It reaches it
+  through exactly one module (`src/actions/shared/staffHourlyCost.ts`) behind exactly one gate
+  (`getProjectCostBasis` / `projects.viewMargin`). A **role's cost is a salary**, so treat anything
+  derived from it as compensation data — see [Authorization](#authorization),
+  [staff-profiles.md](./staff-profiles.md) and
+  [ADR 0020](../decisions/0020-compensation-effective-dated-import-only.md).
+- **Timesheets / billing** — projects are what time is logged against (`time_entries.projectId`);
+  **billing is still unbuilt**. The margin above is a *plan* figure costed from allocations, **not**
+  from logged hours, so forecast-vs-actual reconciliation remains open.
 
 ## Open questions / not yet built
 
@@ -838,4 +1154,15 @@ The detail page's `canEdit` prop is an **affordance flag only**. No matrix chang
   [ADR 0017](../decisions/0017-project-roles-as-first-allocation-cut.md). Full
   capacity planning (over/under-allocation, conflicts, forecast vs. actuals) is still
   in the Allocations domain's open questions.
-- No budget/value, no rates, no richer lifecycle/stage model beyond the derived status.
+- ~~**No budget/value, no rates**~~ **Resolved** — a project carries a billing model (+ a fee when
+  fixed), the company bills T&M work at one code-owned per-discipline rate card, and the app computes
+  plan revenue/cost/margin
+  ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)). What's still missing there:
+  **no rate history at all** — revising `BILL_RATES` re-prices every T&M plan retroactively, so a
+  past margin can't be reconstructed (dating the card is a deliberate reopening of ADR 0053 §1–2,
+  not a field to add); **plan
+  margin only** (nothing costs the *logged* hours — forecast-vs-actual is unbuilt); the shipped
+  `BILL_RATES` are a **placeholder**; **no per-project pricing** (rejected on purpose — see the ADR
+  before proposing it again); and margin per *person* (as opposed to per role and
+  per project) doesn't exist.
+- **No richer lifecycle/stage model** beyond the derived status.

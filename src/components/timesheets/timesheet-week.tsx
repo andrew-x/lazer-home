@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  IconAlertTriangle,
-  IconInfoCircle,
-  IconTrash,
-} from "@tabler/icons-react";
+import { IconAlertTriangle, IconTrash } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
 import { type ReactNode, useRef, useState } from "react";
@@ -21,6 +17,7 @@ import {
 } from "@/actions/timesheets/saveTimesheet.schema";
 import { submitTimesheet } from "@/actions/timesheets/submitTimesheet";
 import { IconButton } from "@/components/icon-button";
+import { InlineNotice } from "@/components/inline-notice";
 import { AddProjectDialog } from "@/components/timesheets/add-project-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -486,25 +483,21 @@ export function TimesheetWeek({
       {editable ? (
         <div className="flex flex-col items-end gap-2">
           {needsReview ? (
-            <div className="flex w-full items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-              <IconAlertTriangle className="mt-0.5 size-4 shrink-0" />
-              <div>
-                <p>
-                  You can still save and submit, but this week will be flagged
-                  for review by your manager and delivery managers — make sure
-                  you've secured their approval first.
-                </p>
-                <ul className="mt-1 list-disc pl-5">
-                  {reviewReasons.map((reason) => (
-                    <li key={reason}>{reason}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+            <InlineNotice icon={IconAlertTriangle} tone="destructive">
+              <p>
+                You can still save and submit, but this week will be flagged for
+                review by your manager and delivery managers — make sure you've
+                secured their approval first.
+              </p>
+              <ul className="mt-1 list-disc pl-5">
+                {reviewReasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </InlineNotice>
           ) : null}
           {shortOfFullWeek ? (
-            <div className="flex w-full items-start gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-              <IconInfoCircle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            <InlineNotice>
               <p>
                 {unaccounted}h of the {WEEKLY_HOUR_CAP}h week are unaccounted
                 for. Add the missing time as non-billable (
@@ -515,7 +508,7 @@ export function TimesheetWeek({
                   ? ` You can save a draft, but you can't submit until the week totals ${WEEKLY_HOUR_CAP}h.`
                   : null}
               </p>
-            </div>
+            </InlineNotice>
           ) : null}
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={handleSave} disabled={pending}>

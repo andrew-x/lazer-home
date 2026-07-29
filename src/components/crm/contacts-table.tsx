@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/empty-state";
 import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { InternalLink } from "@/components/internal-link";
 import { ROOMY_TABLE } from "@/components/table-density";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -13,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { INACTIVE_LABEL } from "@/lib/crm/contact-status";
 
 /**
  * The contacts list table. A server component: only the "Next steps" cell
@@ -56,12 +58,33 @@ export function ContactsTable({
         {rows.map((contact) => (
           <TableRow key={contact.id}>
             <TableCell className="font-medium">
-              <InternalLink href={`/contacts/${contact.id}`}>
-                {contact.firstName} {contact.lastName}
-              </InternalLink>
+              <span className="flex flex-wrap items-center gap-2">
+                <InternalLink href={`/contacts/${contact.id}`}>
+                  {contact.firstName} {contact.lastName}
+                </InternalLink>
+                {/* Inactive contacts are hidden unless the "Include inactive"
+                    filter is on, so when one appears it has to be obvious why. */}
+                {contact.isActive ? null : (
+                  <Badge variant="secondary">{INACTIVE_LABEL}</Badge>
+                )}
+              </span>
               {contact.role ? (
                 <div className="text-xs font-normal text-muted-foreground">
                   {contact.role}
+                </div>
+              ) : null}
+              {/* An inactive row is otherwise a dead end: the one thing worth knowing
+                  is where this person went, so link the newer record right here
+                  rather than making someone open the page to find out. */}
+              {contact.successor ? (
+                <div className="text-xs font-normal text-muted-foreground">
+                  Moved to{" "}
+                  <InternalLink href={`/contacts/${contact.successor.id}`}>
+                    {contact.successor.name}
+                  </InternalLink>
+                  {contact.successor.companyName
+                    ? ` at ${contact.successor.companyName}`
+                    : null}
                 </div>
               ) : null}
             </TableCell>

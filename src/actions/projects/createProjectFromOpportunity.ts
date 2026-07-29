@@ -9,10 +9,11 @@ import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import { opportunities, projects } from "@/lib/db/schema";
 import { createProjectFromOpportunitySchema } from "./createProjectFromOpportunity.schema";
+import { projectBudgetColumns } from "./projectBudgetWrite";
 
 /**
- * Create a project straight from an opportunity — the planner's one-click
- * "Create project" (no form). The project inherits the opportunity's `name` and
+ * Create a project straight from an opportunity — the planner's "Create project",
+ * whose only form is the budget. The project inherits the opportunity's `name` and
  * `companyId`; it has no line of business or status of its own (both are derived
  * from its roles, which are added afterward in the planner). Gated on
  * `projects.edit`.
@@ -23,7 +24,7 @@ export const createProjectFromOpportunity = secureActionClient
     permission: { projects: ["edit"] },
   })
   .inputSchema(createProjectFromOpportunitySchema)
-  .action(async ({ parsedInput: { opportunityId } }) => {
+  .action(async ({ parsedInput: { opportunityId, budget } }) => {
     const opportunityRows = await db
       .select({
         name: opportunities.name,
@@ -48,6 +49,7 @@ export const createProjectFromOpportunity = secureActionClient
         // Inherit the opportunity's name and company.
         name: opportunity.name,
         companyId: opportunity.companyId,
+        ...projectBudgetColumns(budget),
       });
 
       // Link the opportunity to this new project. The `is null` predicate is the

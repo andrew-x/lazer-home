@@ -18,6 +18,16 @@ export function initialsFor(name: string, email: string): string {
   ).toUpperCase();
 }
 
+/**
+ * Format a 0–1 fraction as an unsigned percentage, e.g. `formatPercent(0.349)` →
+ * "34.9%"; `null` → "—". Unsigned on purpose: a margin is a level, not a change,
+ * so it must not pick up the leading "+" that `formatChangePercent` adds. A
+ * negative fraction still renders its minus sign.
+ */
+export function formatPercent(fraction: number | null): string {
+  return fraction == null ? "—" : `${(fraction * 100).toFixed(1)}%`;
+}
+
 /** Long-form date options ("June 18, 2026"), shared by the formatters below. */
 const LONG_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
   year: "numeric",

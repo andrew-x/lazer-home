@@ -12,7 +12,7 @@ The durable knowledge base for the PSA platform — maintained by the `librarian
 | [data-model.md](./data-model.md) | Core entities, how the five domains connect, and what's realized in code |
 | [flows.md](./flows.md) | Cross-domain flows, the auth flow, + the technical request flow every mutation follows |
 | [domains/crm.md](./domains/crm.md) | Companies (clients + partners), contacts, sales pipeline |
-| [domains/projects.md](./domains/projects.md) | Projects (client engagements) + delivery managers + role/staffing lines |
+| [domains/projects.md](./domains/projects.md) | Projects (client engagements) + delivery managers + role/staffing lines + **budgets, rate cards and plan margin** (cost/margin gated on `projects.viewMargin`) |
 | [domains/allocations.md](./domains/allocations.md) | Staffing people onto projects over time; the `/allocations` planner view (built) + its manager-only inline notes |
 | [domains/timesheets.md](./domains/timesheets.md) | Weekly time capture (built); approval + billing deferred |
 | [domains/staff-profiles.md](./domains/staff-profiles.md) | People, roles, skills, compensation, availability; the **viewer-dependent** profile tab set + the read-only profile drawer |

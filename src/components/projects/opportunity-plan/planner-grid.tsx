@@ -1,6 +1,6 @@
 "use client";
 
-import { IconPencil } from "@tabler/icons-react";
+import { IconAlertTriangle, IconPencil } from "@tabler/icons-react";
 import { useState } from "react";
 import { searchStaff } from "@/actions/projects/searchStaff";
 import { EntityCombobox } from "@/components/form/entity-combobox";
@@ -19,7 +19,17 @@ import {
 import { WORKING_DAYS_PER_WEEK } from "@/lib/allocations/allocations-grid";
 import { cn } from "@/lib/core/utils";
 import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
-import { formatDate } from "@/lib/format/format";
+import {
+  aggregateMoneyFormatters,
+  type Currency,
+  formatAmount,
+} from "@/lib/format/currency";
+import { formatDate, formatPercent } from "@/lib/format/format";
+import {
+  marginAmountTone,
+  type RoleCostBasis,
+  type RoleMargin,
+} from "@/lib/projects/project-margin";
 import {
   type ExternalBlock,
   type OwnBlock,
@@ -49,6 +59,15 @@ function ownBlockClass(row: PlannerRow): string {
   return "border-foreground/20 bg-foreground/10 text-muted-foreground";
 }
 
+/**
+ * Per-role money for the grid. One optional prop so "off" — no budget, or a viewer
+ * without `projects.viewMargin` — is a single `undefined` rather than several flags.
+ */
+export type PlannerMargins = {
+  byRoleId: Map<string, RoleMargin>;
+  currency: Currency;
+};
+
 export function PlannerGrid({
   rows,
   weekColumns,
@@ -57,6 +76,7 @@ export function PlannerGrid({
   onToggleSelect,
   onToggleSelectAll,
   onAssignStaff,
+  margins,
 }: {
   rows: PlannerRow[];
   weekColumns: string[];
@@ -66,6 +86,8 @@ export function PlannerGrid({
   onToggleSelect?: (roleId: string) => void;
   onToggleSelectAll?: () => void;
   onAssignStaff?: (roleId: string, staffId: string | null) => void;
+  /** Omit to render no money at all. */
+  margins?: PlannerMargins;
 }) {
   const selectable = Boolean(onToggleSelect && selectedRoleIds);
   const editableIds = rows.filter((r) => r.editable).map((r) => r.roleId);
@@ -157,6 +179,12 @@ export function PlannerGrid({
                       <div className="truncate text-xs text-muted-foreground">
                         {row.roleTypeLabel} · {row.hoursPerDay}h/day
                       </div>
+                      {margins ? (
+                        <RoleMarginLine
+                          margin={margins.byRoleId.get(row.roleId)}
+                          currency={margins.currency}
+                        />
+                      ) : null}
                       {canEdit ? (
                         <button
                           type="button"
@@ -199,6 +227,111 @@ export function PlannerGrid({
     </div>
   );
 }
+
+/**
+ * A role's money, as a third line in the sticky label cell: the margin percentage
+ * for a time-and-materials plan, or just the cost for a fixed fee (where revenue
+ * isn't attributable to a role). The tooltip carries the breakdown and, crucially,
+ * *where the cost came from* — an averaged figure must never read as a real person's
+ * pay.
+ *
+ * A line here rather than a new lead column: the two sticky columns are positioned by
+ * a hardcoded `left-56` twinned to `PLANNER_LABEL_COL`, and those widths are shared
+ * with the allocations grid, so a third one would shift the week spine on every
+ * planner. It also stays scannable straight down the column, which a per-cell tooltip
+ * or an expandable row would not.
+ */
+function RoleMarginLine({
+  margin,
+  currency,
+}: {
+  margin: RoleMargin | undefined;
+  currency: Currency;
+}) {
+  if (!margin) return null;
+
+  const { money } = aggregateMoneyFormatters(currency);
+
+  if (!margin.counted) {
+    return (
+      <div className="mt-0.5 text-xs text-muted-foreground">
+        Excluded from budget
+      </div>
+    );
+  }
+
+  // Show the most complete true statement available, and no more: a margin when
+  // both sides are known, else the cost (a fixed fee, where revenue isn't
+  // attributable per role), else the revenue — which is what a viewer without
+  // `projects.viewMargin` gets, since cost never reaches them.
+  //
+  // Always led by the amount, matching the summary panel: the money is the figure
+  // being judged, and the percentage is how to read it (it's in the tooltip).
+  const showsMargin = margin.margin != null;
+  const label = showsMargin
+    ? `${money(margin.margin)} margin`
+    : margin.cost
+      ? `${money(margin.cost)} cost`
+      : margin.revenue
+        ? `${money(margin.revenue)} revenue`
+        : null;
+
+  // Nothing true to say — an unpriced role with no visible cost. The summary panel
+  // counts these, so a bare em dash here would be noise.
+  if (label == null) return null;
+
+  const costBasisNote = COST_BASIS_LABEL[margin.costBasis];
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <div className="mt-0.5 flex items-center gap-1 text-xs tabular-nums">
+            <span
+              className={cn(
+                "text-muted-foreground",
+                showsMargin && marginAmountTone(margin.margin),
+              )}
+            >
+              {label}
+            </span>
+            {margin.costBasis === "UNKNOWN" ? (
+              <IconAlertTriangle
+                className="size-3.5 shrink-0 text-muted-foreground"
+                aria-label="No compensation on record, so this role has no cost"
+              />
+            ) : null}
+          </div>
+        }
+      />
+      <TooltipContent className="flex-col items-start gap-0.5">
+        <span>{formatAmount(Math.round(margin.hours))} hrs</span>
+        {margin.revenue ? (
+          <span>Revenue {money(margin.revenue)}</span>
+        ) : (
+          <span className="text-background/70">
+            No revenue attributed to this role
+          </span>
+        )}
+        {margin.cost ? <span>Cost {money(margin.cost)}</span> : null}
+        {margin.marginPercent != null ? (
+          <span>Margin {formatPercent(margin.marginPercent)}</span>
+        ) : null}
+        {costBasisNote ? (
+          <span className="text-background/70">{costBasisNote}</span>
+        ) : null}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** Where a role's cost figure came from, spelled out so an estimate can't pass as a fact. */
+const COST_BASIS_LABEL: Record<RoleCostBasis, string> = {
+  PERSON: "Cost from this person's compensation",
+  ROLE_AVERAGE: "Open role — cost is the company average for this discipline",
+  UNKNOWN: "No compensation on record, so no cost is included",
+  HIDDEN: "",
+};
 
 /** The Staff column: assigned name, an inline assign picker, or a dash. */
 function StaffCell({

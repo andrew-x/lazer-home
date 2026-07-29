@@ -175,6 +175,13 @@ highlighted when over 40h. Approval is expected **out-of-band** (there is no in-
 approval workflow — see [Open questions](#open-questions)). See
 [ADR 0027](../decisions/0027-timesheet-weekly-model-and-edit-window.md).
 
+> **Both of this grid's banners are now the shared `InlineNotice`** (`src/components/inline-notice.tsx`)
+> — they were the two open-coded copies it was extracted from when the project budget form needed the
+> same shape ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)). The over-threshold banner
+> passes `tone="destructive"`; the unaccounted-hours notice below uses the default muted tone. Don't
+> re-open-code a third; and note it is deliberately **not** a form error (no `aria-invalid`, never
+> blocks a submit — the *floor* is what disables Submit, not the notice).
+
 ### The 40h floor (full-time only)
 
 `WEEKLY_HOUR_CAP` doubles as a **floor on submission**. While the week totals **under**
@@ -253,7 +260,11 @@ Resolved in v1 (recorded here so they aren't relitigated — see [ADR 0027](../d
 
 Still genuinely open:
 
-- **Billing** — charge rates, billable-vs-non-billable margin, invoice generation.
+- **Billing** — invoice generation, and pricing the **logged** hours. Note charge rates
+  themselves are no longer missing: a project carries a fixed fee or a per-discipline rate
+  card, and margin is computed over its **allocation plan**, never over `time_entries`
+  ([ADR 0053](../decisions/0053-project-budgets-and-margin.md),
+  [projects.md](./projects.md#budget--margin)). Nothing in this domain reads them yet.
 - **Approval workflow** — if/when a manager sign-off step is added (approve/reject,
   audit trail, per-scope granularity).
 - **Allocation reconciliation** — surfacing actuals vs. the `project_roles` plan.

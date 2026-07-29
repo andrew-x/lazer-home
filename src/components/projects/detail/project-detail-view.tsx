@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  IconBriefcase,
-  IconCalendar,
-  IconCalendarStats,
-  IconCircleCheck,
-  IconClock,
-  IconPencil,
-  IconPlus,
-} from "@tabler/icons-react";
+import { IconBriefcase, IconPencil, IconPlus } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import type { PlanRole } from "@/actions/projects/getOpportunityPlan";
 import type { ProjectDetailPlan } from "@/actions/projects/getProjectPlan";
@@ -28,24 +20,24 @@ import {
 import { EmptyCell } from "@/components/empty-cell";
 import { IconButton } from "@/components/icon-button";
 import { InternalLink } from "@/components/internal-link";
-import { StatCard } from "@/components/performance/stat-card";
-import { PlannerGrid } from "@/components/projects/opportunity-plan/planner-grid";
+import { BudgetSummaryPanel } from "@/components/projects/budget-summary-panel";
+import {
+  PlannerGrid,
+  type PlannerMargins,
+} from "@/components/projects/opportunity-plan/planner-grid";
+import { PlanSummaryTiles } from "@/components/projects/plan-summary-tiles";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
+import { useProjectMargin } from "@/components/projects/use-project-margin";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
 import { formatDate } from "@/lib/format/format";
-import { rangeLabel, rangeOf, yearHint } from "@/lib/projects/plan-summary";
 import {
   buildPlannerRows,
   buildWeekColumns,
 } from "@/lib/projects/project-planner-grid";
-import {
-  PROJECT_ROLE_STATUS_LABELS,
-  ROLE_STATUS,
-} from "@/lib/projects/project-role-status";
 import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
 import { PTO_TYPE_LABELS } from "@/lib/staff/staff-enums";
 import { DeliveryManagersField } from "./delivery-managers-field";
@@ -77,7 +69,15 @@ export function ProjectDetailView({
   pto: ProjectPtoView;
   canEdit: boolean;
 }) {
-  const { project, company, roles, timeline, externalAllocations } = plan;
+  const {
+    project,
+    company,
+    roles,
+    timeline,
+    externalAllocations,
+    costBasis,
+    exchangeRates,
+  } = plan;
 
   // null = closed; { role: null } = adding.
   const [roleDialog, setRoleDialog] = useState<{
@@ -116,14 +116,21 @@ export function ProjectDetailView({
   ) : null;
 
   const lengthWeeks = weekColumns.length;
-  const confirmedRange = useMemo(
-    () => rangeOf(roles.filter((r) => r.status === ROLE_STATUS.confirmed)),
-    [roles],
-  );
-  const tentativeRange = useMemo(
-    () => rangeOf(roles.filter((r) => r.status === ROLE_STATUS.tentative)),
-    [roles],
-  );
+
+  const { margin, displayCurrency, setDisplayCurrency } = useProjectMargin({
+    roles,
+    budget: project.budget,
+    costBasis,
+    exchangeRates,
+  });
+
+  // No budget means nothing to show per role; the panel explains why instead.
+  const plannerMargins: PlannerMargins | undefined = project.budget.billingType
+    ? {
+        byRoleId: margin.byRoleId,
+        currency: displayCurrency,
+      }
+    : undefined;
 
   // Roles table order: staffed first (by name), then open positions; by start
   // date within a person.
@@ -186,37 +193,26 @@ export function ProjectDetailView({
         </>
       }
     >
-      {/* Summary stats — the same tiles as the opportunity Project-plan tab. */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard
-          label="Length"
-          value={lengthWeeks ? `${lengthWeeks} wk` : "—"}
-          hint={PROJECT_ROLE_STATUS_LABELS[project.status]}
-          icon={IconCalendarStats}
-        />
-        <StatCard
-          label="Dates"
-          value={timeline ? rangeLabel(timeline) : "—"}
-          hint={timeline ? yearHint(timeline) : undefined}
-          icon={IconCalendar}
-        />
-        {confirmedRange ? (
-          <StatCard
-            label="Confirmed"
-            value={rangeLabel(confirmedRange)}
-            hint={yearHint(confirmedRange)}
-            icon={IconCircleCheck}
-          />
-        ) : null}
-        {confirmedRange && tentativeRange ? (
-          <StatCard
-            label="Tentative"
-            value={rangeLabel(tentativeRange)}
-            hint={yearHint(tentativeRange)}
-            icon={IconClock}
-          />
-        ) : null}
-      </div>
+      {/* Summary stats — the same tiles as the opportunity Project-plan tab.
+          Delivery managers are omitted: they already have a sidebar field. */}
+      <PlanSummaryTiles
+        roles={roles}
+        timeline={timeline}
+        status={project.status}
+        lengthWeeks={lengthWeeks}
+      />
+
+      {/* Above the tabs, because a budget is a property of the project rather
+          than of any one tab. */}
+      <BudgetSummaryPanel
+        projectId={project.id}
+        budget={project.budget}
+        margin={margin}
+        rates={exchangeRates}
+        displayCurrency={displayCurrency}
+        onDisplayCurrencyChange={setDisplayCurrency}
+        canManage={canEdit}
+      />
 
       <Tabs defaultValue="timeline">
         <TabsList variant="line" className="mb-4">
@@ -237,6 +233,7 @@ export function ProjectDetailView({
                 rows={rows}
                 weekColumns={weekColumns}
                 onEditRole={canEdit ? openRole : undefined}
+                margins={plannerMargins}
               />
               <ProjectPlanLegend />
             </>
