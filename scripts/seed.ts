@@ -19,6 +19,7 @@ import {
   seedCompensationPlans,
   seedFeedback,
   seedRatings,
+  seedReviewNotes,
 } from "./seed/performance";
 import { seedProjects } from "./seed/projects";
 import { seedOpportunities } from "./seed/sales";
@@ -73,6 +74,9 @@ async function main() {
     const ratingsCount = await seedRatings(db, staff);
     // After ratings: plan items seed their proposed level from the current one.
     const compPlanCount = await seedCompensationPlans(db, staff);
+    // Authored by each person's manager — the reporting line is what grants
+    // access to a review note, so the author has to be that manager's account.
+    const reviewNoteCount = await seedReviewNotes(db, staff);
     const entries = await seedEntries(
       db,
       contacts,
@@ -100,6 +104,7 @@ async function main() {
       feedback: feedbackCount,
       ratings: ratingsCount,
       compensationPlans: compPlanCount,
+      reviewNotes: reviewNoteCount,
       contactEntries: entries.contactEntries,
       opportunityEntries: entries.opportunityEntries,
       companyEntries: entries.companyEntries,

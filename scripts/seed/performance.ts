@@ -4,10 +4,12 @@ import {
   compensationPlan,
   compensationPlanItem,
   feedback,
+  performanceReviewNote,
   type Staff,
   staffEmployment,
   staffRating,
 } from "@/lib/db/schema";
+import { parseIsoDate } from "@/lib/format/format";
 import {
   type CompensationPlanItemStatus,
   currentCompAmount,
@@ -24,6 +26,7 @@ import { chance, faker, isoDate } from "./faker";
 const FEEDBACK_COUNT = 50;
 
 type FeedbackInsert = InferInsertModel<typeof feedback>;
+type ReviewNoteInsert = InferInsertModel<typeof performanceReviewNote>;
 type StaffRatingInsert = InferInsertModel<typeof staffRating>;
 type CompensationPlanInsert = InferInsertModel<typeof compensationPlan>;
 type CompensationPlanItemInsert = InferInsertModel<typeof compensationPlanItem>;
@@ -54,6 +57,85 @@ export async function seedFeedback(
   }
 
   await db.insert(feedback).values(rows);
+  return rows.length;
+}
+
+/** Share of managed staff who get review notes at all. */
+const REVIEW_NOTE_COVERAGE = 0.6;
+const MAX_REVIEW_NOTES_PER_STAFF = 3;
+/** Chance the most recent note is still an unshared draft. */
+const REVIEW_NOTE_DRAFT_CHANCE = 0.35;
+
+const REVIEW_NOTE_TITLES = [
+  "Mid-year review conversation",
+  "Annual review conversation",
+  "Quarterly check-in",
+  "Promotion discussion",
+  "Growth areas follow-up",
+];
+
+/**
+ * Seed performance review notes, attributed to each person's **manager** — the
+ * reporting line is what grants access to a note (see
+ * `src/actions/performance/reviewNoteAccess.ts`), so the manager is the only
+ * sensible author.
+ *
+ * **`authorUserId` is null for most rows, and that's correct here:** `seedStaff`
+ * links a `user` account to exactly one staff row (the admin), because accounts
+ * only exist for people who have signed in with Google. A null author models the
+ * `onDelete: "set null"` state the schema allows — the note stays readable
+ * through the reporting line, it just has no author name and no author path. The
+ * notes reachable by the seeded admin's own reports do carry their id.
+ *
+ * Each covered person gets 1–3 dated notes, oldest first, all `SHARED` except
+ * (sometimes) the most recent, which is left a `DRAFT` — so the manager view has
+ * something only they can see, and the subject view has something to read.
+ */
+export async function seedReviewNotes(
+  db: SeedDb,
+  staff: Staff[],
+): Promise<number> {
+  const byId = new Map(staff.map((person) => [person.id, person]));
+  const rows: ReviewNoteInsert[] = [];
+
+  for (const person of staff) {
+    if (!person.isActive || !person.managerId) continue;
+    // Same self-guard the reads apply: a self-pointing managerId is reachable
+    // through a bad import and must never make someone their own note-manager.
+    if (person.managerId === person.id) continue;
+
+    const manager = byId.get(person.managerId);
+    if (!manager) continue;
+    if (!chance(REVIEW_NOTE_COVERAGE)) continue;
+
+    const count = faker.number.int({
+      min: 1,
+      max: MAX_REVIEW_NOTES_PER_STAFF,
+    });
+    const dates = Array.from({ length: count }, () =>
+      isoDate(faker.date.past({ years: 2 })),
+    ).sort();
+
+    dates.forEach((noteDate, index) => {
+      const draft = index === count - 1 && chance(REVIEW_NOTE_DRAFT_CHANCE);
+      rows.push({
+        id: generateId("prn"),
+        staffId: person.id,
+        authorUserId: manager.userId,
+        noteDate,
+        title: chance(0.7)
+          ? faker.helpers.arrayElement(REVIEW_NOTE_TITLES)
+          : null,
+        body: faker.lorem.paragraphs(2),
+        status: draft ? "DRAFT" : "SHARED",
+        // Shared the day of the conversation. `parseIsoDate` keeps the wall-clock
+        // date intact (`new Date("YYYY-MM-DD")` would drift by the UTC offset).
+        sharedAt: draft ? null : parseIsoDate(noteDate),
+      });
+    });
+  }
+
+  if (rows.length > 0) await db.insert(performanceReviewNote).values(rows);
   return rows.length;
 }
 
