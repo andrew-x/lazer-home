@@ -4,7 +4,6 @@ import { asc, eq } from "drizzle-orm";
 import { firstPerKey } from "@/lib/core/collections";
 import { db } from "@/lib/db/db";
 import {
-  billableTypeEnum,
   type StaffEmployment,
   staff,
   staffEmployment,
@@ -15,15 +14,15 @@ import { latestEmploymentFirst } from "@/lib/staff/staff-employment";
 import { STAFF_FILTER_OPTIONS } from "@/lib/staff/staff-filters";
 
 /**
- * The values offered by the directory's filter dropdowns, sourced from the DB
- * enums. Exported here so pages don't import the Drizzle schema directly (the
- * actions layer owns all `@/lib/db` access). The three shared dimensions come
- * from `STAFF_FILTER_OPTIONS`; the directory adds `billableType`.
+ * The values offered by the directory's filter dropdowns. An alias of the shared
+ * `STAFF_FILTER_OPTIONS`, kept so the directory and bulk-edit pages don't have to
+ * churn their import sites.
+ *
+ * `billableType` used to be declared here, which put it out of reach of any client
+ * component (this module is `server-only`). It now lives with the other dimensions
+ * in the pure module, where the compensation-plan toolbar can read it too.
  */
-export const staffDirectoryFilterOptions = {
-  ...STAFF_FILTER_OPTIONS,
-  billableType: [...billableTypeEnum.enumValues],
-};
+export const staffDirectoryFilterOptions = STAFF_FILTER_OPTIONS;
 
 /**
  * One row per staff member for the directory: identity + active flag + avatar +
