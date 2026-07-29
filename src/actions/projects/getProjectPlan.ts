@@ -1,6 +1,10 @@
 import "server-only";
 
 import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import {
+  type ExchangeRates,
+  getExchangeRates,
+} from "@/actions/staff/getExchangeRates";
 import { db } from "@/lib/db/db";
 import {
   companies,
@@ -18,6 +22,7 @@ import type {
   PlanProject,
   PlanRole,
 } from "./getOpportunityPlan";
+import { getProjectCostBasis, type PlanCostBasis } from "./getProjectCostBasis";
 
 /**
  * The read behind the standalone project detail page: the project's meta plus
@@ -39,6 +44,14 @@ export type ProjectDetailPlan = {
   roleCount: number;
   /** Other-project commitments of this project's staff, for the greyed blocks. */
   externalAllocations: ExternalAllocation[];
+  /**
+   * Cost inputs for the margin computation, or **null** when the viewer lacks
+   * `projects.viewMargin`. Withheld here in the read, never hidden in the UI —
+   * this plan is SSR'd straight into a client component.
+   */
+  costBasis: PlanCostBasis | null;
+  /** USD-based FX table + `asOf`/`stale` provenance, for client-side conversion. */
+  exchangeRates: ExchangeRates;
 };
 
 export async function getProjectPlan(
@@ -48,6 +61,9 @@ export async function getProjectPlan(
     .select({
       id: projects.id,
       name: projects.name,
+      billingType: projects.billingType,
+      budgetAmount: projects.budgetAmount,
+      budgetCurrency: projects.budgetCurrency,
       companyId: companies.id,
       companyName: companies.name,
     })
@@ -57,6 +73,8 @@ export async function getProjectPlan(
     .limit(1);
 
   if (!projectRow) return null;
+
+  const exchangeRates = await getExchangeRates();
 
   // The project's delivery managers, resolved to names for display.
   const deliveryManagers = await db
@@ -142,7 +160,17 @@ export async function getProjectPlan(
       roles.map((r) => r.lineOfBusiness),
     ),
     deliveryManagers,
+    budget: {
+      billingType: projectRow.billingType,
+      budgetAmount: projectRow.budgetAmount,
+      budgetCurrency: projectRow.budgetCurrency,
+    },
   };
+
+  const costBasis = await getProjectCostBasis({
+    staffIds,
+    usdRates: exchangeRates.rates,
+  });
 
   return {
     project,
@@ -151,5 +179,7 @@ export async function getProjectPlan(
     timeline,
     roleCount: roles.length,
     externalAllocations,
+    costBasis,
+    exchangeRates,
   };
 }

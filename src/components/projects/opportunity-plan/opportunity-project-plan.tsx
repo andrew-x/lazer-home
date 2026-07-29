@@ -2,15 +2,10 @@
 
 import {
   IconArrowBarRight,
-  IconCalendar,
-  IconCalendarStats,
-  IconCircleCheck,
-  IconClock,
   IconCopy,
   IconPencil,
   IconPlus,
   IconTrash,
-  IconUsers,
 } from "@tabler/icons-react";
 import { useAction } from "next-safe-action/hooks";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -18,11 +13,11 @@ import { toast } from "sonner";
 import { associateOpportunityProject } from "@/actions/crm/associateOpportunityProject";
 import { assignRoleStaff } from "@/actions/projects/assignRoleStaff";
 import { bumpProjectRoles } from "@/actions/projects/bumpProjectRoles";
-import { createProjectFromOpportunity } from "@/actions/projects/createProjectFromOpportunity";
 import { deleteProjectRoles } from "@/actions/projects/deleteProjectRoles";
 import { duplicateProjectRoles } from "@/actions/projects/duplicateProjectRoles";
 import type {
   OpportunityPlan,
+  PlanBudget,
   PlanRole,
 } from "@/actions/projects/getOpportunityPlan";
 import { loadOpportunityPlan } from "@/actions/projects/loadOpportunityPlan";
@@ -32,14 +27,18 @@ import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
 import { FormField } from "@/components/form/form-field";
 import { InternalLink } from "@/components/internal-link";
-import { StatCard } from "@/components/performance/stat-card";
+import { BudgetSummaryPanel } from "@/components/projects/budget-summary-panel";
+import { CreateProjectFromOpportunityDialog } from "@/components/projects/opportunity-plan/create-project-dialog";
 import { EditProjectDialog } from "@/components/projects/opportunity-plan/edit-project-dialog";
 import { ExtendDialog } from "@/components/projects/opportunity-plan/extend-dialog";
 import {
   PlannerGrid,
   PlannerLegend,
+  type PlannerMargins,
 } from "@/components/projects/opportunity-plan/planner-grid";
 import { RoleDialog } from "@/components/projects/opportunity-plan/role-dialog";
+import { PlanSummaryTiles } from "@/components/projects/plan-summary-tiles";
+import { useProjectMargin } from "@/components/projects/use-project-margin";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,21 +47,23 @@ import {
   type LineOfBusiness,
 } from "@/lib/crm/line-of-business";
 import {
-  deliveryManagerLabel,
-  rangeLabel,
-  rangeOf,
-  yearHint,
-} from "@/lib/projects/plan-summary";
-import {
   buildPlannerRows,
   buildWeekColumns,
 } from "@/lib/projects/project-planner-grid";
-import {
-  PROJECT_ROLE_STATUS_LABELS,
-  ROLE_STATUS,
-} from "@/lib/projects/project-role-status";
+import { ROLE_STATUS } from "@/lib/projects/project-role-status";
 
 type CompanyRef = { id: string; name: string };
+
+/**
+ * Stand-in for a plan whose project vanished mid-render. `PlanEditor` is only
+ * reached with a project, but `plan.project` is nullable on the type, and a budget
+ * of "none" is exactly what the panel already renders for a pre-budget project.
+ */
+const EMPTY_BUDGET: PlanBudget = {
+  billingType: null,
+  budgetAmount: null,
+  budgetCurrency: null,
+};
 
 /**
  * The opportunity drawer's "Project plan" tab: a weekly, Gantt-like planner for
@@ -167,16 +168,6 @@ function NoProjectState({
       toast.error(error.serverError ?? "Couldn't link the project."),
   });
 
-  // One click — the new project inherits the opportunity's name and company.
-  const create = useAction(createProjectFromOpportunity, {
-    onSuccess: () => {
-      toast.success("Project created.");
-      onLinked();
-    },
-    onError: ({ error }) =>
-      toast.error(error.serverError ?? "Couldn't create the project."),
-  });
-
   if (!canManage) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -219,16 +210,19 @@ function NoProjectState({
 
       <div className="flex items-center gap-2">
         <span className="text-sm text-muted-foreground">or</span>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={create.isPending}
-          onClick={() => create.execute({ opportunityId })}
-        >
-          <IconPlus />
-          Create project
-        </Button>
+        {/* The new project inherits the opportunity's name and company; the
+            dialog only asks how the work bills. */}
+        <CreateProjectFromOpportunityDialog
+          opportunityId={opportunityId}
+          companyName={company.name}
+          onCreated={onLinked}
+          trigger={
+            <Button type="button" variant="outline" size="sm">
+              <IconPlus />
+              Create project
+            </Button>
+          }
+        />
       </div>
     </div>
   );
@@ -286,16 +280,21 @@ function PlanEditor({
   // The column count is exactly the timeline length in weeks (same eachWeek span).
   const lengthWeeks = weekColumns.length;
 
-  // Confirmed vs. tentative spans — shown as separate tiles once anything is
-  // committed, so the locked-in timeline reads apart from the proposed one.
-  const confirmedRange = useMemo(
-    () => rangeOf(plan.roles.filter((r) => r.status === ROLE_STATUS.confirmed)),
-    [plan.roles],
-  );
-  const tentativeRange = useMemo(
-    () => rangeOf(plan.roles.filter((r) => r.status === ROLE_STATUS.tentative)),
-    [plan.roles],
-  );
+  const budget = plan.project?.budget ?? EMPTY_BUDGET;
+  const { margin, displayCurrency, setDisplayCurrency } = useProjectMargin({
+    roles: plan.roles,
+    budget,
+    costBasis: plan.costBasis,
+    exchangeRates: plan.exchangeRates,
+  });
+
+  // No budget means nothing to show per role; the panel explains why instead.
+  const plannerMargins: PlannerMargins | undefined = budget.billingType
+    ? {
+        byRoleId: margin.byRoleId,
+        currency: displayCurrency,
+      }
+    : undefined;
 
   const clearSelection = useCallback(() => setSelectedRoleIds(new Set()), []);
   const afterBulk = useCallback(() => {
@@ -402,46 +401,27 @@ function PlanEditor({
             </Button>
           ) : null}
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard
-            label="Length"
-            value={lengthWeeks ? `${lengthWeeks} wk` : "—"}
-            hint={
-              plan.project
-                ? PROJECT_ROLE_STATUS_LABELS[plan.project.status]
-                : ""
-            }
-            icon={IconCalendarStats}
-          />
-          <StatCard
-            label="Dates"
-            value={plan.timeline ? rangeLabel(plan.timeline) : "—"}
-            hint={plan.timeline ? yearHint(plan.timeline) : undefined}
-            icon={IconCalendar}
-          />
-          {confirmedRange ? (
-            <StatCard
-              label="Confirmed"
-              value={rangeLabel(confirmedRange)}
-              hint={yearHint(confirmedRange)}
-              icon={IconCircleCheck}
-            />
-          ) : null}
-          {confirmedRange && tentativeRange ? (
-            <StatCard
-              label="Tentative"
-              value={rangeLabel(tentativeRange)}
-              hint={yearHint(tentativeRange)}
-              icon={IconClock}
-            />
-          ) : null}
-          <StatCard
-            label="Delivery managers"
-            value={deliveryManagerLabel(plan.project?.deliveryManagers ?? [])}
-            icon={IconUsers}
-          />
-        </div>
+        <PlanSummaryTiles
+          roles={plan.roles}
+          timeline={plan.timeline}
+          status={plan.project?.status ?? null}
+          lengthWeeks={lengthWeeks}
+          deliveryManagers={plan.project?.deliveryManagers ?? []}
+        />
       </div>
+
+      {plan.project ? (
+        <BudgetSummaryPanel
+          projectId={plan.project.id}
+          budget={budget}
+          margin={margin}
+          rates={plan.exchangeRates}
+          displayCurrency={displayCurrency}
+          onDisplayCurrencyChange={setDisplayCurrency}
+          canManage={canManage}
+          onSaved={onChanged}
+        />
+      ) : null}
 
       {/* Bulk actions on the selected editable roles. */}
       {canManage && selectedRoleIds.size > 0 ? (
@@ -517,6 +497,7 @@ function PlanEditor({
                   assign.execute({ roleId, opportunityId, staffId })
               : undefined
           }
+          margins={plannerMargins}
         />
       )}
 

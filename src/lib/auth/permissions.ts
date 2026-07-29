@@ -27,7 +27,10 @@ export const statement = {
   staff: ["edit", "viewCompensation"], // edit another staff member's profile; view others' compensation
   pto: ["review"], // view aggregated PTO summaries of other staff
   crm: ["edit"], // add/edit CRM companies, contacts & opportunities (reads are open)
-  projects: ["edit"], // add/edit projects & their staffing (reads are open)
+  // edit projects & their staffing (reads are open); see a project's cost & margin.
+  // `viewMargin` is separate because a role's cost IS an individual's compensation
+  // (their pay ÷ 2080), so it must not ride along with the ability to staff a plan.
+  projects: ["edit", "viewMargin"],
   feedback: ["review"], // view all peer feedback in full (giving is open to any active staff)
   ratings: ["view", "edit"], // view / assign staff overall levels (L0–L4); sensitive, never visible to the staffer
   timesheets: ["edit"], // edit any timesheet, bypassing owner + ±1-week window (own weeks in-window need no permission)
@@ -41,14 +44,20 @@ export const ac = createAccessControl(statement);
  */
 export const roles = {
   user: ac.newRole({}),
-  "delivery-manager": ac.newRole({ projects: ["edit"] }),
-  finance: ac.newRole({ staff: ["viewCompensation"] }),
+  "delivery-manager": ac.newRole({ projects: ["edit", "viewMargin"] }),
+  finance: ac.newRole({
+    staff: ["viewCompensation"],
+    projects: ["viewMargin"],
+  }),
+  // Sales plans deals in the opportunity drawer and so reaches a project plan, but
+  // deliberately gets NO `projects` capability: they see a plan's revenue, never
+  // the compensation-derived cost or margin.
   sales: ac.newRole({ crm: ["edit"] }),
   manager: ac.newRole({
     staff: ["edit", "viewCompensation"],
     pto: ["review"],
     crm: ["edit"],
-    projects: ["edit"],
+    projects: ["edit", "viewMargin"],
     feedback: ["review"],
     ratings: ["view", "edit"],
     timesheets: ["edit"],
@@ -58,7 +67,7 @@ export const roles = {
     staff: ["edit", "viewCompensation"],
     pto: ["review"],
     crm: ["edit"],
-    projects: ["edit"],
+    projects: ["edit", "viewMargin"],
     feedback: ["review"],
     ratings: ["view", "edit"],
     timesheets: ["edit"],

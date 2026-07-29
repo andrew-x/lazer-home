@@ -9,6 +9,7 @@ import {
   type CreateProjectInput,
   createProjectSchema,
 } from "@/actions/projects/createProject.schema";
+import { projectBudgetSchema } from "@/actions/projects/projectBudget.schema";
 import { searchCompanies } from "@/actions/projects/searchCompanies";
 import { CompanyCombobox } from "@/components/crm/company-combobox";
 import {
@@ -17,10 +18,17 @@ import {
 } from "@/components/form/apply-server-issues";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
 import { FormField } from "@/components/form/form-field";
+import {
+  BudgetFields,
+  type BudgetFormValues,
+  budgetDefaultValues,
+  budgetIssueFields,
+  toBudgetInput,
+} from "@/components/projects/budget-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-type ProjectFormValues = {
+type ProjectFormValues = BudgetFormValues & {
   name: string;
   companyId: string;
   companyName: string;
@@ -31,6 +39,8 @@ type ProjectFormValues = {
 // errors. Fields the standalone form no longer collects (delivery managers,
 // roles — added later in the planner; opportunityId — not used standalone) route
 // to `name` as a harmless fallback; they can't produce validation issues here.
+// `budget` likewise: the budget slice is parsed separately (see `onSubmit`), so
+// its issues arrive already keyed by leaf field via `budgetIssueFields`.
 const FIELD_FOR_ISSUE: Record<
   keyof CreateProjectInput,
   IssueTarget<ProjectFormValues>
@@ -40,6 +50,7 @@ const FIELD_FOR_ISSUE: Record<
   opportunityId: "companyId",
   deliveryManagerIds: "name",
   roles: "name",
+  budget: "billingType",
 };
 
 type ProjectDialogProps = {
@@ -48,11 +59,12 @@ type ProjectDialogProps = {
 };
 
 /**
- * The standalone create-project dialog (the projects page). Deliberately
- * minimal — it collects only name and company; a project's status and lines of
- * business are derived from its roles, which (with delivery managers) are added
- * afterward in the planner. Projects created from an opportunity skip this dialog
- * entirely (one-click `createProjectFromOpportunity`, inheriting name + company).
+ * The standalone create-project dialog (the projects page). Collects name, company
+ * and how the work bills; a project's status and lines of business are derived from
+ * its roles, which (with delivery managers) are added afterward in the planner.
+ * Projects created from an opportunity go through
+ * `CreateProjectFromOpportunityDialog` instead, which inherits name + company from
+ * the deal and asks for the same budget.
  */
 export function AddProjectDialog({
   trigger,
@@ -71,7 +83,7 @@ export function AddProjectDialog({
         )
       }
       title="Add project"
-      description="Create a project for a company. Add roles and delivery managers afterward in its planner."
+      description="Create a project for a company and set how it bills. Add roles and delivery managers afterward in its planner."
       contentClassName="max-h-[85vh] overflow-y-auto sm:max-w-lg"
     >
       {({ close }) => <ProjectForm onSaved={close} onCreated={onCreated} />}
@@ -97,6 +109,7 @@ function ProjectForm({
       name: "",
       companyId: "",
       companyName: "",
+      ...budgetDefaultValues(),
     },
   });
 
@@ -108,12 +121,28 @@ function ProjectForm({
   });
 
   const companyName = watch("companyName");
+  const billingType = watch("billingType");
 
   const onSubmit = (values: ProjectFormValues) => {
     clearErrors();
+
+    // The budget slice is validated on its own so its issue paths stay leaf-keyed
+    // (`budgetAmount`, not `budget.budgetAmount`) — `applyServerIssues` routes on
+    // `path[0]`. See `budgetIssueFields`.
+    const budget = projectBudgetSchema.safeParse(toBudgetInput(values));
+    if (!budget.success) {
+      applyServerIssues(
+        setError,
+        budget.error,
+        budgetIssueFields<ProjectFormValues>(),
+      );
+      return;
+    }
+
     const parsed = createProjectSchema.safeParse({
       name: values.name,
       companyId: values.companyId,
+      budget: budget.data,
     });
     if (!parsed.success) {
       applyServerIssues(setError, parsed.error, FIELD_FOR_ISSUE);
@@ -155,6 +184,14 @@ function ProjectForm({
             />
           </FormField>
         )}
+      />
+
+      <BudgetFields
+        idPrefix="project"
+        control={control}
+        register={register}
+        errors={errors}
+        billingType={billingType}
       />
 
       <FormDialogFooter

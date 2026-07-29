@@ -1,6 +1,10 @@
 import "server-only";
 
 import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import {
+  type ExchangeRates,
+  getExchangeRates,
+} from "@/actions/staff/getExchangeRates";
 import type { LineOfBusiness } from "@/lib/crm/line-of-business";
 import { db } from "@/lib/db/db";
 import {
@@ -10,12 +14,15 @@ import {
   projects,
   staff,
 } from "@/lib/db/schema";
+import type { Currency } from "@/lib/format/currency";
+import type { BillingType } from "@/lib/projects/project-billing";
 import {
   deriveProjectLinesOfBusiness,
   deriveProjectStatus,
 } from "@/lib/projects/project-derived";
 import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
 import type { ProjectRoleType } from "@/lib/projects/project-role-type";
+import { getProjectCostBasis, type PlanCostBasis } from "./getProjectCostBasis";
 
 /** One staffing line on the opportunity's project, shaped for the planner. */
 export type PlanRole = {
@@ -52,6 +59,21 @@ export type ExternalAllocation = {
   hoursPerDay: number;
 };
 
+/**
+ * How a project bills. `billingType: null` means no budget was ever set — a real,
+ * permanent state for every project created before budgets existed, which the UI
+ * renders as "No budget set".
+ *
+ * There are no rates here: a time-and-materials project bills at the company's
+ * standard rate card, which lives in code (`@/lib/projects/bill-rates`).
+ */
+export type PlanBudget = {
+  billingType: BillingType | null;
+  /** The total fee. Set only for FIXED_FEE. */
+  budgetAmount: number | null;
+  budgetCurrency: Currency | null;
+};
+
 export type PlanProject = {
   id: string;
   name: string;
@@ -61,6 +83,8 @@ export type PlanProject = {
   linesOfBusiness: LineOfBusiness[];
   /** The staff who run this project, resolved for display and editing. */
   deliveryManagers: { id: string; name: string }[];
+  /** How this project bills. */
+  budget: PlanBudget;
 };
 
 export type OpportunityPlan = {
@@ -77,6 +101,18 @@ export type OpportunityPlan = {
    * staffed yet.
    */
   externalAllocations: ExternalAllocation[];
+  /**
+   * Cost inputs for the margin computation, or **null** when the viewer lacks
+   * `projects.viewMargin`. Withheld here in the read, not hidden in the UI — see
+   * `getProjectCostBasis`.
+   */
+  costBasis: PlanCostBasis | null;
+  /**
+   * USD-based FX table plus its `asOf`/`stale` provenance, so the client can
+   * convert every figure into the chosen display currency and flag the ones that
+   * needed a rate (ADR 0029).
+   */
+  exchangeRates: ExchangeRates;
 };
 
 /**
@@ -97,20 +133,32 @@ export async function getOpportunityPlan(
     .limit(1);
 
   if (!opportunity) return null;
-  if (!opportunity.projectId) {
-    return {
-      project: null,
-      roles: [],
-      timeline: null,
-      roleCount: 0,
-      externalAllocations: [],
-    };
-  }
+
+  // Fetched up front so every return path carries it. A 12h-cached `fetch` that
+  // never throws (it falls back to approximate rates and says so), so this is
+  // effectively free even on the empty-plan paths.
+  const exchangeRates = await getExchangeRates();
+
+  /** An opportunity with no project: nothing to plan, price, or cost. */
+  const emptyPlan = (): OpportunityPlan => ({
+    project: null,
+    roles: [],
+    timeline: null,
+    roleCount: 0,
+    externalAllocations: [],
+    costBasis: null,
+    exchangeRates,
+  });
+
+  if (!opportunity.projectId) return emptyPlan();
 
   const [projectRow] = await db
     .select({
       id: projects.id,
       name: projects.name,
+      billingType: projects.billingType,
+      budgetAmount: projects.budgetAmount,
+      budgetCurrency: projects.budgetCurrency,
     })
     .from(projects)
     .where(eq(projects.id, opportunity.projectId))
@@ -119,13 +167,7 @@ export async function getOpportunityPlan(
   if (!projectRow) {
     // The FK guarantees this shouldn't happen, but treat a vanished project as
     // an empty plan rather than throwing.
-    return {
-      project: null,
-      roles: [],
-      timeline: null,
-      roleCount: 0,
-      externalAllocations: [],
-    };
+    return emptyPlan();
   }
 
   // The project's delivery managers, resolved to names for display/editing.
@@ -203,19 +245,32 @@ export async function getOpportunityPlan(
     if (role.endDate > timeline.end) timeline.end = role.endDate;
   }
 
+  const costBasis = await getProjectCostBasis({
+    staffIds,
+    usdRates: exchangeRates.rates,
+  });
+
   return {
     project: {
-      ...projectRow,
+      id: projectRow.id,
+      name: projectRow.name,
       // Project status and lines of business are derived from its roles.
       status: deriveProjectStatus(roles.map((r) => r.status)),
       linesOfBusiness: deriveProjectLinesOfBusiness(
         roles.map((r) => r.lineOfBusiness),
       ),
       deliveryManagers,
+      budget: {
+        billingType: projectRow.billingType,
+        budgetAmount: projectRow.budgetAmount,
+        budgetCurrency: projectRow.budgetCurrency,
+      },
     },
     roles,
     timeline,
     roleCount: roles.length,
     externalAllocations,
+    costBasis,
+    exchangeRates,
   };
 }
