@@ -1,7 +1,5 @@
 "use client";
 
-import { IconExternalLink } from "@tabler/icons-react";
-import Link from "next/link";
 import { useState } from "react";
 import type { StaffFeedbackView } from "@/actions/feedback/getFeedbackAboutStaff";
 import { EmptyState } from "@/components/empty-state";
@@ -10,7 +8,6 @@ import {
   FeedbackDetailDialog,
   type FeedbackDialogItem,
 } from "@/components/feedback/feedback-detail-dialog";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -44,22 +41,11 @@ export function StaffFeedbackPanel({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-muted-foreground">
-          {view.tier === "recipient"
-            ? "You can see who left feedback and any message they shared with you. The rest of each review stays private."
-            : `Feedback ${staffName} has received. As a reviewer you can see each item in full — they can't.`}
-        </p>
-        <Button
-          variant="ghost"
-          size="sm"
-          nativeButton={false}
-          render={<Link href="/feedback" />}
-        >
-          Peer Feedback
-          <IconExternalLink />
-        </Button>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        {view.tier === "recipient"
+          ? "You can see who left feedback and any message they shared with you. The rest of each review stays private."
+          : `Feedback ${staffName} has received. As a reviewer you can see each item in full — they can't.`}
+      </p>
 
       {view.tier === "recipient" ? (
         <FeedbackAboutMe rows={view.rows} />
