@@ -52,7 +52,7 @@ export function InlineRelationshipStrengthField({
 
   return (
     <div className="flex flex-col gap-2.5">
-      <Label>Relationship</Label>
+      <Label>Relationship strength</Label>
       <div className="flex flex-col gap-1">
         <StarRating
           label="Relationship strength"

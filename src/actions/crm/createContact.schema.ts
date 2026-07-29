@@ -12,10 +12,15 @@ import { optionalUrl } from "@/lib/schemas/url-schema";
 /**
  * The user-facing contact field refinements shared by create and update:
  * required trimmed names, a normalised (lowercased) email, and the optional
- * phone/company/role/LinkedIn/manager fields. Spread into both schemas'
- * `.extend(...)` so the two can't drift (mirrors `opportunityBaseFields`); update
- * layers `id` and `ownerId` on top. The manager cross-field rule (same company,
- * not self) needs a DB lookup and is enforced in the action.
+ * phone/company/role/LinkedIn fields. Spread into both schemas' `.extend(...)` so
+ * the two can't drift (mirrors `opportunityBaseFields`); update layers `id` and
+ * `ownerId` on top.
+ *
+ * There is deliberately **no manager field here**: every person-to-person link now
+ * lives in `contact_relationships` and is managed from the contact page's
+ * Relationships section, not from the contact form (see
+ * `contactRelationship.schema.ts`). `isActive` is likewise absent — see
+ * `updateContact`.
  */
 export const contactFields = {
   firstName: z.string().trim().min(1, "First name is required.").max(100),
@@ -36,9 +41,6 @@ export const contactFields = {
   role: optionalText(100),
   // Optional LinkedIn profile URL — normalised/validated like other links.
   linkedinUrl: optionalUrl,
-  // Optional "managed by" contact id. Must be a contact at the same company;
-  // that cross-field rule is enforced in the action (needs a DB lookup).
-  managerId: id.nullable().default(null),
 };
 
 /**

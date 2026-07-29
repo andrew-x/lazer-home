@@ -9,6 +9,7 @@ import { InternalLink } from "@/components/internal-link";
 import { Badge } from "@/components/ui/badge";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { INACTIVE_LABEL } from "@/lib/crm/contact-status";
 import { humanizeEnum } from "@/lib/format/format";
 import { ContactTasksCell } from "./contact-tasks-cell";
 import {
@@ -159,9 +160,17 @@ export function CompanyDetailView({
                 {company.contacts.map((contact) => (
                   <TableRow key={contact.id}>
                     <TableCell className="font-medium">
-                      <InternalLink href={`/contacts/${contact.id}`}>
-                        {contact.name}
-                      </InternalLink>
+                      <span className="flex flex-wrap items-center gap-2">
+                        <InternalLink href={`/contacts/${contact.id}`}>
+                          {contact.name}
+                        </InternalLink>
+                        {/* A company's inactive contacts deliberately stay listed
+                            here — that history is the point — so they're badged
+                            rather than hidden. */}
+                        {contact.isActive ? null : (
+                          <Badge variant="secondary">{INACTIVE_LABEL}</Badge>
+                        )}
+                      </span>
                       {contact.role ? (
                         <div className="text-xs font-normal text-muted-foreground">
                           {contact.role}
