@@ -72,7 +72,9 @@ text. See [ui.md](../ui.md#suggestinput-vs-entitycombobox).
 
 `createCompanyContactRelationship` **rejects a contact whose `companyId` already is
 the target company** — app-side, mirroring the manager rule's posture
-([ADR 0022](./0022-contact-manager-self-reference.md)) rather than a DB trigger.
+([ADR 0022](./0022-contact-manager-self-reference.md), whose same-company check now lives in
+`contactRelationshipChecks.ts` — [ADR 0052](./0052-contact-relationships-one-typed-junction.md))
+rather than a DB trigger.
 Both pickers also pre-filter (`searchContacts.excludeCompanyId`,
 `searchCompanies.excludeId`), so the case is normally unreachable in the UI; the
 server check is the backstop against a hand-crafted request.
