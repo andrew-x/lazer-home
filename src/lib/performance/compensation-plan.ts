@@ -14,7 +14,7 @@
  */
 
 import type { PermissionCheck } from "@/lib/auth/permissions";
-import type { Currency } from "@/lib/format/currency";
+import type { Currency, DisplayCurrency } from "@/lib/format/currency";
 import { convert } from "@/lib/format/fx";
 import {
   COMP_TARGET_CURRENCY,
@@ -391,8 +391,11 @@ function levelTargetGapPercent({
  * so this module keeps no runtime dependency on the target table — a total is not
  * a statement about the bands. Every rendering pairs it with a currency-marked
  * formatter, so a converted figure never appears unlabelled.
+ *
+ * Typed as {@link DisplayCurrency}, not `Currency`: this is a reporting currency,
+ * so it belongs to the narrow set the analytics surfaces normalize to.
  */
-export const PLAN_SUMMARY_CURRENCY: Currency = "CAD";
+export const PLAN_SUMMARY_CURRENCY: DisplayCurrency = "CAD";
 
 /**
  * A discretionary bonus as a fraction of the person's current compensation.

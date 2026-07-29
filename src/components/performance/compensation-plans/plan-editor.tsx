@@ -1,6 +1,6 @@
 "use client";
 
-import { IconUsers } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCoins, IconUsers } from "@tabler/icons-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import {
   SaveIndicator,
 } from "@/components/form/save-indicator";
 import { SortHeaderButton } from "@/components/form/sort-header";
+import { InlineNotice } from "@/components/inline-notice";
 import { StaffProfileDrawer } from "@/components/staff/staff-profile-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -278,8 +279,11 @@ export function PlanEditor({
         />
       ) : null}
 
+      {/* One line rather than a `StatCard` row: the grid below is the point of this
+          screen and owns the leftover height, so a single derived figure earns a
+          strip, not a tile. */}
       {plan.items.length > 0 ? (
-        <p className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
+        <InlineNotice icon={IconCoins}>
           {bonusTotals.people === 0 ? (
             "No discretionary bonuses set yet."
           ) : (
@@ -298,20 +302,20 @@ export function PlanEditor({
                 : ""}
             </>
           )}
-        </p>
+        </InlineNotice>
       ) : null}
 
       {rates.stale ? (
-        <p className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
+        <InlineNotice icon={IconAlertTriangle}>
           Exchange rates unavailable — showing approximate fallback rates.
-        </p>
+        </InlineNotice>
       ) : null}
 
       {autosave.locked && plan.status === "DRAFT" ? (
-        <p className="rounded-md border px-3 py-2 text-sm text-destructive">
+        <InlineNotice icon={IconAlertTriangle} tone="destructive">
           This plan was committed by someone else while you were editing. Your
           unsaved changes weren't kept.
-        </p>
+        </InlineNotice>
       ) : null}
 
       {plan.items.length === 0 ? (
