@@ -90,16 +90,30 @@ One capability gates a **read** rather than a write:
   `authorizeFeedbackCreate` hook, not a capability). And it is not needed to read
   feedback *about yourself* — recipients always see the limited recipient view
   (message + giver name only), and givers always see the feedback they wrote. It
-  backs **two** surfaces: `getFeedbackDetail` (`/feedback/[id]`, any single item) and
-  `getFeedbackAboutReports` (the **"Your reports"** tab, which lists items about the
-  caller's **direct reports**). The second is **scoping, not a second gate** — the
-  `staff.managerId` reporting line only narrows a set the caller could already open in
-  full, and **no permission check anywhere reads the reporting graph**; "manager" in
-  this matrix is always the *role*. Don't turn the reporting line into an
-  authorization input without a new ADR. See the
-  [performance domain](performance.md),
-  [ADR 0023](../decisions/0023-feedback-privacy-tiers.md) and
-  [ADR 0047](../decisions/0047-feedback-reports-scoping-not-granting.md).
+  backs **three** surfaces, all on this one unchanged capability:
+  - `getFeedbackDetail` (`/feedback/[id]`, any single item);
+  - `getFeedbackAboutReports` (the **"Your reports"** tab, which lists items about the
+    caller's **direct reports**) — **scoping, not a second gate**: the
+    `staff.managerId` reporting line only narrows a set the caller could already open in
+    full ([ADR 0047](../decisions/0047-feedback-reports-scoping-not-granting.md));
+  - `getFeedbackAboutStaff` (the **"Peer feedback" tab** on a staff profile and in the
+    plan editor's profile drawer — full content about **any one named person**). Also no
+    new gate: every row is one the holder could already open by id, so it adds
+    *discovery*, not access. Its **self branch is checked first**, so on your **own**
+    profile you get the limited *recipient* tier even holding this capability — a
+    deliberate tightening that keeps the known self-view gap (below) to `/feedback/[id]`
+    ([ADR 0050](../decisions/0050-profile-peer-feedback-tab.md)).
+
+  **Browse-all across everyone's feedback is still deferred.** "Manager" in this matrix
+  is always the *role*, and **no feedback read consults the reporting graph to decide
+  whether you may see something.** *Previously this doc said no permission check anywhere
+  reads the reporting graph; that is no longer true of the codebase — see* **The one
+  relationship-based gate** *below. It remains true of feedback, and turning the
+  reporting line into an authorization input anywhere else still needs its own ADR.* See
+  the [performance domain](performance.md),
+  [ADR 0023](../decisions/0023-feedback-privacy-tiers.md),
+  [ADR 0047](../decisions/0047-feedback-reports-scoping-not-granting.md) and
+  [ADR 0050](../decisions/0050-profile-peer-feedback-tab.md).
 
 A resource with **two actions** gates staff overall ratings (levels L0–L4), a
 sensitive read/write with **no ownership dimension** — unlike compensation or
@@ -147,6 +161,89 @@ Auth's `authorize` ANDs across resources (`connector = "AND"` in
   matrix, not new access-control logic** — `permissions.ts` remains the only place
   that lives. See [ADR 0046](../decisions/0046-compensation-change-plans-rating-writing-proposals.md).
 
+### The one relationship-based gate — review notes (`staff.managerId` as an authorization input)
+
+**This is the single exception to "authorization is role capabilities" in this codebase,
+and it does not appear in the matrix at all.** Read it before you conclude that the
+matrix is the whole model.
+
+**Performance review notes** (`performance_review_note` — a manager's write-up of a
+review conversation) are gated on the **reporting line**, not on a capability:
+`src/actions/performance/reviewNoteAccess.ts` is **the only place `staff.managerId`
+decides access**, and everything about the entity routes through it.
+
+- **`getReviewNoteAccess(user, staffId)` → `{ callerStaffId, isSubject, canManage }`.**
+  `canManage` = `isAdmin(user)` **OR** the caller's linked staff id equals the subject's
+  **current** `staff.managerId`. **Role capabilities are not consulted at all** —
+  holding `ratings.edit` or `feedback.review` grants *nothing* here. The **subject**
+  gets `isSubject` only (SHARED notes, never drafts, never management), and the self path
+  returns **before** `managerId` is read, so a self-pointing import row can't make
+  someone their own note-manager. The caller is resolved with **`activeOnly: true`** —
+  see *Resolving the caller* below, which this gate is the motivating case for.
+- **The boundary is two `ActionAuthorize` hooks**, in metadata as always:
+  `authorizeReviewNoteCreate` (on `clientInput.staffId`) and `authorizeReviewNoteMutate`
+  (on `clientInput.noteId`, resolving subject + author server-side; a **missing note
+  denies with the same message as a forbidden one**, so ids can't be probed). The mutate
+  hook adds the **author path** — whoever wrote a note may fix or delete it after they
+  stop being that person's manager. It is applied **after** `getReviewNoteAccess`, as
+  `callerStaffId !== null && note.authorUserId === user.id`, so it **survives a team
+  change but not a departure** (see *Resolving the caller* below).
+- **No new capability, so no matrix change.** `permissions.ts`, `permissions.test.ts`
+  and the matrix table below are **untouched** — ADR 0014's lockstep rule isn't engaged
+  because there is nothing to keep in step. This prose section *is* the contract for
+  this gate.
+- **Why not a capability?** A `reviews.read` capability granted to `manager` would let
+  **every** people manager read **every** person's private review conversation. The
+  thing being protected is a two-party conversation, which the reporting line expresses
+  and a role cannot. Rejected explicitly in
+  [ADR 0049](../decisions/0049-review-notes-reporting-line-as-authorization-boundary.md).
+- **The cost, stated plainly:** `staff.managerId` is **CSV-import-populated with no
+  in-app editor** and no cycle detection beyond a non-blocking `self` warning
+  ([ADR 0026](../decisions/0026-staff-manager-self-reference.md)), so a bad import now
+  changes who can **read and write** review notes. The importer's
+  "unresolvable/column-absent → preserve, only a blank cell clears" rule and the self-
+  guard above are what keep that safe — **don't loosen either.** Access follows the
+  **current** line (not effective-dated), and `authorUserId`'s `set null` **fails
+  closed** (losing the author row narrows access, never widens it).
+- **Keep it the exception.** Anything *else* that wants relationship-based access needs
+  its own ADR (ADR 0047's rule still stands everywhere but here). If a second entity
+  does need it, reuse this shape — one module, one decision function, hooks in metadata
+  — never inline `managerId` comparisons in action bodies.
+
+### Resolving the caller — `ownStaffId` and the `activeOnly` decision
+
+`src/actions/staff/ownStaffId.ts` is the **one** low-level "user → own staff id" lookup
+behind every caller-identity check. It takes **`{ activeOnly }`**, and **which variant you
+pass is an access-control decision — make it deliberately in every new action.**
+
+| Pass `activeOnly: true` | Leave it off |
+|---|---|
+| `canGiveFeedback`, `getReviewNoteAccess`, `loadStaffProfileDrawer` | `canEditStaff`, `canViewCompensation`, `canEditTimesheet`, `getCurrentStaffId` |
+| **Relationship / eligibility** checks — the caller's identity is used to reach **other people's** data, so `isActive` is part of "are you still one of us" | **Ownership** checks — the caller is resolved only to compare against **their own** row, so a stale-active caller reaches nothing but themselves |
+
+**Why this is load-bearing and not tidiness.** A terminated person **keeps a valid
+session until it expires**, and their former reports' `staff.managerId` **still points at
+them until the next CSV import** (there's no in-app editor —
+[ADR 0026](../decisions/0026-staff-manager-self-reference.md)). Without `activeOnly`,
+`getReviewNoteAccess` would let them go on reading *and writing* private review notes
+about those people through a **direct action call**. The `(app)` layout does refuse
+inactive staff — but **an action is not reached through the layout**, so *the gate has to
+assert it itself*. Never let "the layout already checks that" stand in for a check inside
+an action; the same reasoning is why `loadStaffProfileDrawer` and `getProjectPto` fail
+closed on their own.
+
+**Watch for early returns that sit in front of the gate.** Review notes' **author path**
+(an author may fix or delete their own note after they stop being that person's manager)
+is keyed on **`user.id`**, while the employment check is keyed on the **staff row** — and
+while it short-circuited *ahead* of this resolution it read as complete yet skipped the
+check entirely, letting a *terminated* author still **delete** the record of a review
+conversation. It now runs **after** `getReviewNoteAccess` and requires
+`callerStaffId !== null`, so the path **survives a team change, not a departure**. An
+exemption keyed on a different identity than the gate is exactly how an authorization
+check gets skipped while looking present. Apart from `admin`, **every** review-note path
+now requires an active linked staff row; see
+[ADR 0049](../decisions/0049-review-notes-reporting-line-as-authorization-boundary.md) §4.
+
 ### Anonymised aggregates vs. identity-bearing surfaces
 
 Two different disciplines apply to compensation reads, and the distinction is
@@ -172,6 +269,12 @@ contract; it is asserted by `src/lib/auth/permissions.test.ts` (runs in `bun run
 via `bun test`) and audited by `/audit-rbac`. **Changing it requires changing the
 `roles` map in `permissions.ts`, the test, and this table in lockstep** — that
 friction is deliberate.
+
+> **The matrix is not the *whole* model.** Three things sit outside it and are just as
+> binding: **ownership** paths (own profile / own timesheet / own comp), **composite**
+> gates (a `PermissionCheck` naming two resources), and the one **relationship** gate
+> (review notes — `staff.managerId`). All three are documented above; none adds a column
+> here.
 
 | Role               | `staff.edit` | `staff.viewCompensation` | `pto.review` | `crm.edit` | `projects.edit` | `feedback.review` | `ratings.view` | `ratings.edit` | `timesheets.edit` | Notes                                |
 | ------------------ | :----------: | :----------------------: | :----------: | :--------: | :-------------: | :---------------: | :------------: | :------------: | :---------------: | ------------------------------------ |
@@ -305,6 +408,30 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
   instead of trusting the client) and `saveCompensationPlanItem`'s assertion that the
   item **belongs to the named plan**, so an item id from another plan can't be reached
   by naming one you do have access to.
+- **`src/actions/performance/reviewNoteAccess.ts`** — the **relationship-gate** site
+  (`getReviewNoteAccess` + `authorizeReviewNoteCreate` / `authorizeReviewNoteMutate`);
+  the four review-note mutations declare it in metadata and carry no authz in their
+  bodies, and `getStaffReviewNotes` projects by the same decision (`null` = no surface
+  at all). See *The one relationship-based gate* above.
+- **`src/actions/staff/loadStaffProfileDrawer.ts`** — an **interactive read** (a
+  `"use server"` + `secureActionClient` read, the documented exception to the
+  server-only read rule, same shape as `loadOpportunityDetail`) worth reading as an
+  authorization example. Two things it does deliberately:
+  - **No capability gate**, matching `/staff/[id]` — browsing a colleague's profile is
+    open to any staff member, and the two sensitive slices carry their own gates *inside
+    their own reads* (`getFeedbackAboutStaff`, `getStaffReviewNotes`), each returning
+    `null` rather than throwing so the drawer just renders fewer tabs.
+  - **It requires an *active linked staff row*, not merely a session**
+    (`ownStaffId(ctx.user.id, { activeOnly: true })` — see *Resolving the caller* above).
+    Two independent reasons: sign-in is Google but **not domain-restricted**, so a valid
+    session can belong to someone who isn't staff at all; and a terminated person's
+    session outlives their employment. The `(app)` layout bounces both, but an **action
+    has no layout above it** and must refuse them itself. Copy this when adding an
+    interactive read that mirrors a page inside `(app)`.
+  - It also **projects compensation and PTO away.** `getStaffProfile` carries comp
+    amounts inline on `employment`; the profile *pages* get away with that only because
+    they render server-side, whereas a client-fetched drawer would ship them in its
+    response whether or not it renders them. **Minimise in the projection, not the JSX.**
 
 ## Wiring
 

@@ -1,8 +1,10 @@
 # 0047 — "Your reports" feedback list: the reporting line scopes, it never grants
 
-**Status:** accepted · 2026-07-28 · companion to
-[ADR 0023](./0023-feedback-privacy-tiers.md) (which **stands** — three tiers,
-projection-as-boundary, `feedback.review` as the reviewer gate) and the first
+**Status:** accepted · 2026-07-28 · **factually corrected 2026-07-29** (see the
+"**Correction**" note under Decision §2 — the decision **stands for feedback**, but
+its "the reporting line never grants" claim is no longer a codebase-wide invariant).
+Companion to [ADR 0023](./0023-feedback-privacy-tiers.md) (which **stands** — three
+tiers, projection-as-boundary, `feedback.review` as the reviewer gate) and the first
 non-display use of [ADR 0026](./0026-staff-manager-self-reference.md)'s
 `staff.managerId`.
 
@@ -48,6 +50,19 @@ capability, and use the reporting line only to *narrow* the list.**
    `feedback.review`. This is the invariant to preserve: if a future change makes the
    reporting line decide *whether* someone may read something, that's a different
    decision and needs its own ADR.
+
+   > **Correction (2026-07-29) — that ADR now exists, and the invariant is no longer
+   > codebase-wide.** [ADR 0049](./0049-review-notes-reporting-line-as-authorization-boundary.md)
+   > makes `staff.managerId` an authorization **input** for **performance review
+   > notes** — a private manager↔report document where the relationship *is* the
+   > boundary and role capabilities are not consulted at all. It followed exactly the
+   > process this paragraph demanded (its own ADR, one decision module,
+   > `authorize` hooks in metadata), and it does **not** touch feedback: everything in
+   > this ADR still holds for `feedback`, where the gate remains the unchanged
+   > `feedback.review` capability and `managerId` only narrows. What is now wrong is
+   > reading §2 as a global property of the system — so `src/actions/performance/reviewNoteAccess.ts`
+   > is **the one place** the reporting graph decides access, and anything *else* that
+   > wants to do the same still needs its own decision.
 3. **Direct reports only, one hop.** No recursive/transitive manager walk, so
    skip-levels don't appear. Chosen for predictability and a trivial query; it isn't a
    security boundary (widening it stays inside the same capability), so it can be
@@ -87,11 +102,16 @@ capability, and use the reporting line only to *narrow* the list.**
 - **Browse-all is still deferred.** This is deliberately the narrow version. If a
   browse-all list ever returns, it's a fresh exposure decision (pagination, audit,
   self-exclusion, whether `feedback.review` alone should carry it) — not an extension
-  of this one.
-- **The two senses of "manager" must stay separate in docs and code.** Any sentence of
+  of this one. *(A second narrow surface has since landed — a **per-person** profile
+  tab under the same capability, [ADR 0050](./0050-profile-peer-feedback-tab.md).
+  Browse-**all** remains deferred.)*
+- **The senses of "manager" must stay separate in docs and code.** Any sentence of
   the form "managers see …" should say which it means. Older docs asserting "there is
   no manager/report graph in this codebase" are stale (corrected in ADR 0023,
   [domains/performance.md](../domains/performance.md) and [flows.md](../flows.md)).
+  **Since [ADR 0049](./0049-review-notes-reporting-line-as-authorization-boundary.md)
+  there are three senses**: the role in the permission matrix, the reporting line as a
+  *scope* (here), and the reporting line as a *gate* (review notes only).
 - **Tab count is now viewer-dependent.** `/feedback` renders two tabs for most people
   and three for reviewers. Anything keying off the tab set (tests, deep links) must
   tolerate both; tab state is uncontrolled and not in the URL.
@@ -108,14 +128,24 @@ capability, and use the reporting line only to *narrow* the list.**
   Rejected — and this is the important rejection. `managerId` is import-populated with
   no in-app editor, no cycle detection, and known warning cases; making it decide
   access would put the privacy model at the mercy of a CSV column. Role stays the gate.
+  > **Correction (2026-07-29).** Still rejected **for feedback**, for exactly the
+  > reason above. But it was **accepted for a different entity** —
+  > `performance_review_note`, where a private manager↔report conversation is the whole
+  > content and no role can express its audience
+  > ([ADR 0049](./0049-review-notes-reporting-line-as-authorization-boundary.md)). That
+  > ADR accepts the CSV-import risk explicitly and answers it with an in-app self-guard
+  > plus the importer's preserve-on-unresolvable rule. Feedback's gate is untouched.
 - **Reinstate the full browse-all list instead.** Rejected as before: maximal exposure
   for a need that is almost always "one person I manage".
 - **Recursive reports (whole sub-tree).** Rejected for now: needs a recursive CTE or
   repeated queries, and skip-level browsing wasn't the ask. Non-breaking to add later.
 - **A "direct reports" section on the staff profile instead of a feedback tab.**
-  Rejected for this slice: the profile has no reviewer-gated feedback surface at all,
+  Rejected for this slice: the profile had no reviewer-gated feedback surface at all,
   and the natural home for "feedback about my people" is the feedback page. (An inverse
-  "direct reports" view on the profile still doesn't exist.)
+  "direct reports" view on the profile still doesn't exist.) *(Stale as of 2026-07-29:
+  the profile **does** now carry a reviewer-gated, **per-person** feedback tab
+  ([ADR 0050](./0050-profile-peer-feedback-tab.md)). It is not this list — it shows one
+  person, not a reporting subtree — so this ADR's tab stays the only aggregated view.)*
 - **Show the reports list to everyone, projected down to the recipient tier.**
   Rejected: it would let any staffer enumerate who reports to them *and* that they've
   received feedback — a new disclosure — for no workflow gain.

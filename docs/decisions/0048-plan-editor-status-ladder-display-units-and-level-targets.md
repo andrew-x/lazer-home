@@ -1,6 +1,10 @@
-# 0047 — Plan editor: a status ladder, display-only units, and code-owned level targets
+# 0048 — Plan editor: a status ladder, display-only units, and code-owned level targets
 
-**Status:** accepted · 2026-07-28
+**Status:** accepted · 2026-07-28 · **renumbered from 0047 on 2026-07-29** — it was
+filed as 0047 the same day as
+[ADR 0047](./0047-feedback-reports-scoping-not-granting.md) and collided with it.
+This file was the later of the two and never made it into the log, so renumbering it
+was the safe half of the fix; nothing linked to it under the old number.
 
 ## Context
 

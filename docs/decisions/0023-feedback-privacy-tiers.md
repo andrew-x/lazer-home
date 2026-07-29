@@ -1,9 +1,12 @@
 # 0023 — Peer feedback: privacy tiers as read-projections; giving open, review gated
 
-**Status:** accepted · 2026-07-09 · **factually corrected 2026-07-28** (see the
-two "**Correction**" notes below and
-[ADR 0047](./0047-feedback-reports-scoping-not-granting.md) — the **decision stands
-unchanged**; only its environmental claim that no reporting graph exists was stale)
+**Status:** accepted · 2026-07-09 · **factually corrected 2026-07-28 and again
+2026-07-29** (see the "**Correction**" notes below,
+[ADR 0047](./0047-feedback-reports-scoping-not-granting.md),
+[ADR 0049](./0049-review-notes-reporting-line-as-authorization-boundary.md) and
+[ADR 0050](./0050-profile-peer-feedback-tab.md) — the **decision stands unchanged**;
+what was stale is the environmental claim that no reporting graph exists, and then the
+claim that no permission check reads one)
 
 ## Context
 
@@ -32,6 +35,20 @@ never "my manager" — so "who can review feedback" could only be role-based.
 > list ("Your reports" on `/feedback`), narrowing a set the caller was already
 > entitled to see in full. **Scoping is not granting**; see
 > [ADR 0047](./0047-feedback-reports-scoping-not-granting.md).
+>
+> **Correction (2026-07-29) — "no permission check reads the reporting line" is no
+> longer true of the codebase.** It is still true **of feedback**, which is what this
+> ADR governs: every feedback read is gated on the unchanged `feedback.review`
+> capability (or the recipient/giver paths), and `managerId` still only scopes.
+> But a *different* entity — **performance review notes** — now makes
+> `staff.managerId` an authorization **input**
+> ([ADR 0049](./0049-review-notes-reporting-line-as-authorization-boundary.md)). So
+> don't read the sentence above as a codebase-wide invariant; read it as a property of
+> the feedback model. Feedback also gained a second reviewer browse surface — a
+> per-person **profile tab** — under the same unchanged capability, with the **self
+> branch deliberately checked first** so your own profile shows the *recipient* tier
+> and the deferral below isn't widened
+> ([ADR 0050](./0050-profile-peer-feedback-tab.md)).
 
 ## Decision
 
@@ -60,13 +77,20 @@ audience may see, so hidden columns never leave the server.
    removed for now (`getAllFeedbackPage`); it is **deferred**. The capability and
    its matrix row are unchanged — only that one read surface was pulled. *(Since
    2026-07-28 the same capability also backs one **narrowed** browse list — the
-   caller's direct reports, [ADR 0047](./0047-feedback-reports-scoping-not-granting.md).
-   Browse-**all** is still deferred.)*
+   caller's direct reports, [ADR 0047](./0047-feedback-reports-scoping-not-granting.md)
+   — and since 2026-07-29 a **per-person** one, the staff-profile "Peer feedback" tab
+   ([ADR 0050](./0050-profile-peer-feedback-tab.md)). Browse-**all** is still
+   deferred.)*
 
 **Deliberate deferral:** `feedback.review` currently lets a reviewer see feedback
 **about themselves** in full — `getFeedbackDetail` doesn't exclude the reviewer as
 recipient. Accepted for the first slice; routing a reviewer's own feedback through
-the limited recipient view is future work.
+the limited recipient view is future work. *(Both browse surfaces built since refuse
+to widen it: "Your reports" excludes the caller as recipient
+([ADR 0047](./0047-feedback-reports-scoping-not-granting.md)), and the profile tab
+returns the **recipient** tier on your own profile even if you hold the capability
+([ADR 0050](./0050-profile-peer-feedback-tab.md)). The gap remains open only via
+`/feedback/[id]`.)*
 
 ## Consequences
 
