@@ -1,9 +1,12 @@
 import type { CompensationPlanEditorItem } from "@/actions/performance/getCompensationPlan";
 import type { Currency } from "@/lib/format/currency";
+import { convert } from "@/lib/format/fx";
 import {
+  bonusPercent,
   type DisplayCurrencyMode,
   type LevelTargetGap,
   levelTargetGap,
+  type PlanBonusRow,
   type PlanChange,
   planChange,
   planItemStatusRank,
@@ -43,8 +46,15 @@ export type PlanRowSortValues = {
   plannedAnnualUsd: number | null;
   changeAnnualUsd: number | null;
   gapAnnualUsd: number | null;
+  /**
+   * The bonus in USD — currency-normalized like the others but NOT annualized: a
+   * lump sum is already a total, and multiplying it by `HOURS_PER_YEAR` for an
+   * hourly staffer would order the column by employment type.
+   */
+  bonusUsd: number | null;
   changePercent: number | null;
   gapPercent: number | null;
+  bonusPercent: number | null;
   status: number;
 };
 
@@ -61,10 +71,34 @@ export type PlanRowView = {
   change: PlanChange;
   /** Target / gap, in `currency`, still in `canonicalUnit`. */
   gap: LevelTargetGap;
+  /**
+   * The lump-sum bonus in `currency`, and what it is worth as a fraction of
+   * current compensation.
+   *
+   * Deliberately its own member rather than a leg of `change` or `gap`: those
+   * columns are about ongoing pay, and `inRowUnit` must never be applied to
+   * `amount` — a one-off is not a rate.
+   */
+  bonus: { amount: number | null; percent: number | null };
   /** The level the target lookup used — null when there was none to use. */
   targetLevel: number | null;
   sort: PlanRowSortValues;
 };
+
+/**
+ * The row reduced to what a plan-level bonus total needs. Keeps the aggregation in
+ * the pure module ({@link planBonusTotals}) working from the same draft values the
+ * cells render, so the total can never disagree with the column above it.
+ */
+export function bonusRow(view: PlanRowView): PlanBonusRow {
+  return {
+    bonusAmount: view.draft.plannedBonus,
+    bonusCurrency: view.draft.plannedCurrency,
+    currentAmount: view.item.current.amount,
+    currentCurrency: view.item.current.currency,
+    unit: view.canonicalUnit,
+  };
+}
 
 /** Restate one of this row's canonical-unit amounts in its display unit. */
 export function inRowUnit(view: PlanRowView, amount: number): number {
@@ -130,6 +164,21 @@ export function buildPlanRowView({
     usdRates,
   });
 
+  // No `convertCompUnit` anywhere on either leg — see `bonus` on `PlanRowView`.
+  const bonusAmount =
+    draft.plannedBonus != null && draft.plannedCurrency && currency
+      ? convert(draft.plannedBonus, draft.plannedCurrency, currency, usdRates)
+      : null;
+
+  const bonusFraction = bonusPercent({
+    bonusAmount: draft.plannedBonus,
+    bonusCurrency: draft.plannedCurrency,
+    currentAmount: item.current.amount,
+    currentCurrency: item.current.currency,
+    unit: draft.canonicalUnit,
+    usdRates,
+  });
+
   return {
     item,
     draft,
@@ -138,6 +187,7 @@ export function buildPlanRowView({
     canonicalUnit: draft.canonicalUnit,
     change,
     gap,
+    bonus: { amount: bonusAmount, percent: bonusFraction },
     targetLevel,
     sort: {
       name: item.name,
@@ -166,8 +216,13 @@ export function buildPlanRowView({
         draft.canonicalUnit,
         usdRates,
       ),
+      bonusUsd:
+        draft.plannedBonus != null && draft.plannedCurrency
+          ? draft.plannedBonus / usdRates[draft.plannedCurrency]
+          : null,
       changePercent: change.changePercent,
       gapPercent: gap.gapPercent,
+      bonusPercent: bonusFraction,
       status: planItemStatusRank(draft.status),
     },
   };

@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CURRENCY, type Currency } from "@/lib/format/currency";
+import { CURRENCY, type Currency, formatMoney } from "@/lib/format/currency";
 import {
   type CompUnit,
   otherCompUnit,
@@ -148,6 +148,71 @@ export function PlannedCompField({
           </span>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+/** Bonuses land in round numbers, so the spinner moves in useful increments. */
+const BONUS_STEP = 500;
+
+/**
+ * The discretionary-bonus cell: one amount, and nothing else.
+ *
+ * No currency select and no unit toggle, deliberately. The row's currency — the one
+ * {@link PlannedCompField} owns — governs both proposed figures, so a second picker
+ * would let a row hold two currencies the schema has no room for. And a lump sum has
+ * no unit to toggle: unlike the planned figure it is the same number whether the row
+ * is showing annual or hourly pay, so the FX echo below is stated with
+ * `formatMoney`, never `formatUnitMoney`.
+ */
+export function BonusField({
+  text,
+  currency,
+  converted,
+  displayCurrency,
+  disabled,
+  onTextChange,
+  onCommit,
+  label,
+}: {
+  text: string;
+  /** The row's compensation currency — display only; set via the planned cell. */
+  currency: Currency | null;
+  /** The bonus restated in `displayCurrency`, or null when no echo is needed. */
+  converted: number | null;
+  displayCurrency: Currency | null;
+  disabled?: boolean;
+  onTextChange: (next: string) => void;
+  onCommit: () => void;
+  label: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        <Input
+          type="number"
+          inputMode="decimal"
+          min={0}
+          step={BONUS_STEP}
+          aria-label={label}
+          className="w-28 tabular-nums"
+          value={text}
+          disabled={disabled}
+          onChange={(event) => onTextChange(event.target.value)}
+          onBlur={onCommit}
+        />
+        {/* The currency as text rather than a control, so it is unambiguous which
+            currency the figure is in without implying it can be changed here. */}
+        <span className="text-xs text-muted-foreground">{currency ?? "—"}</span>
+      </div>
+      {converted != null && displayCurrency ? (
+        <span className="text-xs text-muted-foreground tabular-nums">
+          ≈{" "}
+          {formatMoney(converted, displayCurrency, {
+            maximumFractionDigits: 0,
+          })}
+        </span>
+      ) : null}
     </div>
   );
 }

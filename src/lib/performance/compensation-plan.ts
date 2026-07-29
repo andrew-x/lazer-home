@@ -382,6 +382,130 @@ function levelTargetGapPercent({
 }
 
 /**
+ * The currency plan-level totals are reported in when the editor's display toggle
+ * is on `DEFAULT` and rows are therefore each in their own currency — a raw sum
+ * would add unlike units.
+ *
+ * CAD for the same reason `COMP_TARGET_CURRENCY` is: it is the consultancy's
+ * reporting currency. Stated here rather than imported from `compensation-targets`
+ * so this module keeps no runtime dependency on the target table — a total is not
+ * a statement about the bands. Every rendering pairs it with a currency-marked
+ * formatter, so a converted figure never appears unlabelled.
+ */
+export const PLAN_SUMMARY_CURRENCY: Currency = "CAD";
+
+/**
+ * A discretionary bonus as a fraction of the person's current compensation.
+ *
+ * The denominator is CURRENT comp, annualized — matching {@link planChangePercent}
+ * and {@link levelTargetGapPercent}, the grid's other two percentage columns. A
+ * bonus rewards the period just worked, so current pay is the honest base, and it
+ * means editing an unrelated raise never moves this number.
+ *
+ * The bonus is a lump sum with no unit of its own, so only the current leg is
+ * annualized. Like the other percentages this works from NATIVE amounts, cross-
+ * rating through USD, so neither the display-currency nor the annual/hourly toggle
+ * can move it.
+ */
+export function bonusPercent({
+  bonusAmount,
+  bonusCurrency,
+  currentAmount,
+  currentCurrency,
+  unit,
+  usdRates,
+}: {
+  bonusAmount: number | null;
+  bonusCurrency: Currency | null;
+  currentAmount: number | null;
+  /** The unit `currentAmount` is in — annualized before dividing. */
+  unit: CompUnit;
+  currentCurrency: Currency | null;
+  usdRates: Record<Currency, number>;
+}): number | null {
+  if (bonusAmount == null || !bonusCurrency) return null;
+  if (currentAmount == null || !currentCurrency) return null;
+
+  const currentAnnual = convertCompUnit(currentAmount, unit, "ANNUAL");
+  if (currentAnnual === 0) return null;
+
+  if (bonusCurrency === currentCurrency) return bonusAmount / currentAnnual;
+
+  const bonusUsd = bonusAmount / usdRates[bonusCurrency];
+  const currentUsd = currentAnnual / usdRates[currentCurrency];
+  return currentUsd === 0 ? null : bonusUsd / currentUsd;
+}
+
+/** The minimum a row must expose to be counted in a plan's bonus total. */
+export type PlanBonusRow = {
+  bonusAmount: number | null;
+  bonusCurrency: Currency | null;
+  currentAmount: number | null;
+  currentCurrency: Currency | null;
+  unit: CompUnit;
+};
+
+export type PlanBonusTotals = {
+  /** Every bonus converted into `currency` and summed. */
+  total: number;
+  /** How many people have a bonus proposed at all. */
+  people: number;
+  /**
+   * The whole cohort's bonus spend against its annualized current compensation —
+   * a sum over a sum, never a mean of per-row ratios. Null when no one counted has
+   * a current figure to divide by.
+   */
+  percentOfCurrent: number | null;
+};
+
+/**
+ * A plan's discretionary-bonus spend, denominated in one currency.
+ *
+ * Takes the minimal row shape rather than the editor's view model so the summary
+ * strip, the commit dialog and the tests share one implementation. Rows with no
+ * bonus contribute nothing — including to `people`, so "N people" counts proposals
+ * rather than plan membership.
+ *
+ * `percentOfCurrent` divides total bonus by total annualized current comp across
+ * only those same rows: averaging each row's percentage instead would weight a
+ * junior's small bonus equally with a principal's large one and answer a question
+ * nobody asked.
+ */
+export function planBonusTotals({
+  rows,
+  currency,
+  usdRates,
+}: {
+  rows: readonly PlanBonusRow[];
+  currency: Currency;
+  usdRates: Record<Currency, number>;
+}): PlanBonusTotals {
+  let total = 0;
+  let people = 0;
+  let currentTotal = 0;
+
+  for (const row of rows) {
+    if (row.bonusAmount == null || !row.bonusCurrency) continue;
+    people += 1;
+    total += convert(row.bonusAmount, row.bonusCurrency, currency, usdRates);
+
+    if (row.currentAmount == null || !row.currentCurrency) continue;
+    currentTotal += convert(
+      convertCompUnit(row.currentAmount, row.unit, "ANNUAL"),
+      row.currentCurrency,
+      currency,
+      usdRates,
+    );
+  }
+
+  return {
+    total,
+    people,
+    percentOfCurrent: currentTotal === 0 ? null : total / currentTotal,
+  };
+}
+
+/**
  * The figure a "+p%" quick pick writes: current compensation restated in the
  * proposal's currency and raised by `percent`.
  *
@@ -436,10 +560,11 @@ export function monthsSince(date: string | null, now: Date): number | null {
 export const NEW_JOINER_MONTHS = 12;
 
 /**
- * The compensation figure a plan proposes against, by employment type: an annual
- * base for salaried staff, an hourly rate for hourly staff. One number per person
- * (bonuses are out of scope for a plan), so this is the single place that mapping
- * is decided.
+ * The ONGOING compensation figure a plan proposes against, by employment type: an
+ * annual base for salaried staff, an hourly rate for hourly staff. One number per
+ * person, so this is the single place that mapping is decided. A plan's separate
+ * lump-sum bonus (`plannedBonus`) is deliberately not part of it — see
+ * {@link bonusPercent}.
  */
 export function currentCompAmount(
   employment: {

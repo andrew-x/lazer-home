@@ -9,7 +9,10 @@ import { MAX_RATING_LEVEL, MIN_RATING_LEVEL } from "@/lib/staff/staff-rating";
 
 export const PLAN_NOTES_MAX = 4000;
 
-/** Fits `numeric(12, 2)` — the column's own ceiling, stated once. */
+/**
+ * Fits `numeric(12, 2)` — the column's own ceiling, stated once. Shared by both
+ * proposed money figures, which use the same column type.
+ */
 export const PLANNED_AMOUNT_MAX = 9_999_999_999.99;
 
 /**
@@ -52,6 +55,13 @@ const patchSchema = z
     plannedAmount: z
       .number()
       .min(0, "Compensation can't be negative.")
+      .max(PLANNED_AMOUNT_MAX)
+      .nullable()
+      .optional(),
+    // A lump sum, in the same `plannedCurrency` as the ongoing figure.
+    plannedBonus: z
+      .number()
+      .min(0, "A bonus can't be negative.")
       .max(PLANNED_AMOUNT_MAX)
       .nullable()
       .optional(),

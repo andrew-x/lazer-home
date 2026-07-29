@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { Currency } from "@/lib/format/currency";
 import {
+  bonusPercent,
   levelTargetGap,
   monthsSince,
+  planBonusTotals,
   planChange,
   raisedFromCurrent,
 } from "./compensation-plan";
@@ -23,6 +25,11 @@ import { HOURS_PER_YEAR } from "./compensation-unit";
  *     the kind of output that erodes trust in the whole screen.
  *  4. A quick-pick raise must land on the proposal's own currency and the person's
  *     own unit, never on whatever the screen happens to be showing.
+ *  5. A discretionary bonus is a LUMP SUM. It must never be restated by the
+ *     annual/hourly toggle, and its percentage must divide by ANNUALIZED current
+ *     comp — so an hourly and a salaried person on equivalent pay get the same
+ *     answer for the same bonus. Getting this wrong is off by 2080×, which reads as
+ *     a plausible-looking percentage rather than as an obvious bug.
  *
  * (ADR 0037: unit tests are added deliberately, not reflexively. These are the
  * "genuinely beyond the type checker" case it carves out.)
@@ -336,6 +343,160 @@ describe("raisedFromCurrent", () => {
         usdRates: RATES,
       }),
     ).toBeNull();
+  });
+});
+
+describe("bonusPercent", () => {
+  test("divides by current comp", () => {
+    expect(
+      bonusPercent({
+        bonusAmount: 10_000,
+        bonusCurrency: "CAD",
+        currentAmount: 100_000,
+        currentCurrency: "CAD",
+        unit: "ANNUAL",
+        usdRates: RATES,
+      }),
+    ).toBeCloseTo(0.1, 10);
+  });
+
+  test("annualizes an hourly current figure, so the unit can't move it", () => {
+    // An hourly rate that annualizes to exactly 100,000 must give the same 10%.
+    const hourly = 100_000 / HOURS_PER_YEAR;
+    expect(
+      bonusPercent({
+        bonusAmount: 10_000,
+        bonusCurrency: "CAD",
+        currentAmount: hourly,
+        currentCurrency: "CAD",
+        unit: "HOURLY",
+        usdRates: RATES,
+      }),
+    ).toBeCloseTo(0.1, 10);
+  });
+
+  test("cross-rates through USD when the bonus is in another currency", () => {
+    // 10,000 USD against 137,000 CAD (= 100,000 USD) is 10%.
+    expect(
+      bonusPercent({
+        bonusAmount: 10_000,
+        bonusCurrency: "USD",
+        currentAmount: 137_000,
+        currentCurrency: "CAD",
+        unit: "ANNUAL",
+        usdRates: RATES,
+      }),
+    ).toBeCloseTo(0.1, 10);
+  });
+
+  test("null rather than NaN or Infinity for missing or zero inputs", () => {
+    const base = {
+      bonusCurrency: "CAD" as Currency,
+      currentCurrency: "CAD" as Currency,
+      unit: "ANNUAL" as const,
+      usdRates: RATES,
+    };
+    expect(
+      bonusPercent({ ...base, bonusAmount: null, currentAmount: 100_000 }),
+    ).toBeNull();
+    expect(
+      bonusPercent({ ...base, bonusAmount: 5_000, currentAmount: null }),
+    ).toBeNull();
+    expect(
+      bonusPercent({ ...base, bonusAmount: 5_000, currentAmount: 0 }),
+    ).toBeNull();
+    expect(
+      bonusPercent({
+        ...base,
+        bonusCurrency: null,
+        bonusAmount: 5_000,
+        currentAmount: 100_000,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("planBonusTotals", () => {
+  const salaried = {
+    currentAmount: 100_000,
+    currentCurrency: "CAD" as Currency,
+    unit: "ANNUAL" as const,
+  };
+
+  test("sums mixed currencies into the reporting currency", () => {
+    const { total, people } = planBonusTotals({
+      rows: [
+        { ...salaried, bonusAmount: 10_000, bonusCurrency: "CAD" },
+        // 1,000 USD = 1,370 CAD at these rates.
+        { ...salaried, bonusAmount: 1_000, bonusCurrency: "USD" },
+      ],
+      currency: "CAD",
+      usdRates: RATES,
+    });
+    expect(people).toBe(2);
+    expect(total).toBeCloseTo(11_370, 6);
+  });
+
+  test("counts proposals, not plan membership", () => {
+    const { total, people } = planBonusTotals({
+      rows: [
+        { ...salaried, bonusAmount: 5_000, bonusCurrency: "CAD" },
+        { ...salaried, bonusAmount: null, bonusCurrency: "CAD" },
+      ],
+      currency: "CAD",
+      usdRates: RATES,
+    });
+    expect(people).toBe(1);
+    expect(total).toBe(5_000);
+  });
+
+  test("percentOfCurrent is a sum over a sum, not a mean of ratios", () => {
+    // 10% of 100k and 1% of 1M → the honest cohort figure is 110k/1.1M = 10%,
+    // not the 5.5% a mean of the two percentages would give.
+    const { percentOfCurrent } = planBonusTotals({
+      rows: [
+        { ...salaried, bonusAmount: 10_000, bonusCurrency: "CAD" },
+        {
+          ...salaried,
+          currentAmount: 1_000_000,
+          bonusAmount: 10_000,
+          bonusCurrency: "CAD",
+        },
+      ],
+      currency: "CAD",
+      usdRates: RATES,
+    });
+    expect(percentOfCurrent).toBeCloseTo(20_000 / 1_100_000, 10);
+  });
+
+  test("annualizes hourly rows before totalling the denominator", () => {
+    const hourly = {
+      currentAmount: 100_000 / HOURS_PER_YEAR,
+      currentCurrency: "CAD" as Currency,
+      unit: "HOURLY" as const,
+      bonusAmount: 10_000,
+      bonusCurrency: "CAD" as Currency,
+    };
+    expect(
+      planBonusTotals({ rows: [hourly], currency: "CAD", usdRates: RATES })
+        .percentOfCurrent,
+    ).toBeCloseTo(0.1, 10);
+  });
+
+  test("empty and bonus-free plans total zero with no percentage", () => {
+    for (const rows of [
+      [],
+      [{ ...salaried, bonusAmount: null, bonusCurrency: "CAD" as Currency }],
+    ]) {
+      const totals = planBonusTotals({
+        rows,
+        currency: "CAD",
+        usdRates: RATES,
+      });
+      expect(totals.total).toBe(0);
+      expect(totals.people).toBe(0);
+      expect(totals.percentOfCurrent).toBeNull();
+    }
   });
 });
 

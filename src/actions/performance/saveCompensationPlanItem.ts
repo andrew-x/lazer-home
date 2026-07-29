@@ -50,6 +50,7 @@ export const saveCompensationPlanItem = secureActionClient
           id: compensationPlanItem.id,
           staffId: compensationPlanItem.staffId,
           plannedAmount: compensationPlanItem.plannedAmount,
+          plannedBonus: compensationPlanItem.plannedBonus,
           plannedCurrency: compensationPlanItem.plannedCurrency,
         })
         .from(compensationPlanItem)
@@ -80,6 +81,9 @@ export const saveCompensationPlanItem = secureActionClient
       if ("plannedAmount" in patch) {
         update.plannedAmount = patch.plannedAmount ?? null;
       }
+      if ("plannedBonus" in patch) {
+        update.plannedBonus = patch.plannedBonus ?? null;
+      }
       if ("plannedCurrency" in patch) {
         update.plannedCurrency = patch.plannedCurrency ?? null;
       }
@@ -101,15 +105,19 @@ export const saveCompensationPlanItem = secureActionClient
       }
 
       // An amount with no currency is uninterpretable, so refuse to store one.
-      // The editor always sends a currency alongside a first amount; this guards
-      // the case where it somehow doesn't and the row has none on file either.
+      // One currency covers BOTH proposed figures, so either one being present
+      // demands it. The editor always sends a currency alongside a first amount;
+      // this guards the case where it somehow doesn't and the row has none on file
+      // either.
       const nextAmount =
         "plannedAmount" in patch ? update.plannedAmount : item.plannedAmount;
+      const nextBonus =
+        "plannedBonus" in patch ? update.plannedBonus : item.plannedBonus;
       const nextCurrency =
         "plannedCurrency" in patch
           ? update.plannedCurrency
           : item.plannedCurrency;
-      if (nextAmount != null && nextCurrency == null) {
+      if ((nextAmount != null || nextBonus != null) && nextCurrency == null) {
         throw new UserSafeActionError(
           "Pick a currency for the planned compensation.",
         );

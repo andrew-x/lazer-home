@@ -208,11 +208,20 @@ export const compensationPlanItem = pgTable(
     level: integer(),
     subratings: jsonb().$type<Subratings>(),
 
-    // The proposed compensation: ONE figure, compared against `base` for
+    // The proposed ONGOING compensation: ONE figure, compared against `base` for
     // FULL_TIME staff and `hourlyRate` for HOURLY (see `currentCompAmount`).
-    // Null until entered. The currency may differ from the person's current one
-    // (a CAD → USD move), which is why it is stored rather than assumed.
+    // Null until entered.
     plannedAmount: numeric({ precision: 12, scale: 2, mode: "number" }),
+
+    // A one-off discretionary bonus proposed alongside the ongoing figure. A LUMP
+    // SUM, not a rate: it is never restated by the editor's annual/hourly toggle,
+    // and it is deliberately absent from the Change and Gap columns, which are
+    // about ongoing compensation (and compare against an annual level target).
+    plannedBonus: numeric({ precision: 12, scale: 2, mode: "number" }),
+
+    // The currency BOTH proposed figures above are denominated in — one currency
+    // per row. It may differ from the person's current one (a CAD → USD move),
+    // which is why it is stored rather than assumed.
     plannedCurrency: currencyEnum(),
 
     // How far the review conversation has got: ONE ordered ladder, not a set of
