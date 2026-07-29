@@ -60,7 +60,7 @@ async function main() {
     await wipe(db);
 
     const staff = await seedStaff(db);
-    const { companies, contacts } = await seedCrm(db, staff);
+    const { companies, contacts, relationships } = await seedCrm(db, staff);
     const opportunities = await seedOpportunities(
       db,
       companies,
@@ -93,6 +93,7 @@ async function main() {
       staff: staff.length,
       companies: companies.length,
       contacts: contacts.length,
+      companyContactRelationships: relationships,
       opportunities: opportunities.length,
       projects: projects.length,
       timesheets: timesheets.timesheets,

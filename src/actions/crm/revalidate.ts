@@ -18,3 +18,17 @@ export function revalidateContact(contactId: string): void {
   revalidatePath("/contacts");
   revalidatePath(`/contacts/${contactId}`);
 }
+
+/**
+ * Revalidate after writing a company ↔ contact relationship. The row renders on
+ * **both** detail pages — "Related contacts" on the company, the "Companies" tab
+ * on the contact — and either page can create, edit, or remove it, so one write
+ * must refresh both sides or the other page shows a stale list.
+ */
+export function revalidateCompanyContactRelationship(
+  companyId: string,
+  contactId: string,
+): void {
+  revalidateCompany(companyId);
+  revalidateContact(contactId);
+}

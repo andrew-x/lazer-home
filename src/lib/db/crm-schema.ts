@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
 } from "drizzle-orm/pg-core";
 import { staff } from "./staff-schema";
 
@@ -83,6 +84,52 @@ export const contacts = pgTable("contacts", {
 });
 
 // ---------------------------------------------------------------------------
+// Non-employee company ↔ contact relationships
+//
+// `contacts.companyId` is the single *employer* FK. This table models the other
+// way a person can attach to a company: a partner company's CSM working on one of
+// our accounts, an embedded FDE, a former employee, an investor on the board.
+//
+// A **data-carrying** junction (it holds `description`), so it follows the FK and
+// index halves of the junction convention (ADR 0016) like `projectRoles`, while
+// keeping the `unique()` pair — one relationship per company/contact, so editing
+// the description is unambiguous. See docs/domains/crm.md.
+// ---------------------------------------------------------------------------
+
+export const companyContactRelationships = pgTable(
+  "company_contact_relationships",
+  {
+    id: text().primaryKey(),
+    // Both endpoints cascade: a link is meaningless without them. Deliberately
+    // unlike `contacts.companyId`'s set-null — that's an optional attribute of a
+    // contact, this is a row whose whole identity is the pair.
+    companyId: text()
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    contactId: text()
+      .notNull()
+      .references(() => contacts.id, { onDelete: "cascade" }),
+    // How this person relates to this company, e.g. "CSM". Free text, with UI
+    // suggestions from `@/lib/crm/company-contact-relationship` — not a pgEnum,
+    // because the label set is open-ended (same reasoning as `location`).
+    description: text().notNull(),
+
+    createdAt: timestamp().defaultNow().notNull(),
+    // Unlike the pure junctions (createdAt only), this row is editable.
+    updatedAt: timestamp()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    // Named explicitly so `isUniqueViolation(error, …)` can key off it and turn a
+    // duplicate into "edit the existing one instead".
+    unique("company_contact_relationships_unique").on(t.companyId, t.contactId),
+    index("company_contact_relationships_contact_idx").on(t.contactId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Timestamped entries — notes
 //
 // Contacts, opportunities, and companies each carry a running, authored log of
@@ -144,3 +191,6 @@ export const companyEntries = pgTable(
 
 export type Company = InferSelectModel<typeof companies>;
 export type Contact = InferSelectModel<typeof contacts>;
+export type CompanyContactRelationship = InferSelectModel<
+  typeof companyContactRelationships
+>;

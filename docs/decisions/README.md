@@ -56,6 +56,14 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0045](./0045-project-page-as-delivery-side-role-editor.md) | Two role editors — deal-side (opportunity planner, tentative-only) vs. delivery-side (project page, any status); "confirmed roles are locked" narrowed to the planner | accepted; self-amended same-day — the project **Gantt** is an edit surface too (`editable` vs. `emphasized` split) and the project's **company** is editable, guarded against stranding a linked opportunity |
 | [0046](./0046-compensation-change-plans-rating-writing-proposals.md) | Compensation change plans: commit writes ratings only, never `staff_employment`; snapshot + drift badge reconcile against Rippling | accepted (0020 stands) |
 | [0047](./0047-feedback-reports-scoping-not-granting.md) | "Your reports" feedback list: `staff.managerId` **scopes** an already-permitted set, it never grants; `feedback.review` unchanged (0023 stands, corrected) | accepted |
+| [0047](./0047-plan-editor-status-ladder-display-units-and-level-targets.md) | ⚠️ **duplicate number** — plan-editor status ladder, display units and level targets | accepted |
+| [0048](./0048-company-contact-relationships-beyond-employment.md) | Company ↔ contact relationships beyond employment: a separate link table (employer FK untouched), one row per pair, free-text description with suggestions | accepted |
+
+> ⚠️ **0047 is used twice** — two unrelated ADRs landed on the number (the feedback
+> "Your reports" scoping decision and the plan-editor status ladder). Both are real
+> and accepted; the collision is a numbering slip, not a supersede. Inbound links
+> already point at both filenames, so neither was renumbered. **Next free number is
+> 0049.** Worth resolving deliberately rather than letting a third collide.
 
 > **0012 is intentionally absent** (the log jumps 0011 → 0013). It was a short-lived
 > ADR documenting the *open staff-edit gap pending RBAC*; it was **withdrawn** once
