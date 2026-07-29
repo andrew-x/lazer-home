@@ -17,6 +17,7 @@ import {
 import type { Currency } from "@/lib/format/currency";
 import {
   COMPENSATION_PLAN_ACCESS,
+  type CompensationPlanItemStatus,
   type CompensationPlanStatus,
   currentCompAmount,
   monthsSince,
@@ -51,6 +52,8 @@ export type CompensationPlanEditorItem = {
   lineOfBusiness: StaffEmployment["lineOfBusiness"] | null;
   role: StaffEmployment["role"] | null;
   employmentType: StaffEmployment["employmentType"] | null;
+  /** The delivery pool that bills their time — Hub or Global. */
+  billableType: StaffEmployment["billableType"] | null;
 
   /**
    * The baseline the plan is written against: live employment while the plan is
@@ -75,9 +78,7 @@ export type CompensationPlanEditorItem = {
   subratings: Subratings;
   plannedAmount: number | null;
   plannedCurrency: Currency | null;
-  ratingDone: boolean;
-  meetingDone: boolean;
-  isComplete: boolean;
+  status: CompensationPlanItemStatus;
   evaluationNotes: string | null;
   compensationNotes: string | null;
 };
@@ -143,9 +144,7 @@ export async function getCompensationPlan(
       subratings: compensationPlanItem.subratings,
       plannedAmount: compensationPlanItem.plannedAmount,
       plannedCurrency: compensationPlanItem.plannedCurrency,
-      ratingDone: compensationPlanItem.ratingDone,
-      meetingDone: compensationPlanItem.meetingDone,
-      isComplete: compensationPlanItem.isComplete,
+      status: compensationPlanItem.status,
       evaluationNotes: compensationPlanItem.evaluationNotes,
       compensationNotes: compensationPlanItem.compensationNotes,
       snapshotAmount: compensationPlanItem.snapshotAmount,
@@ -176,6 +175,7 @@ export async function getCompensationPlan(
             lineOfBusiness: staffEmployment.lineOfBusiness,
             role: staffEmployment.role,
             employmentType: staffEmployment.employmentType,
+            billableType: staffEmployment.billableType,
             base: staffEmployment.base,
             hourlyRate: staffEmployment.hourlyRate,
             currency: staffEmployment.currency,
@@ -253,6 +253,7 @@ export async function getCompensationPlan(
       lineOfBusiness: history[0]?.lineOfBusiness ?? null,
       role: history[0]?.role ?? null,
       employmentType: history[0]?.employmentType ?? null,
+      billableType: history[0]?.billableType ?? null,
       current,
       live,
       previous,
@@ -262,9 +263,7 @@ export async function getCompensationPlan(
       subratings: row.subratings ?? {},
       plannedAmount: row.plannedAmount,
       plannedCurrency: row.plannedCurrency,
-      ratingDone: row.ratingDone,
-      meetingDone: row.meetingDone,
-      isComplete: row.isComplete,
+      status: row.status,
       evaluationNotes: row.evaluationNotes,
       compensationNotes: row.compensationNotes,
     };

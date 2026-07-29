@@ -39,8 +39,14 @@ export default async function CompensationPlanPage({ params }: Params) {
   if (!plan) notFound();
 
   return (
-    <div className="mx-auto flex w-full max-w-[90rem] flex-col gap-6">
-      <div className="flex flex-col gap-2">
+    // Full width and pinned to the viewport, unlike the app's other pages: this
+    // grid is 11 columns of dense numbers that a comp round is read across, so
+    // horizontal room matters more than a comfortable measure. Fixing the height
+    // (the shell's own `p-4`/`md:p-6` is the only other vertical chrome) lets the
+    // table pane own the scrolling, keeping the filters and column headers in place
+    // instead of walking off the top of a long page.
+    <div className="flex h-[calc(100svh-2rem)] w-full min-w-0 flex-col gap-4 md:h-[calc(100svh-3rem)]">
+      <div className="flex flex-col gap-1">
         <Link
           href="/performance/compensation-plans"
           className="flex w-fit items-center gap-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
@@ -52,7 +58,7 @@ export default async function CompensationPlanPage({ params }: Params) {
           <h2 className="font-heading text-2xl font-semibold tracking-tight">
             {plan.name}
           </h2>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Ratings take effect {formatDate(plan.effectiveDate)}. Planned
             compensation is a proposal — pay is still changed in Rippling.
           </p>

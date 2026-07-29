@@ -71,6 +71,20 @@
       "when": 1785242606791,
       "tag": "0009_jittery_wolfsbane",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785279196032,
+      "tag": "0010_large_zaran",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785279220975,
+      "tag": "0011_black_captain_stacy",
+      "breakpoints": true
     }
   ]
 }

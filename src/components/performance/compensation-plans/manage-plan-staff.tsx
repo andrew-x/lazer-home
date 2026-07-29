@@ -19,6 +19,7 @@ import { cn } from "@/lib/core/utils";
 import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
 import { EMPLOYMENT_TYPE_LABELS, ROLE_LABELS } from "@/lib/staff/staff-enums";
 import { STAFF_FILTER_OPTIONS } from "@/lib/staff/staff-filters";
+import { staffMetaLine } from "@/lib/staff/staff-summary";
 
 function matches(query: string, ...fields: (string | null | undefined)[]) {
   if (!query) return true;
@@ -32,9 +33,7 @@ function hasWork(item: CompensationPlanEditorItem): boolean {
     item.plannedAmount != null ||
     item.evaluationNotes != null ||
     item.compensationNotes != null ||
-    item.ratingDone ||
-    item.meetingDone ||
-    item.isComplete
+    item.status !== "NOT_STARTED"
   );
 }
 
@@ -241,7 +240,7 @@ export function ManagePlanStaff({
                       {candidate.name}
                     </span>
                     <span className="truncate text-xs text-muted-foreground">
-                      {describe(candidate)}
+                      {staffMetaLine(candidate)}
                     </span>
                   </Label>
                 </div>
@@ -283,20 +282,4 @@ export function ManagePlanStaff({
       />
     </div>
   );
-}
-
-/** The muted sub-line: line of business · role · type · location. */
-function describe(candidate: CompensationPlanCandidate): string {
-  return [
-    candidate.lineOfBusiness
-      ? LINE_OF_BUSINESS_LABELS[candidate.lineOfBusiness]
-      : null,
-    candidate.role ? ROLE_LABELS[candidate.role] : null,
-    candidate.employmentType
-      ? EMPLOYMENT_TYPE_LABELS[candidate.employmentType]
-      : null,
-    candidate.location,
-  ]
-    .filter(Boolean)
-    .join(" · ");
 }

@@ -25,6 +25,7 @@ export type CompensationPlanCandidate = {
   lineOfBusiness: StaffEmployment["lineOfBusiness"] | null;
   role: StaffEmployment["role"] | null;
   employmentType: StaffEmployment["employmentType"] | null;
+  billableType: StaffEmployment["billableType"] | null;
   location: string | null;
 };
 
@@ -54,6 +55,7 @@ export async function getStaffForCompensationPlan(): Promise<
         lineOfBusiness: staffEmployment.lineOfBusiness,
         role: staffEmployment.role,
         employmentType: staffEmployment.employmentType,
+        billableType: staffEmployment.billableType,
       })
       .from(staffEmployment)
       .orderBy(...latestEmploymentFirst),
@@ -69,6 +71,7 @@ export async function getStaffForCompensationPlan(): Promise<
       lineOfBusiness: employment?.lineOfBusiness ?? null,
       role: employment?.role ?? null,
       employmentType: employment?.employmentType ?? null,
+      billableType: employment?.billableType ?? null,
       location: s.location,
     };
   });

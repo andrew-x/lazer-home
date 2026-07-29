@@ -19,12 +19,16 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { type Currency, formatMoney } from "@/lib/format/currency";
+import type { Currency } from "@/lib/format/currency";
 import { formatDate } from "@/lib/format/format";
 import {
   NEW_JOINER_MONTHS,
   type PlanChange,
 } from "@/lib/performance/compensation-plan";
+import {
+  type CompUnit,
+  convertCompUnit,
+} from "@/lib/performance/compensation-unit";
 import {
   rubricForRole,
   SUBRATING_LEVELS,
@@ -51,6 +55,8 @@ export function PlanExpandedPanel({
   compensationNotes,
   previousChange,
   displayCurrency,
+  unit,
+  canonicalUnit,
   readOnly,
   onSubratingChange,
   onNotesChange,
@@ -63,6 +69,9 @@ export function PlanExpandedPanel({
   compensationNotes: string;
   previousChange: PlanChange;
   displayCurrency: Currency | null;
+  /** The row's display unit, so this panel restates figures the same way it does. */
+  unit: CompUnit;
+  canonicalUnit: CompUnit;
   readOnly: boolean;
   onSubratingChange: (next: Subratings) => void;
   onNotesChange: (
@@ -80,7 +89,7 @@ export function PlanExpandedPanel({
       id={panelId}
       className="flex flex-col gap-6 border-t bg-muted/30 px-6 py-5"
     >
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Fact label="Joined">
           {item.joinDate ? (
             <span className="flex items-center gap-2">
@@ -112,7 +121,15 @@ export function PlanExpandedPanel({
         <Fact label="Previous change">
           {previousChange.changeAmount != null && displayCurrency ? (
             <span className="flex items-center gap-1.5 tabular-nums">
-              {formatChangeAmount(previousChange.changeAmount, displayCurrency)}
+              {formatChangeAmount(
+                convertCompUnit(
+                  previousChange.changeAmount,
+                  canonicalUnit,
+                  unit,
+                ),
+                displayCurrency,
+                unit,
+              )}
               <span className="text-muted-foreground">·</span>
               {formatChangePercent(previousChange.changePercent)}
               {item.current.effectiveFrom ? (
@@ -124,19 +141,6 @@ export function PlanExpandedPanel({
             </span>
           ) : (
             <span className="text-muted-foreground">No previous change</span>
-          )}
-        </Fact>
-
-        <Fact label="Current on file">
-          {item.current.amount != null && item.current.currency ? (
-            <span className="tabular-nums">
-              {formatMoney(item.current.amount, item.current.currency, {
-                maximumFractionDigits: 0,
-              })}
-              {item.current.employmentType === "HOURLY" ? "/hr" : ""}
-            </span>
-          ) : (
-            <EmptyCell />
           )}
         </Fact>
       </div>
@@ -168,7 +172,11 @@ export function PlanExpandedPanel({
                       onSubratingChange(updated);
                     }}
                   >
-                    <SelectTrigger size="sm" aria-label={category.label}>
+                    <SelectTrigger
+                      size="sm"
+                      aria-label={category.label}
+                      className="w-full"
+                    >
                       <SelectValue>
                         {(current: string | null) =>
                           !current || current === UNRATED_SELECT_VALUE

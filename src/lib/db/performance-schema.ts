@@ -1,7 +1,6 @@
 import type { InferSelectModel } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
-  boolean,
   check,
   date,
   index,
@@ -14,7 +13,10 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { COMPENSATION_PLAN_STATUSES } from "@/lib/performance/compensation-plan";
+import {
+  COMPENSATION_PLAN_ITEM_STATUSES,
+  COMPENSATION_PLAN_STATUSES,
+} from "@/lib/performance/compensation-plan";
 import { FEEDBACK_RATINGS } from "@/lib/performance/feedback-rating";
 import type { Subratings } from "@/lib/performance/rating-rubric";
 import { MAX_RATING_LEVEL, MIN_RATING_LEVEL } from "@/lib/staff/staff-rating";
@@ -159,6 +161,12 @@ export const compensationPlanStatusEnum = pgEnum("compensation_plan_status", [
   ...COMPENSATION_PLAN_STATUSES,
 ]);
 
+// Same convention: the per-item workflow ladder is declared in the pure module.
+export const compensationPlanItemStatusEnum = pgEnum(
+  "compensation_plan_item_status",
+  [...COMPENSATION_PLAN_ITEM_STATUSES],
+);
+
 export const compensationPlan = pgTable("compensation_plan", {
   id: text().primaryKey(),
   name: text().notNull(),
@@ -206,11 +214,12 @@ export const compensationPlanItem = pgTable(
     plannedAmount: numeric({ precision: 12, scale: 2, mode: "number" }),
     plannedCurrency: currencyEnum(),
 
-    // Workflow tracking for the review conversation. Deliberately independent of
-    // content — a rating can exist before the meeting happens, and vice versa.
-    ratingDone: boolean().notNull().default(false),
-    meetingDone: boolean().notNull().default(false),
-    isComplete: boolean().notNull().default(false),
+    // How far the review conversation has got: ONE ordered ladder, not a set of
+    // independent flags. This replaced three booleans
+    // (`ratingDone`/`meetingDone`/`isComplete`) which could represent nonsense —
+    // "complete" without a rating, a meeting logged against nothing. An exclusive
+    // column makes those states unrepresentable rather than merely discouraged.
+    status: compensationPlanItemStatusEnum().notNull().default("NOT_STARTED"),
 
     evaluationNotes: text(),
     compensationNotes: text(),

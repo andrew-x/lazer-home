@@ -2,6 +2,7 @@
 // stay drizzle-free hand-written zod (ADR 0035).
 import { z } from "zod";
 import { CURRENCY } from "@/lib/format/currency";
+import { COMPENSATION_PLAN_ITEM_STATUSES } from "@/lib/performance/compensation-plan";
 import { SUBRATING_MAX, SUBRATING_MIN } from "@/lib/performance/rating-rubric";
 import { id } from "@/lib/schemas/id-schema";
 import { MAX_RATING_LEVEL, MIN_RATING_LEVEL } from "@/lib/staff/staff-rating";
@@ -55,9 +56,7 @@ const patchSchema = z
       .nullable()
       .optional(),
     plannedCurrency: z.enum(CURRENCY).nullable().optional(),
-    ratingDone: z.boolean().optional(),
-    meetingDone: z.boolean().optional(),
-    isComplete: z.boolean().optional(),
+    status: z.enum(COMPENSATION_PLAN_ITEM_STATUSES).optional(),
     evaluationNotes: patchNotes,
     compensationNotes: patchNotes,
   })
