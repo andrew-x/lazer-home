@@ -46,7 +46,9 @@ These semantics are about acting on / viewing **other** people; the owner path i
 always allowed without a permission.
 
 Two flat write capabilities gate data entry (no ownership dimension). Reads are
-open: any signed-in user can browse companies, contacts, opportunities, and projects.
+open: any signed-in user can browse companies, contacts, opportunities, and projects
+— with one carve-out, `projects.viewMargin` below, because a project's cost is
+derived from individual compensation.
 
 - **`crm.edit`** — add/edit CRM companies, contacts *and* opportunities (including
   creating a company or contact inline from another CRM form).
@@ -72,6 +74,20 @@ open: any signed-in user can browse companies, contacts, opportunities, and proj
   [ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md) before
   concluding the laxer one is a hole.
 
+- **`projects.viewMargin`** — see a project's **cost and margin**: the budget summary panel
+  and per-role figures on the opportunity's Project-plan tab and the project detail page. A
+  **read** capability, deliberately separate from `projects.edit`, because a role's cost *is*
+  an individual's compensation — a staffed role costs that person's pay ÷ 2080, so on a
+  one-role project even the aggregate discloses their salary, and the open-role figure is a
+  company-wide comp average. **Revenue (the fixed fee / rate card) is NOT gated** — it is
+  commercial, not personal, and every project read is open. `sales` therefore reaches a plan
+  through `loadOpportunityPlan` (gated `crm.edit`) and sees revenue only.
+  Masking lives **inside the reads** — `getProjectCostBasis` decides once and both plan
+  readers omit `costBasis` entirely for a viewer without it, so no compensation-derived value
+  is ever sent to a client that merely hides it. See the
+  [projects domain](projects.md) and
+  [ADR 0052](../decisions/0052-project-budgets-and-margin.md).
+
 A capability gates editing **other people's / locked** timesheets:
 
 - **`timesheets.edit`** — edit *any* timesheet, bypassing both the owner check and
@@ -82,7 +98,8 @@ A capability gates editing **other people's / locked** timesheets:
   it can't be a static permission alone). See the
   [timesheets domain](timesheets.md).
 
-One capability gates a **read** rather than a write:
+Another capability gates a **read** rather than a write (as `projects.viewMargin`
+above does):
 
 - **`feedback.review`** — view *all* peer feedback in full (the manager/admin
   oversight view). It does NOT gate *giving* feedback: any active staff member may
@@ -276,14 +293,14 @@ friction is deliberate.
 > (review notes — `staff.managerId`). All three are documented above; none adds a column
 > here.
 
-| Role               | `staff.edit` | `staff.viewCompensation` | `pto.review` | `crm.edit` | `projects.edit` | `feedback.review` | `ratings.view` | `ratings.edit` | `timesheets.edit` | Notes                                |
-| ------------------ | :----------: | :----------------------: | :----------: | :--------: | :-------------: | :---------------: | :------------: | :------------: | :---------------: | ------------------------------------ |
-| `user`             |      –       |            –             |      –       |     –      |        –        |         –         |       –        |       –        |         –         | default role for new users           |
-| `delivery-manager` |      –       |            –             |      –       |     –      |        ✓        |         –         |       –        |       –        |         –         | owns projects & staffing             |
-| `finance`          |      –       |            ✓             |      –       |     –      |        –        |         –         |       –        |       –        |         –         | views staff compensation (NOT ratings) |
-| `sales`            |      –       |            –             |      –       |     ✓      |        –        |         –         |       –        |       –        |         –         | CRM data entry                       |
-| `manager`          |      ✓       |            ✓             |      ✓       |     ✓      |        ✓        |         ✓         |       ✓        |       ✓        |         ✓         | all defined business perms           |
-| `admin`            |      ✓       |            ✓             |      ✓       |     ✓      |        ✓        |         ✓         |       ✓        |       ✓        |         ✓         | + Better Auth admin-plugin user/session perms (`...adminAc.statements`) |
+| Role               | `staff.edit` | `staff.viewCompensation` | `pto.review` | `crm.edit` | `projects.edit` | `projects.viewMargin` | `feedback.review` | `ratings.view` | `ratings.edit` | `timesheets.edit` | Notes                                |
+| ------------------ | :----------: | :----------------------: | :----------: | :--------: | :-------------: | :-------------------: | :---------------: | :------------: | :------------: | :---------------: | ------------------------------------ |
+| `user`             |      –       |            –             |      –       |     –      |        –        |           –           |         –         |       –        |       –        |         –         | default role for new users           |
+| `delivery-manager` |      –       |            –             |      –       |     –      |        ✓        |           ✓           |         –         |       –        |       –        |         –         | owns projects & staffing, sees margin |
+| `finance`          |      –       |            ✓             |      –       |     –      |        –        |           ✓           |         –         |       –        |       –        |         –         | views staff compensation + project margin (NOT ratings) |
+| `sales`            |      –       |            –             |      –       |     ✓      |        –        |           –           |         –         |       –        |       –        |         –         | CRM data entry                       |
+| `manager`          |      ✓       |            ✓             |      ✓       |     ✓      |        ✓        |           ✓           |         ✓         |       ✓        |       ✓        |         ✓         | all defined business perms           |
+| `admin`            |      ✓       |            ✓             |      ✓       |     ✓      |        ✓        |           ✓           |         ✓         |       ✓        |       ✓        |         ✓         | + Better Auth admin-plugin user/session perms (`...adminAc.statements`) |
 
 `DEFAULT_ROLE = "user"`, mirrored by `admin({ defaultRole: "user" })` in `auth.ts`.
 `adminRoles: ["admin"]` lists which roles may call the admin-plugin endpoints.

@@ -262,10 +262,10 @@ The app's **first drill-down detail views**. Both are Server Components that `aw
 
 `(app)/projects/page.tsx` (Server Component) renders the list as a **responsive grid of project cards, not a table** (the old `projects-table.tsx` was deleted). It reads the URL filters (`q` search, `lob` line of business, `dm` delivery manager, `projectsPage`) plus the two section page params (`pastPage`, `cancelledPage`) and branches: with **no filter** it shows five derived-status **sections in `PROJECT_STATUS_BUCKETS` order — Tentative → Paused → Active → Past → Cancelled** (`getProjectsInBuckets` for the first three in full, `getProjectsPage` for the server-paginated Past — `endDate`-ordered, most recently finished first — and Cancelled, all from `getProjectsList`). **Only Active is expanded:** the other four are **closed disclosures** (`ProjectsSection collapsible`, Base UI `Collapsible`), heading + count always visible with a chevron that rotates 90° when open, so the page opens on the work in flight without hiding the rest. Past/Cancelled re-open on load when their own page param is past page 1 (`defaultOpen`), since a page link is a fresh server render. With **any filter active** the sections collapse into a **single flat, paginated grid** across all statuses, **ordered by end date descending** (latest-ending first, role-less projects last) rather than the name-ordered sections. `ProjectsListFilters` (`projects-list-filters.tsx`, a client component on the shared [list filter bar](#list-filter-bars) pattern — `useUrlSearchFilter`/`SearchFilter` + LoB `SelectFilter` + a **delivery-manager `SearchableSelectFilter`** (the shared searchable single-select) fed `getDeliveryManagerOptions`, hidden when there are none) drives the URL via `buildListHref`; `ProjectsGrid`/`ProjectsSection` (`projects-grid.tsx`) lay out the `ProjectCard`s; the shared top-level `pagination-controls.tsx` (`basePath="/projects"`) paginates Past (`pastPage`), Cancelled (`cancelledPage`) and the filtered grid (`projectsPage`) independently — `buildListHref` preserves the params it isn't changing. An "Add project" dialog is gated on `canEdit = userHasPermission(user, { projects: ["edit"] })` — **`projects.edit`, not `crm.edit`** (see [domains/projects.md](./domains/projects.md)).
 
-- **`add-project-dialog.tsx`** — the standalone create form in a `FormDialog` (`sm:max-w-lg`, scrollable). It is **deliberately minimal: it collects only name + company.** A project has **no status or line of business of its own** — both are *derived* from its roles ([ADR 0033](./decisions/0033-line-of-business-on-role-derived-project-status.md)) — and roles + delivery managers are added afterward in the planner, so this dialog drops the old per-project LoB/status `EnumSelect`s, the delivery-manager multi-select, and the roles repeater entirely. It still uses **loose binding** (`useForm` + `useAction`, per `.claude/rules/forms.md`) because the form shape ≠ the action input (a `companyName` helper field feeds the combobox but isn't part of the payload). On submit it runs `createProjectSchema.safeParse` over `{ name, companyId }` client-side, mapping issues into `setError` (via `FIELD_FOR_ISSUE`, keyed by `keyof CreateProjectInput` so the never-collected `roles`/`deliveryManagerIds`/`opportunityId` fields route harmlessly to `name`) before `execute`. Fields: a `name` `Input` and a required `CompanyCombobox` (fed the `projects/searchCompanies` action). Projects created **from an opportunity** skip this dialog entirely (one-click `createProjectFromOpportunity`).
+- **`add-project-dialog.tsx`** — the standalone create form in a `FormDialog` (`sm:max-w-lg`, scrollable). It is **deliberately minimal: name + company + the budget fragment** (see [Budget & margin UI](#budget--margin-ui) below). A project has **no status or line of business of its own** — both are *derived* from its roles ([ADR 0033](./decisions/0033-line-of-business-on-role-derived-project-status.md)) — and roles + delivery managers are added afterward in the planner, so this dialog drops the old per-project LoB/status `EnumSelect`s, the delivery-manager multi-select, and the roles repeater entirely. It still uses **loose binding** (`useForm` + `useAction`, per `.claude/rules/forms.md`) because the form shape ≠ the action input (a `companyName` helper field feeds the combobox but isn't part of the payload). On submit it parses in **two steps**: `projectBudgetSchema.safeParse(toBudgetInput(values))` first (so budget issues arrive keyed by *leaf* field via `budgetIssueFields`, not lumped under one `budget` key), then `createProjectSchema.safeParse({ name, companyId, budget })`, mapping issues into `setError` via `FIELD_FOR_ISSUE` (keyed by `keyof CreateProjectInput`, so the never-collected `roles`/`deliveryManagerIds`/`opportunityId` route harmlessly to `name` and `budget` routes to `billingType`) before `execute`. Fields: a `name` `Input`, a required `CompanyCombobox` (fed the `projects/searchCompanies` action), and `BudgetFields`. Projects created **from an opportunity** skip this dialog entirely — they use `opportunity-plan/create-project-dialog.tsx`, which collects **only** the budget (name + company are inherited server-side).
 - **`entity-combobox.tsx`** (`EntityCombobox`, `src/components/form/`) — the **single-select** sibling of `EntityMultiCombobox`, and the **shared single-select base** for the CRM/projects pickers. Server-filtered via an injected search action; reports `{ id, name } | null`; search-only (no inline create). Its **`searchArgs` prop** passes extra, non-query arguments to the search action (e.g. a `companyId` scope) and re-runs the search when it changes (callers must keep it referentially stable, e.g. `useMemo`). Used directly for a project role's one staff member, and wrapped by **`CompanyCombobox`** (adapts to the flat `{ value, selectedName }` props, defaults to the `crm.edit` company search) and **`ManagerComboboxField`** (passes `companyId` via `searchArgs` to `searchContacts`).
 - **`suggest-input.tsx`** (`SuggestInput`, `src/components/form/`) — see [SuggestInput vs EntityCombobox](#suggestinput-vs-entitycombobox) below.
-- **`enum-select.tsx`** (`src/components/form/`) — `EnumSelect`, the enum-driven `Select` helper **extracted from the opportunity form** for reuse; takes an options tuple + a labels record (e.g. `LINE_OF_BUSINESS` / `LINE_OF_BUSINESS_LABELS` from `src/lib/crm/line-of-business.ts`). Now used by the opportunity form fields and — via the shared `RoleFields` fragment (`src/components/projects/role-fields.tsx`) — **both** role editors (the planner's `role-dialog.tsx` and the project page's `project-role-dialog.tsx`) for each role's line of business + role type. **Not** the standalone project dialog (name + company only). Also exports `toEnumValue`, the shared coercion used across filters.
+- **`enum-select.tsx`** (`src/components/form/`) — `EnumSelect`, the enum-driven `Select` helper **extracted from the opportunity form** for reuse; takes an options tuple + a labels record (e.g. `LINE_OF_BUSINESS` / `LINE_OF_BUSINESS_LABELS` from `src/lib/crm/line-of-business.ts`). Now used by the opportunity form fields and — via the shared `RoleFields` fragment (`src/components/projects/role-fields.tsx`) — **both** role editors (the planner's `role-dialog.tsx` and the project page's `project-role-dialog.tsx`) for each role's line of business + role type — and, via `BudgetFields`, by **all three budget forms** (billing type + the fee/rate currencies). Also exports `toEnumValue`, the shared coercion used across filters.
 - **`project-card.tsx`** (`ProjectCard`) — each project is a clickable `Card` linking to `/projects/[id]` via a plain `next/link` wrapping the card (`Card` doesn't forward a Base UI `render` prop): name + company, the derived `ProjectStatusBadge` + derived line-of-business badges, delivery managers (or "Unassigned"), and the role date range via `formatDateRange` (or "No dates").
 
 ### SuggestInput vs EntityCombobox
@@ -296,13 +296,76 @@ Don't reach for `@base-ui/react/autocomplete` (present in `node_modules` but unv
 
 - **Sidebar** — `DetailIdentity` + one `SidebarSection`, with **three inline-editable fields** (all `canEdit`-gated, all writing through `updateProjectField`): the **name** (`project-name-field.tsx`: the `<h2>` plus a pencil, swapping to an `Input` with check/cancel `IconButton`s — *not* an `InlineEditField`, which would lose the heading), the **company** (`project-company-field.tsx`: an `InlineEditField` reading as an `InternalLink` to `/companies/[id]`, swapping to an `EntityCombobox` over the **`projects.edit`**-gated `searchCompanies` — so re-parenting needs no CRM write access. A company is **required**, so confirming with an empty picker shows a client-side requirement error instead of writing; the server's refusal when a linked opportunity belongs to another company arrives as the field's inline error), and the **delivery managers** (`delivery-managers-field.tsx`: an `InlineEditField` + `EntityMultiCombobox` over `searchStaff`, each manager linking to `/staff/[id]`, "Unassigned" when empty). **Line of business is read-only** because it's *derived from the roles* — plain comma-separated text, no `Badge` chips.
   - Both fields share **`use-project-inline-save.ts`**, the `useInlineSave` sibling that takes **no `refresh` callback**: the opportunity drawer fetches client-side, but this page is a Server Component holding `plan` as a prop, so `updateProjectField`'s `revalidatePath` on the detail route is what refreshes the display (the CRM inline-field mechanism). One hook instance per field ⇒ isolated pending/error; `commit` `safeParse`s just that field's slice first.
-- **Header + summary tiles** — name (editable) + `ProjectStatusBadge`, the editable company field, derived LoB text, then the **same summary `StatCard` tiles as the opportunity Project-plan tab** (Length, Dates, Confirmed, Tentative, Delivery managers), rendered from the shared `src/lib/projects/plan-summary.ts` helpers so both surfaces match.
+- **Header + summary tiles + budget panel** — name (editable) + `ProjectStatusBadge`, the editable company field, derived LoB text, then the **same summary tiles as the opportunity Project-plan tab** — now the shared `PlanSummaryTiles` component over `src/lib/projects/plan-summary.ts` — and, **above the tabs, the shared `BudgetSummaryPanel`** (see [Budget & margin UI](#budget--margin-ui)).
 - **Three `variant="line"` tabs — roles are editable from two of them** (same dialog):
   - **Timeline** reuses the opportunity planner's `PlannerGrid`, fed `{ scope: "project" }` so **every row is editable and none is emphasised** (the old `currentOpportunityId = ""` sentinel is gone — see [domains/projects.md](./domains/projects.md)). It passes `onEditRole` only when `canEdit` and deliberately passes **neither `onAssignStaff` nor the selection/bulk props** — those actions are opportunity-scoped — so open roles are staffed via the role dialog. It uses a project-specific legend (Confirmed / Tentative / Other project) instead of the "This deal" one; that legend is why `ownBlockClass` keys the indigo emphasis fill off **`emphasized`**, not `editable` (keying it off `editable` here would flatten confirmed and tentative into one colour).
   - **Roles** lists all roles as a table (staffed first, then "Open role" placeholders; staffed names link to `/staff/[id]`): for `canEdit`, an "Add role" `Button` in the `DetailSection` `action` slot (the only "Add role" affordance on the page) plus a trailing-column per-row pencil `IconButton`, both opening `project-role-dialog.tsx` (keyed per target so the form remounts with fresh defaults). That dialog shares `RoleFields` with the planner's `role-dialog.tsx`, and — because it can touch **confirmed** roles — puts Remove behind a `ConfirmDialog` whose copy warns when the role came from an opportunity.
   - **Time off** shows the project's PTO (`getProjectPto`) split Upcoming/Past — the **Type column renders only for `pto.review` reviewers** (`canSeeType`), and non-reviewers get **approved leave only**.
 
   See [domains/projects.md](./domains/projects.md#project-detail-page).
+
+### Budget & margin UI
+
+Shared by the two plan surfaces (`/projects/[id]` above its tabs, and the opportunity drawer's
+Project-plan tab) — [ADR 0052](./decisions/0052-project-budgets-and-margin.md),
+[domains/projects.md](./domains/projects.md#budget--margin).
+
+- **`budget-fields.tsx`** (`BudgetFields` + `budgetDefaultValues` + `budgetIssueFields` +
+  `toBudgetInput`) is the fragment behind **all three** budget forms — the deliberate mirror of
+  `role-fields.tsx`, and the client twin of `projectBudgetSchema`. **Both billing modes' fields stay
+  mounted** so switching type doesn't discard typed input; `toBudgetInput` drops the inactive half at
+  submit. The rate card is a **fixed five rows**, index-aligned with `PROJECT_ROLE_TYPES`, never
+  resized. Its issue map is keyed by `AllKeys<ProjectBudgetInput>`, not `keyof` — plain `keyof` on a
+  discriminated union yields only the discriminant and would let the map silently omit
+  `budgetAmount`/`rateCard`.
+- **`budget-dialog.tsx`** (`ProjectBudgetDialog`) — Set/Edit budget, its own dialog rather than
+  fields on the planner's Edit-project dialog (which is name + delivery managers and carries a
+  destructive Remove) since the detail page has no equivalent dialog at all. Passes
+  `forceMountOverlay` because the Project-plan tab lives inside a `Sheet`.
+- **`budget-summary-panel.tsx`** (`BudgetSummaryPanel`) — Revenue / Cost / Margin, and a header
+  right-hand cluster of **`FxRateNote` → CAD↔USD `ToggleGroup` → billing badge → edit affordance**
+  (the rate note sits immediately left of the toggle, next to the control that causes the
+  conversion). **A bordered panel, not more `StatCard`s**: the money shouldn't share the
+  undifferentiated wrap the date tiles sit in, the header needs somewhere to put that cluster, and
+  nesting a bordered card inside a bordered panel fights the flat-surface design language (its local
+  `BudgetFigure` borrows `StatCard`'s typography without its `Card`, taking `value` as a **node** so
+  the margin can carry its loss colouring). **Cost + Margin render only
+  when the server sent a cost basis** (`projects.viewMargin`); revenue always shows. **The Margin
+  figure leads with the money and keeps the percentage as its hint line** — what the plan earns is
+  the decision; the rate is how to read it. A
+  `billingType: null` project collapses to a one-line "No budget set" strip with a **Set budget**
+  button and no currency toggle. Four `InlineNotice` honesty banners: no roles yet, unpriced roles
+  (revenue partial), roles with no comp on record (cost partial), and a mixed-currency rate card.
+- **`plan-summary-tiles.tsx`** — the Length/Dates/Confirmed/Tentative/Delivery-manager tile row,
+  extracted because both plan surfaces had a near-identical copy.
+- **`use-project-margin.ts`** — the client hook owning display currency + `computeProjectMargin`, so
+  a surface's panel and its grid can't disagree. Conversion is **client-side** from native amounts +
+  the read's rate table, so the toggle never refetches. The currency defaults via
+  `resolveDisplayCurrency` and is then **owned by the toggle** — it deliberately doesn't re-derive
+  when the budget changes.
+- **Per-role money renders as a third line in `PlannerGrid`'s sticky label cell**, via one optional
+  `margins` prop (`{ byRoleId, currency }` — **no `rates`**: the grid renders no FX affordance, since
+  that caveat is stated once in the panel above it). Like the panel it is **amount-led**
+  (`"CA$8,000 margin"`, falling back to cost then revenue), with the percentage, hours and cost basis
+  in the tooltip; a row with nothing true to say renders nothing at all. **Not a new column:**
+  `PLANNER_SUB_LABEL_COL`'s `sticky left-56` is hand-twinned to
+  `PLANNER_LABEL_COL` and those widths are **shared with the allocations grid**, so a third sticky
+  column would shift the week spine on every planner in the app.
+- **Two new top-level shared atoms** came out of this: **`src/components/fx-rate-note.tsx`**
+  (`FxRateNote({ rates, from, to })` — the conversion caveat as **one** muted `IconAlertTriangle` +
+  text line beside the currency selector, **naming the rates**: a single converted currency reads
+  inline as `1 USD = 1.37 CAD`, several summarise as "Converted at today's rates" with the individual
+  pairs in the tooltip, and the tooltip always closes with `Rates as of {asOf}.` or the stale-fallback
+  sentence. It renders **`null`** when nothing was converted, so a single-currency project stays
+  uncluttered. **Deliberately not a per-figure marker** — a per-value `ConvertedMoney`/`FxWarningIcon`
+  pair was built first and deleted: "this was converted" without the rate isn't actionable, and the
+  icons became noise past the first converted value. Fed by `ProjectMargin.convertedFrom`, which
+  lists only currencies a rate was *actually applied to*.) and
+  **`src/components/inline-notice.tsx`** (`InlineNotice` — the hairline
+  bordered strip with a leading icon, **extracted from the two open-coded timesheet-week banners,
+  which were migrated onto it**). `InlineNotice` is deliberately **not a form error**: no
+  `aria-invalid`, no field association, never blocks a submit — and its `tone` only ever escalates to
+  `destructive`, since the design language reserves colour for genuine problems.
 
 ### `/allocations` — Staffing planner grid
 
