@@ -44,7 +44,7 @@ export function StaffFeedbackPanel({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-muted-foreground">
           {view.tier === "recipient"
             ? "You can see who left feedback and any message they shared with you. The rest of each review stays private."

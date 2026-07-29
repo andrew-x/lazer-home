@@ -113,7 +113,7 @@ export function ReviewNotesPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-muted-foreground">
           {view.isSubject
             ? "Notes your manager has shared with you from your review conversations. Only you and your manager can see them."
