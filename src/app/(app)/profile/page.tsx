@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { getFeedbackAboutStaff } from "@/actions/feedback/getFeedbackAboutStaff";
+import { getStaffReviewNotes } from "@/actions/performance/getStaffReviewNotes";
 import { getManualOfMe } from "@/actions/responses/getManualOfMe";
 import { getWaysOfWorking } from "@/actions/responses/getWaysOfWorking";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
@@ -25,16 +27,30 @@ export default async function ProfilePage() {
   // page if the record vanished mid-request.
   if (!user || !staffId) notFound();
 
-  // Own profile — always allowed to see own compensation.
-  const [profile, projects, history, pto, manualOfMe, waysOfWorking] =
-    await Promise.all([
-      getStaffProfile(staffId),
-      getStaffProjects(staffId),
-      getStaffHistory(staffId, true),
-      getStaffPto(staffId),
-      getManualOfMe(staffId),
-      getWaysOfWorking(staffId),
-    ]);
+  // Own profile — always allowed to see own compensation. Feedback and review
+  // notes are NOT hard-coded like `canEdit`/`canViewCompensation` below: seeing
+  // your own profile doesn't decide either. The reads do — you get the limited
+  // recipient tier of your feedback, and only the review notes your manager has
+  // *shared* (a person is never their own note-manager).
+  const [
+    profile,
+    projects,
+    history,
+    pto,
+    manualOfMe,
+    waysOfWorking,
+    feedback,
+    reviewNotes,
+  ] = await Promise.all([
+    getStaffProfile(staffId),
+    getStaffProjects(staffId),
+    getStaffHistory(staffId, true),
+    getStaffPto(staffId),
+    getManualOfMe(staffId),
+    getWaysOfWorking(staffId),
+    getFeedbackAboutStaff(staffId),
+    getStaffReviewNotes(staffId),
+  ]);
   if (!profile) notFound();
 
   return (
@@ -47,6 +63,8 @@ export default async function ProfilePage() {
       waysOfWorking={waysOfWorking}
       history={history}
       pto={pto}
+      feedback={feedback}
+      reviewNotes={reviewNotes}
       canEdit={true}
       canViewCompensation={true}
     />

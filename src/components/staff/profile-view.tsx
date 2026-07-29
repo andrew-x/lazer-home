@@ -1,12 +1,16 @@
 import { IconExternalLink, IconPencil } from "@tabler/icons-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import type { StaffFeedbackView } from "@/actions/feedback/getFeedbackAboutStaff";
+import type { StaffReviewNotesView } from "@/actions/performance/getStaffReviewNotes";
 import type { ManualOfMeEntry } from "@/actions/responses/getManualOfMe";
 import type { WaysOfWorking } from "@/actions/responses/getWaysOfWorking";
 import type { HistoryEntry } from "@/actions/staff/getStaffHistory";
 import type { StaffProfile } from "@/actions/staff/getStaffProfile";
 import type { StaffProjectSummary } from "@/actions/staff/getStaffProjects";
 import type { StaffPtoView } from "@/actions/staff/getStaffPto";
+import { StaffFeedbackPanel } from "@/components/feedback/staff-feedback-panel";
+import { ReviewNotesPanel } from "@/components/performance/review-notes-panel";
 import { CompensationSection } from "@/components/staff/compensation-section";
 import { EditClientIntroDialog } from "@/components/staff/edit-client-intro-dialog";
 import { EditLinksDialog } from "@/components/staff/edit-links-dialog";
@@ -103,6 +107,8 @@ export function ProfileView({
   waysOfWorking,
   history,
   pto,
+  feedback,
+  reviewNotes,
   canEdit,
   canViewCompensation,
 }: {
@@ -118,6 +124,14 @@ export function ProfileView({
   history: HistoryEntry[];
   /** Null when the viewer isn't allowed to see this person's PTO (pto.review). */
   pto: StaffPtoView | null;
+  /**
+   * Peer feedback about this person in whichever tier the viewer may see. Null
+   * when they may see none — the tab isn't rendered at all, so its presence never
+   * discloses that feedback exists.
+   */
+  feedback: StaffFeedbackView | null;
+  /** Review notes as this viewer may see them; null hides the tab entirely. */
+  reviewNotes: StaffReviewNotesView | null;
   /** Whether the viewer may edit this profile (own profile, or `staff.edit`). */
   canEdit: boolean;
   /** Whether the viewer may see this person's compensation (own, or `staff.viewCompensation`). */
@@ -236,6 +250,14 @@ export function ProfileView({
               <TabsTrigger value="manual-of-me">Manual of Me</TabsTrigger>
               <TabsTrigger value="ways-of-working">Ways of Working</TabsTrigger>
               <TabsTrigger value="resume">Resume</TabsTrigger>
+              {/* Both gated tabs are viewer-dependent: rendered only when their
+                  read returned something this viewer may see. */}
+              {feedback ? (
+                <TabsTrigger value="peer-feedback">Peer feedback</TabsTrigger>
+              ) : null}
+              {reviewNotes ? (
+                <TabsTrigger value="review-notes">Review notes</TabsTrigger>
+              ) : null}
               <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
 
@@ -376,7 +398,12 @@ export function ProfileView({
               <TabSection
                 title="Resume"
                 action={
-                  <EditResumeDialog staffId={staffId} resume={profile.resume} />
+                  canEdit ? (
+                    <EditResumeDialog
+                      staffId={staffId}
+                      resume={profile.resume}
+                    />
+                  ) : undefined
                 }
               >
                 {profile.resume ? (
@@ -397,6 +424,29 @@ export function ProfileView({
                 )}
               </TabSection>
             </TabsContent>
+
+            {feedback ? (
+              <TabsContent value="peer-feedback">
+                <TabSection title="Peer feedback">
+                  <StaffFeedbackPanel
+                    view={feedback}
+                    staffName={profile.name}
+                  />
+                </TabSection>
+              </TabsContent>
+            ) : null}
+
+            {reviewNotes ? (
+              <TabsContent value="review-notes">
+                <TabSection title="Review notes">
+                  <ReviewNotesPanel
+                    staffId={staffId}
+                    staffName={profile.name}
+                    view={reviewNotes}
+                  />
+                </TabSection>
+              </TabsContent>
+            ) : null}
 
             <TabsContent value="history">
               <TabSection title="History">
