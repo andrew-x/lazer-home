@@ -1,0 +1,1 @@
+DROP TABLE "project_role_rates" CASCADE;

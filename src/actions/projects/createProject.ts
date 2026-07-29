@@ -14,12 +14,14 @@ import {
   projects,
 } from "@/lib/db/schema";
 import { createProjectSchema } from "./createProject.schema";
+import { projectBudgetColumns } from "./projectBudgetWrite";
 
 /**
- * Create a project with its delivery managers and staffing roles (one
+ * Create a project with its budget, delivery managers and staffing roles (one
  * transaction). Gated on `projects.edit`. The company must already exist (picked
  * via its own search); this only consumes ids. Per-role date and hours rules are
- * enforced by `createProjectSchema`.
+ * enforced by `createProjectSchema`, and the billing shape by
+ * `projectBudgetSchema` plus the `projects_budget_shape` check constraint.
  */
 export const createProject = secureActionClient
   .metadata({
@@ -46,6 +48,7 @@ export const createProject = secureActionClient
         id: projectId,
         name: parsedInput.name,
         companyId: parsedInput.companyId,
+        ...projectBudgetColumns(parsedInput.budget),
       });
 
       // Link the opportunity to this new project (the CRM → delivery link now

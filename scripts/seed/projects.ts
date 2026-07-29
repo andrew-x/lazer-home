@@ -11,16 +11,48 @@ import {
   projects,
   type Staff,
 } from "@/lib/db/schema";
+import { CURRENCY } from "@/lib/format/currency";
 import { PROJECT_ROLE_STATUSES } from "@/lib/projects/project-role-status";
 import { PROJECT_ROLE_TYPES } from "@/lib/projects/project-role-type";
 import type { SeedDb } from "./client";
-import { chance, faker, isoDate, monthsAgo } from "./faker";
+import { chance, faker, isoDate, money, monthsAgo } from "./faker";
 
 const PROJECT_COUNT = 15;
 
 type ProjectInsert = InferInsertModel<typeof projects>;
 type DeliveryManagerInsert = InferInsertModel<typeof projectDeliveryManagers>;
 type RoleInsert = InferInsertModel<typeof projectRoles>;
+
+/**
+ * The billing columns for one project, spanning all three real states: a fixed fee
+ * (a total + currency), time and materials (no stored money at all — it bills at the
+ * standard rate card in `@/lib/projects/bill-rates`), and no budget whatsoever. The
+ * last is not an oversight: every project created before budgets existed has none, so
+ * the "No budget set" state needs to be exercised on real seeded data. The
+ * `projects_budget_shape` check constraint rejects any other combination, so this is
+ * the one place to get it right.
+ */
+function billingFor(): Pick<
+  ProjectInsert,
+  "billingType" | "budgetAmount" | "budgetCurrency"
+> {
+  const roll = faker.number.float({ min: 0, max: 1 });
+  if (roll < 0.4) {
+    return {
+      billingType: "FIXED_FEE",
+      budgetAmount: money(80_000, 1_200_000),
+      budgetCurrency: faker.helpers.arrayElement(CURRENCY),
+    };
+  }
+  if (roll < 0.8) {
+    return {
+      billingType: "TIME_AND_MATERIALS",
+      budgetAmount: null,
+      budgetCurrency: null,
+    };
+  }
+  return { billingType: null, budgetAmount: null, budgetCurrency: null };
+}
 
 /**
  * Seed projects (some originating from closed-won opportunities, respecting the
@@ -33,6 +65,9 @@ type RoleInsert = InferInsertModel<typeof projectRoles>;
  * roles — so those live on the roles here (mirroring the app). The mix spans every
  * section of the projects list: live work, engagements that already finished, and
  * a few cancelled outright.
+ *
+ * Each project also gets one of the three billing states (fixed fee / time and
+ * materials / no budget) — see {@link billingFor}.
  */
 export async function seedProjects(
   db: SeedDb,
@@ -57,6 +92,7 @@ export async function seedProjects(
       id: generateId("project"),
       name: `${faker.commerce.productName()} ${faker.helpers.arrayElement(["Platform", "Revamp", "Migration", "MVP", "Integration"])}`,
       companyId,
+      ...billingFor(),
     };
     // Part of the book is history, so the list's Past and Cancelled sections have
     // something in them: `finished` engagements ran and ended before today,
@@ -82,7 +118,6 @@ export async function seedProjects(
 
   const deliveryManagers: DeliveryManagerInsert[] = [];
   const roles: RoleInsert[] = [];
-
   for (const { project, opp, finished, cancelled } of entries) {
     // 1–2 delivery managers (distinct → no duplicate pairs).
     for (const s of faker.helpers.arrayElements(
