@@ -116,10 +116,21 @@ staff member, opened from a row elsewhere so a reviewer keeps their place in a l
 row — see [performance.md](./performance.md)), but nothing about it is plan-specific.
 
 - Built on the vendored `Sheet`, following the CRM **opportunity detail sheet**: load
-  on open through an action, `sm:max-w-[56rem]`. Three tabs — **Overview** (read-only
-  facts + `SkillsSection` + client intro + `StaffProjectsSection`), **Peer feedback**,
-  **Review notes** — the last two conditional exactly as on the profile. The header links
-  out to `/staff/[id]` ("Open full profile") for anything editable.
+  on open through an action, `sm:max-w-[56rem]`. **Four to six tabs** — **Overview**,
+  **Projects**, *(**Time off**)*, *(**Peer feedback**)*, *(**Review notes**)*, **History**
+  — the three parenthesised ones conditional on their read exactly as on the profile,
+  History always present and rendered last (same order as `ProfileView`). **Projects and
+  Time off are tabs, not Overview sections**, because each is a history in its own right
+  and a review pane is read a tab at a time. Overview stacks: a 3-column facts grid
+  (**Location / Joined / Reports to** — no email; it was dropped) → **Compensation** →
+  Skills → Client intro. The header shows the name plus a four-facet employment line (role · line
+  of business · employment type · billable), and **falls back to nothing** when there's no
+  employment row. It links out to `/staff/[id]` ("Open full profile") for anything
+  editable.
+- **It is not a cut-down payload any more — it's a *gated* one.** Comp, PTO, feedback and
+  review notes are all present **for a viewer entitled to them**, and the drawer now
+  reaches near-parity with the profile page's read-only content. What it deliberately
+  still lacks is every *edit* affordance (bar review notes) and the avatar/links rail.
 - **The one interactive surface is Review notes**, deliberately: that's where the review
   conversation actually gets written up, so making it read-only would defeat the drawer's
   purpose. It passes `onChanged` so the drawer **re-loads itself** instead of calling
@@ -130,11 +141,24 @@ row — see [performance.md](./performance.md)), but nothing about it is plan-sp
   server-only-read rule, same shape as `loadOpportunityDetail`;
   [ADR 0010](../decisions/0010-actions-layer-owns-db-access.md)). Two load-bearing
   details, both worth copying:
-  - **It projects compensation and PTO away.** `getStaffProfile` carries comp amounts
-    inline on `employment`, and the profile *pages* only get away with that because they
-    render server-side; a **client-fetched** drawer would ship them in its response
-    whether or not it rendered them. Minimise in the projection, not the JSX. (The plan
-    row it opens from already shows the money it needs, under the plan's stricter gate.)
+  - **Every sensitive field is gated at the read, and the payload spells out its own
+    shape rather than passing `StaffProfile` through.** That is the reason the type exists,
+    and it got *more* load-bearing when comp was added, not less: `getStaffProfile` carries
+    comp amounts inline on `employment`, and a server-rendered page may hand a component
+    amounts it chooses not to render — a **client-fetched** drawer would **ship them in its
+    response** whether or not it rendered them. So the projection splits `employment` into
+    money-free **facets** plus a separate **`compensation`** object built only when
+    `canViewCompensation(ctx.user, staffId)` passed (own comp always; anyone else's needs
+    `staff.viewCompensation`), and `pto` is `getStaffPto`'s own self-gated result.
+    **Minimise in the projection, never in the JSX.**
+  - **`null` means "not permitted", never "none on file".** The two must not be conflated,
+    because `CompensationSection` renders its own *"No compensation on file."* for the
+    latter — so a `null` that meant "empty" would silently misreport a gate as an absence.
+    The drawer therefore omits the whole section when the field is `null`.
+  - **`history` is fetched sequentially, after the `Promise.all`** — `getStaffHistory`
+    folds comp amounts into its employment entries, so it can't run until the comp gate is
+    known. Same ordering `/staff/[id]` uses, and the reason this read isn't fully parallel.
+    (Don't "optimise" it into the `Promise.all`; the gate is an input.)
   - **It requires an *active linked staff row*, not merely a session** —
     `ownStaffId(ctx.user.id, { activeOnly: true })`, else `null`. Sign-in is Google but
     **not domain-restricted**, so a valid session can belong to someone who isn't staff;
@@ -142,8 +166,11 @@ row — see [performance.md](./performance.md)), but nothing about it is plan-sp
     protected by the `(app)` layout, which refuses both — but **an action has no layout
     above it** and must refuse them itself. The review-note gate makes the same choice for
     the same reason; see [permissions.md](./permissions.md) → *Resolving the caller*.
-  - No capability gate otherwise, matching `/staff/[id]` — the sensitive slices carry
-    their own gates inside their own reads and return `null` rather than throwing.
+  - No capability gate on the *action* otherwise, matching `/staff/[id]` — **four
+    sensitive slices each carry their own gate and return `null` rather than throwing**
+    (comp → `canViewCompensation`; PTO → `pto.review`; feedback → `feedback.review` or the
+    recipient tier; review notes → the reporting line), so one viewer's drawer simply has
+    fewer sections and tabs than another's.
 
 ## Manual of Me
 

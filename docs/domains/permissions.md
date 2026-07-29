@@ -415,12 +415,39 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
   at all). See *The one relationship-based gate* above.
 - **`src/actions/staff/loadStaffProfileDrawer.ts`** — an **interactive read** (a
   `"use server"` + `secureActionClient` read, the documented exception to the
-  server-only read rule, same shape as `loadOpportunityDetail`) worth reading as an
-  authorization example. Two things it does deliberately:
-  - **No capability gate**, matching `/staff/[id]` — browsing a colleague's profile is
-    open to any staff member, and the two sensitive slices carry their own gates *inside
-    their own reads* (`getFeedbackAboutStaff`, `getStaffReviewNotes`), each returning
-    `null` rather than throwing so the drawer just renders fewer tabs.
+  server-only read rule, same shape as `loadOpportunityDetail`) and **the single best
+  worked example of this model in the codebase: one read composing four different gates,
+  none of them on the action itself.**
+  - **No capability gate on the action**, matching `/staff/[id]` — browsing a colleague's
+    profile is open to any staff member. Each sensitive slice gates itself instead, and
+    **every one returns `null` rather than throwing**, so an unentitled viewer gets a
+    smaller drawer rather than an error:
+
+    | Slice | Gate | Kind of gate |
+    |---|---|---|
+    | `compensation` | `canViewCompensation(ctx.user, staffId)` | **ownership-or-capability** (own comp always; else `staff.viewCompensation`) |
+    | `pto` | `getStaffPto` self-gates | **ownership-or-capability** (`pto.review`) |
+    | `feedback` | `getFeedbackAboutStaff` | **capability, with a self *tightening*** (`feedback.review`, but the recipient tier for yourself) |
+    | `reviewNotes` | `getStaffReviewNotes` → `reviewNoteAccess` | **relationship** (`staff.managerId`) |
+
+    Four gates, four different shapes, one read — and note that **the action's own
+    metadata declares none of them.** That's correct here precisely because the action
+    grants nothing by itself; what it returns is assembled from reads that each answer
+    for their own data. Don't "simplify" this by hoisting a capability onto the action.
+  - **`compensation` is split out of `employment` on purpose.** The employment *facets*
+    (role / line of business / employment type / billable) carry no money; the amounts
+    live in a separate object built **only** when the comp gate passed. `getStaffProfile`
+    returns them inline, so passing its row through would have shipped salary to every
+    viewer's browser.
+  - **`null` means "not permitted", never "none on file".** `CompensationSection` renders
+    its own *"No compensation on file."* for the genuine-absence case, so conflating the
+    two would report a gate as an absence (or worse, invite someone to "fix" the gate by
+    making it return an empty object). Keep the distinction in any new gated payload.
+  - **The comp gate is also an *input*, which forces a sequential read.** `history` is
+    fetched **after** the `Promise.all` because `getStaffHistory(staffId, canViewComp)`
+    decides from it whether to fold comp amounts into employment entries — the same
+    ordering `/staff/[id]` uses. A gate that changes a *later* read's projection can't be
+    parallelised with it.
   - **It requires an *active linked staff row*, not merely a session**
     (`ownStaffId(ctx.user.id, { activeOnly: true })` — see *Resolving the caller* above).
     Two independent reasons: sign-in is Google but **not domain-restricted**, so a valid
@@ -428,10 +455,11 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
     session outlives their employment. The `(app)` layout bounces both, but an **action
     has no layout above it** and must refuse them itself. Copy this when adding an
     interactive read that mirrors a page inside `(app)`.
-  - It also **projects compensation and PTO away.** `getStaffProfile` carries comp
-    amounts inline on `employment`; the profile *pages* get away with that only because
-    they render server-side, whereas a client-fetched drawer would ship them in its
-    response whether or not it renders them. **Minimise in the projection, not the JSX.**
+  - **The standing rule this read exists to demonstrate: a client-fetched payload must be
+    minimised in the *projection*, never in the JSX.** A server-rendered page may hand a
+    component data it chooses not to render; an action's response ships whatever it
+    returns. This got *more* load-bearing when compensation was added to the drawer, not
+    less — the answer was to gate the field, not to keep it out.
 
 ## Wiring
 

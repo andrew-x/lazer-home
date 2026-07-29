@@ -837,8 +837,18 @@ roster); one sub-item under Performance in `nav.ts`, gated on
   (`profileStaffId` + `profileOpen` state on the editor — kept as two pieces of state so
   the id survives the close animation); a per-row drawer would duplicate fetches and
   state. The name button is deliberately **not** the expand toggle — the chevron stays
-  the only expand affordance, so one click never means two things. See
-  [staff-profiles.md](./staff-profiles.md) and [ui.md](../ui.md).
+  the only expand affordance, so one click never means two things.
+  - **What it shows is the reviewer's whole case in one pane:** current compensation,
+    skills, client intro, projects, time off, the history feed, and (when permitted) peer
+    feedback and review notes — each sensitive slice gated inside
+    `loadStaffProfileDrawer` rather than by the drawer not rendering it.
+  - **Worth knowing in this host specifically:** the plan editor's gate is the conjunction
+    `staff.viewCompensation` **AND** `ratings.edit`, so **every** viewer who can reach it
+    already holds the comp capability — the drawer's `canViewCompensation` check can never
+    deny here, and the Compensation section is effectively always present. It still has to
+    be checked, because the same drawer is reachable from any future host with a looser
+    gate. See [staff-profiles.md](./staff-profiles.md) → *The read-only profile drawer*,
+    [permissions.md](./permissions.md) and [ui.md](../ui.md).
 - **`edit-plan-dialog`** — rename + change the effective date, **draft only**
   (`updateCompensationPlan`).
 - **`manage-plan-staff`** (on `[planId]/staff`) — the searchable/filterable checkbox

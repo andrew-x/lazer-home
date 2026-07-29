@@ -193,7 +193,13 @@ viewing a profile is open to any signed-in active staff member, matching
 Returns an **explicitly projected** payload: identity + employment *facets*
 (role / line of business / employment type / billable / location / join date /
 manager name), skills, client intro, `projects`, `feedback`, `reviewNotes`.
-**Deliberately no compensation and no PTO.** `getStaffProfile` returns comp amounts
+**CHANGED AFTER APPROVAL — the drawer now shows compensation, PTO and history, each
+behind its own gate (`canViewCompensation` / `getStaffPto`'s `pto.review` / the comp
+flag folded into `getStaffHistory`), and no longer shows email. The reasoning below
+still holds; the response was to *gate* each field rather than omit it. See
+`docs/domains/permissions.md` → the `loadStaffProfileDrawer` worked example.**
+
+~~Deliberately no compensation and no PTO.~~ `getStaffProfile` returns comp amounts
 inline on `profile.employment`, and the current pages only get away with that because
 they render server-side — a client-fetched drawer would ship them in the response. The
 plan row already shows the money it needs.
@@ -316,8 +322,12 @@ Two new ADRs plus updates:
    - **A manager who is *not* this person's manager:** Peer feedback tab present (they hold
      `feedback.review`), Review notes tab **absent**, and calling `createReviewNote` /
      `shareReviewNote` for that person is rejected by the `authorize` hook.
-4. Confirm the drawer's network response carries **no compensation and no PTO** (devtools →
-   the `loadStaffProfileDrawer` payload).
+4. ~~Confirm the drawer's network response carries **no compensation and no PTO**~~
+   **SUPERSEDED** — the drawer was later asked to *show* current compensation, PTO and
+   the history feed (and to drop email). Instead confirm each arrives **gated**: the
+   `loadStaffProfileDrawer` payload carries `compensation: null` for a viewer without
+   `staff.viewCompensation`, `pto: null` for one without `pto.review`, and `history`
+   entries whose summaries omit money when the comp gate failed.
 5. Confirm the plan editor still behaves: expand/collapse unaffected, autosave still saves,
    a committed plan's drawer still opens (read-only).
 6. Run **`/audit-rbac`** (this change adds a new authorization mechanism — it must be

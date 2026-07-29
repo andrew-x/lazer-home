@@ -85,11 +85,14 @@ checked FIRST.**
   per-person. If the two ever feel redundant, the reports tab is the one with the
   narrower gate story — don't collapse them without revisiting ADR 0047.
 - **The drawer ships full feedback content to the client** for a reviewer, inside
-  `loadStaffProfileDrawer`'s response. That's the same content `/feedback/[id]` already
-  ships to the same viewer; it is *not* the same as compensation, which the drawer
-  loader projects away precisely because it would otherwise ride along unrendered (see
-  [ADR 0049](./0049-review-notes-reporting-line-as-authorization-boundary.md) and
-  [performance.md](../domains/performance.md)).
+  `loadStaffProfileDrawer`'s response. That is sound because it's the same content
+  `/feedback/[id]` already ships to the same viewer — **the justification is the gate the
+  field carries, not the field being absent.** That drawer payload has since grown
+  compensation, PTO and the history feed, each behind its own gate, and this tab is one of
+  four gated slices in it; the standing rule for the payload is that **every sensitive
+  field is gated at the read, and `null` means "not permitted", never "none on file"**
+  (see [staff-profiles.md](../domains/staff-profiles.md) → *The read-only profile drawer*
+  and [permissions.md](../domains/permissions.md)).
 
 ## Alternatives considered
 
