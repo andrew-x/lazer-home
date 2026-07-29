@@ -25,8 +25,10 @@ its name and its exports — **only the import prefix changed**
 - **`schemas/`** — shared zod field primitives: `date-schema`, `id-schema`,
   `text-schema`, `url-schema`.
 - **`format/`** — display + money: `format`, `currency`, `fx`.
-- **`crm/`** — `company-status`, `contact-name`, `relationship-strength`,
-  `opportunity`, `opportunity-pipeline`, `line-of-business`.
+- **`crm/`** — `company-status`, `contact-name`, `contact-status`,
+  `relationship-strength`, `contact-relationship`,
+  `company-contact-relationship`, `opportunity`, `opportunity-pipeline`,
+  `line-of-business`.
 - **`projects/`** — `project-derived`, `project-planner-grid`,
   `project-role-status`, `project-role-type`.
 - **`staff/`** — staff enums/helpers (`staff-enums`, `staff-filters`,
