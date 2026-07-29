@@ -1,11 +1,7 @@
 "use client";
 
-import {
-  IconChevronDown,
-  IconChevronUp,
-  IconSelector,
-} from "@tabler/icons-react";
 import type { Column } from "@tanstack/react-table";
+import { SortHeaderButton } from "@/components/form/sort-header";
 
 // The generic filter controls now live in a neutral, app-wide location so the
 // staff directory and performance dashboard can share them too. Re-exported here
@@ -19,7 +15,13 @@ export {
   TriStateFilter,
 } from "@/components/form/filters";
 
-/** Sortable column header — click cycles asc → desc, with an arrow indicator. */
+/**
+ * Sortable column header for a TanStack table — click cycles asc → desc.
+ *
+ * A binding, not an implementation: the button and its arrow live in
+ * `@/components/form/sort-header` so the one non-TanStack sortable table (the
+ * compensation-plan editor) renders an identical header from plain props.
+ */
 export function SortHeader<TData>({
   column,
   children,
@@ -29,19 +31,11 @@ export function SortHeader<TData>({
 }) {
   const sorted = column.getIsSorted();
   return (
-    <button
-      type="button"
+    <SortHeaderButton
+      sorted={sorted === false ? false : sorted}
       onClick={() => column.toggleSorting(sorted === "asc")}
-      className="-mx-1 flex items-center gap-1 rounded-sm px-1 hover:text-foreground"
     >
       {children}
-      {sorted === "asc" ? (
-        <IconChevronUp className="size-3.5" />
-      ) : sorted === "desc" ? (
-        <IconChevronDown className="size-3.5" />
-      ) : (
-        <IconSelector className="size-3.5 text-muted-foreground" />
-      )}
-    </button>
+    </SortHeaderButton>
   );
 }
