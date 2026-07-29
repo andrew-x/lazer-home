@@ -164,28 +164,36 @@ delivery, allocations, timesheets, and billing.
 - **Derived-fields module** — `src/lib/projects/project-derived.ts`
   exports `deriveProjectStatus(roleStatuses)` and `deriveProjectLinesOfBusiness(roleLobs)`, plus
   the list-section machinery: the **`ProjectStatusBucket`** type (`tentative` | `paused` |
-  `active` | `other` — a **1:1 relabelling** of the four derived statuses: tentative→tentative,
-  paused→paused, confirmed→**active**, cancelled→**other**, so `other` is now **cancelled-only**),
-  **`PROJECT_STATUS_BUCKETS`** (all four in the order the list renders its sections — Tentative,
-  Paused, Active, Other), **`projectStatusBucket(status)`** mapping a derived status to its bucket,
-  and **`statusesMatchBucket(bucket, roleStatuses)`** — a pure, presence-based predicate that is
-  the JS mirror of the SQL bucket filter (next bullet; paused bucket = ∃ a paused role ∧ ∄ a
-  tentative role). A **pure,
+  `active` | `past` | `cancelled` — the four derived statuses relabelled, except that **confirmed
+  splits in two on the calendar**: tentative→tentative, paused→paused, cancelled→cancelled, and
+  confirmed→**active** while it's still running or **past** once it's finished),
+  **`PROJECT_STATUS_BUCKETS`** (all five in the order the list renders its sections — Tentative,
+  Paused, Active, Past, Cancelled), **`projectHasEnded(endDate, today)`** (is the project's latest
+  role end date before today — a project ending *today* still counts as running; zero-padded
+  `"YYYY-MM-DD"` compares lexicographically), **`projectStatusBucket(status, endDate, today)`**
+  mapping a derived status to its bucket, and **`statusesMatchBucket(bucket, roleStatuses, endDate,
+  today)`** — a pure predicate that is the JS mirror of the SQL bucket filter (next bullet; paused
+  bucket = ∃ a paused role ∧ ∄ a tentative role). A **pure,
   client-importable** module (no `db`/drizzle) so every read, the UI, and tests share one
   implementation of the project's now-derived status/LoB. **Replaced the deleted
   `src/lib/project-status.ts`** ([ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md)).
 - **Derived-status-in-SQL** — `src/lib/projects/project-status-sql.ts` (server-only) exports
-  **`derivedStatusCondition(buckets)`**: correlated `EXISTS`/`NOT EXISTS` predicates that select
-  projects by *derived-status bucket in the database*, so `getProjectsList` can paginate each
+  **`derivedStatusCondition(buckets, today)`**: correlated `EXISTS`/`NOT EXISTS` predicates that
+  select projects by *derived-status bucket in the database*, so `getProjectsList` can paginate each
   section server-side instead of fetching every project and deriving in JS. Returns `undefined`
-  for all four buckets (no filter — the flat filtered view) and a `false` guard for an empty
-  selection; the `other` (cancelled) bucket is defined as the **complement of the other three**
-  (`tentativeCondition`/`pausedCondition`/`activeCondition`) so the four always
-  **partition** the set. It **generalises the single-bucket `hasConfirmedProject` expression in
-  `getCompaniesPage.ts`** to all four buckets. **LOCKSTEP:** this SQL, its JS mirror
-  `statusesMatchBucket`, and `deriveProjectStatus` then `projectStatusBucket` must all agree —
-  guarded by the agreement test `src/lib/projects/project-derived.test.ts`, which enumerates all
-  16 role-status presence combinations and asserts, across **all four buckets**, both the SQL/JS
+  for all five buckets (no filter — the flat filtered view) and a `false` guard for an empty
+  selection; the `cancelled` bucket is defined as the **complement of the other three statuses**
+  (`tentativeCondition`/`pausedCondition`/`confirmedCondition`) so the buckets always
+  **partition** the set. `confirmedCondition` then splits on **`latestRoleEndDate`** — an exported
+  correlated `max(project_roles.end_date)`, also the list's `endDate` sort key — into `active`
+  (`not(ended)`) and `past` (`ended`, i.e. `< today::date`); confirmed guarantees ≥1 role, so that
+  `max` is never null and the negation can't go three-valued. It **generalises the single-bucket
+  `hasConfirmedProject` expression in `getCompaniesPage.ts`** (still the *status*-level predicate —
+  a company with a delivered project is still a client) to all five buckets. **LOCKSTEP:** this SQL,
+  its JS mirror `statusesMatchBucket`, and `deriveProjectStatus` then `projectStatusBucket` must all
+  agree — guarded by the agreement test `src/lib/projects/project-derived.test.ts`, which enumerates
+  all 16 role-status presence combinations × the end-date cases (none/past/today/future) and
+  asserts, across **all five buckets**, both the SQL/JS
   mirror agreement and that the buckets partition. (A **sanctioned exception** to the one-test rule of
   [ADR 0037](../decisions/0037-unit-tests-removed-except-rbac-matrix.md) — a cross-representation
   invariant the type system can't express.)
@@ -226,16 +234,19 @@ delivery, allocations, timesheets, and billing.
     `project_delivery_managers`**), and two functions over a shared `assembleRows` helper:
     - **`getProjectsInBuckets(buckets, filters?)`** — every project in the given derived-status
       buckets (via `derivedStatusCondition`), ordered by name, **non-paginated** — backs the full
-      Tentative and Active sections.
+      Tentative, Paused and Active sections.
     - **`getProjectsPage(page, buckets, filters?, pageSize?, order?)`** — one page (offset/limit
       + a `count`, `page` clamped, the `Page<T>` envelope from `pagination.ts`), the filter
       `where` applied to **both** the count and the row query so the page count reflects the
       filtered set. **`order: ProjectsListOrder`** (`"name"` | `"endDate"`, default `"name"`)
       sets the sort: `endDate` orders by a **correlated `max(project_roles.end_date)`
       descending, `nulls last`** (latest-ending project first, role-less projects last — the date
-      range is derived, not a column), with `name` as the stable tiebreaker. Backs the
-      name-ordered Other section **and** the flat filtered view, which the page requests with
-      `"endDate"`.
+      range is derived, not a column, and the expression is the shared `latestRoleEndDate`), with
+      `name` as the stable tiebreaker. Backs the name-ordered Cancelled section, the
+      `endDate`-ordered Past section (most recently finished first) **and** the flat filtered view,
+      which the page also requests with `"endDate"`.
+      The `where` also decides the active/past split from **`currentDay()`**, read once per call —
+      the one clock read in the loader.
     Both **inner**-join companies for `companyName` (required); `assembleRows` then resolves
     delivery managers, role statuses/LoBs, role count, and the min-start/max-end date range in
     **two grouped follow-up queries** scoped to the page's ids — **no N+1**. `status` +
@@ -480,11 +491,16 @@ delivery, allocations, timesheets, and billing.
   `PROJECT_ROLE_STATUS_LABELS`/`_VARIANTS`: confirmed=outline, tentative=secondary,
   paused=outline, cancelled=destructive) + derived LoB badges, delivery managers, and the role
   date range (`formatDateRange` from `src/lib/format/format.ts`). `projects-grid.tsx` exports
-  `ProjectsGrid` (the grid) + `ProjectsSection` (a titled section with a count). The page
-  **groups projects by derived-status bucket into four sections in `PROJECT_STATUS_BUCKETS`
-  order — Tentative → Paused → Active → Other**: Tentative, Paused, and Active render in full
-  (`getProjectsInBuckets`), while **Other (cancelled-only) is server-paginated**
-  (`getProjectsPage`, `projectsPage` param) since it grows unbounded. `projects-list-filters.tsx`
+  `ProjectsGrid` (the grid) + `ProjectsSection` (a titled section with a count, optionally a
+  **closed-by-default disclosure**). The page **groups projects by derived-status bucket into five
+  sections in `PROJECT_STATUS_BUCKETS` order — Tentative → Paused → Active → Past → Cancelled**:
+  **only Active is open and un-collapsed**, so the page lands on the work in flight; Tentative,
+  Paused, Past and Cancelled are collapsed disclosures that keep their counts visible. Tentative,
+  Paused and Active render in full (`getProjectsInBuckets`), while **Past and Cancelled are
+  server-paginated** (`getProjectsPage`) since they grow without bound — each on **its own page
+  param** (`pastPage` / `cancelledPage`, preserved independently by `buildListHref`) so they page
+  separately, and each **re-opens when its own param is past page 1**, since following a page link
+  is a fresh server render that would otherwise snap the section shut. `projects-list-filters.tsx`
   (`ProjectsListFilters`) is a **URL-backed** filter bar — a debounced project-OR-company search
   (`q`) + a line-of-business `SelectFilter` (`lob`) + a **delivery-manager
   `SearchableSelectFilter` (`dm`, fed `getDeliveryManagerOptions`, validated against the known

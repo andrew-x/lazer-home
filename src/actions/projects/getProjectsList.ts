@@ -28,7 +28,11 @@ import {
   type ProjectStatusBucket,
 } from "@/lib/projects/project-derived";
 import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
-import { derivedStatusCondition } from "@/lib/projects/project-status-sql";
+import {
+  derivedStatusCondition,
+  latestRoleEndDate,
+} from "@/lib/projects/project-status-sql";
+import { currentDay } from "@/lib/timesheets/timesheet-week";
 
 export type ProjectListItem = {
   id: string;
@@ -65,28 +69,29 @@ export type ProjectsListOrder = "name" | "endDate";
 
 /**
  * Order clauses for the row query. `endDate` sorts by the project's latest role
- * end date — a correlated `max` over `project_roles`, since the date range is
- * derived, not a column — newest first, projects without roles last; `name` is
- * the alphabetical default. Name always breaks ties so paging stays stable.
+ * end date (`latestRoleEndDate` — a correlated `max`, since the date range is
+ * derived, not a column) newest first, projects without roles last; `name` is the
+ * alphabetical default. Name always breaks ties so paging stays stable.
  */
 function orderClauses(order: ProjectsListOrder): SQL[] {
   if (order === "endDate") {
-    return [
-      sql`(select max(${projectRoles.endDate}) from ${projectRoles} where ${projectRoles.projectId} = ${projects.id}) desc nulls last`,
-      asc(projects.name),
-    ];
+    return [sql`${latestRoleEndDate} desc nulls last`, asc(projects.name)];
   }
   return [asc(projects.name)];
 }
 
-/** The combined `where` for a set of status buckets + the optional filters. */
+/**
+ * The combined `where` for a set of status buckets + the optional filters. Reads
+ * the clock once per call for the bucket predicate — the active/past split turns
+ * on today's date (see `derivedStatusCondition`).
+ */
 function projectsWhere(
   buckets: ProjectStatusBucket[],
   filters: ProjectsListFilters,
 ): SQL | undefined {
   const conditions: SQL[] = [];
 
-  const bucketCondition = derivedStatusCondition(buckets);
+  const bucketCondition = derivedStatusCondition(buckets, currentDay());
   if (bucketCondition) conditions.push(bucketCondition);
 
   if (filters.lineOfBusiness) {
@@ -236,7 +241,7 @@ async function assembleRows(
 
 /**
  * Every project in the given status buckets (no pagination), ordered by name.
- * Used for the Tentative and Active sections, which show in full.
+ * Used for the Tentative, Paused and Active sections, which show in full.
  */
 export async function getProjectsInBuckets(
   buckets: ProjectStatusBucket[],
@@ -260,9 +265,10 @@ export async function getProjectsInBuckets(
 /**
  * One page of projects in the given status buckets, with the optional
  * name/company + line-of-business + delivery-manager filters. Ordered by `order`
- * (`name` by default; `endDate` for the search/filter view — latest-ending
- * first). Server-side paginated (offset/limit + a count) — used for the Other
- * section and the flat filtered view, whose result sets grow unbounded. The
+ * (`name` by default; `endDate` for the Past and search/filter views —
+ * latest-ending first). Server-side paginated (offset/limit + a count) — used for
+ * the Past and Cancelled sections and the flat filtered view, whose result sets
+ * grow unbounded. The
  * filter `where` is applied to both the count and the row query so the page count
  * reflects the filtered set. `page` is clamped into range.
  */
