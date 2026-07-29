@@ -27,6 +27,7 @@ import { InlineLocationField } from "./inline-location-field";
 import { InlineOwnerField } from "./inline-owner-field";
 import { InlineRelationshipStrengthField } from "./inline-relationship-strength-field";
 import { OpportunityStatusBadge } from "./opportunity-status-badge";
+import { RelatedCompaniesSection } from "./related-companies-section";
 import { TaskList } from "./task-list";
 
 /** Opportunities as a table; each names and links through to its company. */
@@ -102,10 +103,13 @@ function ProjectTable({ rows }: { rows: ContactProject[] }) {
 /**
  * Read view of a contact: a meta sidebar (identity, contact methods, employer,
  * manager — all optional — plus the inline relationship-strength rating and
- * owner) beside two tabs — Activity (tasks + notes) and Opportunities. The
- * Opportunities section separates deals they referred from ones they're merely
- * involved in; the Projects section shows work that grew out of the deals they
- * referred (contacts don't attach to projects directly).
+ * owner) beside three tabs — Activity (tasks + notes), Companies, and
+ * Opportunities. Companies sits in the middle, mirroring the company page's
+ * people-before-pipeline order: it lists the companies they're linked to *without*
+ * working there (their employer stays in the sidebar). The Opportunities section
+ * separates deals they referred from ones they're merely involved in; the Projects
+ * section shows work that grew out of the deals they referred (contacts don't
+ * attach to projects directly).
  */
 export function ContactDetailView({
   contact,
@@ -201,6 +205,7 @@ export function ContactDetailView({
       <Tabs defaultValue="activity">
         <TabsList variant="line" className="mb-4">
           <TabsTrigger value="activity">Activity</TabsTrigger>
+          <TabsTrigger value="companies">Companies</TabsTrigger>
           <TabsTrigger value="opportunities">Opportunities</TabsTrigger>
         </TabsList>
 
@@ -223,6 +228,15 @@ export function ContactDetailView({
               canEdit={canEdit}
             />
           </DetailSection>
+        </TabsContent>
+
+        <TabsContent value="companies">
+          <RelatedCompaniesSection
+            contactId={contact.id}
+            employerCompanyId={contact.companyId}
+            rows={contact.relatedCompanies}
+            canEdit={canEdit}
+          />
         </TabsContent>
 
         <TabsContent value="opportunities" className="flex flex-col gap-8">

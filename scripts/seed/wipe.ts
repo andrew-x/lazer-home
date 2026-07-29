@@ -36,6 +36,7 @@ const SEEDABLE_TABLES = [
   // crm
   "contact_entries",
   "company_entries",
+  "company_contact_relationships",
   "contacts",
   "companies",
   // staff

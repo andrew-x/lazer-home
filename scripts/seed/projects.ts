@@ -14,7 +14,7 @@ import {
 import { PROJECT_ROLE_STATUSES } from "@/lib/projects/project-role-status";
 import { PROJECT_ROLE_TYPES } from "@/lib/projects/project-role-type";
 import type { SeedDb } from "./client";
-import { chance, faker, isoDate } from "./faker";
+import { chance, faker, isoDate, monthsAgo } from "./faker";
 
 const PROJECT_COUNT = 15;
 
@@ -30,7 +30,9 @@ type RoleInsert = InferInsertModel<typeof projectRoles>;
  * spawned a project; those projects' roles are tagged with the opportunity and
  * marked confirmed (won), while standalone projects' roles vary across statuses.
  * A project has no stored status or line of business — both are derived from its
- * roles — so those live on the roles here (mirroring the app).
+ * roles — so those live on the roles here (mirroring the app). The mix spans every
+ * section of the projects list: live work, engagements that already finished, and
+ * a few cancelled outright.
  */
 export async function seedProjects(
   db: SeedDb,
@@ -56,7 +58,13 @@ export async function seedProjects(
       name: `${faker.commerce.productName()} ${faker.helpers.arrayElement(["Platform", "Revamp", "Migration", "MVP", "Integration"])}`,
       companyId,
     };
-    return { project, opp };
+    // Part of the book is history, so the list's Past and Cancelled sections have
+    // something in them: `finished` engagements ran and ended before today,
+    // `cancelled` ones were called off (only meaningful for standalone projects —
+    // a project born from a won opportunity is confirmed by definition).
+    const finished = chance(0.35);
+    const cancelled = !opp && !finished && chance(0.15);
+    return { project, opp, finished, cancelled };
   });
 
   const projectRows = entries.map((e) => e.project);
@@ -75,7 +83,7 @@ export async function seedProjects(
   const deliveryManagers: DeliveryManagerInsert[] = [];
   const roles: RoleInsert[] = [];
 
-  for (const { project, opp } of entries) {
+  for (const { project, opp, finished, cancelled } of entries) {
     // 1–2 delivery managers (distinct → no duplicate pairs).
     for (const s of faker.helpers.arrayElements(
       staff,
@@ -90,9 +98,20 @@ export async function seedProjects(
 
     // 2–4 staffing lines; some left open (null staffId) as unfilled positions.
     const roleCount = faker.number.int({ min: 2, max: 4 });
-    const start = faker.date.recent({ days: 90 });
+    // A finished engagement starts 10–36 months back and runs 2–8, so it always
+    // ends before today; a live one started within the last 90 days.
+    const start = finished
+      ? monthsAgo(faker.number.int({ min: 10, max: 36 }))
+      : faker.date.recent({ days: 90 });
     const end = new Date(start);
     end.setMonth(end.getMonth() + faker.number.int({ min: 2, max: 8 }));
+    // Every role of a cancelled project is cancelled; won-from-CRM and delivered
+    // projects are confirmed; live standalone projects vary across statuses.
+    const roleStatus = (): RoleInsert["status"] => {
+      if (cancelled) return "cancelled";
+      if (opp || finished) return "confirmed";
+      return faker.helpers.arrayElement(PROJECT_ROLE_STATUSES);
+    };
     for (let i = 0; i < roleCount; i++) {
       const open = chance(0.25);
       roles.push({
@@ -102,9 +121,7 @@ export async function seedProjects(
         // Roles born from a won opportunity carry it and are confirmed;
         // standalone-project roles vary across statuses and are untagged.
         opportunityId: opp?.id ?? null,
-        status: opp
-          ? "confirmed"
-          : faker.helpers.arrayElement(PROJECT_ROLE_STATUSES),
+        status: roleStatus(),
         // A role's line of business: inherit the originating opportunity's, or a
         // random one for standalone roles (so those projects span several LoBs).
         lineOfBusiness:

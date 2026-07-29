@@ -10,6 +10,7 @@ import type {
 import { db } from "@/lib/db/db";
 import {
   companies,
+  companyContactRelationships,
   contacts,
   opportunities,
   opportunitySourceContacts,
@@ -45,6 +46,23 @@ export type CompanyContact = {
   location: string | null;
   /** The contact's open (not-done) tasks, oldest first — empty when none. */
   openTasks: OpenTaskSummary[];
+};
+
+/**
+ * A contact related to this company who does *not* work here — a partner
+ * company's CSM on this account, an embedded FDE, a former employee. `employer*`
+ * is that person's own company (left-joined, since it's optional) so the row can
+ * link out to it. `description` is the free-text relationship label.
+ */
+export type CompanyRelatedContact = {
+  /** The link row's id — the handle for editing or removing the relationship. */
+  relationshipId: string;
+  id: string;
+  name: string;
+  role: string | null;
+  employerId: string | null;
+  employerName: string | null;
+  description: string;
 };
 
 /**
@@ -91,6 +109,8 @@ export type CompanyDetail = {
   referredOpportunities: CompanyReferredOpportunity[];
   referredProjects: CompanyReferredProject[];
   contacts: CompanyContact[];
+  /** Non-employees linked to this company — see {@link CompanyRelatedContact}. */
+  relatedContacts: CompanyRelatedContact[];
   /** Tasks on the company itself — open first, then newest. */
   tasks: TaskView[];
 };
@@ -162,6 +182,7 @@ export const getCompanyDetail = cache(
       referredOpportunityRows,
       referredProjectRows,
       contactRows,
+      relatedContactRows,
       tasks,
     ] = await Promise.all([
       db
@@ -243,6 +264,30 @@ export const getCompanyDetail = cache(
         .from(contacts)
         .where(eq(contacts.companyId, id))
         .orderBy(asc(contacts.lastName), asc(contacts.firstName)),
+      // People linked to this company without working here. Not filtered against
+      // the employee list: if someone's employer later changes to this company the
+      // now-redundant link stays visible, and therefore deletable, rather than
+      // becoming an invisible ghost row.
+      db
+        .select({
+          relationshipId: companyContactRelationships.id,
+          id: contacts.id,
+          name: contactName,
+          role: contacts.role,
+          employerId: contacts.companyId,
+          employerName: companies.name,
+          description: companyContactRelationships.description,
+        })
+        .from(companyContactRelationships)
+        .innerJoin(
+          contacts,
+          eq(companyContactRelationships.contactId, contacts.id),
+        )
+        // The related contact's *own* employer, which is optional — and by
+        // definition of this table a different company than the one being viewed.
+        .leftJoin(companies, eq(contacts.companyId, companies.id))
+        .where(eq(companyContactRelationships.companyId, id))
+        .orderBy(asc(contacts.lastName), asc(contacts.firstName)),
       getTasksForParent("company", id),
     ]);
 
@@ -262,6 +307,7 @@ export const getCompanyDetail = cache(
         ...row,
         openTasks: openTasks.get(row.id) ?? [],
       })),
+      relatedContacts: relatedContactRows,
       tasks,
     };
   },

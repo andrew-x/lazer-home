@@ -95,60 +95,91 @@ export default async function ProjectsPage({
             deliveryManagerId={deliveryManagerId}
           />
         ) : (
-          <GroupedView params={params} page={page} />
+          <GroupedView params={params} />
         )}
       </div>
     </div>
   );
 }
 
-/** The status sections; Tentative, Paused, and Active in full, Other paginated. */
-async function GroupedView({
-  params,
-  page,
-}: {
-  params: SearchParams;
-  page: number;
-}) {
-  const [tentative, paused, active, other] = await Promise.all([
+/**
+ * The status sections: Active in full, and Tentative / Paused / Past / Cancelled
+ * as closed disclosures so the page opens on the work in flight. Past and
+ * Cancelled grow without bound, so they page independently (`pastPage` /
+ * `cancelledPage`) — and re-open when their own page param says the reader was
+ * paging through them, since following a page link is a fresh server render.
+ */
+async function GroupedView({ params }: { params: SearchParams }) {
+  const pastPage = parsePage(params.pastPage);
+  const cancelledPage = parsePage(params.cancelledPage);
+
+  const [tentative, paused, active, past, cancelled] = await Promise.all([
     getProjectsInBuckets(["tentative"]),
     getProjectsInBuckets(["paused"]),
     getProjectsInBuckets(["active"]),
-    getProjectsPage(page, ["other"]),
+    // Most recently finished first — the ones you're most likely to look up.
+    getProjectsPage(pastPage, ["past"], {}, "endDate"),
+    getProjectsPage(cancelledPage, ["cancelled"]),
   ]);
 
   const isEmpty =
     tentative.length === 0 &&
     paused.length === 0 &&
     active.length === 0 &&
-    other.total === 0;
+    past.total === 0 &&
+    cancelled.total === 0;
 
   return (
     <div className="flex flex-col gap-10">
-      {tentative.length > 0 ? (
-        <ProjectsSection title="Tentative" projects={tentative} />
-      ) : null}
-      {paused.length > 0 ? (
-        <ProjectsSection title="Paused" projects={paused} />
-      ) : null}
+      {/* Collapsed, these are just heading rows, so each cluster of them sits
+          closer together than the full sections do. */}
+      <div className="flex flex-col gap-6 empty:hidden">
+        {tentative.length > 0 ? (
+          <ProjectsSection title="Tentative" projects={tentative} collapsible />
+        ) : null}
+        {paused.length > 0 ? (
+          <ProjectsSection title="Paused" projects={paused} collapsible />
+        ) : null}
+      </div>
       {active.length > 0 ? (
         <ProjectsSection title="Active" projects={active} />
       ) : null}
-      {other.total > 0 ? (
-        <ProjectsSection
-          title="Other"
-          projects={other.rows}
-          count={other.total}
-        >
-          <PaginationControls
-            basePath="/projects"
-            params={params}
-            paramKey="projectsPage"
-            page={other.page}
-            pageCount={other.pageCount}
-          />
-        </ProjectsSection>
-      ) : null}
+      <div className="flex flex-col gap-6 empty:hidden">
+        {past.total > 0 ? (
+          <ProjectsSection
+            title="Past"
+            projects={past.rows}
+            count={past.total}
+            collapsible
+            defaultOpen={past.page > 1}
+          >
+            <PaginationControls
+              basePath="/projects"
+              params={params}
+              paramKey="pastPage"
+              page={past.page}
+              pageCount={past.pageCount}
+            />
+          </ProjectsSection>
+        ) : null}
+        {cancelled.total > 0 ? (
+          <ProjectsSection
+            title="Cancelled"
+            projects={cancelled.rows}
+            count={cancelled.total}
+            collapsible
+            defaultOpen={cancelled.page > 1}
+          >
+            <PaginationControls
+              basePath="/projects"
+              params={params}
+              paramKey="cancelledPage"
+              page={cancelled.page}
+              pageCount={cancelled.pageCount}
+            />
+          </ProjectsSection>
+        ) : null}
+      </div>
       {isEmpty ? (
         <p className="text-sm text-muted-foreground">No projects yet.</p>
       ) : null}

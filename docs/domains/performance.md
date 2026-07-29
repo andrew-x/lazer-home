@@ -12,7 +12,7 @@ described — that framing is superseded). Plans live at
 `/performance/compensation-plans` — the one identity-bearing *analytics-adjacent*
 surface here
 ([ADR 0046](../decisions/0046-compensation-change-plans-rating-writing-proposals.md),
-[ADR 0048](../decisions/0048-plan-editor-status-ladder-display-units-and-level-targets.md)).
+[ADR 0051](../decisions/0051-plan-editor-status-ladder-display-units-and-level-targets.md)).
 **Review notes have no route of their own** — they live as a tab on the staff
 profile and inside the plan editor's profile drawer, and they are the **one place in
 the whole codebase where authorization reads the reporting line**
@@ -656,7 +656,7 @@ guard** that makes a second commit an error rather than a duplicate write.
   and made nonsense states representable ("complete" for someone never rated).
   `drizzle/0010` backfills highest-set-flag-wins, `0011` drops the columns — a
   **deliberately lossy** migration, since eliminating those combinations was the point.
-  See [ADR 0048](../decisions/0048-plan-editor-status-ladder-display-units-and-level-targets.md).
+  See [ADR 0051](../decisions/0051-plan-editor-status-ladder-display-units-and-level-targets.md).
 - **`evaluationNotes` / `compensationNotes`**.
 - **`snapshotAmount` / `snapshotCurrency` / `snapshotEmploymentType`** — frozen in the
   commit transaction; null while draft. The employment type is recorded because
@@ -693,7 +693,7 @@ All three under `src/lib/performance/`, client-importable, no drizzle.
   ([ADR 0020](../decisions/0020-compensation-effective-dated-import-only.md) stands).
 
 Full rationale for all three in
-[ADR 0048](../decisions/0048-plan-editor-status-ladder-display-units-and-level-targets.md).
+[ADR 0051](../decisions/0051-plan-editor-status-ladder-display-units-and-level-targets.md).
 
 **Percentages are invariant across the display toggles by construction** —
 `planChangePercent` and Gap % compute from the **native** amounts, cross-rated through
@@ -827,7 +827,7 @@ roster); one sub-item under Performance in `nav.ts`, gated on
   Its empty state links to the membership page rather than opening a picker. Each row's
   money math is derived **once** as a `PlanRowView` (`plan-row-view.ts`) shared by the
   cells and the sort comparator — two independent derivations of FX-and-unit-converted
-  money would drift ([ADR 0048](../decisions/0048-plan-editor-status-ladder-display-units-and-level-targets.md)).
+  money would drift ([ADR 0051](../decisions/0051-plan-editor-status-ladder-display-units-and-level-targets.md)).
   The page also drops the app's usual `max-w-[90rem]` measure and pins itself to
   `100svh` with the table pane owning the scrolling (eleven dense numeric columns are
   read *across*, and the sort controls have to stay put).
@@ -916,7 +916,7 @@ Three test files pin money invariants beyond the type checker:
 currency**; every missing/zero input yields `null` rather than NaN/Infinity),
 `compensation-unit.test.ts` (round-tripping the *displayed* text would silently edit the
 persisted figure — the rejected alternative in
-[ADR 0048](../decisions/0048-plan-editor-status-ladder-display-units-and-level-targets.md)),
+[ADR 0051](../decisions/0051-plan-editor-status-ladder-display-units-and-level-targets.md)),
 and `plan-format.test.ts` (a difference that displays as zero is unsigned and
 neutral-toned). Money-correctness rules a type can't express — not a return to a broad
 suite; see [ADR 0037](../decisions/0037-unit-tests-removed-except-rbac-matrix.md).
@@ -948,7 +948,7 @@ states.
 
 ### Entity — `performance_review_note` (`src/lib/db/performance-schema.ts`)
 
-`drizzle/0012_far_black_cat.sql`. **Not effective-dated** — a note is a *document*, not
+`drizzle/0013_simple_leader.sql`. **Not effective-dated** — a note is a *document*, not
 a fact about a person, the same reasoning as `compensation_plan`
 ([ADR 0007](../decisions/0007-staff-employment-effective-dating.md) doesn't apply).
 

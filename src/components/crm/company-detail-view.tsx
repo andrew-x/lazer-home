@@ -25,6 +25,7 @@ import { EntryLog } from "./entry-log";
 import { InlineLocationField } from "./inline-location-field";
 import { InlineOwnerField } from "./inline-owner-field";
 import { OpportunityStatusBadge } from "./opportunity-status-badge";
+import { RelatedContactsSection } from "./related-contacts-section";
 import { TaskList } from "./task-list";
 
 /**
@@ -35,7 +36,10 @@ import { TaskList } from "./task-list";
  *   authored note log. First because it's what you come to a company for.
  * - **Contacts** — the company's people directory, linking through to each
  *   contact's detail page, each person's next steps editable in the row via
- *   `ContactTasksCell` exactly as on the contacts list.
+ *   `ContactTasksCell` exactly as on the contacts list. Beneath it,
+ *   `RelatedContactsSection` lists the people linked to this company who *don't*
+ *   work here (a partner's CSM, an embedded FDE), so both readings of "who's
+ *   involved" sit together.
  * - **Opportunities & Projects** — its pipeline, delivery work, and referred
  *   deals/projects. Project names link through to the project detail page
  *   (`/projects/[id]`); opportunities have no detail page yet, so they render as
@@ -146,7 +150,7 @@ export function CompanyDetailView({
           </DetailSection>
         </TabsContent>
 
-        <TabsContent value="contacts">
+        <TabsContent value="contacts" className="flex flex-col gap-8">
           <DetailSection title="Contacts" count={company.contacts.length}>
             {company.contacts.length === 0 ? (
               <TableEmpty>No contacts at this company yet.</TableEmpty>
@@ -178,6 +182,12 @@ export function CompanyDetailView({
               </DetailTable>
             )}
           </DetailSection>
+
+          <RelatedContactsSection
+            companyId={company.id}
+            rows={company.relatedContacts}
+            canEdit={canEdit}
+          />
         </TabsContent>
 
         <TabsContent value="pipeline" className="flex flex-col gap-8">

@@ -1,10 +1,12 @@
 import type { InferInsertModel } from "drizzle-orm";
 import { cityLabelsForCountries } from "@/lib/cities/cities";
+import { RELATIONSHIP_DESCRIPTION_SUGGESTIONS } from "@/lib/crm/company-contact-relationship";
 import { generateId } from "@/lib/db/ids";
 import {
   type Company,
   type Contact,
   companies,
+  companyContactRelationships,
   contacts,
   type Staff,
 } from "@/lib/db/schema";
@@ -13,6 +15,8 @@ import { chance, faker } from "./faker";
 
 const COMPANY_COUNT = 20;
 const CONTACT_COUNT = 40;
+/** Attempts, not rows — self-employer and duplicate pairs are skipped. */
+const RELATIONSHIP_ATTEMPTS = 35;
 
 // Seeded locations focus on US & Canada, drawn from the static world-cities list
 // so every seeded value is one the location picker would actually offer.
@@ -20,8 +24,13 @@ const US_CA_CITIES = cityLabelsForCountries(["US", "CA"]);
 
 type CompanyInsert = InferInsertModel<typeof companies>;
 type ContactInsert = InferInsertModel<typeof contacts>;
+type RelationshipInsert = InferInsertModel<typeof companyContactRelationships>;
 
-export type CrmResult = { companies: Company[]; contacts: Contact[] };
+export type CrmResult = {
+  companies: Company[];
+  contacts: Contact[];
+  relationships: number;
+};
 
 /** Seed companies (some partners, some owned by staff) and their contacts. */
 export async function seedCrm(db: SeedDb, staff: Staff[]): Promise<CrmResult> {
@@ -80,8 +89,46 @@ export async function seedCrm(db: SeedDb, staff: Staff[]): Promise<CrmResult> {
   }
   await db.insert(contacts).values(contactRows);
 
+  // Non-employee links: a partner's CSM on one of our accounts, an FDE, a former
+  // employee. Biased toward partner companies on the contact side so the seed
+  // reads like the case this models. Skips a contact's own employer (the app
+  // rejects it) and repeat pairs (the unique index).
+  const partnerCompanies = companyRows.filter((row) => row.isPartner);
+  const relationshipRows: RelationshipInsert[] = [];
+  const seenPairs = new Set<string>();
+
+  for (let i = 0; i < RELATIONSHIP_ATTEMPTS; i++) {
+    const company = faker.helpers.arrayElement(companyRows);
+    // Prefer someone from a partner company as the related person.
+    const pool =
+      partnerCompanies.length > 0 && chance(0.7)
+        ? contactRows.filter((row) =>
+            partnerCompanies.some((partner) => partner.id === row.companyId),
+          )
+        : contactRows;
+    if (pool.length === 0) continue;
+
+    const contact = faker.helpers.arrayElement(pool);
+    const pair = `${company.id}:${contact.id}`;
+    if (contact.companyId === company.id || seenPairs.has(pair)) continue;
+    seenPairs.add(pair);
+
+    relationshipRows.push({
+      id: generateId("ccrel"),
+      companyId: company.id,
+      contactId: contact.id,
+      description: faker.helpers.arrayElement([
+        ...RELATIONSHIP_DESCRIPTION_SUGGESTIONS,
+      ]),
+    });
+  }
+  if (relationshipRows.length > 0) {
+    await db.insert(companyContactRelationships).values(relationshipRows);
+  }
+
   return {
     companies: await db.query.companies.findMany(),
     contacts: await db.query.contacts.findMany(),
+    relationships: relationshipRows.length,
   };
 }

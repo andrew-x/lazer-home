@@ -11,6 +11,7 @@ import type {
 import { db } from "@/lib/db/db";
 import {
   companies,
+  companyContactRelationships,
   contacts,
   opportunities,
   opportunityContacts,
@@ -38,6 +39,21 @@ export type ContactProject = {
   companyName: string;
 };
 
+/**
+ * A company this contact is linked to without working there — the mirror of
+ * `CompanyRelatedContact`. Their employer stays on `ContactDetail.companyId`;
+ * these are the other companies they touch (a client they're the CSM for, a
+ * former employer, one they invest in). `description` is the free-text label.
+ */
+export type ContactRelatedCompany = {
+  /** The link row's id — the handle for editing or removing the relationship. */
+  relationshipId: string;
+  id: string;
+  name: string;
+  isPartner: boolean;
+  description: string;
+};
+
 export type ContactDetail = {
   id: string;
   firstName: string;
@@ -61,6 +77,8 @@ export type ContactDetail = {
   involvedOpportunities: ContactOpportunity[];
   /** Projects that grew out of an opportunity this contact referred. */
   referredProjects: ContactProject[];
+  /** Companies they're linked to without working there — see {@link ContactRelatedCompany}. */
+  relatedCompanies: ContactRelatedCompany[];
   /** Timestamped notes, newest first. */
   notes: EntryView[];
   /** Tasks on this contact — open first, then newest. */
@@ -121,7 +139,7 @@ export const getContactDetail = cache(
       companyName: companies.name,
     };
 
-    const [referredOpportunities, involvedAll, notes, tasks] =
+    const [referredOpportunities, involvedAll, relatedCompanies, notes, tasks] =
       await Promise.all([
         db
           .select(opportunitySelection)
@@ -143,6 +161,23 @@ export const getContactDetail = cache(
           .innerJoin(companies, eq(opportunities.companyId, companies.id))
           .where(eq(opportunityContacts.contactId, id))
           .orderBy(asc(opportunities.name)),
+        // Companies they touch without working there. Their employer is on
+        // `base.companyId` and never appears here (the write action rejects it).
+        db
+          .select({
+            relationshipId: companyContactRelationships.id,
+            id: companies.id,
+            name: companies.name,
+            isPartner: companies.isPartner,
+            description: companyContactRelationships.description,
+          })
+          .from(companyContactRelationships)
+          .innerJoin(
+            companies,
+            eq(companyContactRelationships.companyId, companies.id),
+          )
+          .where(eq(companyContactRelationships.contactId, id))
+          .orderBy(asc(companies.name)),
         getContactEntries(id),
         getTasksForParent("contact", id),
       ]);
@@ -178,6 +213,7 @@ export const getContactDetail = cache(
       referredOpportunities,
       involvedOpportunities,
       referredProjects,
+      relatedCompanies,
       notes,
       tasks,
     };

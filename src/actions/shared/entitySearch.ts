@@ -40,14 +40,26 @@ export async function searchStaffByName(
     .limit(SEARCH_LIMIT);
 }
 
-/** Companies whose name matches `query`, as `{ id, name }` (capped). */
-export async function searchCompaniesByName(query: string) {
+/**
+ * Companies whose name matches `query`, as `{ id, name }` (capped). Pass
+ * `excludeId` to drop a specific company (e.g. a contact's own employer, which the
+ * relationship picker must not offer), mirroring `searchStaffByName`'s option.
+ */
+export async function searchCompaniesByName(
+  query: string,
+  { excludeId }: { excludeId?: string } = {},
+) {
   if (query === "") return [];
 
   return db
     .select({ id: companies.id, name: companies.name })
     .from(companies)
-    .where(ilike(companies.name, `%${escapeLike(query)}%`))
+    .where(
+      and(
+        ilike(companies.name, `%${escapeLike(query)}%`),
+        excludeId ? ne(companies.id, excludeId) : undefined,
+      ),
+    )
     .orderBy(asc(companies.name))
     .limit(SEARCH_LIMIT);
 }

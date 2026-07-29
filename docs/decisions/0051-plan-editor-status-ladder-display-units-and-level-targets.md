@@ -1,10 +1,11 @@
-# 0048 — Plan editor: a status ladder, display-only units, and code-owned level targets
+# 0051 — Plan editor: a status ladder, display-only units, and code-owned level targets
 
-**Status:** accepted · 2026-07-28 · **renumbered from 0047 on 2026-07-29** — it was
-filed as 0047 the same day as
-[ADR 0047](./0047-feedback-reports-scoping-not-granting.md) and collided with it.
-This file was the later of the two and never made it into the log, so renumbering it
-was the safe half of the fix; nothing linked to it under the old number.
+**Status:** accepted · 2026-07-28 · **renumbered twice.** Filed as 0047 the same day as
+[ADR 0047](./0047-feedback-reports-scoping-not-granting.md) and collided with it; moved
+to 0048 on 2026-07-29, which collided again with
+[ADR 0048](./0048-company-contact-relationships-beyond-employment.md) landing on `main`.
+Now 0051 — the trunk number won both times. Nothing outside `/docs` linked to either
+old number.
 
 ## Context
 
