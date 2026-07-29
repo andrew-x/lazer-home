@@ -18,7 +18,7 @@ import { CURRENCY } from "@/lib/format/currency";
  * per project. Picking the billing type is the whole decision.
  *
  * See docs/domains/projects.md and
- * docs/decisions/0052-project-budgets-and-margin.md.
+ * docs/decisions/0053-project-budgets-and-margin.md.
  */
 
 /** The largest value a `numeric(12, 2)` column holds. */

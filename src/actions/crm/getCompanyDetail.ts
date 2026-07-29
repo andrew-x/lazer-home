@@ -44,6 +44,8 @@ export type CompanyContact = {
   phone: string | null;
   /** Free-text "City, CC" home base — null when unknown. */
   location: string | null;
+  /** False for an inactive contact — drives the "Inactive" badge. */
+  isActive: boolean;
   /** The contact's open (not-done) tasks, oldest first — empty when none. */
   openTasks: OpenTaskSummary[];
 };
@@ -62,6 +64,8 @@ export type CompanyRelatedContact = {
   role: string | null;
   employerId: string | null;
   employerName: string | null;
+  /** False for an inactive contact — drives the "Inactive" badge. */
+  isActive: boolean;
   description: string;
 };
 
@@ -260,8 +264,13 @@ export const getCompanyDetail = cache(
           email: contacts.email,
           phone: contacts.phone,
           location: contacts.location,
+          isActive: contacts.isActive,
         })
         .from(contacts)
+        // Inactive contacts are deliberately NOT filtered out here. A company's
+        // past people are exactly what you want on its page — and a `succeeds`
+        // predecessor's employer *is* the old company, so hiding them would hide the
+        // history the succession link exists to record. They're badged instead.
         .where(eq(contacts.companyId, id))
         .orderBy(asc(contacts.lastName), asc(contacts.firstName)),
       // People linked to this company without working here. Not filtered against
@@ -276,6 +285,7 @@ export const getCompanyDetail = cache(
           role: contacts.role,
           employerId: contacts.companyId,
           employerName: companies.name,
+          isActive: contacts.isActive,
           description: companyContactRelationships.description,
         })
         .from(companyContactRelationships)

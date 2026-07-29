@@ -132,6 +132,37 @@ export function MetaField({
 }
 
 /**
+ * A titled group *inside* a detail sidebar — the narrow rail's counterpart to
+ * {@link DetailSection}. Renders the sidebar's label styling (inherited from
+ * {@link SidebarSection}'s `[data-slot=label]` selector, which is why this emits a
+ * `Label`) with an optional right-aligned action, then stacked rows.
+ *
+ * Deliberately unlike `DetailSection`: no count in the heading (a rail group holds
+ * several heterogeneous collections, so one total means nothing), no table (the
+ * rail is 320px — `DetailTable`'s columns don't fit), and no border of its own
+ * (`SidebarSection` owns that).
+ */
+export function SidebarGroup({
+  label,
+  action,
+  children,
+}: {
+  label: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <Label>{label}</Label>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/**
  * A titled section in the detail main column: a heading with an optional count,
  * then its content (a table, an empty note, or grouped subsections). `action`
  * fills an optional right-aligned slot on the heading row (e.g. an "Add role"

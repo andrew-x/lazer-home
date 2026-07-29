@@ -1,6 +1,14 @@
 # 0022 — Contact "managed by": self-referential FK, same-company invariant enforced app-side
 
-**Status:** accepted · 2026-07-09
+**Status:** **superseded** by [ADR 0052](./0052-contact-relationships-one-typed-junction.md) (2026-07-29) · originally accepted 2026-07-09
+
+> **`contacts.managerId` no longer exists.** Management is now one `kind` of row in the
+> unified **`contact_relationships`** junction (`reports_to`), alongside `succeeds` and
+> `related` — see [ADR 0052](./0052-contact-relationships-one-typed-junction.md). What
+> survives from this ADR: the **same-company rule for a manager** (still app-level, now in
+> `contactRelationshipChecks.ts`) and the stance that a picker is an affordance, never the
+> boundary. What's gone: the column, its `set null`, `assertValidManager`, and
+> `ManagerComboboxField`. Read below only for the *why* of the original shape.
 
 ## Context
 
@@ -39,18 +47,18 @@ self-referential FK → `contacts.id` with **`onDelete: "set null"`**. Migration
 
 ## Consequences
 
-- **Create-only limits the feature.** Contacts have no edit flow, so `managerId` (and
-  `linkedinUrl`) can only be set at creation. Concretely: a contact created **without**
-  a company can never be given a manager, and a manager can't be reassigned or added
-  later. Building the contact edit flow is the way to lift this — and that flow must
-  carry the same-company re-check.
-- **Changing a contact's company later (once edit exists) must revalidate `managerId`** —
-  a manager valid at the old company may be invalid at the new one. The create form
-  already resets the manager selection when the company changes; an edit form must do
-  the same and the server must re-verify.
-- `getContactsPage` resolves `managerName` via a **self-join** on `contacts` (drizzle
-  `alias`), alongside the existing company left-join. `ContactRow` gained `linkedinUrl`,
-  `managerId`, `managerName`.
+- ~~**Create-only limits the feature.**~~ **Obsolete:** contacts gained an edit flow
+  (`edit-contact-dialog.tsx` + `updateContact`) well before this ADR was superseded, and
+  `assertValidManager` grew a `selfId` guard for it. Relationships have since moved off the
+  form entirely ([ADR 0052](./0052-contact-relationships-one-typed-junction.md)).
+- **Changing a contact's company must revalidate the manager link** — a manager valid at the
+  old company is invalid at the new one. Still true, and now handled properly:
+  `updateContact` **deletes** the `reports_to` row when `companyId` changes (ADR 0052),
+  where the old form merely reset its picker.
+- ~~`getContactsPage` resolves `managerName` via a self-join~~ — **this was never true.**
+  The contacts *list* read has never selected a manager at all (the detail read did, via a
+  `contacts` `alias`, until ADR 0052 replaced it with the junction query). `ContactRow`
+  gained `linkedinUrl` only, and that too has since moved to the detail read.
 - `searchContacts` grew an optional `companyId` filter param; it stays `crm.edit`-gated
   like the other pickers, so it can't be used to enumerate the roster past the page gate.
 

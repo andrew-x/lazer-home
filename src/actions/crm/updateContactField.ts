@@ -12,11 +12,11 @@ type ContactUpdate = Partial<InferInsertModel<typeof contacts>>;
 
 /**
  * Edit a *single* field of a contact from its detail page's inline fields
- * (owner, location, relationship strength). Gated on `crm.edit`. A discriminated
- * union on `field`: each variant writes only the slice that changed instead of
- * re-sending the whole record — so a concurrent edit to another field isn't
- * clobbered and the manager rule / email normalisation aren't re-run on an
- * unrelated change (mirrors `updateOpportunityField`). Every write is
+ * (owner, location, relationship strength). Gated on `crm.edit`. A
+ * discriminated union on `field`: each variant writes only the slice that changed
+ * instead of re-sending the whole record — so a concurrent edit to another field
+ * isn't clobbered and email normalisation isn't re-run on an unrelated change
+ * (mirrors `updateOpportunityField`). Every write is
  * `.returning()`-guarded so a row deleted out from under the edit surfaces as a
  * clean error.
  */

@@ -14,7 +14,7 @@
  * (ADR 0042).
  *
  * A per-project rate card was built first and removed; see
- * docs/decisions/0052-project-budgets-and-margin.md for why. If per-project pricing
+ * docs/decisions/0053-project-budgets-and-margin.md for why. If per-project pricing
  * is ever genuinely needed, that's a schema decision to reopen deliberately, not a
  * field to add to this map.
  *

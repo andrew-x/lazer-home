@@ -1,10 +1,16 @@
-# 0052 — Project budgets & margin: billing model on the project, one code-owned rate card, cost gated apart from revenue
+# 0053 — Project budgets & margin: billing model on the project, one code-owned rate card, cost gated apart from revenue
 
-**Status:** accepted · 2026-07-29 · **§1–2 reversed the same day.** A per-project rate-card
-table (`project_role_rates`) was built and migrated, then dropped before shipping in favour
-of a single card in code. Both migrations are in the history (`0014` creates, `0015` drops);
-the reasoning is recorded below rather than deleted, because the rejected shape is the
-obvious one to re-propose.
+**Status:** accepted · 2026-07-29 · **renumbered, and §1–2 reversed before merge.** Filed as
+0052, which collided with
+[ADR 0052](./0052-contact-relationships-one-typed-junction.md) landing on `main` — the trunk
+number won, as it did twice for
+[ADR 0051](./0051-plan-editor-status-ladder-display-units-and-level-targets.md). Nothing
+outside `/docs` linked to the old number. A per-project rate-card table
+(`project_role_rates`) was built and migrated, then dropped before shipping in favour of a
+single card in code; the create-then-drop migration pair was **collapsed into one
+`drizzle/0016_violet_whistler.sql`** when this branch merged `main`, so the rejected table
+leaves no trace in the schema history. The reasoning is recorded below rather than deleted,
+because the rejected shape is the obvious one to re-propose.
 
 ## Context
 
@@ -56,12 +62,13 @@ travel with a copy and then drift from its siblings.
 
 **Rejected: a per-project rate card** (`project_role_rates`, one row per
 `(projectId, roleType)`). **This was built, migrated and then removed before shipping** —
-see §2 for why, and *Consequences* for what the removal bought. The create-then-drop pair
-is visible in the migration history on purpose: **`drizzle/0014_true_thor.sql` creates the
-table and `drizzle/0015_first_wild_child.sql` drops it** (`DROP TABLE ... CASCADE`).
-Editing `0014` in place and lying to `__drizzle_migrations` would have been worse than an
-honest pair; the pair is a candidate for the next history squash, for which there is
-precedent (commit `ba60c36`).
+see §2 for why, and *Consequences* for what the removal bought. It was carried for a while
+as an honest create-then-drop pair (`0014` created the table, `0015` dropped it with
+`DROP TABLE ... CASCADE`) rather than editing a migration in place and lying to
+`__drizzle_migrations`. That pair **never left the branch**: merging `main` renumbered these
+migrations anyway, so the two were regenerated as a single
+**`drizzle/0016_violet_whistler.sql`** carrying only the surviving columns. The table exists
+in no migration now — this ADR is the only record that it was tried.
 
 ### 2. There is exactly ONE rate card, and it lives in code
 

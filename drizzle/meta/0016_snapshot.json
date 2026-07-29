@@ -1,6 +1,6 @@
 {
-  "id": "a3924a5f-7f16-4ae7-8012-25adf3590274",
-  "prevId": "8fb3f1d7-da20-4390-a11a-87a4dfb9ec2c",
+  "id": "927d9438-e0f1-4e66-8a12-b7c37e0c18eb",
+  "prevId": "5cfc635a-8293-4704-8403-88c079262654",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -977,12 +977,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "manager_id": {
-          "name": "manager_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "owner_id": {
           "name": "owner_id",
           "type": "text",
@@ -1025,19 +1019,6 @@
           "tableTo": "companies",
           "columnsFrom": [
             "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "contacts_manager_id_contacts_id_fk": {
-          "name": "contacts_manager_id_contacts_id_fk",
-          "tableFrom": "contacts",
-          "tableTo": "contacts",
-          "columnsFrom": [
-            "manager_id"
           ],
           "columnsTo": [
             "id"
@@ -2619,6 +2600,26 @@
           "primaryKey": false,
           "notNull": true
         },
+        "billing_type": {
+          "name": "billing_type",
+          "type": "project_billing_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "budget_amount": {
+          "name": "budget_amount",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "budget_currency": {
+          "name": "budget_currency",
+          "type": "currency",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -2653,7 +2654,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "projects_budget_shape": {
+          "name": "projects_budget_shape",
+          "value": "(\"projects\".\"billing_type\" is null and \"projects\".\"budget_amount\" is null and \"projects\".\"budget_currency\" is null)\n       or (\"projects\".\"billing_type\" = 'FIXED_FEE' and \"projects\".\"budget_amount\" is not null and \"projects\".\"budget_currency\" is not null)\n       or (\"projects\".\"billing_type\" = 'TIME_AND_MATERIALS' and \"projects\".\"budget_amount\" is null and \"projects\".\"budget_currency\" is null)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.responses": {
@@ -3682,6 +3688,14 @@
       "values": [
         "DRAFT",
         "SHARED"
+      ]
+    },
+    "public.project_billing_type": {
+      "name": "project_billing_type",
+      "schema": "public",
+      "values": [
+        "FIXED_FEE",
+        "TIME_AND_MATERIALS"
       ]
     },
     "public.project_role_status": {

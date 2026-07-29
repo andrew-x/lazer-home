@@ -24,7 +24,7 @@ extensions / change requests), while an opportunity still has at most one projec
 (and **nothing more**: a time-and-materials project bills at the company's **one standard rate
 card, which lives in code**, not per project) — and the app computes **revenue, cost and margin**
 over its roles ([Budget & margin](#budget--margin) below,
-[ADR 0052](../decisions/0052-project-budgets-and-margin.md)). **Cost and margin are gated on the
+[ADR 0053](../decisions/0053-project-budgets-and-margin.md)). **Cost and margin are gated on the
 new read capability `projects.viewMargin`; revenue is not** — a role's cost *is* an individual's
 compensation, so this is the projects domain's first (and carefully masked) contact with
 `staff_employment`.
@@ -48,7 +48,7 @@ Standalone projects (no opportunity, staffed roles) still work.
 **Two ways a project appears:** creating one **from** an opportunity
 (`createProjectFromOpportunity` — inherits the opportunity's name + company, creates no roles,
 but **now asks for the budget**: it is a small dialog, no longer the one-click confirm it was
-before [ADR 0052](../decisions/0052-project-budgets-and-margin.md)), or an opportunity can be
+before [ADR 0053](../decisions/0053-project-budgets-and-margin.md)), or an opportunity can be
 **associated to an existing** project. The standalone `AddProjectDialog` on `/projects` collects
 **name + company + budget**; roles and delivery
 managers are added afterward in the planner **or on the project detail page**. `updateProject`
@@ -73,7 +73,7 @@ delivery, allocations, timesheets, and billing.
   required `companyId` (FK → `companies`,
   **`onDelete: restrict`** — a company with live projects can't be deleted, exactly like
   `opportunities`), **three budget columns** (below), and timestamps. Table `projects`, id prefix `proj`.
-  - **Billing / budget** (`drizzle/0014_true_thor.sql`, [ADR 0052](../decisions/0052-project-budgets-and-margin.md)) —
+  - **Billing / budget** (`drizzle/0016_violet_whistler.sql`, [ADR 0053](../decisions/0053-project-budgets-and-margin.md)) —
     **`billingType`** (the new `project_billing_type` pgEnum: `FIXED_FEE` | `TIME_AND_MATERIALS`,
     values from the pure `src/lib/projects/project-billing.ts`), **`budgetAmount`**
     (`numeric(12,2)`, number mode) and **`budgetCurrency`** (the shared `currencyEnum`). **All
@@ -122,12 +122,12 @@ delivery, allocations, timesheets, and billing.
 - **Bill rates are NOT an entity.** There is **one company-wide rate card, in code** —
   `BILL_RATES` in `src/lib/projects/bill-rates.ts` — and a T&M project stores nothing about
   pricing at all.
-  - ⚠️ **A `project_role_rates` table existed briefly and was dropped before shipping**
-    (`drizzle/0014_true_thor.sql` creates it, **`drizzle/0015_first_wild_child.sql` drops it**
-    with `DROP TABLE ... CASCADE`). The create-then-drop pair is deliberate honest history —
-    the alternative was editing `0014` and lying to `__drizzle_migrations` — and is a candidate
-    for the next squash. **`0014` is not a description of the current schema; read the schema
-    module.** Reasoning in [ADR 0052 §1–2](../decisions/0052-project-budgets-and-margin.md).
+  - ⚠️ **A `project_role_rates` table existed briefly on the branch and was dropped before
+    shipping.** It was carried as an honest create-then-drop migration pair, but merging `main`
+    renumbered those migrations anyway, so they were regenerated as a single
+    `drizzle/0016_violet_whistler.sql` holding only the surviving columns. **No migration
+    mentions the table** — [ADR 0053 §1–2](../decisions/0053-project-budgets-and-margin.md) is
+    the only record it was tried.
   - A rate card is **policy**, revised centrally, not negotiated per engagement — and storing a
     copy per project invites two projects **silently disagreeing about what an engineer-hour is
     worth** for no product benefit. Don't reintroduce per-project rates as a field; that's a
@@ -201,10 +201,10 @@ delivery, allocations, timesheets, and billing.
   `project_roles.staff_id` with `line_of_business`/`description`/`role_type`/`status`/`opportunity_id`,
   a `projects` table with **no `status`/`line_of_business` columns** but **three budget
   columns + the `projects_budget_shape` CHECK** and the
-  `project_billing_type` enum (`drizzle/0014_true_thor.sql`; its `project_role_rates` table was
-  **dropped again by `0015_first_wild_child.sql`** — see the bill-rates bullet under
+  `project_billing_type` enum (`drizzle/0016_violet_whistler.sql`; there is **no rate-card
+  table** — see the bill-rates bullet under
   [Key entities](#key-entities) and
-  [ADR 0052](../decisions/0052-project-budgets-and-margin.md)), and the delivery link on
+  [ADR 0053](../decisions/0053-project-budgets-and-margin.md)), and the delivery link on
   `opportunities.project_id`.
 - **Derived-fields module** — `src/lib/projects/project-derived.ts`
   exports `deriveProjectStatus(roleStatuses)` and `deriveProjectLinesOfBusiness(roleLobs)`, plus
@@ -371,7 +371,7 @@ delivery, allocations, timesheets, and billing.
     ⇒ the insert rolls back, no orphan). Revalidates `/projects` + `/opportunities`. This backs
     the planner's empty-state "Create project" button and the board's delivery-stage prompt —
     **both now a budget dialog, not a one-click confirm**
-    ([ADR 0052](../decisions/0052-project-budgets-and-margin.md)). See
+    ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)). See
     [ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md).
   - `createProject.ts` (+ `.schema.ts`) — **standalone project create** (the `/projects`
     dialog), gated `projects.edit`. One `db.transaction`: inserts the project (name + company
@@ -414,7 +414,7 @@ delivery, allocations, timesheets, and billing.
       (`src/lib/db/timesheets-schema.ts`), not the company, so hours already booked follow the
       project to its new client. That's a **billing-attribution** consequence — past time now reads
       against the new client — not an FK problem.
-  - **Budget writes** ([ADR 0052](../decisions/0052-project-budgets-and-margin.md)):
+  - **Budget writes** ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)):
     - `projectBudget.schema.ts` — the budget half of **all three** write paths (both creates +
       the update). A **pure, client-importable** zod **discriminated union on `billingType`**
       mirroring the `projects_budget_shape` CHECK: `FIXED_FEE` ⇒ `budgetAmount` +
@@ -440,7 +440,7 @@ delivery, allocations, timesheets, and billing.
       `assertRowExists` pre-read), and switching to T&M clears the fee in the same `set`.
       Revalidates via `revalidateProject`.
   - **Cost basis reads** (the compensation-touching half —
-    [ADR 0052](../decisions/0052-project-budgets-and-margin.md)):
+    [ADR 0053](../decisions/0053-project-budgets-and-margin.md)):
     - `src/actions/shared/staffHourlyCost.ts` — **what an hour of someone's time costs.**
       `hourlyCostOf(row)` takes an hourly worker's `hourlyRate` as-is and restates a salaried
       person's annual `base` hourly via **`convertCompUnit` / the flat `HOURS_PER_YEAR`
@@ -555,7 +555,7 @@ delivery, allocations, timesheets, and billing.
     project is **not** this one and the status is `tentative`/`confirmed` (the allocations grid's
     filter), joined to `projects.name`. The planner greys these behind each staffed row's own
     load so an over-allocation is visible while planning the deal. Empty when no one is staffed.
-    - **It also carries the money** ([ADR 0052](../decisions/0052-project-budgets-and-margin.md)):
+    - **It also carries the money** ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)):
       `PlanProject.budget` is a **`PlanBudget`** — just the three columns
       (`billingType` + `budgetAmount`/`budgetCurrency`), **no rate card**, since the client imports
       the one card from `bill-rates.ts` — plus top-level **`costBasis: PlanCostBasis | null`** (null
@@ -660,11 +660,12 @@ delivery, allocations, timesheets, and billing.
   **create-from-opportunity** paths use their own `CreateProjectFromOpportunityDialog` (name +
   company are inherited, so it collects **only** the budget) from the planner's empty state and the
   board's delivery-stage prompt — **which is why that prompt is no longer a `ConfirmDialog`**
-  ([ADR 0052](../decisions/0052-project-budgets-and-margin.md)).
+  ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)).
   A "Projects" nav entry (`IconBriefcase`) is in
   `src/components/app-shell/nav.ts`. Reusable form components used here:
   `src/components/form/entity-combobox.tsx` (`EntityCombobox`, the single-select base with a
-  `searchArgs` prop for extra scope args, wrapped by `CompanyCombobox`/`ManagerComboboxField`)
+  `searchArgs` prop for extra scope args, wrapped by `CompanyCombobox`; the CRM
+  contact-relationship dialog is the other `searchArgs` consumer)
   and `src/components/form/enum-select.tsx` (`EnumSelect`) — see [../ui.md](../ui.md).
 - **Project detail page UI** — `src/app/(app)/projects/[id]/page.tsx` (Server Component) +
   `src/components/projects/detail/` — `project-detail-view.tsx` (client) plus the editing pieces
@@ -678,7 +679,7 @@ delivery, allocations, timesheets, and billing.
   `opportunity-plan/role-dialog.tsx`** so the planner dialog and the project page's
   `ProjectRoleDialog` can't drift — the client-side mirror of the server-side shared
   `projectRoleFields`. **`status` is deliberately absent** (system-driven, never a form field).
-- **Budget UI** (`src/components/projects/`, [ADR 0052](../decisions/0052-project-budgets-and-margin.md)):
+- **Budget UI** (`src/components/projects/`, [ADR 0053](../decisions/0053-project-budgets-and-margin.md)):
   - **`budget-fields.tsx`** — the form fragment behind **all three** budget editors (deliberately
     the mirror of `role-fields.tsx`): a billing-type picker plus a fee + currency.
     `BudgetFormValues` is just `{ billingType, budgetAmount, budgetCurrency }`. **Both modes'
@@ -763,7 +764,7 @@ delivery, allocations, timesheets, and billing.
     a new column:** `PLANNER_SUB_LABEL_COL`'s `sticky left-56` is hand-twinned to
     `PLANNER_LABEL_COL` and those widths are **shared with the allocations grid**, so a third
     sticky column would shift the week spine on every planner
-    ([ADR 0052](../decisions/0052-project-budgets-and-margin.md)).
+    ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)).
   - **Selection + bulk actions.** Editable rows carry checkboxes (the vendored
     `src/components/ui/checkbox.tsx`); a header checkbox toggles all editable rows. When any are
     selected a **bulk bar** offers **Delete** (`deleteProjectRoles`), **Duplicate**
@@ -782,7 +783,7 @@ delivery, allocations, timesheets, and billing.
 
 ## Budget & margin
 
-The commercial layer, added by [ADR 0052](../decisions/0052-project-budgets-and-margin.md) — read
+The commercial layer, added by [ADR 0053](../decisions/0053-project-budgets-and-margin.md) — read
 that for the *why* behind each rule below. Math lives in the pure
 `src/lib/projects/project-margin.ts`; the schema is in [Key entities](#key-entities).
 
@@ -832,7 +833,7 @@ that for the *why* behind each rule below. Math lives in the pure
   **This is deliberately a per-*panel* fact, not a per-value one** — "this figure was converted" is
   only half the information, and per-figure markers become noise as soon as more than one value is
   converted; what a reader needs is the **rate** and how fresh it is
-  ([ADR 0052](../decisions/0052-project-budgets-and-margin.md) §8). There is **no per-value
+  ([ADR 0053](../decisions/0053-project-budgets-and-margin.md) §8). There is **no per-value
   provenance type** — `fx.ts` is just `AED_PER_USD` + `FALLBACK_USD_RATES` + `convert()`; don't
   reintroduce one. Rates come from the existing
   `getExchangeRates()` ([ADR 0029](../decisions/0029-external-fx-rates-and-currency-normalization.md)),
@@ -977,7 +978,7 @@ page** (`getProjectPlan`/`getProjectPto` are server-only; the `(app)` gate is th
   gated only on **`crm.edit`**, so `sales` legitimately reaches an opportunity's plan. **Never
   filter cost in the UI, and never widen `loadOpportunityPlan`'s gate to compensate.** See
   [permissions.md](./permissions.md) and
-  [ADR 0052](../decisions/0052-project-budgets-and-margin.md).
+  [ADR 0053](../decisions/0053-project-budgets-and-margin.md).
 - **PTO type/pending state needs `pto.review`:** the detail page's Time off tab shows dates + who to
   everyone but masks each leave's **type/pending state** otherwise — and **non-reviewers only get
   approved leave at all** (`getProjectPto` filters pending rows out and nulls those fields in the
@@ -1018,7 +1019,7 @@ The detail page's `canEdit` prop is an **affordance flag only**. **The matrix ga
 ## Key flows
 
 - **Price an engagement and watch its margin** (built,
-  [ADR 0052](../decisions/0052-project-budgets-and-margin.md)) — a `projects.edit` holder states
+  [ADR 0053](../decisions/0053-project-budgets-and-margin.md)) — a `projects.edit` holder states
   how the work bills **at create time** — a fixed fee (amount + currency), or time & materials,
   which needs **no further input** since it bills at the standard `BILL_RATES` card the dialog shows
   read-only — or re-prices later via the shared budget dialog
@@ -1103,7 +1104,7 @@ The detail page's `canEdit` prop is an **affordance flag only**. **The matrix ga
   `revalidateProject` — a role edited from the project page shows up on the planner immediately.
 - **Staff compensation (new, and the sensitive one)** — margin joins `projects` →
   `project_roles` → **`staff_employment`**, the projects domain's **first contact with
-  compensation** ([ADR 0052](../decisions/0052-project-budgets-and-margin.md)). It reaches it
+  compensation** ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)). It reaches it
   through exactly one module (`src/actions/shared/staffHourlyCost.ts`) behind exactly one gate
   (`getProjectCostBasis` / `projects.viewMargin`). A **role's cost is a salary**, so treat anything
   derived from it as compensation data — see [Authorization](#authorization),
@@ -1156,9 +1157,9 @@ The detail page's `canEdit` prop is an **affordance flag only**. **The matrix ga
 - ~~**No budget/value, no rates**~~ **Resolved** — a project carries a billing model (+ a fee when
   fixed), the company bills T&M work at one code-owned per-discipline rate card, and the app computes
   plan revenue/cost/margin
-  ([ADR 0052](../decisions/0052-project-budgets-and-margin.md)). What's still missing there:
+  ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)). What's still missing there:
   **no rate history at all** — revising `BILL_RATES` re-prices every T&M plan retroactively, so a
-  past margin can't be reconstructed (dating the card is a deliberate reopening of ADR 0052 §1–2,
+  past margin can't be reconstructed (dating the card is a deliberate reopening of ADR 0053 §1–2,
   not a field to add); **plan
   margin only** (nothing costs the *logged* hours — forecast-vs-actual is unbuilt); the shipped
   `BILL_RATES` are a **placeholder**; **no per-project pricing** (rejected on purpose — see the ADR

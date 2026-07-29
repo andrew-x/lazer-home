@@ -177,7 +177,7 @@ approval workflow — see [Open questions](#open-questions)). See
 
 > **Both of this grid's banners are now the shared `InlineNotice`** (`src/components/inline-notice.tsx`)
 > — they were the two open-coded copies it was extracted from when the project budget form needed the
-> same shape ([ADR 0052](../decisions/0052-project-budgets-and-margin.md)). The over-threshold banner
+> same shape ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)). The over-threshold banner
 > passes `tone="destructive"`; the unaccounted-hours notice below uses the default muted tone. Don't
 > re-open-code a third; and note it is deliberately **not** a form error (no `aria-invalid`, never
 > blocks a submit — the *floor* is what disables Submit, not the notice).
@@ -263,7 +263,7 @@ Still genuinely open:
 - **Billing** — invoice generation, and pricing the **logged** hours. Note charge rates
   themselves are no longer missing: a project carries a fixed fee or a per-discipline rate
   card, and margin is computed over its **allocation plan**, never over `time_entries`
-  ([ADR 0052](../decisions/0052-project-budgets-and-margin.md),
+  ([ADR 0053](../decisions/0053-project-budgets-and-margin.md),
   [projects.md](./projects.md#budget--margin)). Nothing in this domain reads them yet.
 - **Approval workflow** — if/when a manager sign-off step is added (approve/reject,
   audit trail, per-scope granularity).

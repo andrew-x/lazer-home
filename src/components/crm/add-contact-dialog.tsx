@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks";
 import { IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
-import { Controller, useWatch } from "react-hook-form";
+import { Controller } from "react-hook-form";
 import { createContact } from "@/actions/crm/createContact";
 import { createContactSchema } from "@/actions/crm/createContact.schema";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CompanyComboboxField } from "./company-combobox-field";
 import { ContactFields } from "./contact-fields";
-import { ManagerComboboxField } from "./manager-combobox-field";
 
 export function AddContactDialog() {
   return (
@@ -32,11 +31,15 @@ export function AddContactDialog() {
   );
 }
 
+/**
+ * The create-contact form. Deliberately has **no manager picker**: every
+ * person-to-person link is a `contact_relationships` row now, added from the
+ * contact's own page once it exists (see `ContactRelationshipsSection`).
+ */
 function ContactForm({ onSaved }: { onSaved: () => void }) {
-  // The comboboxes need the chosen entity's name to display; the form only stores
-  // ids, so we track the selected company/manager names alongside them here.
+  // The combobox needs the chosen company's name to display; the form only stores
+  // its id, so we track the selected name alongside it here.
   const [companyName, setCompanyName] = useState<string | null>(null);
-  const [managerName, setManagerName] = useState<string | null>(null);
 
   const { form, action, handleSubmitWithAction } = useHookFormAction(
     createContact,
@@ -52,7 +55,6 @@ function ContactForm({ onSaved }: { onSaved: () => void }) {
           companyId: null,
           role: "",
           linkedinUrl: "",
-          managerId: null,
         },
       },
     },
@@ -61,13 +63,8 @@ function ContactForm({ onSaved }: { onSaved: () => void }) {
   const {
     register,
     control,
-    setValue,
     formState: { errors },
   } = form;
-
-  // `useWatch` (rather than `form.watch`) so the manager field reliably re-renders
-  // when the company changes — it appears only once a company is chosen.
-  const companyId = useWatch({ control, name: "companyId" });
 
   return (
     <form onSubmit={handleSubmitWithAction} className="flex flex-col gap-4">
@@ -135,36 +132,10 @@ function ContactForm({ onSaved }: { onSaved: () => void }) {
             onChange={(next) => {
               field.onChange(next?.id ?? null);
               setCompanyName(next?.name ?? null);
-              // A manager is a colleague at the chosen company, so a company
-              // change invalidates any prior manager selection.
-              setValue("managerId", null);
-              setManagerName(null);
             }}
           />
         )}
       />
-
-      {companyId ? (
-        <Controller
-          control={control}
-          name="managerId"
-          render={({ field }) => (
-            <ManagerComboboxField
-              // Remount when the company changes so the picker's search state
-              // can't linger with the previous company's contacts (managerId is
-              // cleared alongside, so there's nothing to preserve across a switch).
-              key={companyId}
-              companyId={companyId}
-              value={field.value ?? null}
-              selectedName={managerName}
-              onChange={(next) => {
-                field.onChange(next?.id ?? null);
-                setManagerName(next?.name ?? null);
-              }}
-            />
-          )}
-        />
-      ) : null}
 
       <FormDialogFooter
         serverError={action.result.serverError}

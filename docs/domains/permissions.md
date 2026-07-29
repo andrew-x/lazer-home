@@ -86,7 +86,7 @@ derived from individual compensation.
   readers omit `costBasis` entirely for a viewer without it, so no compensation-derived value
   is ever sent to a client that merely hides it. See the
   [projects domain](projects.md) and
-  [ADR 0052](../decisions/0052-project-budgets-and-margin.md).
+  [ADR 0053](../decisions/0053-project-budgets-and-margin.md).
 
 A capability gates editing **other people's / locked** timesheets:
 
