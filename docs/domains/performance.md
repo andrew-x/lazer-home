@@ -839,16 +839,21 @@ roster); one sub-item under Performance in `nav.ts`, gated on
   state. The name button is deliberately **not** the expand toggle — the chevron stays
   the only expand affordance, so one click never means two things.
   - **What it shows is the reviewer's whole case in one pane:** current compensation,
-    skills, client intro, projects, time off, the history feed, and (when permitted) peer
-    feedback and review notes — each sensitive slice gated inside
-    `loadStaffProfileDrawer` rather than by the drawer not rendering it.
+    skills, client intro, projects, the history feed, and (when permitted) time off, peer
+    feedback, review notes and the **dated rating history** (`EvaluationHistory` — every
+    `staff_rating` row for that person, which is exactly the "how did they get to this
+    level" context a comp decision needs and which no other surface shows). Each sensitive
+    slice is gated inside `loadStaffProfileDrawer` rather than by the drawer not rendering
+    it.
   - **Worth knowing in this host specifically:** the plan editor's gate is the conjunction
     `staff.viewCompensation` **AND** `ratings.edit`, so **every** viewer who can reach it
-    already holds the comp capability — the drawer's `canViewCompensation` check can never
-    deny here, and the Compensation section is effectively always present. It still has to
-    be checked, because the same drawer is reachable from any future host with a looser
-    gate. See [staff-profiles.md](./staff-profiles.md) → *The read-only profile drawer*,
-    [permissions.md](./permissions.md) and [ui.md](../ui.md).
+    already holds both the comp capability and — since the only two roles with
+    `ratings.edit` also carry `ratings.view` — the ratings one. So neither the drawer's
+    `canViewCompensation` check nor its `ratings.view` check can ever deny *here*: the
+    Compensation section and the Evaluations tab are effectively always present. Both still
+    have to be checked, because the same drawer is reachable from any future host with a
+    looser gate. See [staff-profiles.md](./staff-profiles.md) → *The read-only profile
+    drawer*, [permissions.md](./permissions.md) and [ui.md](../ui.md).
 - **`edit-plan-dialog`** — rename + change the effective date, **draft only**
   (`updateCompensationPlan`).
 - **`manage-plan-staff`** (on `[planId]/staff`) — the searchable/filterable checkbox

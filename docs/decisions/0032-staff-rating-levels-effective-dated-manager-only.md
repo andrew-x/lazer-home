@@ -142,9 +142,19 @@ dashboard ([ADR 0029](./0029-external-fx-rates-and-currency-normalization.md)).
   effective date that predates a staff member's latest rating** (which would insert
   a non-current historical row); equal dates are fine (the `createdAt` tiebreak
   makes the newer write current). Template was `commitBulkEditEmployment`.
-- **A new rating surface must pass `ratings.view`** and expose no identity — the
-  anonymized-rows discipline of the comp dashboard carries over. Never add a
-  self-view path without revisiting this ADR.
+- **A new rating surface must pass `ratings.view`**, and any **aggregate/dashboard**
+  one must expose no identity — the anonymized-rows discipline of the comp dashboard
+  carries over. **Never add a self-view path without revisiting this ADR.** Identity-
+  bearing rating surfaces do exist, all behind that same capability and all for a
+  named decision rather than analysis: the `/performance/levels/edit` grid, the
+  compensation-change-plan editor ([ADR 0046](./0046-compensation-change-plans-rating-writing-proposals.md)),
+  and the **Evaluations tab of the staff profile drawer** (`getStaffEvaluationHistory`
+  — one person's full dated history; see [staff-profiles.md](../domains/staff-profiles.md)).
+  The no-self-view rule holds there in the only way it can: the read returns `null`,
+  not an empty list, so the tab is absent rather than empty. Its one **inherited**
+  wrinkle is that a capability *holder* can read their own history through it, exactly
+  as the edit grid already lets them — excluding self there and not here would be
+  inconsistent for no real gain.
 - **Adding a level would touch DDL.** Because the bound is a DB `CHECK` (not an
   enum), widening L0–L4 means a migration altering the constraint plus the
   `MAX_RATING_LEVEL` constant — deliberate friction for a rarely-changing scale.

@@ -88,8 +88,9 @@ checked FIRST.**
   `loadStaffProfileDrawer`'s response. That is sound because it's the same content
   `/feedback/[id]` already ships to the same viewer — **the justification is the gate the
   field carries, not the field being absent.** That drawer payload has since grown
-  compensation, PTO and the history feed, each behind its own gate, and this tab is one of
-  four gated slices in it; the standing rule for the payload is that **every sensitive
+  compensation, PTO, the history feed and the dated rating history, each behind its own
+  gate, and this tab is one of five gated slices in it; the standing rule for the payload
+  is that **every sensitive
   field is gated at the read, and `null` means "not permitted", never "none on file"**
   (see [staff-profiles.md](../domains/staff-profiles.md) → *The read-only profile drawer*
   and [permissions.md](../domains/permissions.md)).

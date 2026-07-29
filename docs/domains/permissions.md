@@ -416,7 +416,7 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
 - **`src/actions/staff/loadStaffProfileDrawer.ts`** — an **interactive read** (a
   `"use server"` + `secureActionClient` read, the documented exception to the
   server-only read rule, same shape as `loadOpportunityDetail`) and **the single best
-  worked example of this model in the codebase: one read composing four different gates,
+  worked example of this model in the codebase: one read composing five different gates,
   none of them on the action itself.**
   - **No capability gate on the action**, matching `/staff/[id]` — browsing a colleague's
     profile is open to any staff member. Each sensitive slice gates itself instead, and
@@ -429,11 +429,17 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
     | `pto` | `getStaffPto` self-gates | **ownership-or-capability** (`pto.review`) |
     | `feedback` | `getFeedbackAboutStaff` | **capability, with a self *tightening*** (`feedback.review`, but the recipient tier for yourself) |
     | `reviewNotes` | `getStaffReviewNotes` → `reviewNoteAccess` | **relationship** (`staff.managerId`) |
+    | `evaluationHistory` | `getStaffEvaluationHistory` self-gates | **bare capability, no owner path** (`ratings.view` — a staffer never sees their own level) |
 
-    Four gates, four different shapes, one read — and note that **the action's own
+    Five gates, five different shapes, one read — and note that **the action's own
     metadata declares none of them.** That's correct here precisely because the action
     grants nothing by itself; what it returns is assembled from reads that each answer
     for their own data. Don't "simplify" this by hoisting a capability onto the action.
+    The table is also the clearest statement of how **unevenly** self-access is treated
+    across this app, and that unevenness is deliberate: **own comp always visible**, **own
+    feedback visible but tier-limited**, **own review notes visible once shared**, **own
+    rating level never visible at all** ([ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md)).
+    Don't regularise it — each row's asymmetry is the decision.
   - **`compensation` is split out of `employment` on purpose.** The employment *facets*
     (role / line of business / employment type / billable) carry no money; the amounts
     live in a separate object built **only** when the comp gate passed. `getStaffProfile`

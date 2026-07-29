@@ -116,21 +116,34 @@ staff member, opened from a row elsewhere so a reviewer keeps their place in a l
 row — see [performance.md](./performance.md)), but nothing about it is plan-specific.
 
 - Built on the vendored `Sheet`, following the CRM **opportunity detail sheet**: load
-  on open through an action, `sm:max-w-[56rem]`. **Four to six tabs** — **Overview**,
-  **Projects**, *(**Time off**)*, *(**Peer feedback**)*, *(**Review notes**)*, **History**
-  — the three parenthesised ones conditional on their read exactly as on the profile,
-  History always present and rendered last (same order as `ProfileView`). **Projects and
-  Time off are tabs, not Overview sections**, because each is a history in its own right
-  and a review pane is read a tab at a time. Overview stacks: a 3-column facts grid
+  on open through an action, `sm:max-w-[56rem]`. **Three to seven tabs** — **Overview**,
+  **Projects**, *(**Time off**)*, *(**Peer feedback**)*, *(**Review notes**)*,
+  *(**Evaluations**)*, **History** — the four parenthesised ones conditional on their read
+  exactly as on the profile, History always present and rendered last (same order as
+  `ProfileView`). **Projects, Time off and Evaluations are tabs, not Overview sections**,
+  because each is a history in its own right and a review pane is read a tab at a time.
+  Overview stacks: a 3-column facts grid
   (**Location / Joined / Reports to** — no email; it was dropped) → **Compensation** →
   Skills → Client intro. The header shows the name plus a four-facet employment line (role · line
   of business · employment type · billable), and **falls back to nothing** when there's no
   employment row. It links out to `/staff/[id]` ("Open full profile") for anything
   editable.
-- **It is not a cut-down payload any more — it's a *gated* one.** Comp, PTO, feedback and
-  review notes are all present **for a viewer entitled to them**, and the drawer now
-  reaches near-parity with the profile page's read-only content. What it deliberately
-  still lacks is every *edit* affordance (bar review notes) and the avatar/links rail.
+- **It is not a cut-down payload any more — it's a *gated* one.** Comp, PTO, feedback,
+  review notes and rating history are all present **for a viewer entitled to them**, and
+  the drawer now reaches near-parity with the profile page's read-only content. What it
+  deliberately still lacks is every *edit* affordance (bar review notes) and the
+  avatar/links rail.
+- **The Evaluations tab is the drawer's one piece of genuinely new surface**, not a reused
+  profile section: `EvaluationHistory` over `getStaffEvaluationHistory` renders **one
+  person's whole dated `staff_rating` history** (level + subratings + who saved it, newest
+  first), where the levels dashboards only ever read the *latest* row across *everyone*.
+  It carries the **strictest gate in the drawer — `ratings.view`, manager/admin, with no
+  owner path at all** ([ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md)):
+  unlike comp (own always visible) and feedback (a limited recipient tier), there is no
+  self tier to degrade to, so a staffer sees no tab. Note the known, *inherited* wrinkle: a
+  capability holder can see **their own** history here, exactly as they already can in the
+  `/performance/levels/edit` grid — excluding self would diverge from that grid for no real
+  gain.
 - **The one interactive surface is Review notes**, deliberately: that's where the review
   conversation actually gets written up, so making it read-only would defeat the drawer's
   purpose. It passes `onChanged` so the drawer **re-loads itself** instead of calling
@@ -166,11 +179,12 @@ row — see [performance.md](./performance.md)), but nothing about it is plan-sp
     protected by the `(app)` layout, which refuses both — but **an action has no layout
     above it** and must refuse them itself. The review-note gate makes the same choice for
     the same reason; see [permissions.md](./permissions.md) → *Resolving the caller*.
-  - No capability gate on the *action* otherwise, matching `/staff/[id]` — **four
+  - No capability gate on the *action* otherwise, matching `/staff/[id]` — **five
     sensitive slices each carry their own gate and return `null` rather than throwing**
     (comp → `canViewCompensation`; PTO → `pto.review`; feedback → `feedback.review` or the
-    recipient tier; review notes → the reporting line), so one viewer's drawer simply has
-    fewer sections and tabs than another's.
+    recipient tier; review notes → the reporting line; rating history → `ratings.view`,
+    no owner path), so one viewer's drawer simply has fewer sections and tabs than
+    another's.
 
 ## Manual of Me
 
