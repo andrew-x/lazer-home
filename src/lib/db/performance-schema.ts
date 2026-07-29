@@ -19,6 +19,7 @@ import {
 } from "@/lib/performance/compensation-plan";
 import { FEEDBACK_RATINGS } from "@/lib/performance/feedback-rating";
 import type { Subratings } from "@/lib/performance/rating-rubric";
+import { PERFORMANCE_REVIEW_NOTE_STATUSES } from "@/lib/performance/review-note";
 import { MAX_RATING_LEVEL, MIN_RATING_LEVEL } from "@/lib/staff/staff-rating";
 import { user } from "./auth-schema";
 import { currencyEnum, employmentTypeEnum, staff } from "./staff-schema";
@@ -251,9 +252,69 @@ export const compensationPlanItem = pgTable(
   ],
 );
 
+// ---------------------------------------------------------------------------
+// Performance review notes
+//
+// A dated write-up of a review conversation, with a two-step lifecycle: a
+// manager drafts it (only they see it) and then SHARES it, after which the
+// person it is about can read it too. Not effective-dated — a note is a
+// document, not a fact about a person (same reasoning as `compensationPlan`).
+//
+// UNLIKE every other table here, who may read a row depends on the REPORTING
+// LINE (`staff.managerId`), not only on a role capability — the first place the
+// reporting graph is an authorization input rather than a display field. The
+// decision lives in `src/actions/performance/reviewNoteAccess.ts`; the reads
+// project accordingly. See docs/domains/performance.md and the ADR.
+// ---------------------------------------------------------------------------
+
+// Values live in `@/lib/performance/review-note` (a pure module) so this pgEnum
+// and the status labels / zod schemas share one source of truth.
+export const performanceReviewNoteStatusEnum = pgEnum(
+  "performance_review_note_status",
+  [...PERFORMANCE_REVIEW_NOTE_STATUSES],
+);
+
+export const performanceReviewNote = pgTable(
+  "performance_review_note",
+  {
+    id: text().primaryKey(),
+    // Who the note is about. Cascade: a note is meaningless without the person.
+    staffId: text()
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+
+    // Audit AND an authorization input (the author of a note may always manage
+    // it, even after they stop being the person's manager). `set null` fails
+    // CLOSED: losing the author row narrows access to manager/admin, never
+    // widens it.
+    authorUserId: text().references(() => user.id, { onDelete: "set null" }),
+
+    // The date of the conversation being documented — not the date it was typed.
+    noteDate: date().notNull(),
+
+    title: text(),
+    body: text().notNull(),
+
+    status: performanceReviewNoteStatusEnum().notNull().default("DRAFT"),
+    // Null while draft. Set when shared, and the idempotency guard that makes a
+    // second share an error rather than a silent re-stamp.
+    sharedAt: timestamp(),
+
+    createdAt: timestamp().defaultNow().notNull(),
+    updatedAt: timestamp()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [index("performance_review_note_staff_idx").on(t.staffId)],
+);
+
 // --- Row types -------------------------------------------------------------
 
 export type Feedback = InferSelectModel<typeof feedback>;
+export type PerformanceReviewNote = InferSelectModel<
+  typeof performanceReviewNote
+>;
 export type CompensationPlan = InferSelectModel<typeof compensationPlan>;
 export type CompensationPlanItem = InferSelectModel<
   typeof compensationPlanItem

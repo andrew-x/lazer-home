@@ -31,7 +31,7 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0020](./0020-compensation-effective-dated-import-only.md) | Compensation as effective-dated facts on `staff_employment`; import-only, required (no carry-forward — under-specified rows skipped), view-gated | accepted |
 | [0021](./0021-opportunity-pipeline-groups-and-fractional-ordering.md) | Opportunity pipeline: status groups in code + single global fractional ordering | accepted |
 | [0022](./0022-contact-manager-self-reference.md) | Contact "managed by" self-referential FK; same-company invariant enforced app-side | accepted |
-| [0023](./0023-feedback-privacy-tiers.md) | Peer feedback: privacy tiers as read-projections; giving open, review gated | accepted; **factually corrected** by [0047](./0047-feedback-reports-scoping-not-granting.md) (a reporting graph now exists — the decision itself stands) |
+| [0023](./0023-feedback-privacy-tiers.md) | Peer feedback: privacy tiers as read-projections; giving open, review gated | accepted; **factually corrected** by [0047](./0047-feedback-reports-scoping-not-granting.md) (a reporting graph now exists) and [0049](./0049-review-notes-reporting-line-as-authorization-boundary.md) (a permission check now reads one — for review notes, not feedback) — the decision itself stands |
 | [0024](./0024-opportunity-project-handoff-and-placeholder-roles.md) | Opportunity → Project handoff: delivery-stage project requirement + placeholder roles + role type (amended: link inverted, same-company enforced) | accepted |
 | [0025](./0025-line-of-business-on-opportunity-and-project-not-role.md) | Line of business belongs to the opportunity & project, not the role; opportunities split to own schema file | superseded (project point) by 0033 |
 | [0026](./0026-staff-manager-self-reference.md) | Staff "reports to": durable self-FK, import-resolved by email in two passes | accepted |
@@ -55,17 +55,23 @@ One file per decision, numbered: `NNNN-short-title.md`. Each has: **Status** (pr
 | [0044](./0044-performance-dashboards-split-by-permission.md) | `/performance` split into two gated dashboards (Compensation + Performance/levels); `/performance` becomes a permission-aware redirect | accepted |
 | [0045](./0045-project-page-as-delivery-side-role-editor.md) | Two role editors — deal-side (opportunity planner, tentative-only) vs. delivery-side (project page, any status); "confirmed roles are locked" narrowed to the planner | accepted; self-amended same-day — the project **Gantt** is an edit surface too (`editable` vs. `emphasized` split) and the project's **company** is editable, guarded against stranding a linked opportunity |
 | [0046](./0046-compensation-change-plans-rating-writing-proposals.md) | Compensation change plans: commit writes ratings only, never `staff_employment`; snapshot + drift badge reconcile against Rippling | accepted (0020 stands) |
-| [0047](./0047-feedback-reports-scoping-not-granting.md) | "Your reports" feedback list: `staff.managerId` **scopes** an already-permitted set, it never grants; `feedback.review` unchanged (0023 stands, corrected) | accepted |
-| [0047](./0047-plan-editor-status-ladder-display-units-and-level-targets.md) | ⚠️ **duplicate number** — plan-editor status ladder, display units and level targets | accepted |
+| [0047](./0047-feedback-reports-scoping-not-granting.md) | "Your reports" feedback list: `staff.managerId` **scopes** an already-permitted set, it never grants; `feedback.review` unchanged (0023 stands, corrected) | accepted (feedback point stands); **factually corrected** by [0049](./0049-review-notes-reporting-line-as-authorization-boundary.md) — "the reporting line never grants" is no longer codebase-wide |
 | [0048](./0048-company-contact-relationships-beyond-employment.md) | Company ↔ contact relationships beyond employment: a separate link table (employer FK untouched), one row per pair, free-text description with suggestions | accepted |
-
-> ⚠️ **0047 is used twice** — two unrelated ADRs landed on the number (the feedback
-> "Your reports" scoping decision and the plan-editor status ladder). Both are real
-> and accepted; the collision is a numbering slip, not a supersede. Inbound links
-> already point at both filenames, so neither was renumbered. **Next free number is
-> 0049.** Worth resolving deliberately rather than letting a third collide.
+| [0049](./0049-review-notes-reporting-line-as-authorization-boundary.md) | Performance review notes: `staff.managerId` becomes an authorization **boundary** (the one relationship-based gate); no capability, no matrix change; one-way sharing, no un-share | accepted — deliberately breaks [0047](./0047-feedback-reports-scoping-not-granting.md) §2 for this entity only |
+| [0050](./0050-profile-peer-feedback-tab.md) | Peer feedback on the staff profile: per-person browse for `feedback.review` holders (discovery, not access), **recipient tier for self** (self branch checked first); browse-all still deferred | accepted (0023 + 0047 stand) |
+| [0051](./0051-plan-editor-status-ladder-display-units-and-level-targets.md) | Plan editor: one ordered item `status` ladder replacing three booleans, display-only annual↔hourly unit toggle, code-owned level comp targets (Gap / Gap %) | accepted; **renumbered from a duplicate 0047** on 2026-07-29, then to **0051** when 0048 was taken on `main` |
 
 > **0012 is intentionally absent** (the log jumps 0011 → 0013). It was a short-lived
 > ADR documenting the *open staff-edit gap pending RBAC*; it was **withdrawn** once
 > [ADR 0014](./0014-rbac-better-auth-access-control.md) closed that gap, and its file
 > was removed. The number is retired — don't reuse it.
+
+> **The plan-editor ADR has moved twice.** Filed as a duplicate **0047** on
+> 2026-07-28 (two ADRs, same day, same number), it was renumbered to **0048** on
+> 2026-07-29 — which collided again when `main` independently landed
+> [0048](./0048-company-contact-relationships-beyond-employment.md) for the CRM
+> relationship table. It now lives at **[0051](./0051-plan-editor-status-ladder-display-units-and-level-targets.md)**;
+> the trunk number won. Nothing outside `/docs` linked to either old number.
+> **Before adding an ADR, take the next number from this table, not from `ls`** — a
+> file that isn't in the log is exactly how the first collision happened, and a
+> number claimed on a long-lived branch is how the second one did.

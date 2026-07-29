@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { getFeedbackAboutStaff } from "@/actions/feedback/getFeedbackAboutStaff";
+import { getStaffReviewNotes } from "@/actions/performance/getStaffReviewNotes";
 import { getManualOfMe } from "@/actions/responses/getManualOfMe";
 import { getWaysOfWorking } from "@/actions/responses/getWaysOfWorking";
 import { canEditStaff } from "@/actions/staff/canEditStaff";
@@ -29,16 +31,29 @@ export default async function StaffProfilePage({
 }) {
   const { id } = await params;
 
-  const [profile, projects, pto, imageUrl, user, manualOfMe, waysOfWorking] =
-    await Promise.all([
-      getStaffProfile(id),
-      getStaffProjects(id),
-      getStaffPto(id),
-      getStaffAvatar(id),
-      getCurrentUser(),
-      getManualOfMe(id),
-      getWaysOfWorking(id),
-    ]);
+  // `pto`, `feedback` and `reviewNotes` each come back null when this viewer may
+  // not see that section — the reads are the gate, and ProfileView just hides it.
+  const [
+    profile,
+    projects,
+    pto,
+    imageUrl,
+    user,
+    manualOfMe,
+    waysOfWorking,
+    feedback,
+    reviewNotes,
+  ] = await Promise.all([
+    getStaffProfile(id),
+    getStaffProjects(id),
+    getStaffPto(id),
+    getStaffAvatar(id),
+    getCurrentUser(),
+    getManualOfMe(id),
+    getWaysOfWorking(id),
+    getFeedbackAboutStaff(id),
+    getStaffReviewNotes(id),
+  ]);
 
   if (!profile) notFound();
 
@@ -60,6 +75,8 @@ export default async function StaffProfilePage({
       waysOfWorking={waysOfWorking}
       history={history}
       pto={pto}
+      feedback={feedback}
+      reviewNotes={reviewNotes}
       canEdit={canEdit}
       canViewCompensation={canViewComp}
     />

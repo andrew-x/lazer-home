@@ -16,6 +16,7 @@ const SEEDABLE_TABLES = [
   "compensation_plan_item",
   "compensation_plan",
   "feedback",
+  "performance_review_note",
   "staff_rating",
   "responses",
   // timesheets

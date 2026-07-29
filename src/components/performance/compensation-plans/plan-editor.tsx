@@ -13,6 +13,7 @@ import {
   SaveIndicator,
 } from "@/components/form/save-indicator";
 import { SortHeaderButton } from "@/components/form/sort-header";
+import { StaffProfileDrawer } from "@/components/staff/staff-profile-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,6 +77,10 @@ export function PlanEditor({
   const [sort, setSort] = useState<PlanSort>(DEFAULT_PLAN_SORT);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [commitOpen, setCommitOpen] = useState(false);
+  // The profile drawer opened from a row's name. Kept as a staff id + an open
+  // flag (not folded into one nullable) so the id survives the close animation.
+  const [profileStaffId, setProfileStaffId] = useState<string | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   // Always the FULL item list: the hook drops drafts for items it stops seeing,
   // so handing it the filtered rows would delete a hidden row's unsaved work.
@@ -313,6 +318,10 @@ export function PlanEditor({
                     onToggleExpanded={() =>
                       void toggleExpanded(view.item.itemId)
                     }
+                    onOpenProfile={() => {
+                      setProfileStaffId(view.item.staffId);
+                      setProfileOpen(true);
+                    }}
                     onFieldChange={(field, patch) =>
                       autosave.setField(view.item.itemId, field, patch)
                     }
@@ -335,6 +344,14 @@ export function PlanEditor({
           </Table>
         </div>
       )}
+
+      {/* Mounted once for the whole table: a per-row drawer would fetch and
+          duplicate state per row. Read-only apart from its review notes. */}
+      <StaffProfileDrawer
+        staffId={profileStaffId}
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+      />
 
       <CommitPlanDialog
         planId={plan.id}

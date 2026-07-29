@@ -4,7 +4,9 @@
 
 ## Context
 
-Staff needed a "who does this person report to" relationship ([design spec](../plans/2026-07-13-staff-manager-design.md)).
+Staff needed a "who does this person report to" relationship. *(The original design spec
+lived in `docs/plans/` — scratch space that a SessionStart hook prunes after two weeks —
+so it is gone; this ADR is the durable record.)*
 A person has at most one manager, and the manager is another `staff` record. Two
 design questions had non-obvious answers: **where the relationship lives** (durable
 `staff` identity vs effective-dated `staff_employment`), and **how the CSV import
@@ -100,9 +102,14 @@ manager changed to a non-null value. A cleared link or an unchanged pointer ridi
 an unrelated field change doesn't count.
 
 **No cycle detection beyond self-reference** — intentional (`contacts.managerId` doesn't
-guard cycles either), and the reason the one reader that *walks* the link
-(`getFeedbackAboutReports`, one hop only) guards against self-reference itself rather
-than trusting the data — [ADR 0047](./0047-feedback-reports-scoping-not-granting.md).
+guard cycles either), and the reason **every reader that walks the link guards against
+self-reference itself** rather than trusting the data: `getFeedbackAboutReports` (one
+hop, excludes the caller as recipient —
+[ADR 0047](./0047-feedback-reports-scoping-not-granting.md)) and `getReviewNoteAccess`
+(returns on the self branch **before reading `managerId` at all**, so nobody becomes
+their own note-manager —
+[ADR 0049](./0049-review-notes-reporting-line-as-authorization-boundary.md)). Any new
+consumer must add its own guard.
 
 ## Consequences
 
@@ -128,6 +135,17 @@ than trusting the data — [ADR 0047](./0047-feedback-reports-scoping-not-granti
   — the feedback read explicitly excludes `recipient.id = callerStaffId` because a
   self-pointing row would otherwise expose the caller's own feedback in full. No
   "direct reports" (inverse) view exists on the **profile** yet.
+- **No longer only a *scoping* input either (amended 2026-07-29).** `managerId` is now an
+  **authorization input** for one entity: **`performance_review_note`**, where the
+  subject's current manager (or an admin) may read and write a private review write-up
+  and nobody else can — role capabilities are not consulted
+  ([ADR 0049](./0049-review-notes-reporting-line-as-authorization-boundary.md)). Decision
+  §1 *still* holds (access follows the **current** line, so there is no as-of demand and
+  no reason to effective-date), but the stakes of the two consequences above rise from
+  "what a manager can conveniently see" to **"who can read a private conversation"**. The
+  preserve-on-unresolvable import rule and the self-guard are now privacy controls, not
+  conveniences. If an in-app `managerId` editor is ever built, it must be treated as a
+  **permission-granting** write.
 - **Manager deleted later → pointer clears** via `onDelete: set null` (a leaver is
   normally marked inactive, not deleted — see [ADR 0007](./0007-staff-employment-effective-dating.md)
   — so this mainly bites hard deletes).

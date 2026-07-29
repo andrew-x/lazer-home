@@ -69,6 +69,7 @@ export function PlanRow({
   readOnly,
   expanded,
   onToggleExpanded,
+  onOpenProfile,
   onFieldChange,
   onFieldCommit,
   onPlannedText,
@@ -80,6 +81,8 @@ export function PlanRow({
   readOnly: boolean;
   expanded: boolean;
   onToggleExpanded: () => void;
+  /** Open the read-only profile drawer for this person (the name is the trigger). */
+  onOpenProfile: () => void;
   onFieldChange: (field: PlanField, patch: Partial<PlanRowDraft>) => void;
   onFieldCommit: (field: PlanField) => void;
   onPlannedText: (text: string) => void;
@@ -133,7 +136,17 @@ export function PlanRow({
 
         <TableCell>
           <div className="flex min-w-0 flex-col">
-            <span className="font-medium">{item.name}</span>
+            {/* Opens the profile drawer for review in place. Deliberately NOT the
+                expand toggle — that stays the chevron, so one click never means
+                two things. */}
+            <button
+              type="button"
+              aria-label={`Open ${item.name}'s profile`}
+              className="w-fit text-left font-medium underline-offset-4 hover:text-primary hover:underline"
+              onClick={onOpenProfile}
+            >
+              {item.name}
+            </button>
             {/* The cell is `whitespace-nowrap`, so the five-facet line needs an
                 explicit width cap or it widens the whole column. */}
             <span

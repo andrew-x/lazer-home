@@ -1,18 +1,30 @@
 # Domain: Performance management
 
-**Status: partially built.** Four concrete slices are realized: **peer feedback**,
+**Status: partially built.** Five concrete slices are realized: **peer feedback**,
 a **compensation & headcount analytics dashboard**, **staff rating levels
-(L0–L4)**, and **compensation change plans**. The middle two are **two separate,
-separately-gated dashboards** — `/performance/compensation` and
-`/performance/levels` — and **`/performance` itself is not a page**: it's a
-permission-aware redirect to whichever dashboard the viewer may see
-([ADR 0044](../decisions/0044-performance-dashboards-split-by-permission.md);
+(L0–L4)**, **compensation change plans**, and **performance review notes**. The
+middle two dashboards are **two separate, separately-gated** routes —
+`/performance/compensation` and `/performance/levels` — and **`/performance` itself
+is not a page**: it's a permission-aware redirect to whichever dashboard the viewer
+may see ([ADR 0044](../decisions/0044-performance-dashboards-split-by-permission.md);
 they used to share one page, which [ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md)
 described — that framing is superseded). Plans live at
-`/performance/compensation-plans` — the one identity-bearing surface here
-([ADR 0046](../decisions/0046-compensation-change-plans-rating-writing-proposals.md)).
-The broader review/goal machinery
-(ReviewCycle, PerformanceReview, Goal) is still **proposed**.
+`/performance/compensation-plans` — the one identity-bearing *analytics-adjacent*
+surface here
+([ADR 0046](../decisions/0046-compensation-change-plans-rating-writing-proposals.md),
+[ADR 0051](../decisions/0051-plan-editor-status-ladder-display-units-and-level-targets.md)).
+**Review notes have no route of their own** — they live as a tab on the staff
+profile and inside the plan editor's profile drawer, and they are the **one place in
+the whole codebase where authorization reads the reporting line**
+([ADR 0049](../decisions/0049-review-notes-reporting-line-as-authorization-boundary.md)).
+The rest of the review/goal machinery (ReviewCycle, PerformanceReview, Goal) is still
+**proposed**.
+
+> **Read this first if you're touching gates here.** This domain now holds **three
+> different kinds of gate**, and they are not interchangeable: a plain capability
+> (`feedback.review`, `ratings.*`), a **conjunction** of two capabilities
+> (`COMPENSATION_PLAN_ACCESS`), and a **relationship** (`staff.managerId`, review
+> notes only). See [permissions.md](./permissions.md).
 
 ## Purpose
 
@@ -69,23 +81,30 @@ never leave the server for unauthorized callers. Three tiers:
    recipient.
 3. **Reviewer (`feedback.review`) — full view.** Managers/admins can view **any
    individual** feedback item in full via `getFeedbackDetail` (full content for
-   any id — the detail page `/feedback/[id]`), **plus one browse list: their own
-   direct reports** ("Your reports" tab, `getFeedbackAboutReports` — see below).
+   any id — the detail page `/feedback/[id]`), plus **two** browse surfaces, both on
+   that same unchanged capability: **their own direct reports** ("Your reports" tab,
+   `getFeedbackAboutReports` — see below) and **any one named person**
+   (the staff-profile **"Peer feedback" tab**, `getFeedbackAboutStaff` — see below).
    A **browse-all list** of *everyone's* feedback is still **deferred / planned** —
    it existed briefly (`getAllFeedbackPage` + an `all-feedback-table`) and was
-   removed; the reports tab reinstates that idea only in the narrowed,
-   reporting-line-scoped form. The `feedback.review` capability itself is
+   removed; the two tabs reinstate that idea only in narrowed forms (a reporting
+   subtree; one person at a time). The `feedback.review` capability itself is
    unchanged and still the only reviewer gate
-   ([ADR 0047](../decisions/0047-feedback-reports-scoping-not-granting.md)).
+   ([ADR 0047](../decisions/0047-feedback-reports-scoping-not-granting.md),
+   [ADR 0050](../decisions/0050-profile-peer-feedback-tab.md)).
 
-> **"Manager" in the *authorization* model still means the `feedback.review`
-> capability, never a reporting line** — no permission check anywhere consults the
-> reporting graph. But the graph itself **does** exist (`staff.managerId`, a durable
-> self-FK, [ADR 0026](../decisions/0026-staff-manager-self-reference.md)) and is now
-> **read to scope** the "Your reports" tab. Scoping ≠ granting: the tab's gate is the
-> plain `feedback.review` capability, and the reporting line only *narrows* a result
-> set the caller was already entitled to see in full. (Older docs asserting "there is
-> no manager/report graph in this codebase" are wrong — that was true before ADR 0026.)
+> **"Manager" in the *feedback* authorization model still means the `feedback.review`
+> capability, never a reporting line** — no feedback read consults the reporting graph
+> to decide *whether* you may see something. The graph itself
+> (`staff.managerId`, a durable self-FK,
+> [ADR 0026](../decisions/0026-staff-manager-self-reference.md)) is **read to scope**
+> the "Your reports" tab: scoping ≠ granting, so the tab's gate is the plain
+> capability and the relationship only *narrows* a set the caller was already entitled
+> to see in full. **Do not generalise that to the codebase.** Since
+> [ADR 0049](../decisions/0049-review-notes-reporting-line-as-authorization-boundary.md),
+> **performance review notes** (below) *do* let `managerId` decide access — the one
+> exception, in one module. (Older docs asserting "there is no manager/report graph in
+> this codebase" are wrong — that was true before ADR 0026.)
 
 ### "Your reports" — the one relationship-scoped browse list
 
@@ -119,6 +138,36 @@ feedback whose **recipient is a direct report of the caller** — newest first, 
 Full rationale in
 [ADR 0047](../decisions/0047-feedback-reports-scoping-not-granting.md).
 
+### "Peer feedback" on the staff profile — the per-person surface
+
+A second browse surface, on the **same unchanged capability**: a **Peer feedback tab**
+on `/staff/[id]`, `/profile`, and the compensation-plan **profile drawer**, backed by
+**`getFeedbackAboutStaff(staffId)`** (`src/actions/feedback/`, server-only read). It
+returns a **two-tier tagged union**, and *the branch order is the decision*
+([ADR 0050](../decisions/0050-profile-peer-feedback-tab.md)):
+
+1. **Self is checked FIRST → `{ tier: "recipient", rows }`.** On your own profile you
+   get the limited recipient projection (it delegates to `getFeedbackAboutMe`) **even
+   if you hold `feedback.review`**. A deliberate **tightening**: it refuses to widen
+   the reviewer self-view gap below into a browsable list. Flip the order and the
+   tightening is gone.
+2. **Someone else's profile + `feedback.review` → `{ tier: "full", rows }`** — the
+   same projection `getFeedbackDetail` gives a reviewer, so **every row is one the
+   caller could already open at `/feedback/[id]`**. This adds **discovery** (any
+   person, one at a time), **not access** — no new capability, no matrix change, and
+   **browse-all is still deferred**.
+3. **Anyone else → `null`**, and no tab is rendered at all (not the trigger, not the
+   panel), so the tab's presence never discloses that feedback exists. Same
+   `null` vs `[]` convention as the reports tab.
+
+UI: **`src/components/feedback/staff-feedback-panel.tsx`** (client, presentational —
+takes `view` + `staffName`, holds no reads) so all three hosts can't drift. It reuses
+`FeedbackAboutMe` for the recipient tier and the shared `FeedbackDetailDialog` for the
+full tier, supplying `recipientName` from `staffName` (a per-person read has no reason
+to repeat the recipient on every row). It **says which tier the viewer is in** out loud
+("As a reviewer you can see each item in full — they can't"), and links out to
+`/feedback`.
+
 ### Deliberate gap — reviewers see their own feedback
 
 `feedback.review` currently grants a reviewer full visibility of **any** feedback,
@@ -128,12 +177,19 @@ accepted limitation for the first slice**, not an oversight — locking down
 managers reading their own feedback (e.g. routing it through the limited recipient
 view) is flagged **future work**. See [ADR 0023](../decisions/0023-feedback-privacy-tiers.md).
 
+**Both browse surfaces refuse to widen it** — the reports tab excludes the caller as
+recipient, and the profile tab returns the *recipient* tier on your own profile. So the
+gap is reachable **only** via `/feedback/[id]`. Keep it that way: any new
+reviewer-facing feedback surface should route the caller's own rows through the
+recipient projection.
+
 ### Actions & UI
 
 - Actions in `src/actions/feedback/`: `createFeedback` (+ `.schema`),
   `authorizeFeedback` (`canGiveFeedback` + `authorizeFeedbackCreate`),
   `getFeedbackAboutMe`, `getFeedbackIGave`, `getFeedbackDetail`,
   **`getFeedbackAboutReports`** (the reviewer's direct-reports list — above),
+  **`getFeedbackAboutStaff`** (the per-person profile tab — above),
   `searchStaffForFeedback` (auth-only recipient picker, active staff excluding
   self — no capability, since giving is open).
 - UI: nav item **"Peer Feedback"** → `/feedback` (`IconMessageHeart`; the route and
@@ -146,8 +202,10 @@ view) is flagged **future work**. See [ADR 0023](../decisions/0023-feedback-priv
   `src/components/feedback/`: `feedback-form` (the give-feedback form, rendered on
   the `/new` page — replaced the old dialog), `feedback-about-me`,
   `feedback-given-table`, **`feedback-about-reports-table`**,
+  **`staff-feedback-panel`** (the profile/drawer tab — above),
   **`feedback-detail-dialog`** (the full-content dialog, **extracted from
-  `feedback-given-table` and now shared by both tables** — change it in one place;
+  `feedback-given-table` and now shared by both tables and the profile panel** —
+  change it in one place;
   callers keep `item` and `open` in separate state so the content survives the close
   animation), and `feedback-detail-fields` (a single item's full content, shared by
   that dialog and the `[id]` detail page). Vendored primitive
@@ -548,10 +606,10 @@ subratings, modeling that subratings were introduced later than the level.
 ## Compensation change plans — **built**
 
 A **plan** is a named, effective-dated **proposal** covering a cohort of staff: for
-each person a proposed rating (level + subratings), a proposed compensation figure,
-three workflow checkboxes, and two note fields. **Committing a plan writes the
-ratings as each person's latest `staff_rating` — and deliberately does NOT write
-compensation.** Rippling remains the sole writer of `staff_employment`
+each person a proposed rating (level + subratings), a proposed compensation figure, a
+**workflow status** (one ordered ladder — see below), and two note fields. **Committing
+a plan writes the ratings as each person's latest `staff_rating` — and deliberately
+does NOT write compensation.** Rippling remains the sole writer of `staff_employment`
 ([ADR 0020](../decisions/0020-compensation-effective-dated-import-only.md) **stands,
 un-superseded**); the planned figure stays a proposal, and commit instead freezes a
 snapshot of what comp *was* so a committed plan can show a stable before/after and
@@ -589,25 +647,61 @@ guard** that makes a second commit an error rather than a duplicate write.
   move is expressible. `plannedAmount` is deliberately **not** seeded from current
   comp — pre-filling would make "not yet proposed" indistinguishable from "reviewed,
   deliberately no change".
-- **`ratingDone` / `meetingDone` / `isComplete`** — workflow booleans, independent of
-  content (a rating can exist before the meeting and vice versa).
+- **`status`** — how far the review conversation has got, as **one ordered ladder**
+  (`compensation_plan_item_status` pgEnum: `NOT_STARTED` → `RATING_DONE` →
+  `MEETING_DONE` → `COMPLETE`; values in the pure module below, per
+  [ADR 0016](../decisions/0016-junction-table-and-shared-enum-conventions.md)),
+  rendered as a four-segment control. **This replaced three independent booleans**
+  (`ratingDone`/`meetingDone`/`isComplete`), which cost three columns to say one thing
+  and made nonsense states representable ("complete" for someone never rated).
+  `drizzle/0010` backfills highest-set-flag-wins, `0011` drops the columns — a
+  **deliberately lossy** migration, since eliminating those combinations was the point.
+  See [ADR 0051](../decisions/0051-plan-editor-status-ladder-display-units-and-level-targets.md).
 - **`evaluationNotes` / `compensationNotes`**.
 - **`snapshotAmount` / `snapshotCurrency` / `snapshotEmploymentType`** — frozen in the
   commit transaction; null while draft. The employment type is recorded because
   `plannedAmount`'s *meaning* depends on it — otherwise a years-old annual base could
   later be misread as an hourly rate.
 
-### Pure module — `src/lib/performance/compensation-plan.ts`
+### Pure modules — `compensation-plan.ts`, `compensation-unit.ts`, `compensation-targets.ts`
 
-Client-importable, no drizzle. Owns the status tuple + labels (feeding the pgEnum),
-the display-currency modes, and the row math: `planChange` (the four money columns),
-`currentCompAmount` / `compAmountLabel`, `monthsSince` + `NEW_JOINER_MONTHS` (the
-tenure chip), `PLAN_LOCKED_MESSAGE`, and `COMPENSATION_PLAN_ACCESS`.
+All three under `src/lib/performance/`, client-importable, no drizzle.
 
-**The percentage change is invariant across display currencies by construction** —
-`planChangePercent` computes from the **native** amounts, not the converted ones, so
-switching the toggle re-denominates the money columns but can never move the
-percentage. Cross-currency proposals convert both legs before subtracting.
+- **`compensation-plan.ts`** — the plan + item status tuples and labels (feeding both
+  pgEnums; the item ladder also has a **short** label map `—`/`Rating`/`Meeting`/`Done`
+  for the in-cell segments), the display-currency modes, and the row math:
+  `planChange` (the money columns), `currentCompAmount`, `monthsSince` +
+  `NEW_JOINER_MONTHS` (the tenure chip), `PLAN_LOCKED_MESSAGE`, and
+  `COMPENSATION_PLAN_ACCESS`.
+- **`compensation-unit.ts`** — a flat **`HOURS_PER_YEAR = 2080`** and the annual↔hourly
+  conversion behind the editor's **per-row display-unit toggle**. Deliberately a flat
+  constant, **not** each person's `utilizationTarget`: this is a display convention, not
+  a costing model, and a per-person factor would make the same figure convert to a
+  different number per person. **The persisted value never moves** — the draft keeps
+  `plannedCanonical` (the truth, in the person's own unit), `plannedText` (the editing
+  buffer, in the displayed unit) and `plannedUnit` (display state no patch reads) apart,
+  so toggling re-derives from the untouched canonical amount and enqueues no save.
+  Converting the on-screen text instead would compound rounding and silently save a
+  figure nobody touched — asserted in `compensation-unit.test.ts`.
+- **`compensation-targets.ts`** — code-owned **compensation targets keyed role ×
+  `billableType` × level**, one annual-CAD figure each, driving the editor's **Gap** and
+  **Gap %** columns. Policy revised by human judgement, so it's a reviewed diff rather
+  than a migration (same reasoning as the role rubrics,
+  [ADR 0042](../decisions/0042-per-role-subratings-app-owned-jsonb.md)). **The shipped
+  figures are placeholders and only `ENGINEER` is configured** — every other role renders
+  an em dash, never a zero. Nothing here writes pay
+  ([ADR 0020](../decisions/0020-compensation-effective-dated-import-only.md) stands).
+
+Full rationale for all three in
+[ADR 0051](../decisions/0051-plan-editor-status-ladder-display-units-and-level-targets.md).
+
+**Percentages are invariant across the display toggles by construction** —
+`planChangePercent` and Gap % compute from the **native** amounts, cross-rated through
+USD, so switching currency *or* unit re-denominates the money columns but can never move
+a percentage. Cross-currency proposals convert both legs before subtracting. Every
+signed cell also **rounds to its display precision before choosing a sign**, so an FX
+residue like `-2.9e-11` renders as a neutral `CA$0`, not a destructive-red `−CA$0`
+(pinned in `plan-format.test.ts`).
 
 ### Access control — the conjunction of two existing capabilities (no matrix change)
 
@@ -724,12 +818,42 @@ roster); one sub-item under Performance in `nav.ts`, gated on
 - **`plans-list`** + **`new-plan-dialog`** — the list table (name link, effective
   date, headcount, status badge, creator), plus a per-plan delete affordance behind
   the shared `ConfirmDialog`.
-- **`plan-editor`** — the client root: display-currency toggle, expanded-row set,
-  autosave hook, Edit / **Manage staff** (a link, not a dialog) / Commit. **Not built
+- **`plan-editor`** — the client root: display-currency toggle, search + filters +
+  hand-rolled sorting, expanded-row set, autosave hook, the mounted-once **profile
+  drawer** (below), Edit / **Manage staff** (a link, not a dialog) / Commit. **Not built
   on the shared `EditableTable`** — see [ui.md](../ui.md) → *Save-on-edit vs. batch
   edit* and *Expandable rows*. There is **no Save button**; a committed plan renders
   the same table read-only, as does a draft the server locked underneath the editor.
-  Its empty state links to the membership page rather than opening a picker.
+  Its empty state links to the membership page rather than opening a picker. Each row's
+  money math is derived **once** as a `PlanRowView` (`plan-row-view.ts`) shared by the
+  cells and the sort comparator — two independent derivations of FX-and-unit-converted
+  money would drift ([ADR 0051](../decisions/0051-plan-editor-status-ladder-display-units-and-level-targets.md)).
+  The page also drops the app's usual `max-w-[90rem]` measure and pins itself to
+  `100svh` with the table pane owning the scrolling (eleven dense numeric columns are
+  read *across*, and the sort controls have to stay put).
+- **The read-only profile drawer** (`StaffProfileDrawer`, `src/components/staff/`) —
+  clicking a **person's name** in a row opens it, so a reviewer can check who they're
+  deciding about without leaving the grid. Mounted **once for the whole table**
+  (`profileStaffId` + `profileOpen` state on the editor — kept as two pieces of state so
+  the id survives the close animation); a per-row drawer would duplicate fetches and
+  state. The name button is deliberately **not** the expand toggle — the chevron stays
+  the only expand affordance, so one click never means two things.
+  - **What it shows is the reviewer's whole case in one pane:** current compensation,
+    skills, client intro, projects, the history feed, and (when permitted) time off, peer
+    feedback, review notes and the **dated rating history** (`EvaluationHistory` — every
+    `staff_rating` row for that person, which is exactly the "how did they get to this
+    level" context a comp decision needs and which no other surface shows). Each sensitive
+    slice is gated inside `loadStaffProfileDrawer` rather than by the drawer not rendering
+    it.
+  - **Worth knowing in this host specifically:** the plan editor's gate is the conjunction
+    `staff.viewCompensation` **AND** `ratings.edit`, so **every** viewer who can reach it
+    already holds both the comp capability and — since the only two roles with
+    `ratings.edit` also carry `ratings.view` — the ratings one. So neither the drawer's
+    `canViewCompensation` check nor its `ratings.view` check can ever deny *here*: the
+    Compensation section and the Evaluations tab are effectively always present. Both still
+    have to be checked, because the same drawer is reachable from any future host with a
+    looser gate. See [staff-profiles.md](./staff-profiles.md) → *The read-only profile
+    drawer*, [permissions.md](./permissions.md) and [ui.md](../ui.md).
 - **`edit-plan-dialog`** — rename + change the effective date, **draft only**
   (`updateCompensationPlan`).
 - **`manage-plan-staff`** (on `[planId]/staff`) — the searchable/filterable checkbox
@@ -742,12 +866,15 @@ roster); one sub-item under Performance in `nav.ts`, gated on
   sitting next to the money columns — and it turns adding and removing into one
   reviewable change rather than a series of immediate side effects. It confirms
   before removing anyone whose row already holds work (a planned figure, either note,
-  or any ticked checkbox), because removal discards the row. Read-only for a
+  or any status past `NOT_STARTED`), because removal discards the row. Read-only for a
   committed plan.
-- **`plan-row`** + **`plan-expanded-panel`** — the row is Name · Rating · Current ·
-  Planned · Change · Change % · three checkboxes · a trailing column carrying **only**
+- **`plan-row`** + **`plan-expanded-panel`** — the row is **Name** (a button opening the
+  profile drawer) · Rating · Current · Planned · Change · Change % · **Gap** · **Gap %**
+  · **Status** (the four-segment ladder) · a trailing column carrying **only**
   the committed-plan **Applied / "Not applied · $X"** drift badge (its `plan-columns`
-  key is `applied`; it no longer doubles as a remove slot). Cell contents are
+  key is `applied`; it no longer doubles as a remove slot). Gap columns carry **no
+  colour** — being above a level's target is information to notice, not a problem to
+  flag. Cell contents are
   **vertically centred** — `TableCell`'s default `align-middle`, with no `align-top`
   overrides. The expanded panel holds tenure/join context (with a new-joiner chip),
   the person's **own role rubric** as subrating selects, the previous comp change, and
@@ -770,15 +897,29 @@ roster); one sub-item under Performance in `nav.ts`, gated on
   because retrying can never succeed.
 - **`plan-columns`** / **`plan-format`** — the column list (declared once so the
   header row and the expanded panel's `colSpan` can't drift) and the change
-  formatting/tone helpers.
+  formatting/tone helpers (`changeTone` takes an **already-display-rounded** value, via
+  `displayedAmount`/`displayedPercent`, so colour and text can't disagree).
+- **`plan-toolbar`** / **`plan-view`** / **`plan-row-view`** — the search + filter +
+  sort controls, the view/sort state, and the per-row derived money. **Sorting is
+  hand-rolled** (the shared `EditableTable`/TanStack renders one `<tr>` per row and this
+  table needs two for the expanded panel), reusing the header button from
+  `@/components/form/sort-header`. The **Status filter matches the live draft value**,
+  not the last-saved one — everything else in the grid is draft-driven — so advancing a
+  filtered row's status drops it out of view, which is the honest reading of "show me
+  everyone still at Rating done". Filtering unmounts rows, so the editor prunes hidden
+  ids from its expanded set and flushes them fire-and-forget.
 
 ### Tests — a deliberate ADR 0037 exception
 
-`src/lib/performance/compensation-plan.test.ts` pins two invariants beyond the type
-checker: the **percentage change is identical in every display currency**, and **every
-missing/zero input yields `null`** rather than NaN/Infinity. Money-correctness rules a
-type can't express — not a return to a broad suite; see
-[ADR 0037](../decisions/0037-unit-tests-removed-except-rbac-matrix.md).
+Three test files pin money invariants beyond the type checker:
+`compensation-plan.test.ts` (the **percentage change is identical in every display
+currency**; every missing/zero input yields `null` rather than NaN/Infinity),
+`compensation-unit.test.ts` (round-tripping the *displayed* text would silently edit the
+persisted figure — the rejected alternative in
+[ADR 0051](../decisions/0051-plan-editor-status-ladder-display-units-and-level-targets.md)),
+and `plan-format.test.ts` (a difference that displays as zero is unsigned and
+neutral-toned). Money-correctness rules a type can't express — not a return to a broad
+suite; see [ADR 0037](../decisions/0037-unit-tests-removed-except-rbac-matrix.md).
 
 ### Seed
 
@@ -788,9 +929,201 @@ both tables added to `scripts/seed/wipe.ts`) creates **one draft + one committed
 plan, 12 staff each**. The committed plan's planned figures deliberately differ from
 live comp, so the frozen snapshot and the "Not applied" drift badge both have data.
 
+## Performance review notes — **built**
+
+A **review note** is a manager's dated write-up of a review conversation with one of
+their people. It is the first real piece of the review machinery, and it is unlike
+everything else in this domain: **who may read it depends on the reporting line
+(`staff.managerId`), not on a role capability.** That is deliberate, it is the only
+place in the codebase where the reporting graph is an authorization *input*, and it
+breaks an invariant [ADR 0047](../decisions/0047-feedback-reports-scoping-not-granting.md)
+stated explicitly — full rationale in
+[ADR 0049](../decisions/0049-review-notes-reporting-line-as-authorization-boundary.md).
+
+Two-step lifecycle: a manager writes a **`DRAFT`** (only they and admins can see it),
+then **`SHARED`** makes it visible to the person it's about. **Sharing is one-way —
+there is no un-share** (the person may already have read it, so hiding it again would be
+theatre). **Deleting is the retraction path**, which is why deletion is allowed in both
+states.
+
+### Entity — `performance_review_note` (`src/lib/db/performance-schema.ts`)
+
+`drizzle/0013_simple_leader.sql`. **Not effective-dated** — a note is a *document*, not
+a fact about a person, the same reasoning as `compensation_plan`
+([ADR 0007](../decisions/0007-staff-employment-effective-dating.md) doesn't apply).
+
+- **`staffId`** — who the note is about; FK → `staff.id`, **cascade** (a note is
+  meaningless without the person). Indexed (`performance_review_note_staff_idx`).
+- **`authorUserId`** — FK → `user.id`, **`set null`**. Audit *and* an authorization
+  input (see the author path below). `set null` **fails closed**: losing the author row
+  narrows access to manager/admin, never widens it — a null author is a legitimate
+  state, not corruption.
+- **`noteDate`** — `date` (string mode): the date of the **conversation**, not of typing.
+- **`title`** (nullable) / **`body`** (required free text).
+- **`status`** — `performance_review_note_status` pgEnum (`DRAFT` | `SHARED`, default
+  `DRAFT`). Values live in the pure module below, per
+  [ADR 0016](../decisions/0016-junction-table-and-shared-enum-conventions.md).
+- **`sharedAt`** — null while draft. Set on share, and the `status = 'DRAFT'` predicate
+  in the share `where` clause is the **idempotency guard** (same shape as
+  `compensationPlan.committedAt`): a second share matches no row and errors instead of
+  silently re-stamping.
+
+### Pure module — `src/lib/performance/review-note.ts`
+
+Client-importable, no drizzle. Owns the status tuple (feeding the pgEnum) + labels, the
+max lengths (`REVIEW_NOTE_TITLE_MAX` 200, `REVIEW_NOTE_BODY_MAX` 20 000), and the copy
+that has to be identical everywhere: `REVIEW_NOTE_SHARE_WARNING` and
+`REVIEW_NOTE_DRAFT_HINT`. **The access decision is *not* here** — it needs the db.
+
+### Access control — the reporting line, not a capability (NO matrix change)
+
+**`src/actions/performance/reviewNoteAccess.ts` is the one place `staff.managerId`
+decides access.** Read it before touching anything in this section.
+
+`getReviewNoteAccess(user, staffId)` → `{ callerStaffId, isSubject, canManage }`:
+
+- **`canManage`** = `isAdmin(user)` **OR** the caller's linked staff id equals the
+  subject's **current** `staff.managerId`. Draft/edit/share/delete — and reading drafts
+  — all hang off it.
+- **Role capabilities are not consulted at all.** Holding `ratings.edit` or
+  `feedback.review` grants **nothing** here; being the person's manager does. Only
+  `admin` is a blanket override.
+- **The subject gets `isSubject` and nothing more** — `SHARED` notes only, never drafts,
+  never a management affordance. **The self path returns before `managerId` is even
+  read**, a stronger form of ADR 0047 §4's self-exclusion: a self-pointing `managerId`
+  (reachable through a bad CSV) can't make someone their own note-manager and hand them
+  their own drafts.
+- **The caller must be an *active* linked staff member** — `ownStaffId(user.id, {
+  activeOnly: true })`, so an unlinked *or* inactive caller has no reporting line to
+  stand on and gets nothing (and, being resolved to `null`, isn't even the subject of
+  their own notes). **This is load-bearing, not defensive tidiness:** a terminated
+  person keeps a valid session until it expires, and their former reports' `managerId`
+  still points at them **until the next CSV import** — without `activeOnly` they could go
+  on reading *and writing* private notes about those people through a direct action call.
+  The `(app)` layout refuses them, but **an action isn't reached through the layout**, so
+  the gate has to say so itself. Same reasoning as `canGiveFeedback`.
+  - **Contrast `canEditStaff` / `canViewCompensation` / `canEditTimesheet`, which
+    deliberately *don't* pass `activeOnly`** — and pick the variant consciously when you
+    add an action. The rule of thumb: **an ownership check** resolves the caller only to
+    compare against *their own* row, so a stale-active caller reaches nothing but
+    themselves; **a relationship or eligibility check** (this gate, `canGiveFeedback`,
+    `loadStaffProfileDrawer`) uses the caller's identity to reach **other people's**
+    data, and there `isActive` is part of "are you still one of us".
+
+**Two `ActionAuthorize` hooks are the real boundary** — declared in `metadata`, enforced
+before every body ([permissions.md](./permissions.md)); the `canManage` flags in the read
+are UI affordances only:
+
+- **`authorizeReviewNoteCreate`** gates on `clientInput.staffId`. Contract: the action
+  must take a `staffId: string`.
+- **`authorizeReviewNoteMutate`** gates on `clientInput.noteId`, resolving the subject
+  **and** author server-side — the client never says who a note is about. A **missing
+  note denies with the same message as a forbidden one**, so ids can't be probed.
+  Contract: the action must take a `noteId: string`.
+  - **The author path lives here:** whoever wrote a note may fix or delete it even after
+    they stop being that person's manager. Otherwise a manager who changes teams strands
+    their own words — unreachable to correct, unreachable to retract.
+  - **It survives a team change, not a departure.** The hook calls
+    `getReviewNoteAccess` **first**, returns on `canManage`, and only then applies the
+    author path as **`callerStaffId !== null && note.authorUserId === user.id`**. Since
+    the access read resolves `callerStaffId` with `activeOnly`, that one condition is the
+    author path *and* the still-employed check. "Changed teams" and "left the company"
+    are different things: the path was never meant to let someone who has left reach back
+    in and **delete** the record of a review conversation — and termination here is a CSV
+    import flipping `isActive`, which does **not** revoke their session.
+  - **Note the key mismatch, because it is what hid the gap:** the author path is keyed
+    on **`user.id`** (a note's author is a user account, not a staff row) while the
+    employment check is keyed on the **staff row**. An early `return` on
+    `authorUserId === user.id` therefore looked complete while silently skipping the
+    employment check entirely. **So the rule is now uniform: apart from `admin`, every
+    review-note path requires an active linked staff row.** If you add a fourth path,
+    make it satisfy that too rather than short-circuiting ahead of the access read.
+
+**Consequences to keep in mind:** `managerId` is CSV-import-populated with **no in-app
+editor** and no cycle detection beyond the importer's non-blocking `self` warning
+([ADR 0026](../decisions/0026-staff-manager-self-reference.md)), so a bad import now
+changes who can **read and write** private notes — the importer's
+"unresolvable/column-absent → preserve, blank cell clears" rule is load-bearing. Access
+follows the **current** line (no as-of resolution): a manager who moves teams keeps only
+what they authored, and the new manager inherits the whole history including their
+predecessor's notes. **The permission matrix, its test, and permissions.md's matrix table
+are unchanged** — this gate isn't expressible as a matrix row, which is the point;
+permissions.md carries a prose section instead.
+
+### Server layer (`src/actions/performance/`)
+
+- **`getStaffReviewNotes(staffId)`** (server-only read) → `{ canCreate, isSubject, notes }
+  | null`. **Three projections, and the projection is the boundary:** manager/admin →
+  every note incl. drafts; the **subject** → `status = 'SHARED'` only; otherwise → the
+  caller's **own authored rows** (an ex-manager who moved teams, matched on
+  `authorUserId = user.id`). Newest first by `noteDate` then
+  `createdAt`; `authorName` from a left join on `user` (null when the account is gone).
+  Each row carries **`canManage`** for the UI affordances. **Two `null` exits, both
+  meaning "no tab at all":** an **early** one before the query — `!canManage &&
+  !isSubject && callerStaffId === null`, so an inactive or unlinked non-admin caller is
+  refused without even reading their authored rows, matching the mutate hook — and one
+  after it, when a permitted-in-principle caller simply has no rows here. `[]` means
+  "permitted, nothing written yet" (the ADR 0047 §5 convention — a tab that appeared for
+  everyone would itself disclose that notes exist).
+- **Four mutations**, all `secureActionClient` with the gate in **metadata only**:
+  - **`createReviewNote`** — born `DRAFT`, `authorUserId` from the session, id prefix
+    `prn`.
+  - **`updateReviewNote`** — content only, allowed in **both** states (a shared note can
+    be corrected; the panel marks it "edited" when `updatedAt > createdAt`). Never
+    touches `status` / `staffId` / `authorUserId`.
+  - **`shareReviewNote`** — the one-way transition, `and(id, status = 'DRAFT')` as the
+    idempotency guard. Status is re-read from the DB, never trusted from the client.
+  - **`deleteReviewNote`** — both states, because it *is* the retraction path.
+  - All four `revalidateStaffProfile(staffId)`.
+- **`reviewNotes.schema.ts`** — one **family module** for all four (the
+  `entries.schema.ts` precedent), hand-written/drizzle-free because the client panel
+  imports it ([ADR 0035](../decisions/0035-schema-modules-by-import-boundary.md)). It
+  also exports `reviewNoteContentSchema` + its input/output types, used as the panel's
+  resolver. **Note what is *not* in it: `status`.** It is absent from every input schema,
+  so the lifecycle can't be skipped by posting a status.
+
+### UI
+
+**No route of its own.** `ReviewNotesPanel`
+(`src/components/performance/review-notes-panel.tsx`, client) renders as a **Review
+notes tab** on `/staff/[id]`, `/profile`, and inside the compensation-plan **profile
+drawer**. Newest-first list, a `Draft` badge, per-note **Share** (behind `ConfirmDialog`
+with the shared warning copy) / **Edit** / **Delete**, and an inline composer/editor.
+It renders only the affordances the server told it about — never its own permission logic.
+
+- **Discrete saves, not the autosave queue.** Each action toasts; there is no
+  `SaveIndicator` and no `useAutosaveQueue`. Deliberate: a note is submitted as a whole
+  thought, and a half-written draft autosaving into a shareable row is the wrong default.
+  See [ui.md](../ui.md) → *Save-on-edit vs. batch edit*.
+- **`onChanged` instead of `router.refresh()`.** Server-rendered hosts get
+  `revalidatePath` from the actions plus a `router.refresh()`; the **drawer** passes
+  `onChanged` so it re-loads *itself* — refreshing the route would re-render the plan
+  editor underneath, mid-edit.
+- **The composer/editor uses loose form binding** (`useForm` + `useAction`, not
+  `useHookFormAction`) because the form shape deliberately omits the ids the actions need
+  — plus RHF's third "transformed values" generic, so `handleSubmit` already receives
+  exactly what the actions take (trimmed, blank title → `null`). Create takes a
+  `staffId`, edit takes a `note`, as a **union** rather than two optional props, so
+  "neither" can't be constructed. See `.claude/rules/forms.md`.
+
+### Seed
+
+**`seedReviewNotes`** (`scripts/seed/performance.ts`, wired into `scripts/seed.ts` after
+`seedCompensationPlans`; the table added to `scripts/seed/wipe.ts`) gives ~60% of active
+staff who have a manager **1–3 dated notes**, attributed to that manager, all `SHARED`
+except sometimes the most recent (a `DRAFT`, so the manager view has something only they
+can see). It applies the **same self-guard** as the reads. ~38 rows.
+
+> **`authorUserId` is null for most seeded rows, and that's correct.** `seedStaff` links
+> a `user` account to exactly one staff row (the admin), because accounts only exist for
+> people who have signed in. A null author models the `set null` state the schema allows
+> — still readable through the reporting line, just with no author name and no author
+> path. Don't "fix" it by inventing accounts.
+
 ## Still proposed
 
-- **ReviewCycle** — a period in which reviews happen (quarterly, annual).
+- **ReviewCycle** — a period in which reviews happen (quarterly, annual). Review notes
+  (above) are standalone documents with no cycle attached — a cycle would group them.
 - **PerformanceReview** — a Person's assessment within a cycle; may pull in project
   work and utilization.
 - **Goal** — an objective for a Person, tracked over time.
@@ -804,9 +1137,13 @@ utilization, and project contributions as review context.
 - **Staff profiles** — feedback is staff↔staff; both endpoints are `staff` rows.
   Only **active** staff participate. **`staff.managerId` (the import-populated
   "reports to" self-FK, [ADR 0026](../decisions/0026-staff-manager-self-reference.md))
-  is read here** — `getFeedbackAboutReports` is its **first non-display consumer** and
-  the first query in the *inverse* direction ("who reports to me"), so a bad import
-  now has a visibility consequence, not just a wrong profile line. Both analytics
+  is read here, in two escalating ways** — `getFeedbackAboutReports` **scopes** with it
+  (its first non-display consumer, and the first query in the *inverse* direction "who
+  reports to me"), and `reviewNoteAccess` **gates** with it. So a bad import now changes
+  what a manager can read *and write*, not just a profile line. **This domain also owns
+  two of the profile's tabs** — Peer feedback and Review notes — each rendered only when
+  its read came back non-null, which is why the **profile tab set is viewer-dependent**
+  (see [staff-profiles.md](./staff-profiles.md)). Both analytics
   reads join the latest
   `staff_employment` row per **active** staff member — the Compensation dashboard to
   display money, the levels read for filter dimensions (**though `RatingRecord.employment`
@@ -824,9 +1161,13 @@ utilization, and project contributions as review context.
 - **Timesheets / Allocations** — utilization and delivery are intended review
   inputs (not yet wired).
 - **Permissions** — `feedback.review` (manager + admin) is the reviewer tier, and the
-  **only** feedback gate: the "Your reports" tab scopes by reporting line *inside*
-  that capability rather than adding one
-  ([ADR 0047](../decisions/0047-feedback-reports-scoping-not-granting.md)); the
+  **only** feedback gate: both browse surfaces (the "Your reports" tab and the
+  per-person profile tab) sit *inside* that capability rather than adding one
+  ([ADR 0047](../decisions/0047-feedback-reports-scoping-not-granting.md),
+  [ADR 0050](../decisions/0050-profile-peer-feedback-tab.md)). **Review notes are the
+  exception to the whole model** — gated on the **reporting line**, with no capability
+  involved and no matrix row
+  ([ADR 0049](../decisions/0049-review-notes-reporting-line-as-authorization-boundary.md)); the
   Compensation dashboard reuses `staff.viewCompensation` (finance/manager/admin);
   the Performance (levels) dashboard + editor use `ratings.view` / `ratings.edit`
   (manager/admin **only** — not finance, no self-view), and its comp-by-level table
@@ -841,5 +1182,9 @@ utilization, and project contributions as review context.
 - How tightly utilization factors into ratings (and who can see it).
 - Cycle cadence; whether the peer-feedback rating scale is reused for reviews.
 - Locking down reviewers seeing their own feedback (the deferred gap above).
+- Whether **review notes** should attach to a cycle (and whether a skip-level or an HR
+  role should read them — today only the direct manager and admins can, by design).
+- Whether the reporting line as a gate deserves a first-class abstraction, if a
+  **second** entity ever needs it ([ADR 0049](../decisions/0049-review-notes-reporting-line-as-authorization-boundary.md)).
 </content>
 </invoke>

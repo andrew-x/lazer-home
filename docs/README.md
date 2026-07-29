@@ -15,9 +15,9 @@ The durable knowledge base for the PSA platform — maintained by the `librarian
 | [domains/projects.md](./domains/projects.md) | Projects (client engagements) + delivery managers + role/staffing lines |
 | [domains/allocations.md](./domains/allocations.md) | Staffing people onto projects over time; the `/allocations` planner view (built) + its manager-only inline notes |
 | [domains/timesheets.md](./domains/timesheets.md) | Weekly time capture (built); approval + billing deferred |
-| [domains/staff-profiles.md](./domains/staff-profiles.md) | People, roles, skills, compensation, availability |
-| [domains/performance.md](./domains/performance.md) | Peer feedback + the two dashboards (`/performance/compensation` and `/performance/levels`, separately gated; `/performance` is a redirect) + staff rating levels L0–L4 with per-role subratings + compensation change plans (built); reviews, goals, growth (proposed) |
-| [domains/permissions.md](./domains/permissions.md) | RBAC: permission model, role→permission matrix, enforcement layers, helpers |
+| [domains/staff-profiles.md](./domains/staff-profiles.md) | People, roles, skills, compensation, availability; the **viewer-dependent** profile tab set + the read-only profile drawer |
+| [domains/performance.md](./domains/performance.md) | Peer feedback (incl. the per-person profile tab) + the two dashboards (`/performance/compensation` and `/performance/levels`, separately gated; `/performance` is a redirect) + staff rating levels L0–L4 with per-role subratings + compensation change plans + **performance review notes** (built); review cycles, goals, growth (proposed) |
+| [domains/permissions.md](./domains/permissions.md) | RBAC: permission model, role→permission matrix, enforcement layers, helpers — **plus the three things outside the matrix**: ownership paths, composite gates, and the one relationship gate (review notes) |
 | [decisions/](./decisions/) | Architecture Decision Records — the *why* |
 
 ## How these docs stay current
