@@ -3,6 +3,8 @@
 import { z } from "zod";
 import type { StaffFeedbackView } from "@/actions/feedback/getFeedbackAboutStaff";
 import { getFeedbackAboutStaff } from "@/actions/feedback/getFeedbackAboutStaff";
+import type { EvaluationHistoryEntry } from "@/actions/performance/getStaffEvaluationHistory";
+import { getStaffEvaluationHistory } from "@/actions/performance/getStaffEvaluationHistory";
 import type { StaffReviewNotesView } from "@/actions/performance/getStaffReviewNotes";
 import { getStaffReviewNotes } from "@/actions/performance/getStaffReviewNotes";
 import { canViewCompensation } from "@/actions/staff/canViewCompensation";
@@ -64,6 +66,12 @@ export type StaffProfileDrawerData = {
   pto: StaffPtoView | null;
   /** Comp amounts are folded into entries only when the comp gate passed. */
   history: HistoryEntry[];
+  /**
+   * Rating history. Null when this viewer lacks `ratings.view` — the strictest
+   * gate here, and the only one with **no** owner fallback: a staffer never sees
+   * their own level (ADR 0032).
+   */
+  evaluationHistory: EvaluationHistoryEntry[] | null;
   /** Null when this viewer may see no feedback about this person. */
   feedback: StaffFeedbackView | null;
   /** Null when this viewer may see no review notes about this person. */
@@ -94,17 +102,25 @@ export const loadStaffProfileDrawer = secureActionClient
     async ({ parsedInput, ctx }): Promise<StaffProfileDrawerData | null> => {
       if (!(await ownStaffId(ctx.user.id, { activeOnly: true }))) return null;
 
-      const [profile, projects, pto, feedback, reviewNotes, canViewComp] =
-        await Promise.all([
-          getStaffProfile(parsedInput.staffId),
-          getStaffProjects(parsedInput.staffId),
-          // Self-gating: returns null unless it's the caller's own PTO or they
-          // hold `pto.review`.
-          getStaffPto(parsedInput.staffId),
-          getFeedbackAboutStaff(parsedInput.staffId),
-          getStaffReviewNotes(parsedInput.staffId),
-          canViewCompensation(ctx.user, parsedInput.staffId),
-        ]);
+      const [
+        profile,
+        projects,
+        pto,
+        feedback,
+        reviewNotes,
+        evaluationHistory,
+        canViewComp,
+      ] = await Promise.all([
+        getStaffProfile(parsedInput.staffId),
+        getStaffProjects(parsedInput.staffId),
+        // Self-gating: returns null unless it's the caller's own PTO or they
+        // hold `pto.review`.
+        getStaffPto(parsedInput.staffId),
+        getFeedbackAboutStaff(parsedInput.staffId),
+        getStaffReviewNotes(parsedInput.staffId),
+        getStaffEvaluationHistory(parsedInput.staffId),
+        canViewCompensation(ctx.user, parsedInput.staffId),
+      ]);
 
       if (!profile) return null;
 
@@ -143,6 +159,7 @@ export const loadStaffProfileDrawer = secureActionClient
         projects,
         pto,
         history,
+        evaluationHistory,
         feedback,
         reviewNotes,
       };

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { StaffProfileDrawerData } from "@/actions/staff/loadStaffProfileDrawer";
 import { loadStaffProfileDrawer } from "@/actions/staff/loadStaffProfileDrawer";
 import { StaffFeedbackPanel } from "@/components/feedback/staff-feedback-panel";
+import { EvaluationHistory } from "@/components/performance/evaluation-history";
 import { ReviewNotesPanel } from "@/components/performance/review-notes-panel";
 import { CompensationSection } from "@/components/staff/compensation-section";
 import { HistoryTimeline } from "@/components/staff/history-timeline";
@@ -69,12 +70,13 @@ function Section({
  * written up, so making it read-only would defeat the point of the drawer.
  *
  * Tabs: Overview (identity facts, compensation, skills, client intro) · Projects ·
- * Time off · Peer feedback · Review notes · History. **Three of them are
- * viewer-dependent** — Time off, Peer feedback and Review notes render only when
- * their read came back non-null, i.e. when this viewer is permitted that slice, so
- * an absent tab never has to explain itself (the `/feedback` convention). Projects
- * and Time off are separate tabs rather than Overview sections because each is a
- * history in its own right, and a review pane is read down a tab at a time.
+ * Time off · Peer feedback · Review notes · Evaluations · History. **Four of them
+ * are viewer-dependent** — Time off, Peer feedback, Review notes and Evaluations
+ * render only when their read came back non-null, i.e. when this viewer is
+ * permitted that slice, so an absent tab never has to explain itself (the
+ * `/feedback` convention). Projects, Time off and Evaluations are separate tabs
+ * rather than Overview sections because each is a history in its own right, and a
+ * review pane is read down a tab at a time.
  */
 export function StaffProfileDrawer({
   staffId,
@@ -187,6 +189,9 @@ export function StaffProfileDrawer({
                   {data.reviewNotes ? (
                     <TabsTrigger value="review-notes">Review notes</TabsTrigger>
                   ) : null}
+                  {data.evaluationHistory ? (
+                    <TabsTrigger value="evaluations">Evaluations</TabsTrigger>
+                  ) : null}
                   <TabsTrigger value="history">History</TabsTrigger>
                 </TabsList>
 
@@ -258,6 +263,12 @@ export function StaffProfileDrawer({
                       view={data.reviewNotes}
                       onChanged={refresh}
                     />
+                  </TabsContent>
+                ) : null}
+
+                {data.evaluationHistory ? (
+                  <TabsContent value="evaluations" className="pt-2">
+                    <EvaluationHistory entries={data.evaluationHistory} />
                   </TabsContent>
                 ) : null}
 
