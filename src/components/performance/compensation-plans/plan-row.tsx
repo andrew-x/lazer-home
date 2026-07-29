@@ -60,7 +60,7 @@ import {
   formatUnitMoney,
 } from "./plan-format";
 import { inRowUnit, type PlanRowView } from "./plan-row-view";
-import { PlannedCompField } from "./planned-comp-field";
+import { BonusField, PlannedCompField } from "./planned-comp-field";
 import type { PlanField, PlanRowDraft } from "./use-plan-autosave";
 
 export function PlanRow({
@@ -73,6 +73,7 @@ export function PlanRow({
   onFieldChange,
   onFieldCommit,
   onPlannedText,
+  onPlannedBonusText,
   onPlannedCanonical,
   onPlannedUnit,
 }: {
@@ -86,11 +87,12 @@ export function PlanRow({
   onFieldChange: (field: PlanField, patch: Partial<PlanRowDraft>) => void;
   onFieldCommit: (field: PlanField) => void;
   onPlannedText: (text: string) => void;
+  onPlannedBonusText: (text: string) => void;
   onPlannedCanonical: (value: number | null) => void;
   onPlannedUnit: (unit: CompUnit) => void;
 }) {
   const panelId = useId();
-  const { item, draft, currency, unit, change, gap } = view;
+  const { item, draft, currency, unit, change, gap, bonus } = view;
 
   // Rounded to display precision up front, so the tone is decided on the number
   // actually on screen. Cross-currency FX leaves dust: an unrounded −0.0000001
@@ -117,6 +119,13 @@ export function PlanRow({
             usdRates,
           ),
         )
+      : null;
+
+  // The same echo for the bonus. `view.bonus.amount` is already in `currency`, so
+  // this only decides whether restating it adds anything.
+  const bonusEcho =
+    draft.plannedCurrency && currency && draft.plannedCurrency !== currency
+      ? bonus.amount
       : null;
 
   return (
@@ -288,6 +297,42 @@ export function PlanRow({
         <TableCell className={PLAN_NUMERIC_CELL}>
           {gap.gapPercent != null ? (
             formatChangePercent(gap.gapPercent)
+          ) : (
+            <EmptyCell />
+          )}
+        </TableCell>
+
+        {/* A lump sum: `formatMoney`, never `formatUnitMoney`, and never
+            `inRowUnit` — there is no per-hour reading of a one-off payment. */}
+        <TableCell>
+          {readOnly ? (
+            <span className="tabular-nums whitespace-nowrap">
+              {draft.plannedBonus != null && draft.plannedCurrency ? (
+                formatMoney(draft.plannedBonus, draft.plannedCurrency, {
+                  maximumFractionDigits: 0,
+                })
+              ) : (
+                <EmptyCell />
+              )}
+            </span>
+          ) : (
+            <BonusField
+              label={`Discretionary bonus for ${item.name}`}
+              text={draft.plannedBonusText}
+              currency={draft.plannedCurrency}
+              converted={bonusEcho}
+              displayCurrency={currency}
+              onTextChange={onPlannedBonusText}
+              onCommit={() => onFieldCommit("planned")}
+            />
+          )}
+        </TableCell>
+
+        {/* No tone: a bonus has no bad direction — the same reasoning as the gap
+            columns above. */}
+        <TableCell className={PLAN_NUMERIC_CELL}>
+          {bonus.percent != null ? (
+            formatChangePercent(bonus.percent)
           ) : (
             <EmptyCell />
           )}

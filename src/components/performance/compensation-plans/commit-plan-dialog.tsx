@@ -31,6 +31,8 @@ export function CommitPlanDialog({
   effectiveDate,
   staffCount,
   incompleteCount,
+  bonusPeople,
+  bonusTotal,
   open,
   onOpenChange,
 }: {
@@ -39,6 +41,10 @@ export function CommitPlanDialog({
   effectiveDate: string;
   staffCount: number;
   incompleteCount: number;
+  /** How many people have a discretionary bonus proposed. */
+  bonusPeople: number;
+  /** Their total, already formatted with its currency by the editor. */
+  bonusTotal: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -71,11 +77,22 @@ export function CommitPlanDialog({
             <span className="font-medium">{formatDate(effectiveDate)}</span>.
             People whose rating hasn't changed are skipped.
           </p>
+          {bonusPeople > 0 ? (
+            <p>
+              {bonusPeople === 1
+                ? "1 person has"
+                : `${bonusPeople} people have`}{" "}
+              a discretionary bonus proposed,{" "}
+              <span className="font-medium tabular-nums">{bonusTotal}</span> in
+              total.
+            </p>
+          ) : null}
           <p className="rounded-md border px-3 py-2 text-muted-foreground">
             Compensation is <span className="font-medium">not</span> changed.
             Rippling stays the system of record for pay — the planned figures
             remain a proposal, and this plan will flag anyone whose pay hasn't
-            been updated there yet.
+            been updated there yet. Discretionary bonuses aren't paid out from
+            here either; they stay a record of what this round decided.
           </p>
           {incompleteCount > 0 ? (
             <p className="text-destructive">

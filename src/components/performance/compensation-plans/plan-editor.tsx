@@ -1,6 +1,6 @@
 "use client";
 
-import { IconUsers } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCoins, IconUsers } from "@tabler/icons-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import {
   SaveIndicator,
 } from "@/components/form/save-indicator";
 import { SortHeaderButton } from "@/components/form/sort-header";
+import { InlineNotice } from "@/components/inline-notice";
 import { StaffProfileDrawer } from "@/components/staff/staff-profile-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,23 +27,27 @@ import {
 } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/core/utils";
+import { aggregateMoneyFormatters } from "@/lib/format/currency";
 import { formatTimestamp } from "@/lib/format/format";
 import {
   COMPENSATION_PLAN_STATUS_LABELS,
   DISPLAY_CURRENCY_LABELS,
   DISPLAY_CURRENCY_MODES,
   type DisplayCurrencyMode,
+  PLAN_SUMMARY_CURRENCY,
+  planBonusTotals,
 } from "@/lib/performance/compensation-plan";
 import { CommitPlanDialog } from "./commit-plan-dialog";
 import { EditPlanDialog } from "./edit-plan-dialog";
 import { PLAN_COLUMN_COUNT, PLAN_COLUMNS } from "./plan-columns";
 import { PlanRow } from "./plan-row";
-import { buildPlanRowView } from "./plan-row-view";
+import { bonusRow, buildPlanRowView } from "./plan-row-view";
 import { PlanToolbar } from "./plan-toolbar";
 import {
   DEFAULT_PLAN_SORT,
   EMPTY_PLAN_FILTERS,
   filterPlanRows,
+  hasActivePlanFilters,
   nextPlanSort,
   type PlanFilters,
   type PlanSort,
@@ -142,6 +147,44 @@ export function PlanEditor({
     (item) => draftFor(item).status !== "COMPLETE",
   ).length;
 
+  /**
+   * The round's discretionary-bonus spend.
+   *
+   * One currency for the whole figure, because under `DEFAULT` each row renders in
+   * its own and a raw column sum would add unlike units. When the toggle forces CAD
+   * or USD the total follows it; otherwise it reports in `PLAN_SUMMARY_CURRENCY`,
+   * always through a currency-marked formatter so a converted number never appears
+   * unlabelled.
+   *
+   * Plan-wide for the same reason as `incompleteCount`. The filtered subtotal is a
+   * second, clearly separate figure — a filter narrows what you're looking at, not
+   * what the round costs.
+   */
+  const summaryCurrency =
+    displayMode === "DEFAULT" ? PLAN_SUMMARY_CURRENCY : displayMode;
+
+  const bonusMoney = aggregateMoneyFormatters(summaryCurrency).money;
+
+  const bonusTotals = useMemo(
+    () =>
+      planBonusTotals({
+        rows: views.map(bonusRow),
+        currency: summaryCurrency,
+        usdRates: rates.rates,
+      }),
+    [views, summaryCurrency, rates.rates],
+  );
+
+  const visibleBonusTotals = useMemo(
+    () =>
+      planBonusTotals({
+        rows: visible.map(bonusRow),
+        currency: summaryCurrency,
+        usdRates: rates.rates,
+      }),
+    [visible, summaryCurrency, rates.rates],
+  );
+
   const saveState = aggregateSaveState(Object.values(autosave.fieldState));
 
   async function toggleExpanded(itemId: string) {
@@ -236,17 +279,43 @@ export function PlanEditor({
         />
       ) : null}
 
+      {/* One line rather than a `StatCard` row: the grid below is the point of this
+          screen and owns the leftover height, so a single derived figure earns a
+          strip, not a tile. */}
+      {plan.items.length > 0 ? (
+        <InlineNotice icon={IconCoins}>
+          {bonusTotals.people === 0 ? (
+            "No discretionary bonuses set yet."
+          ) : (
+            <>
+              <span className="text-foreground">Discretionary bonuses</span>{" "}
+              <span className="font-medium text-foreground tabular-nums">
+                {bonusMoney(bonusTotals.total)}
+              </span>{" "}
+              · {bonusTotals.people}{" "}
+              {bonusTotals.people === 1 ? "person" : "people"}
+              {bonusTotals.percentOfCurrent != null
+                ? ` · ${(bonusTotals.percentOfCurrent * 100).toFixed(1)}% of current comp`
+                : ""}
+              {hasActivePlanFilters(filters)
+                ? ` · ${bonusMoney(visibleBonusTotals.total)} in view`
+                : ""}
+            </>
+          )}
+        </InlineNotice>
+      ) : null}
+
       {rates.stale ? (
-        <p className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
+        <InlineNotice icon={IconAlertTriangle}>
           Exchange rates unavailable — showing approximate fallback rates.
-        </p>
+        </InlineNotice>
       ) : null}
 
       {autosave.locked && plan.status === "DRAFT" ? (
-        <p className="rounded-md border px-3 py-2 text-sm text-destructive">
+        <InlineNotice icon={IconAlertTriangle} tone="destructive">
           This plan was committed by someone else while you were editing. Your
           unsaved changes weren't kept.
-        </p>
+        </InlineNotice>
       ) : null}
 
       {plan.items.length === 0 ? (
@@ -262,7 +331,7 @@ export function PlanEditor({
         </EmptyState>
       ) : (
         // The pane takes the leftover height and owns both scroll axes, so the
-        // filters above stay put through a long plan and 11 columns can overflow
+        // filters above stay put through a long plan and the columns can overflow
         // sideways rather than being squeezed. `Table` renders its own
         // `[data-slot=table-container]`, which is the element that actually
         // scrolls — reached by selector here rather than by editing the vendored
@@ -331,6 +400,9 @@ export function PlanEditor({
                     onPlannedText={(text) =>
                       autosave.setPlannedText(view.item.itemId, text)
                     }
+                    onPlannedBonusText={(text) =>
+                      autosave.setPlannedBonusText(view.item.itemId, text)
+                    }
                     onPlannedCanonical={(value) =>
                       autosave.setPlannedCanonical(view.item.itemId, value)
                     }
@@ -359,6 +431,8 @@ export function PlanEditor({
         effectiveDate={plan.effectiveDate}
         staffCount={plan.items.length}
         incompleteCount={incompleteCount}
+        bonusPeople={bonusTotals.people}
+        bonusTotal={bonusMoney(bonusTotals.total)}
         open={commitOpen}
         onOpenChange={setCommitOpen}
       />

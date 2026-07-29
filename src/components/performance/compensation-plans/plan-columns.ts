@@ -46,6 +46,20 @@ export const PLAN_COLUMNS: readonly PlanColumn[] = [
   },
   { key: "gapAmount", label: "Gap", sort: "gapAmount", numeric: true },
   { key: "gapPercent", label: "Gap %", sort: "gapPercent", numeric: true },
+  // The bonus pair sits after the gap pair rather than between its two halves, so
+  // each amount stays next to its own percentage.
+  // Holds an input, so left-aligned — the same exception Planned makes.
+  {
+    key: "bonusAmount",
+    label: "Discretionary bonus",
+    sort: "bonusAmount",
+  },
+  {
+    key: "bonusPercent",
+    label: "Bonus %",
+    sort: "bonusPercent",
+    numeric: true,
+  },
   { key: "status", label: "Status", sort: "status" },
   { key: "applied", label: "" },
 ];

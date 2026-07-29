@@ -40,6 +40,10 @@ import { decodeLevelValue, encodeLevelValue } from "@/lib/staff/staff-rating";
  * and enqueues nothing. Converting the buffer in place instead would drift — a
  * 150,000 salary shown as 72.12/hr converts back to 150,010 — and would enqueue a
  * save of a number nobody typed.
+ *
+ * The discretionary bonus needs NO such split: it is a lump sum, so it has no unit
+ * to be restated into and `plannedUnit` never touches it. Two fields suffice — the
+ * value and its editing buffer.
  */
 export type PlanRowDraft = {
   level: string;
@@ -52,6 +56,11 @@ export type PlanRowDraft = {
   plannedCanonical: number | null;
   /** The raw input text, in `plannedUnit`. */
   plannedText: string;
+  /** The persisted lump-sum bonus. Unitless — never converted. */
+  plannedBonus: number | null;
+  /** The bonus input's editing buffer. */
+  plannedBonusText: string;
+  /** The currency BOTH proposed figures are in. */
   plannedCurrency: Currency | null;
   status: CompensationPlanItemStatus;
   evaluationNotes: string;
@@ -59,9 +68,12 @@ export type PlanRowDraft = {
 };
 
 /**
- * The save granularity. `planned` deliberately covers the amount AND its currency
- * as one unit: an amount without a currency is uninterpretable (and the server
- * rejects it), so the pair must never be written apart.
+ * The save granularity. `planned` deliberately covers the row's WHOLE compensation
+ * proposal — the ongoing amount, the lump-sum bonus, and the currency all three are
+ * read in. An amount without a currency is uninterpretable (and the server rejects
+ * it), so they must never be written apart; giving the bonus its own key would mean
+ * two keys writing `plannedCurrency`, which is exactly the clobbering this per-field
+ * split exists to prevent.
  */
 export type PlanField =
   | "level"
@@ -106,6 +118,9 @@ export function draftFromItem(item: CompensationPlanEditorItem): PlanRowDraft {
     plannedUnit: unit,
     plannedCanonical: item.plannedAmount,
     plannedText: item.plannedAmount == null ? "" : String(item.plannedAmount),
+    plannedBonus: item.plannedBonus,
+    plannedBonusText:
+      item.plannedBonus == null ? "" : String(item.plannedBonus),
     // Seed the currency so the common same-currency case needs no interaction,
     // and an amount typed straight in always has a currency to go with it.
     plannedCurrency: item.plannedCurrency ?? item.live.currency ?? null,
@@ -153,9 +168,11 @@ function patchFor(
       };
     case "planned":
       // Reads only the canonical value, so a display-unit toggle produces an
-      // identical patch and `fieldEqual` drops it as a no-op.
+      // identical patch and `fieldEqual` drops it as a no-op. The bonus is already
+      // unitless, so it is immune to that by construction.
       return {
         plannedAmount: draft.plannedCanonical,
+        plannedBonus: draft.plannedBonus,
         plannedCurrency: draft.plannedCurrency,
       };
     case "status":
@@ -355,6 +372,23 @@ export function usePlanAutosave(
   );
 
   /**
+   * The person typed in the bonus input. No unit conversion happens here and none
+   * should: a lump sum is the same number whether the row is showing annual or
+   * hourly figures. Rounded to the two decimals `numeric(12, 2)` can hold, so what
+   * is stored is what comes back.
+   */
+  const setPlannedBonusText = useCallback(
+    (itemId: string, text: string) => {
+      const typed = parsePlannedAmount(text);
+      setField(itemId, "planned", {
+        plannedBonusText: text,
+        plannedBonus: typed == null ? null : Math.round(typed * 100) / 100,
+      });
+    },
+    [setField],
+  );
+
+  /**
    * Set the canonical figure directly — the quick-raise picks, which compute in
    * canonical terms. The buffer is re-derived so the input shows it in whatever
    * unit the row is displaying.
@@ -431,6 +465,7 @@ export function usePlanAutosave(
     locked,
     setField,
     setPlannedText,
+    setPlannedBonusText,
     setPlannedCanonical,
     setPlannedUnit,
     flushField,

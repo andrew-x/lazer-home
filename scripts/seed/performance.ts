@@ -229,6 +229,15 @@ const RAISE_WEIGHTS = [
 ];
 
 /**
+ * Discretionary bonuses go to a minority, in round lump sums. Fixed amounts rather
+ * than a percentage of pay because that is what a lump sum is — and deriving one
+ * from `currentCompAmount` would hand hourly staff a bonus of a few dollars, since
+ * their figure is a rate. Most rows stay null so the empty cell renders too.
+ */
+const BONUS_CHANCE = 0.4;
+const BONUS_AMOUNTS = [2000, 3000, 5000, 7500, 10000, 15000];
+
+/**
  * A round in progress: a tail of people not started, most part-way through, some
  * finished. Spread across all four stages so the status control has something to
  * show in every state.
@@ -311,6 +320,11 @@ export async function seedCompensationPlans(
         staffId: person.id,
         level: levelByStaff.get(person.id) ?? null,
         plannedAmount: planned,
+        // Needs a currency to be interpretable, so only where there is employment.
+        plannedBonus:
+          employment && chance(BONUS_CHANCE)
+            ? faker.helpers.arrayElement(BONUS_AMOUNTS)
+            : null,
         plannedCurrency: employment?.currency ?? null,
         // A committed plan is by definition finished for everyone in it.
         status: committed

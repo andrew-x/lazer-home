@@ -77,6 +77,8 @@ export type CompensationPlanEditorItem = {
   level: number | null;
   subratings: Subratings;
   plannedAmount: number | null;
+  /** A one-off lump sum, denominated in `plannedCurrency` like `plannedAmount`. */
+  plannedBonus: number | null;
   plannedCurrency: Currency | null;
   status: CompensationPlanItemStatus;
   evaluationNotes: string | null;
@@ -143,6 +145,7 @@ export async function getCompensationPlan(
       level: compensationPlanItem.level,
       subratings: compensationPlanItem.subratings,
       plannedAmount: compensationPlanItem.plannedAmount,
+      plannedBonus: compensationPlanItem.plannedBonus,
       plannedCurrency: compensationPlanItem.plannedCurrency,
       status: compensationPlanItem.status,
       evaluationNotes: compensationPlanItem.evaluationNotes,
@@ -262,6 +265,7 @@ export async function getCompensationPlan(
       level: row.level,
       subratings: row.subratings ?? {},
       plannedAmount: row.plannedAmount,
+      plannedBonus: row.plannedBonus,
       plannedCurrency: row.plannedCurrency,
       status: row.status,
       evaluationNotes: row.evaluationNotes,

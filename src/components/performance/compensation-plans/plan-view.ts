@@ -79,6 +79,8 @@ export type PlanSortKey =
   | "changePercent"
   | "gapAmount"
   | "gapPercent"
+  | "bonusAmount"
+  | "bonusPercent"
   | "status";
 
 export type PlanSort = SortState<PlanSortKey>;
@@ -103,6 +105,8 @@ const SORT_VALUE: Record<
   changePercent: (v) => v.sort.changePercent,
   gapAmount: (v) => v.sort.gapAnnualUsd,
   gapPercent: (v) => v.sort.gapPercent,
+  bonusAmount: (v) => v.sort.bonusUsd,
+  bonusPercent: (v) => v.sort.bonusPercent,
   status: (v) => v.sort.status,
 };
 
@@ -119,6 +123,8 @@ const DESC_FIRST: ReadonlySet<PlanSortKey> = new Set<PlanSortKey>([
   "changePercent",
   "gapAmount",
   "gapPercent",
+  "bonusAmount",
+  "bonusPercent",
   "status",
 ]);
 

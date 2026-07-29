@@ -1,0 +1,1 @@
+ALTER TABLE "compensation_plan_item" ADD COLUMN "planned_bonus" numeric(12, 2);
