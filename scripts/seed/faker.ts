@@ -15,6 +15,13 @@ export function isoDate(date: Date): string {
   return formatIsoDate(date);
 }
 
+/** The same day-of-month `months` months before today. */
+export function monthsAgo(months: number): Date {
+  const date = new Date();
+  date.setMonth(date.getMonth() - months);
+  return date;
+}
+
 /** A random `"YYYY-MM-DD"` between `yearsAgo` ago and today. */
 export function pastDate(yearsAgo: number): string {
   return isoDate(faker.date.past({ years: yearsAgo }));
