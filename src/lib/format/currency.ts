@@ -9,6 +9,33 @@ export const CURRENCY = ["CAD", "USD", "GBP", "EUR", "AED"] as const;
 export type Currency = (typeof CURRENCY)[number];
 
 /**
+ * Labels for a currency select. An identity map — the ISO code *is* the label —
+ * but `EnumSelect` requires a `labels` record, and spelling it out here keeps
+ * every currency picker in the app reading from one place.
+ */
+export const CURRENCY_LABELS: Record<Currency, string> = {
+  CAD: "CAD",
+  USD: "USD",
+  GBP: "GBP",
+  EUR: "EUR",
+  AED: "AED",
+};
+
+/**
+ * The currencies a figure may be *displayed* in. Narrower than {@link CURRENCY}
+ * on purpose: amounts are stored in whatever currency they were agreed in, but
+ * the analytics surfaces (the compensation dashboards, a project's budget summary)
+ * normalize everything to one of the two we report in, so a two-way toggle stays
+ * a toggle rather than a five-way select.
+ */
+export const DISPLAY_CURRENCIES = [
+  "CAD",
+  "USD",
+] as const satisfies readonly Currency[];
+
+export type DisplayCurrency = (typeof DISPLAY_CURRENCIES)[number];
+
+/**
  * Format a money amount for display, e.g. `formatMoney(150000, "CAD")` →
  * "CA$150,000.00". Pass Intl options to override the defaults — e.g.
  * `formatMoney(150000, "CAD", { maximumFractionDigits: 0 })` → "CA$150,000" for
