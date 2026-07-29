@@ -8,23 +8,52 @@ import { saveCompensationPlanItem } from "@/actions/performance/saveCompensation
 import type { CompensationPlanItemPatch } from "@/actions/performance/saveCompensationPlanItem.schema";
 import { useAutosaveQueue } from "@/hooks/use-autosave-queue";
 import type { Currency } from "@/lib/format/currency";
-import { PLAN_LOCKED_MESSAGE } from "@/lib/performance/compensation-plan";
+import {
+  type CompensationPlanItemStatus,
+  PLAN_LOCKED_MESSAGE,
+} from "@/lib/performance/compensation-plan";
+import {
+  type CompUnit,
+  canonicalCompUnit,
+  compUnitText,
+  convertCompUnit,
+  roundForUnit,
+} from "@/lib/performance/compensation-unit";
 import type { Subratings } from "@/lib/performance/rating-rubric";
 import { decodeLevelValue, encodeLevelValue } from "@/lib/staff/staff-rating";
 
 /**
- * One row's editable state. `level` is the Select's encoded string and
- * `plannedAmount` the raw input text — both kept in the form the control uses, so
- * typing "1200." or clearing a field never fights the draft.
+ * One row's editable state. `level` is the Select's encoded string, so typing or
+ * clearing a control never fights the draft.
+ *
+ * The planned figure is held as THREE fields, which is what makes the annual/hourly
+ * toggle lossless:
+ *
+ *  - `plannedCanonical` is the truth — the number that gets persisted, always in
+ *    `canonicalUnit` (annual for salaried staff, hourly for hourly staff, matching
+ *    what `plannedAmount` means in the database).
+ *  - `plannedText` is the input's editing buffer, expressed in `plannedUnit`, so
+ *    half-typed values like "1200." survive a re-render.
+ *  - `plannedUnit` is pure display state: no patch ever reads it.
+ *
+ * Toggling the unit re-derives `plannedText` from the untouched `plannedCanonical`
+ * and enqueues nothing. Converting the buffer in place instead would drift — a
+ * 150,000 salary shown as 72.12/hr converts back to 150,010 — and would enqueue a
+ * save of a number nobody typed.
  */
 export type PlanRowDraft = {
   level: string;
   subratings: Subratings;
-  plannedAmount: string;
+  /** The unit this person's stored figures are in. Seeded once; never edited. */
+  canonicalUnit: CompUnit;
+  /** The unit the row is currently displayed and typed in. */
+  plannedUnit: CompUnit;
+  /** The persisted value, in `canonicalUnit`. */
+  plannedCanonical: number | null;
+  /** The raw input text, in `plannedUnit`. */
+  plannedText: string;
   plannedCurrency: Currency | null;
-  ratingDone: boolean;
-  meetingDone: boolean;
-  isComplete: boolean;
+  status: CompensationPlanItemStatus;
   evaluationNotes: string;
   compensationNotes: string;
 };
@@ -38,9 +67,7 @@ export type PlanField =
   | "level"
   | "subratings"
   | "planned"
-  | "ratingDone"
-  | "meetingDone"
-  | "isComplete"
+  | "status"
   | "evaluationNotes"
   | "compensationNotes";
 
@@ -57,33 +84,32 @@ const DELAY_BY_FIELD: Partial<Record<PlanField, number>> = {
 const IMMEDIATE_FIELDS: ReadonlySet<PlanField> = new Set<PlanField>([
   "level",
   "subratings",
-  "ratingDone",
-  "meetingDone",
-  "isComplete",
+  "status",
 ]);
 
 const ALL_PLAN_FIELDS: readonly PlanField[] = [
   "level",
   "subratings",
   "planned",
-  "ratingDone",
-  "meetingDone",
-  "isComplete",
+  "status",
   "evaluationNotes",
   "compensationNotes",
 ];
 
 export function draftFromItem(item: CompensationPlanEditorItem): PlanRowDraft {
+  const unit = canonicalCompUnit(item.employmentType);
   return {
     level: encodeLevelValue(item.level),
     subratings: item.subratings,
-    plannedAmount: item.plannedAmount == null ? "" : String(item.plannedAmount),
+    canonicalUnit: unit,
+    // Rows open in the person's own unit — the figure as it is actually stored.
+    plannedUnit: unit,
+    plannedCanonical: item.plannedAmount,
+    plannedText: item.plannedAmount == null ? "" : String(item.plannedAmount),
     // Seed the currency so the common same-currency case needs no interaction,
     // and an amount typed straight in always has a currency to go with it.
     plannedCurrency: item.plannedCurrency ?? item.live.currency ?? null,
-    ratingDone: item.ratingDone,
-    meetingDone: item.meetingDone,
-    isComplete: item.isComplete,
+    status: item.status,
     evaluationNotes: item.evaluationNotes ?? "",
     compensationNotes: item.compensationNotes ?? "",
   };
@@ -126,16 +152,14 @@ function patchFor(
           : null,
       };
     case "planned":
+      // Reads only the canonical value, so a display-unit toggle produces an
+      // identical patch and `fieldEqual` drops it as a no-op.
       return {
-        plannedAmount: parsePlannedAmount(draft.plannedAmount),
+        plannedAmount: draft.plannedCanonical,
         plannedCurrency: draft.plannedCurrency,
       };
-    case "ratingDone":
-      return { ratingDone: draft.ratingDone };
-    case "meetingDone":
-      return { meetingDone: draft.meetingDone };
-    case "isComplete":
-      return { isComplete: draft.isComplete };
+    case "status":
+      return { status: draft.status };
     case "evaluationNotes":
       return { evaluationNotes: draft.evaluationNotes };
     case "compensationNotes":
@@ -287,6 +311,91 @@ export function usePlanAutosave(
     [touch],
   );
 
+  /**
+   * Update a row's draft WITHOUT enqueueing a save. For display-only state — the
+   * annual/hourly unit — where touching the queue would write a value nobody
+   * typed.
+   */
+  const setDisplayOnly = useCallback(
+    (itemId: string, patch: Partial<PlanRowDraft>) => {
+      setDrafts((current) => {
+        const existing = current[itemId];
+        if (!existing) return current;
+        return { ...current, [itemId]: { ...existing, ...patch } };
+      });
+      draftsRef.current = {
+        ...draftsRef.current,
+        [itemId]: { ...draftsRef.current[itemId], ...patch },
+      };
+    },
+    [],
+  );
+
+  /**
+   * The person typed in the amount input. Keeps their exact text as the buffer and
+   * derives the canonical value from it, converting out of the display unit.
+   */
+  const setPlannedText = useCallback(
+    (itemId: string, text: string) => {
+      const draft = draftsRef.current[itemId];
+      if (!draft) return;
+      const typed = parsePlannedAmount(text);
+      setField(itemId, "planned", {
+        plannedText: text,
+        plannedCanonical:
+          typed == null
+            ? null
+            : roundForUnit(
+                convertCompUnit(typed, draft.plannedUnit, draft.canonicalUnit),
+                draft.canonicalUnit,
+              ),
+      });
+    },
+    [setField],
+  );
+
+  /**
+   * Set the canonical figure directly — the quick-raise picks, which compute in
+   * canonical terms. The buffer is re-derived so the input shows it in whatever
+   * unit the row is displaying.
+   */
+  const setPlannedCanonical = useCallback(
+    (itemId: string, value: number | null) => {
+      const draft = draftsRef.current[itemId];
+      if (!draft) return;
+      setField(itemId, "planned", {
+        plannedCanonical: value,
+        plannedText: compUnitText(
+          value,
+          draft.canonicalUnit,
+          draft.plannedUnit,
+        ),
+      });
+    },
+    [setField],
+  );
+
+  /**
+   * Switch the row's display unit. Re-derives the input buffer from the UNTOUCHED
+   * canonical value — never from the rounded text on screen — so toggling back and
+   * forth returns the identical figure, and enqueues nothing.
+   */
+  const setPlannedUnit = useCallback(
+    (itemId: string, unit: CompUnit) => {
+      const draft = draftsRef.current[itemId];
+      if (!draft || draft.plannedUnit === unit) return;
+      setDisplayOnly(itemId, {
+        plannedUnit: unit,
+        plannedText: compUnitText(
+          draft.plannedCanonical,
+          draft.canonicalUnit,
+          unit,
+        ),
+      });
+    },
+    [setDisplayOnly],
+  );
+
   /** Force one field to save now — the blur handler for text/number inputs. */
   const flushField = useCallback(
     (itemId: string, field: PlanField): Promise<boolean> =>
@@ -321,6 +430,9 @@ export function usePlanAutosave(
     draftFor,
     locked,
     setField,
+    setPlannedText,
+    setPlannedCanonical,
+    setPlannedUnit,
     flushField,
     flushRow,
     flushAll: queue.flushAll,

@@ -70,9 +70,7 @@ export const saveCompensationPlanItem = secureActionClient
       const update: Partial<CompensationPlanItem> = {};
 
       if ("level" in patch) update.level = patch.level ?? null;
-      if ("ratingDone" in patch) update.ratingDone = patch.ratingDone;
-      if ("meetingDone" in patch) update.meetingDone = patch.meetingDone;
-      if ("isComplete" in patch) update.isComplete = patch.isComplete;
+      if ("status" in patch) update.status = patch.status;
       if ("evaluationNotes" in patch) {
         update.evaluationNotes = patch.evaluationNotes ?? null;
       }

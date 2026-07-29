@@ -16,6 +16,15 @@
 import type { PermissionCheck } from "@/lib/auth/permissions";
 import type { Currency } from "@/lib/format/currency";
 import { convert } from "@/lib/format/fx";
+import {
+  COMP_TARGET_CURRENCY,
+  COMP_TARGET_UNIT,
+} from "@/lib/performance/compensation-targets";
+import {
+  type CompUnit,
+  convertCompUnit,
+  roundForUnit,
+} from "@/lib/performance/compensation-unit";
 
 /**
  * The gate on every compensation-plan surface — read, write and nav alike.
@@ -56,6 +65,59 @@ export const COMPENSATION_PLAN_STATUS_LABELS: Record<
   DRAFT: "Draft",
   COMMITTED: "Committed",
 };
+
+/**
+ * How far the review conversation has got for one person, as a single ordered
+ * ladder rather than a set of independent flags.
+ *
+ * This replaced three booleans (`ratingDone`/`meetingDone`/`isComplete`). They
+ * were never actually independent: you cannot meaningfully finish a review you
+ * never rated, and "complete without a rating" was representable but nonsense.
+ * One exclusive column makes the nonsense states unrepresentable instead of
+ * merely discouraged, and costs one table column instead of three.
+ *
+ * Low → high, so the tuple order IS the progression — {@link planItemStatusRank}
+ * and the sort comparator both read it that way.
+ */
+export const COMPENSATION_PLAN_ITEM_STATUSES = [
+  "NOT_STARTED",
+  "RATING_DONE",
+  "MEETING_DONE",
+  "COMPLETE",
+] as const;
+
+export type CompensationPlanItemStatus =
+  (typeof COMPENSATION_PLAN_ITEM_STATUSES)[number];
+
+/** Full labels — accessible names, read-only badges, dialog copy. */
+export const COMPENSATION_PLAN_ITEM_STATUS_LABELS: Record<
+  CompensationPlanItemStatus,
+  string
+> = {
+  NOT_STARTED: "Not started",
+  RATING_DONE: "Rating done",
+  MEETING_DONE: "Meeting done",
+  COMPLETE: "Complete",
+};
+
+/**
+ * Captions for the in-cell segmented control, where the column header already
+ * supplies the word "Status" and horizontal space is the binding constraint.
+ */
+export const COMPENSATION_PLAN_ITEM_STATUS_SHORT: Record<
+  CompensationPlanItemStatus,
+  string
+> = {
+  NOT_STARTED: "—",
+  RATING_DONE: "Rating",
+  MEETING_DONE: "Meeting",
+  COMPLETE: "Done",
+};
+
+/** Position on the ladder — for ordering rows and for "how far along is this". */
+export function planItemStatusRank(status: CompensationPlanItemStatus): number {
+  return COMPENSATION_PLAN_ITEM_STATUSES.indexOf(status);
+}
 
 /**
  * The currency the editor renders amounts in. `DEFAULT` means "each row in its
@@ -194,6 +256,166 @@ function planChangePercent({
   return currentUsd === 0 ? null : plannedUsd / currentUsd - 1;
 }
 
+export type LevelTargetGapInput = {
+  /** From `compTargetAnnual` — always an annual figure in `COMP_TARGET_CURRENCY`. */
+  targetAnnual: number | null;
+  /** The unit the person's own figures are in, i.e. what the target converts to. */
+  unit: CompUnit;
+  currentAmount: number | null;
+  currentCurrency: Currency | null;
+  plannedAmount: number | null;
+  plannedCurrency: Currency | null;
+  displayCurrency: Currency | null;
+  usdRates: Record<Currency, number>;
+};
+
+export type LevelTargetGap = {
+  /** The target in `displayCurrency`, restated in `unit`, or null. */
+  target: number | null;
+  /** target − planned, in `displayCurrency` and `unit`. Positive = below target. */
+  gapAmount: number | null;
+  /** The target increase % minus the proposed change %, as a fraction. */
+  gapPercent: number | null;
+};
+
+const EMPTY_GAP: LevelTargetGap = {
+  target: null,
+  gapAmount: null,
+  gapPercent: null,
+};
+
+/**
+ * How far a proposal sits from the level's intended compensation.
+ *
+ * Two units are in play: the target table is annual, while an hourly person's
+ * figures are hourly. Comparing them without converting would subtract unlike
+ * units, so the target is restated in the person's own unit first — which makes
+ * `HOURS_PER_YEAR` load-bearing for this column, not just for the display toggle.
+ *
+ * Sign: `target − planned`, so positive means the proposal is BELOW target (there
+ * is headroom) and negative means it is above. The sign is forced by `gapPercent`
+ * being "target increase % − proposed change %"; the two columns must agree or
+ * they contradict each other.
+ */
+export function levelTargetGap({
+  targetAnnual,
+  unit,
+  currentAmount,
+  currentCurrency,
+  plannedAmount,
+  plannedCurrency,
+  displayCurrency,
+  usdRates,
+}: LevelTargetGapInput): LevelTargetGap {
+  if (targetAnnual == null || !displayCurrency) return EMPTY_GAP;
+
+  // The target in the person's unit, still in the target's own currency.
+  const targetNative = convertCompUnit(targetAnnual, COMP_TARGET_UNIT, unit);
+
+  const target = convert(
+    targetNative,
+    COMP_TARGET_CURRENCY,
+    displayCurrency,
+    usdRates,
+  );
+
+  const planned =
+    plannedAmount != null && plannedCurrency
+      ? convert(plannedAmount, plannedCurrency, displayCurrency, usdRates)
+      : null;
+
+  return {
+    target,
+    gapAmount: planned != null ? target - planned : null,
+    gapPercent: levelTargetGapPercent({
+      targetNative,
+      currentAmount,
+      currentCurrency,
+      plannedAmount,
+      plannedCurrency,
+      usdRates,
+    }),
+  };
+}
+
+/**
+ * The gap as a percentage of current compensation — equivalently, the target
+ * increase we'd need minus the increase we're proposing:
+ *
+ *   (target/current − 1) − (planned/current − 1)  =  (target − planned) / current
+ *
+ * The two forms are exactly equal (same denominator, the `−1`s cancel), and the
+ * right-hand one is computed here: one division instead of two, and no chance of
+ * the two percentages being derived inconsistently.
+ *
+ * Like {@link planChangePercent} this works from NATIVE amounts, cross-rating
+ * through USD — so `displayCurrency` never appears and the toggle cannot move the
+ * number. It is unit-invariant for the same structural reason: restating all three
+ * legs in another unit multiplies them by one shared factor, which cancels in the
+ * ratio.
+ */
+function levelTargetGapPercent({
+  targetNative,
+  currentAmount,
+  currentCurrency,
+  plannedAmount,
+  plannedCurrency,
+  usdRates,
+}: {
+  targetNative: number;
+  currentAmount: number | null;
+  currentCurrency: Currency | null;
+  plannedAmount: number | null;
+  plannedCurrency: Currency | null;
+  usdRates: Record<Currency, number>;
+}): number | null {
+  if (currentAmount == null || currentAmount === 0 || !currentCurrency)
+    return null;
+  if (plannedAmount == null || !plannedCurrency) return null;
+
+  const targetUsd = targetNative / usdRates[COMP_TARGET_CURRENCY];
+  const plannedUsd = plannedAmount / usdRates[plannedCurrency];
+  const currentUsd = currentAmount / usdRates[currentCurrency];
+  if (currentUsd === 0) return null;
+
+  return (targetUsd - plannedUsd) / currentUsd;
+}
+
+/**
+ * The figure a "+p%" quick pick writes: current compensation restated in the
+ * proposal's currency and raised by `percent`.
+ *
+ * Denominated in the PROPOSAL's currency and the person's canonical unit — i.e.
+ * exactly what gets persisted — because a saved number must never depend on a
+ * display toggle. `item.current.amount` is already canonical (see
+ * {@link currentCompAmount}), so no unit conversion happens here at all.
+ */
+export function raisedFromCurrent({
+  currentAmount,
+  currentCurrency,
+  plannedCurrency,
+  unit,
+  percent,
+  usdRates,
+}: {
+  currentAmount: number | null;
+  currentCurrency: Currency | null;
+  plannedCurrency: Currency | null;
+  unit: CompUnit;
+  percent: number;
+  usdRates: Record<Currency, number>;
+}): number | null {
+  if (currentAmount == null || !currentCurrency || !plannedCurrency)
+    return null;
+
+  const base =
+    plannedCurrency === currentCurrency
+      ? currentAmount
+      : convert(currentAmount, currentCurrency, plannedCurrency, usdRates);
+
+  return roundForUnit(base * (1 + percent), unit);
+}
+
 /**
  * Whole months elapsed since `date` (a `"YYYY-MM-DD"` calendar date), or null when
  * the date is missing or in the future. Drives the "new joiner" tenure chip, so it
@@ -230,11 +452,4 @@ export function currentCompAmount(
   return employment.employmentType === "HOURLY"
     ? employment.hourlyRate
     : employment.base;
-}
-
-/** Label for the amount `currentCompAmount` returns, for column headers/hints. */
-export function compAmountLabel(
-  employmentType: "FULL_TIME" | "HOURLY" | null,
-): string {
-  return employmentType === "HOURLY" ? "Hourly rate" : "Base";
 }

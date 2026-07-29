@@ -8,7 +8,10 @@ import {
   staffEmployment,
   staffRating,
 } from "@/lib/db/schema";
-import { currentCompAmount } from "@/lib/performance/compensation-plan";
+import {
+  type CompensationPlanItemStatus,
+  currentCompAmount,
+} from "@/lib/performance/compensation-plan";
 import { FEEDBACK_RATINGS } from "@/lib/performance/feedback-rating";
 import {
   rubricForRole,
@@ -144,6 +147,21 @@ const RAISE_WEIGHTS = [
 ];
 
 /**
+ * A round in progress: a tail of people not started, most part-way through, some
+ * finished. Spread across all four stages so the status control has something to
+ * show in every state.
+ */
+const PLAN_ITEM_STATUS_WEIGHTS: {
+  value: CompensationPlanItemStatus;
+  weight: number;
+}[] = [
+  { value: "NOT_STARTED", weight: 3 },
+  { value: "RATING_DONE", weight: 4 },
+  { value: "MEETING_DONE", weight: 3 },
+  { value: "COMPLETE", weight: 2 },
+];
+
+/**
  * Seed one draft plan and one committed plan so both renderings of the editor
  * have data: the draft exercises save-on-edit against live compensation, and the
  * committed one exercises the frozen snapshot plus the "not applied" drift badge
@@ -212,9 +230,10 @@ export async function seedCompensationPlans(
         level: levelByStaff.get(person.id) ?? null,
         plannedAmount: planned,
         plannedCurrency: employment?.currency ?? null,
-        ratingDone: committed || chance(0.6),
-        meetingDone: committed || chance(0.4),
-        isComplete: committed || chance(0.3),
+        // A committed plan is by definition finished for everyone in it.
+        status: committed
+          ? "COMPLETE"
+          : faker.helpers.weightedArrayElement(PLAN_ITEM_STATUS_WEIGHTS),
         evaluationNotes: chance(0.5) ? faker.lorem.sentences(2) : null,
         compensationNotes: chance(0.4) ? faker.lorem.sentence() : null,
         // Committed plans carry the frozen before-figures; drafts read live.
