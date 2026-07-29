@@ -8,6 +8,9 @@ import type { StaffProfileDrawerData } from "@/actions/staff/loadStaffProfileDra
 import { loadStaffProfileDrawer } from "@/actions/staff/loadStaffProfileDrawer";
 import { StaffFeedbackPanel } from "@/components/feedback/staff-feedback-panel";
 import { ReviewNotesPanel } from "@/components/performance/review-notes-panel";
+import { CompensationSection } from "@/components/staff/compensation-section";
+import { HistoryTimeline } from "@/components/staff/history-timeline";
+import { PtoContent } from "@/components/staff/pto-section";
 import { SkillsSection } from "@/components/staff/skills-section";
 import { StaffProjectsSection } from "@/components/staff/staff-projects-section";
 import { Button } from "@/components/ui/button";
@@ -65,8 +68,13 @@ function Section({
  * is the Review notes tab, which is where the review conversation actually gets
  * written up, so making it read-only would defeat the point of the drawer.
  *
- * The feedback and notes tabs render only when their reads came back non-null, so
- * the tab set is viewer-dependent (the `/feedback` convention).
+ * Tabs: Overview (identity facts, compensation, skills, client intro) · Projects ·
+ * Time off · Peer feedback · Review notes · History. **Three of them are
+ * viewer-dependent** — Time off, Peer feedback and Review notes render only when
+ * their read came back non-null, i.e. when this viewer is permitted that slice, so
+ * an absent tab never has to explain itself (the `/feedback` convention). Projects
+ * and Time off are separate tabs rather than Overview sections because each is a
+ * history in its own right, and a review pane is read down a tab at a time.
  */
 export function StaffProfileDrawer({
   staffId,
@@ -138,19 +146,18 @@ export function StaffProfileDrawer({
                   <span className="font-heading text-lg font-semibold tracking-tight">
                     {data.name}
                   </span>
-                  <span className="text-sm text-muted-foreground">
-                    {data.employment
-                      ? [
-                          ROLE_LABELS[data.employment.role],
-                          LINE_OF_BUSINESS_LABELS[
-                            data.employment.lineOfBusiness
-                          ],
-                          EMPLOYMENT_TYPE_LABELS[
-                            data.employment.employmentType
-                          ],
-                        ].join(" · ")
-                      : data.email}
-                  </span>
+                  {data.employment ? (
+                    <span className="text-sm text-muted-foreground">
+                      {[
+                        ROLE_LABELS[data.employment.role],
+                        LINE_OF_BUSINESS_LABELS[data.employment.lineOfBusiness],
+                        EMPLOYMENT_TYPE_LABELS[data.employment.employmentType],
+                        data.employment.isBillable
+                          ? "Billable"
+                          : "Non-billable",
+                      ].join(" · ")}
+                    </span>
+                  ) : null}
                 </div>
                 {staffId ? (
                   <Button
@@ -170,20 +177,24 @@ export function StaffProfileDrawer({
               <Tabs defaultValue="overview">
                 <TabsList variant="line" className="mb-4">
                   <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="projects">Projects</TabsTrigger>
+                  {data.pto ? (
+                    <TabsTrigger value="time-off">Time off</TabsTrigger>
+                  ) : null}
                   {data.feedback ? (
                     <TabsTrigger value="feedback">Peer feedback</TabsTrigger>
                   ) : null}
                   {data.reviewNotes ? (
                     <TabsTrigger value="review-notes">Review notes</TabsTrigger>
                   ) : null}
+                  <TabsTrigger value="history">History</TabsTrigger>
                 </TabsList>
 
                 <TabsContent
                   value="overview"
                   className="flex flex-col gap-8 pt-2"
                 >
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                    <Fact label="Email" value={data.email} />
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                     <Fact label="Location" value={data.location} />
                     <Fact
                       label="Joined"
@@ -191,6 +202,14 @@ export function StaffProfileDrawer({
                     />
                     <Fact label="Reports to" value={data.managerName} />
                   </div>
+
+                  {/* Null means this viewer may not see comp — not "no comp on
+                      file", which `CompensationSection` renders itself. */}
+                  {data.compensation ? (
+                    <Section title="Compensation">
+                      <CompensationSection {...data.compensation} />
+                    </Section>
+                  ) : null}
 
                   <Section title="Skills">
                     <SkillsSection skills={data.skills} />
@@ -207,11 +226,20 @@ export function StaffProfileDrawer({
                       </p>
                     )}
                   </Section>
-
-                  <Section title="Projects">
-                    <StaffProjectsSection projects={data.projects} />
-                  </Section>
                 </TabsContent>
+
+                <TabsContent value="projects" className="pt-2">
+                  <StaffProjectsSection projects={data.projects} />
+                </TabsContent>
+
+                {/* Same convention as the other gated tabs: `pto` is null when
+                    this viewer lacks `pto.review`, and then there is no tab at
+                    all — not an empty one. */}
+                {data.pto ? (
+                  <TabsContent value="time-off" className="pt-2">
+                    <PtoContent pto={data.pto} />
+                  </TabsContent>
+                ) : null}
 
                 {data.feedback ? (
                   <TabsContent value="feedback" className="pt-2">
@@ -232,6 +260,10 @@ export function StaffProfileDrawer({
                     />
                   </TabsContent>
                 ) : null}
+
+                <TabsContent value="history" className="pt-2">
+                  <HistoryTimeline entries={data.history} />
+                </TabsContent>
               </Tabs>
             </div>
           </>

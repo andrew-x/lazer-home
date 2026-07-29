@@ -5,12 +5,18 @@ import type { StaffFeedbackView } from "@/actions/feedback/getFeedbackAboutStaff
 import { getFeedbackAboutStaff } from "@/actions/feedback/getFeedbackAboutStaff";
 import type { StaffReviewNotesView } from "@/actions/performance/getStaffReviewNotes";
 import { getStaffReviewNotes } from "@/actions/performance/getStaffReviewNotes";
+import { canViewCompensation } from "@/actions/staff/canViewCompensation";
+import type { HistoryEntry } from "@/actions/staff/getStaffHistory";
+import { getStaffHistory } from "@/actions/staff/getStaffHistory";
 import { getStaffProfile } from "@/actions/staff/getStaffProfile";
 import type { StaffProjectSummary } from "@/actions/staff/getStaffProjects";
 import { getStaffProjects } from "@/actions/staff/getStaffProjects";
+import type { StaffPtoView } from "@/actions/staff/getStaffPto";
+import { getStaffPto } from "@/actions/staff/getStaffPto";
 import { ownStaffId } from "@/actions/staff/ownStaffId";
 import { secureActionClient } from "@/lib/core/action";
 import type { LineOfBusiness } from "@/lib/crm/line-of-business";
+import type { Currency } from "@/lib/format/currency";
 import { id } from "@/lib/schemas/id-schema";
 import type { StaffSkill } from "@/lib/staff/skills";
 import type { EmploymentType, Role } from "@/lib/staff/staff-enums";
@@ -18,28 +24,46 @@ import type { EmploymentType, Role } from "@/lib/staff/staff-enums";
 /**
  * The read-only slice of a profile the drawer shows.
  *
- * Deliberately **no compensation and no PTO.** `getStaffProfile` carries comp
- * amounts inline on `employment`, and the profile *pages* only get away with that
- * because they render server-side — a client-fetched drawer would ship them in
- * its response whether or not it renders them. So this projects the employment
- * row down to its facets. (The compensation-plan row the drawer opens from
- * already shows the money it needs, under the plan's own stricter gate.)
+ * **Every sensitive field here is gated at this read, never by the drawer simply
+ * not rendering it.** That distinction is the whole reason this type spells out
+ * its own shape instead of passing `StaffProfile` through: the profile *pages*
+ * can hand a component comp amounts it chooses not to render, because they render
+ * server-side; a client-fetched drawer would ship them in its response. So
+ * `compensation` is present only for a viewer who may see it, and `pto` only for
+ * one who may see that — `null` in both cases means "not permitted", and the
+ * drawer renders no section at all.
  */
 export type StaffProfileDrawerData = {
   name: string;
-  email: string;
   location: string | null;
   joinDate: string | null;
   managerName: string | null;
   clientIntro: string | null;
   skills: StaffSkill[];
+  /** Employment facets — no money; that lives on `compensation` behind its gate. */
   employment: {
     role: Role;
     lineOfBusiness: LineOfBusiness;
     employmentType: EmploymentType;
     isBillable: boolean;
   } | null;
+  /**
+   * Current compensation, or **null when this viewer may not see it** (own comp
+   * always; anyone else's needs `staff.viewCompensation`). The amounts never leave
+   * the server for an unauthorized caller.
+   */
+  compensation: {
+    base: number | null;
+    hourlyRate: number | null;
+    guaranteedBonus: number | null;
+    discretionaryBonus: number | null;
+    currency: Currency | null;
+  } | null;
   projects: StaffProjectSummary[];
+  /** Null when this viewer may not see this person's PTO (`pto.review`). */
+  pto: StaffPtoView | null;
+  /** Comp amounts are folded into entries only when the comp gate passed. */
+  history: HistoryEntry[];
   /** Null when this viewer may see no feedback about this person. */
   feedback: StaffFeedbackView | null;
   /** Null when this viewer may see no review notes about this person. */
@@ -70,32 +94,55 @@ export const loadStaffProfileDrawer = secureActionClient
     async ({ parsedInput, ctx }): Promise<StaffProfileDrawerData | null> => {
       if (!(await ownStaffId(ctx.user.id, { activeOnly: true }))) return null;
 
-      const [profile, projects, feedback, reviewNotes] = await Promise.all([
-        getStaffProfile(parsedInput.staffId),
-        getStaffProjects(parsedInput.staffId),
-        getFeedbackAboutStaff(parsedInput.staffId),
-        getStaffReviewNotes(parsedInput.staffId),
-      ]);
+      const [profile, projects, pto, feedback, reviewNotes, canViewComp] =
+        await Promise.all([
+          getStaffProfile(parsedInput.staffId),
+          getStaffProjects(parsedInput.staffId),
+          // Self-gating: returns null unless it's the caller's own PTO or they
+          // hold `pto.review`.
+          getStaffPto(parsedInput.staffId),
+          getFeedbackAboutStaff(parsedInput.staffId),
+          getStaffReviewNotes(parsedInput.staffId),
+          canViewCompensation(ctx.user, parsedInput.staffId),
+        ]);
 
       if (!profile) return null;
 
+      // Sequential on purpose: the history feed folds comp amounts into its
+      // employment entries, so it can't be fetched until the comp gate is known —
+      // the same ordering `/staff/[id]` uses.
+      const history = await getStaffHistory(parsedInput.staffId, canViewComp);
+
+      const { employment } = profile;
+
       return {
         name: profile.name,
-        email: profile.email,
         location: profile.location,
         joinDate: profile.joinDate,
         managerName: profile.managerName,
         clientIntro: profile.clientIntro,
         skills: profile.skills,
-        employment: profile.employment
+        employment: employment
           ? {
-              role: profile.employment.role,
-              lineOfBusiness: profile.employment.lineOfBusiness,
-              employmentType: profile.employment.employmentType,
-              isBillable: profile.employment.isBillable,
+              role: employment.role,
+              lineOfBusiness: employment.lineOfBusiness,
+              employmentType: employment.employmentType,
+              isBillable: employment.isBillable,
             }
           : null,
+        compensation:
+          canViewComp && employment
+            ? {
+                base: employment.base,
+                hourlyRate: employment.hourlyRate,
+                guaranteedBonus: employment.guaranteedBonus,
+                discretionaryBonus: employment.discretionaryBonus,
+                currency: employment.currency,
+              }
+            : null,
         projects,
+        pto,
+        history,
         feedback,
         reviewNotes,
       };
