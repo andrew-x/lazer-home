@@ -1,6 +1,6 @@
 "use client";
 
-import { IconExternalLink } from "@tabler/icons-react";
+import { IconExternalLink, IconX } from "@tabler/icons-react";
 import Link from "next/link";
 import { useAction } from "next-safe-action/hooks";
 import { useCallback, useEffect, useState } from "react";
@@ -17,6 +17,7 @@ import { StaffProjectsSection } from "@/components/staff/staff-projects-section"
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -118,7 +119,29 @@ export function StaffProfileDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-0 p-0 data-[side=right]:sm:max-w-[56rem]">
+      <SheetContent
+        showCloseButton={false}
+        className="flex w-full flex-col gap-0 p-0 data-[side=right]:sm:max-w-[56rem]"
+      >
+        {/* Close on the drawer's LEFT edge, matching the opportunity drawer: a
+            child of the (non-scrolling) popup, so it escapes the drawer's bounds
+            and stays put while the content scrolls. On lg+ — where the capped
+            width leaves a gutter — it hangs off the outside; below that it tucks
+            flush against the inner-left edge, which is what the header's `pl`
+            clears. */}
+        <div className="absolute top-4 left-0 z-10">
+          <div className="flex flex-col rounded-l-none border border-l-0 bg-popover lg:-translate-x-full lg:rounded-l lg:rounded-r-none lg:border-r-0 lg:border-l">
+            <SheetClose
+              render={
+                <Button variant="ghost" size="icon-sm" className="h-10 w-8" />
+              }
+            >
+              <IconX />
+              <span className="sr-only">Close</span>
+            </SheetClose>
+          </div>
+        </div>
+
         <SheetTitle className="sr-only">
           {data?.name ?? "Staff profile"}
         </SheetTitle>
@@ -127,7 +150,8 @@ export function StaffProfileDrawer({
         </SheetDescription>
 
         {data === null ? (
-          <div className="flex flex-col gap-4 p-6">
+          // Same `pl` as the header: the close tab overlaps this content below lg.
+          <div className="flex flex-col gap-4 p-6 pl-14 lg:pl-6">
             {isPending ? (
               <>
                 <Skeleton className="h-6 w-48" />
@@ -142,7 +166,9 @@ export function StaffProfileDrawer({
           </div>
         ) : (
           <>
-            <SheetHeader className="gap-2 border-b p-6 pr-14">
+            {/* `pl` clears the flush close tab below lg, where it sits inside the
+                left edge; on lg+ the tab hangs outside and normal padding returns. */}
+            <SheetHeader className="gap-2 border-b p-6 pl-14 lg:pl-6">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <span className="font-heading text-lg font-semibold tracking-tight">
