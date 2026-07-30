@@ -1,33 +1,30 @@
 import { z } from "zod";
-import { id, ownerId } from "@/lib/schemas/id-schema";
+import { id } from "@/lib/schemas/id-schema";
 import { contactFields } from "./createContact.schema";
 
 /**
  * Contact edit input — a pure, client-importable module (no `db`/drizzle) so the
- * edit form's resolver and the server action share one schema. Reuses the same
- * shared `contactFields` refinements as create (so the two can't drift) plus an
- * optional owner, the `id` targeting the row, the current relationship strength
- * carried through the edit, and the active/inactive status.
+ * edit dialog's resolver and the server action share one schema.
+ *
+ * Deliberately **not** the whole record: the dialog now owns only the identity
+ * block (names, job title, active/inactive), and every other attribute — email,
+ * phone, LinkedIn, employer, location, owner, relationship strength — is edited in
+ * place in the sidebar through `updateContactField`. So the fields it doesn't own
+ * aren't listed here at all, rather than round-tripped as hidden defaults: a
+ * scoped save can't clobber a value someone changed inline while the dialog sat
+ * open. The name/role refinements are still the shared `contactFields` objects, so
+ * create and edit can't drift.
  */
 export const updateContactSchema = z.object({
-  ...contactFields,
   id,
-  ownerId,
+  firstName: contactFields.firstName,
+  lastName: contactFields.lastName,
+  role: contactFields.role,
   // Whether they're still someone we deal with. Edited here in the contact dialog
   // (create has no equivalent — a brand-new contact is always active), and also
   // set automatically on the *predecessor* when a successor record is linked, by
   // `createContactRelationship`.
   isActive: z.boolean(),
-  // Relationship strength (1–5) is edited inline via `updateContactField`'s
-  // `relationshipStrength` variant; the edit form just carries the current
-  // value through. A nullable int32 (null when unrated) — matches the column.
-  relationshipStrength: z
-    .number()
-    .int()
-    .min(-2147483648)
-    .max(2147483647)
-    .nullable()
-    .optional(),
 });
 
 export type UpdateContactInput = z.input<typeof updateContactSchema>;
