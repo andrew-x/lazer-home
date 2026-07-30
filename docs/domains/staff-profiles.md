@@ -53,7 +53,7 @@ Be the source of truth about who works here — their identity, role, line of bu
 - **Dates/times are timezone-agnostic.** `joinDate`/`terminationDate`, `effectiveFromDate`, and PTO `startDate`/`endDate` are `date()` strings (`"YYYY-MM-DD"`); `clientIntroUpdatedAt` and other instants are `timestamp` without time zone. Do zone conversion at the UI edge only — see [`.claude/rules/database.md`](../../.claude/rules/database.md).
 - **Edits are gated by RBAC (owner, or `staff.edit`) — declared in metadata, not the body.** `updateStaffLinks`/`updateStaffClientIntro`/`updateStaffResume` declare `secureActionClient.metadata({ authorize: authorizeStaffEdit })` (`src/actions/staff/canEditStaff.ts`); the `authorizeStaffEdit` hook reads `clientInput.staffId` and calls `canEditStaff` **before the body runs**: a user may always edit their **own** linked profile; editing anyone else's requires the `staff.edit` permission (manager/admin). The action bodies carry no authz call. This closed the former open-edit gap. See [permissions.md](./permissions.md) and [ADR 0014](../decisions/0014-rbac-better-auth-access-control.md).
   - **The one deliberate exception is `allocationNotes`.** `updateStaffAllocationNotes` gates on the **static `staff.edit` capability** (`metadata.permission: { staff: ["edit"] }`), **not** `authorizeStaffEdit` — so there is **no owner path**: a person cannot edit their own allocation note, only managers/admins can. These are cross-person staffing notes on a management planner, so owner-edit isn't the intent; the value is also read-gated on `staff.edit` in `getAllocationsGrid` so it never reaches an unprivileged client. **No new capability, matrix unchanged.** See [ADR 0041](../decisions/0041-allocation-notes-on-staff.md).
-- **Cross-person reads are mostly unscoped; four slices are gated.** `getStaffProfile`/`History`/`Avatar`/`Projects` show other people for the directory; the `(app)` layout gate is their only boundary. The gated slices (own always visible where that makes sense) are: (1) **PTO** — another person's aggregated PTO needs `pto.review`, else `getStaffPto` returns `null` and `ProfileView` hides the section; (2) **compensation** — `canViewCompensation` (needs `staff.viewCompensation`) gates both the profile Compensation card and whether `getStaffHistory` appends comp amounts to the employment entries at all; (3) **peer feedback** — `feedback.review` for someone else, the limited *recipient* tier for yourself; (4) **review notes** — the **reporting line**, not a capability. All four use the same shape: **the read returns `null` and the view renders nothing** (see *Viewer-dependent tabs*). Comp lives on the same `staff_employment` row `getStaffProfile` returns, so the card gate is applied by *ProfileView not rendering the card* rather than by nulling the fields — but the history gate is a true read-side filter (client component). See [ADR 0020](../decisions/0020-compensation-effective-dated-import-only.md). **Inactive staff profiles are readable by direct `/staff/[id]` URL** (the directory hides them; the read doesn't). Consistent with the internal-only posture.
+- **Cross-person reads are mostly unscoped; five slices are gated.** `getStaffProfile`/`History`/`Avatar`/`Projects` show other people for the directory; the `(app)` layout gate is their only boundary. The gated slices (own always visible where that makes sense) are: (1) **PTO** — another person's aggregated PTO needs `pto.review`, else `getStaffPto` returns `null` and `ProfileView` hides the section; (2) **compensation** — `canViewCompensation` (needs `staff.viewCompensation`) gates both the profile Compensation card and whether `getStaffHistory` appends comp amounts to the employment entries at all (**bonus payments ride this same gate** — `getStaffBonusHistory` calls `canViewCompensation` too, and the history feed's `BONUS` entries are dropped for an unauthorized viewer, since the fact a bonus was paid is itself compensation information); (3) **peer feedback** — `feedback.review` for someone else, the limited *recipient* tier for yourself; (4) **review notes** — the **reporting line**, not a capability; (5) **self-evaluations** — `ratings.view` for someone else, **always visible (and writable) for yourself**. All five use the same shape: **the read returns `null` and the view renders nothing** (see *Viewer-dependent tabs*). Comp lives on the same `staff_employment` row `getStaffProfile` returns, so the card gate is applied by *ProfileView not rendering the card* rather than by nulling the fields — but the history gate is a true read-side filter (client component). See [ADR 0020](../decisions/0020-compensation-effective-dated-import-only.md). **Inactive staff profiles are readable by direct `/staff/[id]` URL** (the directory hides them; the read doesn't). Consistent with the internal-only posture.
 - **`getStaffDirectory` scans the whole `staff_employment` table** and reduces to latest-per-staff in JS. Fine at company scale; if effective-dating history grows large, switch to `DISTINCT ON (staff_id)` / a lateral join. There is **no composite index on `(staff_id, effective_from_date)`** yet.
 
 ## Skills
@@ -67,15 +67,18 @@ Skills are stored **inline** on `staff.skills` (jsonb `StaffSkill[]`), not a nor
   - **Two-panel layout (`edit-skills-form.tsx`).** On desktop (≥ md) it's a 2-column grid: the "Add skills" editor is the **left** column and "Your skills" is the **right** (via `order` utilities), so it reads left→right as cause→effect. The "Your skills" column is **`sticky top-6`** with its own max-height/overflow so added skills are seen landing while the long catalogue column scrolls with the page. Inside the editor, the "Add as" toggle + search box are **`sticky top-0`** (pinned while the catalogue scrolls beneath); Save/Cancel are a **`sticky bottom-0`** right-aligned action bar (Save last) so they're always reachable. On narrow screens (< md) it collapses to a single stack with "Your skills" **first**, then the editor. The page container is `max-w-5xl` (widened from `max-w-3xl`) to fit two columns.
 - **Mutation** `updateStaffSkills` (`src/actions/staff/updateStaffSkills.ts`, schema in `updateStaffSkills.schema.ts`) **replaces the whole list** and reuses the existing `authorizeStaffEdit` hook / `staff.edit` capability (own always; others need `staff.edit`) — **no new permission was added, the RBAC matrix is unchanged**. The schema validates every name is in `ALL_SKILLS` and rejects duplicates (guards against a crafted payload since the client only ever picks from the catalogue). `getStaffProfile` projects `skills` and `StaffProfile.skills: StaffSkill[]`.
 
-## Viewer-dependent tabs — Peer feedback + Review notes
+## Viewer-dependent tabs — Peer feedback + Review notes + Self-evaluations
 
-**The profile's tab set is no longer fixed: it renders 5 to 7 tabs depending on who is
-looking.** Two tabs are owned by the [performance domain](./performance.md) and appear
-**only when their read returned something this viewer may see** — `ProfileView` takes
-`feedback: StaffFeedbackView | null` and `reviewNotes: StaffReviewNotesView | null` and
-renders each (before History) iff non-null. **The reads are the gate; the component just
-hides the section** — the same posture as `pto`. A `null` also means the *trigger* isn't
-rendered, so a tab's presence never discloses that feedback or notes exist about someone.
+**The profile's tab set is no longer fixed: it renders 5 to 8 tabs depending on who is
+looking.** The fixed four are Overview / Manual of Me / Ways of Working / Resume, plus
+History last; **three tabs in between are owned by the
+[performance domain](./performance.md)** and appear **only when their read returned
+something this viewer may see** — `ProfileView` takes `feedback: StaffFeedbackView | null`,
+`reviewNotes: StaffReviewNotesView | null` and
+`selfEvaluations: StaffSelfEvaluationsView | null` and renders each (in that order, before
+History) iff non-null. **The reads are the gate; the component just hides the section** —
+the same posture as `pto`. A `null` also means the *trigger* isn't rendered, so a tab's
+presence never discloses that feedback, notes or self-evaluations exist about someone.
 
 - **Peer feedback** — `getFeedbackAboutStaff` (`src/actions/feedback/`): the limited
   **recipient** tier on your own profile (self branch first, even for a
@@ -90,18 +93,32 @@ rendered, so a tab's presence never discloses that feedback or notes exist about
   — a terminated person's session outlives both the stale `managerId` still pointing at
   their old reports *and* their authorship of past notes, so leaving revokes access where
   changing teams doesn't. Panel:
-  `review-notes-panel.tsx` (the profile's one *writable* performance surface). See
+  `review-notes-panel.tsx` (one of the profile's two *writable* performance surfaces). See
   [ADR 0049](../decisions/0049-review-notes-reporting-line-as-authorization-boundary.md)
   and [permissions.md](./permissions.md).
+- **Self-evaluations** — `getStaffSelfEvaluations` (`src/actions/performance/`): the
+  person's own dated reflection questionnaires. **Own always (read *and* write); anyone
+  else's needs `ratings.view`** and is read-only; `null` otherwise. **The only tab where
+  being the subject is the *widest* answer**, not the narrowest — so the read checks self
+  **first**, because that's what decides the write affordances. Writes are **author-only,
+  with no capability path and no admin override**. Panel:
+  `self-evaluation-panel.tsx` (the profile's other writable performance surface — and the
+  only one a non-manager can write). **Note the neighbourly hazard:** this reuses the
+  `ratings.view` capability that also guards the manager-assigned L0–L4 level a staffer
+  must never see about themselves, so **nothing in this tab may render such a level**
+  ([ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md),
+  [ADR 0058](../decisions/0058-self-evaluations-dated-records-with-snapshotted-answers.md)).
 
-**Both pages wire them, and `/profile` deliberately does not hard-code them.** It
+**Both pages wire all three, and `/profile` deliberately does not hard-code them.** It
 hard-codes `canEdit = true` and `canViewCompensation = true` (it's your own record), but
-passes the *reads'* answers for these two — because "it's your profile" is exactly the
-case that must yield the **narrower** result: the recipient feedback tier, and only the
-notes your manager has *shared* (a person is never their own note-manager).
+passes the *reads'* answers for these three — because for two of them "it's your profile"
+is exactly the case that must yield the **narrower** result (the recipient feedback tier;
+only the notes your manager has *shared* — a person is never their own note-manager),
+while for self-evaluations it's the **widest**. Passing the read's answer is right either
+way, which is the point: **the read decides, never the page.**
 
 **Consequences for anything keying off the tab set** (deep links, tests, snapshots): it
-must tolerate 5–7 tabs. Tab state is uncontrolled and not in the URL, matching
+must tolerate 5–8 tabs. Tab state is uncontrolled and not in the URL, matching
 `/feedback`.
 
 > **Fixed in passing:** `EditResumeDialog` was rendered **unconditionally** on the Resume
@@ -174,15 +191,19 @@ row — see [performance.md](./performance.md)) and the **org chart** (clicking 
 above), which is what its plan-agnostic design was for.
 
 - Built on the vendored `Sheet`, following the CRM **opportunity detail sheet**: load
-  on open through an action, `sm:max-w-[56rem]`. **Three to eight tabs** — **Overview**,
+  on open through an action, `sm:max-w-[56rem]`. **Three to nine tabs** — **Overview**,
   **Projects**, *(**Time off**)*, *(**Peer feedback**)*, *(**Review notes**)*,
-  *(**Evaluations**)*, *(**Bonuses**)*, **History** — the five parenthesised ones
-  conditional on their read exactly as on the profile, History always present and rendered
-  last (same order as `ProfileView`). **Bonuses** (`BonusList` over
+  *(**Self-evaluations**)*, *(**Evaluations**)*, *(**Bonuses**)*, **History** — the six
+  parenthesised ones conditional on their read exactly as on the profile, History always
+  present and rendered last (same order as `ProfileView`). **Bonuses** (`BonusList` over
   `getStaffBonusHistory`) is a **drawer-only** surface like Evaluations, on the comp gate
   (own always visible), and shows per-currency YTD totals with **no FX** — summing CAD and
-  USD for one person would be a made-up number. **Projects, Time off, Bonuses and
-  Evaluations are tabs, not Overview sections**,
+  USD for one person would be a made-up number. **Self-evaluations (the person's own words)
+  and Evaluations (the level a manager assigned them) are different things on different
+  scales and stay separate tabs**
+  — see [ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md)
+  and [ADR 0058](../decisions/0058-self-evaluations-dated-records-with-snapshotted-answers.md).
+  **Projects, Time off, Bonuses and Evaluations are tabs, not Overview sections**,
   because each is a history in its own right and a review pane is read a tab at a time.
   Overview stacks: a 3-column facts grid
   (**Location / Joined / Reports to** — no email; it was dropped) → **Compensation** →
@@ -190,8 +211,9 @@ above), which is what its plan-agnostic design was for.
   of business · employment type · billable), and **falls back to nothing** when there's no
   employment row. It links out to `/staff/[id]` ("Open full profile") for anything
   editable.
-- **It is not a cut-down payload any more — it's a *gated* one.** Comp, PTO, feedback,
-  review notes and rating history are all present **for a viewer entitled to them**, and
+- **It is not a cut-down payload any more — it's a *gated* one.** Comp, bonus payments,
+  PTO, feedback, review notes, self-evaluations and rating history are all present **for a
+  viewer entitled to them**, and
   the drawer now reaches near-parity with the profile page's read-only content. What it
   deliberately still lacks is every *edit* affordance (bar review notes) and the
   avatar/links rail.
@@ -211,6 +233,15 @@ above), which is what its plan-agnostic design was for.
   purpose. It passes `onChanged` so the drawer **re-loads itself** instead of calling
   `router.refresh()` — refreshing the route would re-render the plan editor underneath,
   mid-edit.
+- **Self-evaluations render `readOnly` here, and that's a *display* constraint, not a
+  gate.** The panel would otherwise offer writes to a viewer who happens to be looking at
+  their own profile in the drawer — but a seven-textarea form inside a 56rem sheet layered
+  over a mid-edit plan editor is the wrong place to write one, so the drawer passes
+  `readOnly` and the header's "Open full profile" is the route to actually writing.
+  **The server gate is untouched** (`authorizeSelfEvaluationMutate` still decides), and the
+  rejected alternative — forcing `canCreate: false` inside `loadStaffProfileDrawer` — would
+  have buried a presentation decision inside a permission answer. Copy this split if a
+  future host needs to suppress an affordance it is entitled to.
 - **Loader: `src/actions/staff/loadStaffProfileDrawer.ts`** — a `"use server"` +
   `secureActionClient` **interactive read** (the documented exception to the
   server-only-read rule, same shape as `loadOpportunityDetail`;
@@ -241,12 +272,15 @@ above), which is what its plan-agnostic design was for.
     protected by the `(app)` layout, which refuses both — but **an action has no layout
     above it** and must refuse them itself. The review-note gate makes the same choice for
     the same reason; see [permissions.md](./permissions.md) → *Resolving the caller*.
-  - No capability gate on the *action* otherwise, matching `/staff/[id]` — **five
+  - No capability gate on the *action* otherwise, matching `/staff/[id]` — **seven
     sensitive slices each carry their own gate and return `null` rather than throwing**
-    (comp → `canViewCompensation`; PTO → `pto.review`; feedback → `feedback.review` or the
+    (comp → `canViewCompensation`; bonus history → the same `canViewCompensation`; PTO →
+    `pto.review`; feedback → `feedback.review` or the
     recipient tier; review notes → the reporting line; rating history → `ratings.view`,
-    no owner path), so one viewer's drawer simply has fewer sections and tabs than
-    another's.
+    no owner path; **self-evaluations → `ratings.view` *with* a full owner path**), so one
+    viewer's drawer simply has fewer sections and tabs than another's. The gate table in
+    [permissions.md](./permissions.md) enumerates all seven — it is the best worked example
+    of this model in the codebase.
 
 ## Manual of Me
 
@@ -363,7 +397,7 @@ The payload is never trusted: the commit re-reads each staff's latest row, **dro
 
 - **Login gating** — on first authenticated request `getCurrentStaffAccess` resolves user → staff (auto-linking by email once), and the `(app)` layout admits only `ok`; `not_setup`/`incomplete` are bounced to the single `/profile-setup` block screen. See [flows.md](../flows.md).
 - **Employment change** — insert a new `staff_employment` row with a new `effectiveFromDate` rather than mutating the prior row, preserving history. The **one** exception is correcting a wrong latest row in place via bulk-edit with a blank effective date (no new fact) — see *Bulk edit roles* above and [ADR 0007](../decisions/0007-staff-employment-effective-dating.md).
-- **Profile read (by id — `/profile` and `/staff/[id]`)** — the per-person reads are now **parameterized by `staffId`** and not ownership-scoped: `getStaffProfile(staffId)` (`src/actions/staff/getStaffProfile.ts`), `getStaffHistory(staffId)`, `getStaffPto(staffId)`, `getStaffAvatar(staffId)`, `getStaffProjects(staffId)` (see *Projects on the profile* below), plus two **performance-domain** reads that own their own gates — `getFeedbackAboutStaff(staffId)` and `getStaffReviewNotes(staffId)` (see *Viewer-dependent tabs* below). `ProfileView` renders these in a **two-column layout** — a left rail (identity/meta card, Links card, Compensation card) beside a right-column tabbed card (Overview / Manual of Me / Ways of Working / Resume / **Peer feedback** / **Review notes** / History, the middle two conditional); see [ui.md](../ui.md). `getStaffProfile` returns latest employment via the ADR 0007 ordering — **including the compensation columns** (`base`/`hourlyRate`/`guaranteedBonus`/`currency`), which `ProfileView` renders in a **Compensation card only when its `canViewCompensation` prop is true** — and is wrapped in `React.cache` so `/staff/[id]`'s `generateMetadata` and page body share one query. Both pages wire the prop: `/profile` hard-codes `true` (own profile), `/staff/[id]` computes `canViewCompensation(user, id)` (alongside `canEditStaff`) and passes it both to `ProfileView` **and** as `getStaffHistory`'s `includeCompensation` arg. See [ADR 0020](../decisions/0020-compensation-effective-dated-import-only.md) and [ui.md](../ui.md). `getStaffProfile` also **self-joins `staff`** (drizzle `alias`) on `managerId` to project `{ managerId, managerName }`; `ProfileView` renders a read-only **"Reports to <link>"** line in the identity header linking to `/staff/[managerId]` (omitted when there's no manager). The manager is set by the import only — no editor (see [ADR 0026](../decisions/0026-staff-manager-self-reference.md)). `getStaffAvatar` reads the linked auth `user.image` (separate query because the avatar lives on `user`, not `staff`; null when unlinked).
+- **Profile read (by id — `/profile` and `/staff/[id]`)** — the per-person reads are now **parameterized by `staffId`** and not ownership-scoped: `getStaffProfile(staffId)` (`src/actions/staff/getStaffProfile.ts`), `getStaffHistory(staffId)`, `getStaffPto(staffId)`, `getStaffAvatar(staffId)`, `getStaffProjects(staffId)` (see *Projects on the profile* below), plus three **performance-domain** reads that own their own gates — `getFeedbackAboutStaff(staffId)`, `getStaffReviewNotes(staffId)` and `getStaffSelfEvaluations(staffId)` (see *Viewer-dependent tabs* below). `ProfileView` renders these in a **two-column layout** — a left rail (identity/meta card, Links card, Compensation card) beside a right-column tabbed card (Overview / Manual of Me / Ways of Working / Resume / **Peer feedback** / **Review notes** / **Self-evaluations** / History, the middle three conditional); see [ui.md](../ui.md). `getStaffProfile` returns latest employment via the ADR 0007 ordering — **including the compensation columns** (`base`/`hourlyRate`/`guaranteedBonus`/`currency`), which `ProfileView` renders in a **Compensation card only when its `canViewCompensation` prop is true** — and is wrapped in `React.cache` so `/staff/[id]`'s `generateMetadata` and page body share one query. Both pages wire the prop: `/profile` hard-codes `true` (own profile), `/staff/[id]` computes `canViewCompensation(user, id)` (alongside `canEditStaff`) and passes it both to `ProfileView` **and** as `getStaffHistory`'s `includeCompensation` arg. See [ADR 0020](../decisions/0020-compensation-effective-dated-import-only.md) and [ui.md](../ui.md). `getStaffProfile` also **self-joins `staff`** (drizzle `alias`) on `managerId` to project `{ managerId, managerName }`; `ProfileView` renders a read-only **"Reports to <link>"** line in the identity header linking to `/staff/[managerId]` (omitted when there's no manager). The manager is set by the import only — no editor (see [ADR 0026](../decisions/0026-staff-manager-self-reference.md)). `getStaffAvatar` reads the linked auth `user.image` (separate query because the avatar lives on `user`, not `staff`; null when unlinked).
   - **Self read** — there is **no separate "my" read** (`getMyProfile`/`getMyHistory`/`getMyPto` and the `MyProfile` alias are gone). Each own-profile page resolves its staff id inline via `getCurrentStaffId()` (`src/actions/staff/getCurrentStaffId.ts`, `React.cache`d, `staff.userId = user.id` → id or null) and calls the parameterized `getStaff*` cores directly (`getStaffProfile(staffId)`, `getStaffHistory(staffId, true)`, `getStaffPto(staffId)`, …). The single low-level "user → own staff id" lookup lives in `src/actions/staff/ownStaffId.ts` — the one place that query exists, shared by `getCurrentStaffId`, the **ownership** checks (`canEditStaff`/`canViewCompensation`/`canEditTimesheet`), and the **relationship/eligibility** checks that pass its **`activeOnly`** variant (the feedback gate, `getReviewNoteAccess`, `loadStaffProfileDrawer`). **Which variant to pass is an access-control decision, not a detail** — see [permissions.md](./permissions.md) → *Resolving the caller* before adding a new caller-identity check. The page never touches `db` (ADR 0010). See [ui.md](../ui.md) (`/profile`).
   - **Why not ownership-scoped:** the directory and `/staff/[id]` deliberately show other people, so profile/history/avatar reads can't filter by `userId`. Access is the `(app)` layout's session+staff gate, plus a capability check where data is sensitive — `getStaffPto` requires `pto.review` for non-owners (returns `null` otherwise). Its Mon–Fri working-day math is the shared pure module `src/lib/staff/pto-working-days.ts` (`countWorkingDays`, **extracted out of `getStaffPto`**) so the projects domain's `getProjectPto` counts leave the same way — see [projects.md](./projects.md#project-detail-page). This softens ADR 0010's "inherently self-scoped" property for cross-person data — see *Authorization* below, [permissions.md](./permissions.md), and [ADR 0014](../decisions/0014-rbac-better-auth-access-control.md).
 - **Directory ("Browse staff", `/staff`)** — `getStaffDirectory()` (`src/actions/staff/getStaffDirectory.ts`) returns one `StaffDirectoryEntry` per staff member (identity + `isActive` + avatar + **`skills: StaffSkill[]`** + **`managerId`** + latest employment facts; employment fields null when no history). **This one read feeds both `/staff` views** — the card grid and the org chart at `?view=org` (see *Org chart* above); the grid ignores `managerId`. **Two queries, no N+1:** all staff (left-joined to `user` for the avatar; `skills` comes straight off the `staff` row), then the *entire* `staff_employment` table ordered newest-first and reduced in JS to keep the latest row per `staffId`. Includes inactive staff so the UI's "active only" toggle (defaults ON) can hide/show them client-side. `StaffDirectoryEntry` now also projects **`location`** (the `"City, CC"` label), for the location filter below. It also exports `staffDirectoryFilterOptions` (line-of-business / role / employment-type enum values) so the page gets filter options without importing the Drizzle schema. All search + filtering is **client-side** over this single server fetch (`StaffDirectory` component) — including the **skills filter** (multi-select, AND semantics, with an optional minimum-proficiency segment), which runs in-memory via the pure `matchesSkillFilter` (see *Skills* below), and a **location filter** (city picker + "Search nearby" switch, the shared `location-filter-control.tsx`). No URL params, no per-filter server query. **The location filter's one server touch is the "search nearby" set:** because the world-cities dataset can't bundle to the browser, the directory calls the **`nearbyCityLabels`** action (`src/actions/cities/nearbyCityLabels.ts` → `citiesNear`, auth-only, no capability gate) to resolve the labels within `NEARBY_RADIUS_KM` (~100 km) of the picked city, falling back to exact-city match while that's in flight — the rest of the match is in-memory `Set.has` over the projected `location`. This is the **client-side counterpart** to companies'/contacts' server-side location filters, which call `citiesNear` directly ([data-model.md](../data-model.md#location-filters), [crm.md](./crm.md#location)). See *Authorization* (whole-table scan tradeoff) and [ui.md](../ui.md).
@@ -381,7 +415,7 @@ The payload is never trusted: the commit re-reads each staff's latest row, **dro
 
 - **Allocations** — role, line of business, and `utilizationTarget` drive staffing and capacity; `staff_pto` spans reduce available capacity over their date range.
 - **Timesheets** — `isBillable`/`billableType` turn logged hours into billing; **compensation** (cost side — base/hourly on `staff_employment`) feeds margin. External **charge** rates are still proposed.
-- **Performance** — profile is the subject of reviews, and now **hosts two performance surfaces**: the **Peer feedback** and **Review notes** tabs, each gated by its own read (see *Viewer-dependent tabs*). The same two panels also render inside the **profile drawer** the compensation-plan editor opens. Review notes make `staff.managerId` an authorization input — the only such gate in the codebase ([ADR 0049](../decisions/0049-review-notes-reporting-line-as-authorization-boundary.md)). See [performance.md](./performance.md).
+- **Performance** — profile is the subject of reviews, and now **hosts three performance surfaces**: the **Peer feedback**, **Review notes** and **Self-evaluations** tabs, each gated by its own read (see *Viewer-dependent tabs*). All three panels also render inside the **profile drawer** the compensation-plan editor opens (self-evaluations `readOnly` there). Review notes make `staff.managerId` an authorization input — the only such gate in the codebase ([ADR 0049](../decisions/0049-review-notes-reporting-line-as-authorization-boundary.md)); self-evaluations are the one performance surface a **non-manager can write**, and the one that reuses `ratings.view` *with* an owner path ([ADR 0058](../decisions/0058-self-evaluations-dated-records-with-snapshotted-answers.md)). See [performance.md](./performance.md).
 
 ## Open questions
 

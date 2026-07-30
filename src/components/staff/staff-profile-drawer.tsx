@@ -9,6 +9,7 @@ import { loadStaffProfileDrawer } from "@/actions/staff/loadStaffProfileDrawer";
 import { StaffFeedbackPanel } from "@/components/feedback/staff-feedback-panel";
 import { EvaluationHistory } from "@/components/performance/evaluation-history";
 import { ReviewNotesPanel } from "@/components/performance/review-notes-panel";
+import { SelfEvaluationPanel } from "@/components/performance/self-evaluation-panel";
 import { BonusList } from "@/components/staff/bonus-list";
 import { CompensationSection } from "@/components/staff/compensation-section";
 import { HistoryTimeline } from "@/components/staff/history-timeline";
@@ -72,11 +73,14 @@ function Section({
  * written up, so making it read-only would defeat the point of the drawer.
  *
  * Tabs: Overview (identity facts, compensation, skills, client intro) · Projects ·
- * Time off · Peer feedback · Review notes · Evaluations · Bonuses · History.
- * **Five of them are viewer-dependent** — Time off, Peer feedback, Review notes,
- * Evaluations and Bonuses render only when their read came back non-null, i.e.
- * when this viewer is permitted that slice, so an absent tab never has to explain
- * itself (the `/feedback` convention). Projects, Time off and Evaluations are separate tabs
+ * Time off · Peer feedback · Review notes · Self-evaluations · Evaluations · Bonuses ·
+ * History. **Six of them are viewer-dependent** — Time off, Peer feedback, Review
+ * notes, Self-evaluations, Evaluations and Bonuses render only when their read came
+ * back non-null, i.e. when this viewer is permitted that slice, so an absent tab
+ * never has to explain itself (the `/feedback` convention). Note that
+ * Self-evaluations (the person's own words) and Evaluations (the level a manager
+ * assigned them) are different things on different scales — see ADR 0032.
+ * Projects, Time off and Evaluations are separate tabs
  * rather than Overview sections because each is a history in its own right, and a
  * review pane is read down a tab at a time.
  */
@@ -216,6 +220,11 @@ export function StaffProfileDrawer({
                   {data.reviewNotes ? (
                     <TabsTrigger value="review-notes">Review notes</TabsTrigger>
                   ) : null}
+                  {data.selfEvaluations ? (
+                    <TabsTrigger value="self-evaluations">
+                      Self-evaluations
+                    </TabsTrigger>
+                  ) : null}
                   {data.evaluationHistory ? (
                     <TabsTrigger value="evaluations">Evaluations</TabsTrigger>
                   ) : null}
@@ -300,6 +309,22 @@ export function StaffProfileDrawer({
                       staffName={data.name}
                       view={data.reviewNotes}
                       onChanged={refresh}
+                    />
+                  </TabsContent>
+                ) : null}
+
+                {/* `readOnly`, even though the panel would otherwise offer writes to
+                    a viewer looking at their own profile here: a seven-textarea form
+                    inside this sheet, layered over a mid-edit plan editor, is the
+                    wrong place to write one. That's a display constraint, not a
+                    permission — the server gate is unchanged, and the header's
+                    "Open full profile" is the way to actually write. */}
+                {data.selfEvaluations ? (
+                  <TabsContent value="self-evaluations" className="pt-2">
+                    <SelfEvaluationPanel
+                      staffName={data.name}
+                      view={data.selfEvaluations}
+                      readOnly
                     />
                   </TabsContent>
                 ) : null}
