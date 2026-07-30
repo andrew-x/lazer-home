@@ -32,7 +32,7 @@ export default async function CompensationPlanStaffPage({ params }: Params) {
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div className="flex flex-col gap-2">
         <Link
-          href={`/performance/compensation-plans/${planId}`}
+          href={`/people/compensation-plans/${planId}`}
           className="flex w-fit items-center gap-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
           <IconArrowLeft className="size-4" />

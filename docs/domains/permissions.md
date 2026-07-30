@@ -36,7 +36,7 @@ so the admin role retains its built-in capabilities) with two business resources
   [allocations.md](./allocations.md).
 - **`staff.viewCompensation`** — view *another* staff member's compensation (on
   their profile and in the history feed), **and** every bulk/aggregate comp surface:
-  the Compensation dashboard (`/performance/compensation`), including its
+  the Compensation dashboard (`/dashboards/compensation`), including its
   comp-by-level table (which additionally needs `ratings.view`). (Your own
   compensation is always visible.)
 - **`pto.review`** — view the aggregated PTO summary of *other* staff. (Your own
@@ -136,12 +136,13 @@ A resource with **two actions** gates staff overall ratings (levels L0–L4), a
 sensitive read/write with **no ownership dimension** — unlike compensation or
 feedback, a staffer never sees their *own* rating:
 
-- **`ratings.view`** — view staff overall levels: the **Performance dashboard** at
-  `/performance/levels` (distribution, average level, average-by-role, per-role
+- **`ratings.view`** — view staff overall levels: the **Levels dashboard** at
+  `/dashboards/levels` (distribution, average level, average-by-role, per-role
   subrating averages — **no compensation rendered there at all**) and the edit page's
-  current levels. Manager/admin only; there is no self-view path. Its sibling
-  `/performance/compensation` is gated on `staff.viewCompensation` instead, and
-  **`/performance` is a redirect** to whichever of the two the viewer may see.
+  current levels. Manager/admin only; there is no self-view path. Its siblings
+  `/dashboards/compensation` and `/dashboards/bonuses` are gated on
+  `staff.viewCompensation` instead, and **`/dashboards` is a redirect** to whichever
+  of the three the viewer may see.
   The one **overlap** sits on the *comp* page: its **compensation-by-level** table
   needs **both** capabilities — `staff.viewCompensation` gates the page, and the
   levels input is fetched only for `ratings.view` holders (the optional
@@ -154,7 +155,7 @@ feedback, a staffer never sees their *own* rating:
   `ratings.view` alone, yet its rows carry comp **amounts**
   (`RatingRecord.employment` is the full `CompensationDimensions`) — so granting
   `ratings.view` to a role *without* `staff.viewCompensation` would make that read
-  (and `/performance/levels`, which fetches it) a bulk-comp leak, even though the
+  (and `/dashboards/levels`, which fetches it) a bulk-comp leak, even though the
   page renders no money. See [performance.md](performance.md) → *Compensation by
   level*.
 - **`ratings.edit`** — assign / change levels and save an evaluation (a new dated

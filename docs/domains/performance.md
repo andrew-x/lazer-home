@@ -2,15 +2,19 @@
 
 **Status: partially built.** Five concrete slices are realized: **peer feedback**,
 a **compensation & headcount analytics dashboard**, **staff rating levels
-(L0–L4)**, **compensation change plans**, and **performance review notes**. The
-middle two dashboards are **two separate, separately-gated** routes —
-`/performance/compensation` and `/performance/levels` — and **`/performance` itself
-is not a page**: it's a permission-aware redirect to whichever dashboard the viewer
-may see ([ADR 0044](../decisions/0044-performance-dashboards-split-by-permission.md);
-they used to share one page, which [ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md)
-described — that framing is superseded). Plans live at
-`/performance/compensation-plans` — the one identity-bearing *analytics-adjacent*
-surface here
+(L0–L4)**, **compensation change plans**, and **performance review notes**.
+
+The domain's surfaces are split across **two nav sections by whether they read
+aggregates or write about named people** ([ADR 0055](../decisions/0055-nav-dashboards-vs-people-management.md)):
+**Dashboards** holds the three anonymized, read-only analytics routes —
+`/dashboards/compensation`, `/dashboards/bonuses` and `/dashboards/levels` — while
+**People management** holds the identity-bearing write screens — `/people/levels`,
+`/people/compensation-plans` and `/people/bonus-payments`. **Neither `/dashboards`
+nor `/people` is a page**: each is a permission-aware redirect to whichever child the
+viewer may see ([ADR 0044](../decisions/0044-performance-dashboards-split-by-permission.md);
+the dashboards used to share one page, which [ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md)
+described — that framing is superseded). Plans are the one identity-bearing
+*analytics-adjacent* surface here
 ([ADR 0046](../decisions/0046-compensation-change-plans-rating-writing-proposals.md),
 [ADR 0051](../decisions/0051-plan-editor-status-ladder-display-units-and-level-targets.md)).
 **Review notes have no route of their own** — they live as a tab on the staff
@@ -222,26 +226,32 @@ recipient projection.
   with the Date column (`createdAt` is a timezone-less timestamp); the two endpoints
   can't cross (setting one past the other clears the other).
 
-## The two analytics dashboards + the `/performance` redirect
+## The three analytics dashboards + the two section redirects
 
-The analytics live on **two sibling routes with different gates** — this is the
-security boundary, encoded in the route structure ([ADR 0044](../decisions/0044-performance-dashboards-split-by-permission.md)):
+The analytics live on **sibling routes with different gates** — this is the security
+boundary, encoded in the route structure ([ADR 0044](../decisions/0044-performance-dashboards-split-by-permission.md),
+[ADR 0055](../decisions/0055-nav-dashboards-vs-people-management.md)):
 
 | Route | Title on page | Gate | Read | Component |
 |---|---|---|---|---|
-| `/performance/compensation` | "Compensation dashboard" | `staff.viewCompensation` (finance/manager/admin) | `getCompensationSummaryData` + `getExchangeRates`, **plus `getRatingsSummaryData` iff `ratings.view`** | `CompensationDashboard` (`compensation-dashboard.tsx`) |
-| `/performance/levels` | "Performance dashboard" | `ratings.view` (**manager/admin only**, not finance) | `getRatingsSummaryData` **only** (no FX — no money on this page) | `PerformanceDashboard` (`performance-dashboard.tsx`) |
-| `/performance/levels/edit` | "Edit levels" | `ratings.edit` | `getStaffRatingsForEdit` | `EditLevels` (`edit-levels.tsx`) |
+| `/dashboards/compensation` | "Compensation dashboard" | `staff.viewCompensation` (finance/manager/admin) | `getCompensationSummaryData` + `getExchangeRates`, **plus `getRatingsSummaryData` iff `ratings.view`** | `CompensationDashboard` (`compensation-dashboard.tsx`) |
+| `/dashboards/bonuses` | "Bonus dashboard" | `staff.viewCompensation` (as `BONUS_PAYMENT_READ_ACCESS`) | `getBonusSummaryData(year)` + `getExchangeRates` | `BonusDashboard` (`bonus-dashboard.tsx`) → `BonusBreakdown` |
+| `/dashboards/levels` | "Levels dashboard" | `ratings.view` (**manager/admin only**, not finance) | `getRatingsSummaryData` **only** (no FX — no money on this page) | `LevelsDashboard` (`levels-dashboard.tsx`) |
+| `/people/levels` | "Edit levels" | `ratings.edit` | `getStaffRatingsForEdit` | `EditLevels` (`edit-levels.tsx`) |
+| `/people/bonus-payments` | "Bonus payments" | `staff.edit` **AND** `staff.viewCompensation` (`BONUS_PAYMENT_WRITE_ACCESS`) | `getBonusPayments(year)` | `BonusPaymentsManager` (`bonus-payments-manager.tsx`) |
+| `/people/compensation-plans` (+ `[planId]`, `[planId]/staff`) | "Compensation plans" | `COMPENSATION_PLAN_ACCESS` | see *Compensation change plans* | `PlansList` / `PlanEditor` / `ManagePlanStaff` |
 
-**All money lives on the Compensation dashboard** — including the one cross-domain
-cut, **compensation by level** (see below). `/performance/levels` shows no
-compensation at all.
+**`/dashboards/levels` shows no compensation at all**; the one cross-domain cut,
+**compensation by level**, sits on the Compensation dashboard (see below).
 
-**`/performance` is a redirect, not a page** (`src/app/(app)/performance/page.tsx`):
-`staff.viewCompensation` → `/performance/compensation`, else `ratings.view` →
-`/performance/levels`, else `notFound()`. The order matters — finance holds only
-the comp capability and must never land on levels. The sidebar's **parent** nav
-entry still points at `/performance`, which is why the redirect exists.
+**Neither section index is a page.** `/dashboards`
+(`src/app/(app)/dashboards/page.tsx`): `staff.viewCompensation` →
+`/dashboards/compensation`, else `ratings.view` → `/dashboards/levels`, else
+`notFound()`. The order matters — finance holds only the comp capability and must
+never land on levels. `/people` (`src/app/(app)/people/page.tsx`): `ratings.edit` →
+`/people/levels`, else `COMPENSATION_PLAN_ACCESS` → `/people/compensation-plans`,
+else `BONUS_PAYMENT_WRITE_ACCESS` → `/people/bonus-payments`, else `notFound()`.
+Both exist because the sidebar's **parent** nav entries point at them.
 
 **Each dashboard owns its own filter + currency state**; they share only the
 module `dashboard-filters.tsx`:
@@ -268,19 +278,30 @@ range }` — whole dollars, em dash for the `null` an empty group yields. It was
 duplicated inline in the merged page's two halves; **now only the Compensation
 dashboard uses it**, since it owns every money-bearing table.
 
-**Nav** (`src/components/app-shell/nav.ts`): the Performance parent keeps
+**Nav** (`src/components/app-shell/nav.ts`): the **Dashboards** parent keeps
 `permission: { staff: ["viewCompensation"] }` — deliberately the section's
 **loosest** gate, valid only because every role granting `ratings.view` also grants
 `staff.viewCompensation`. **If that matrix relationship changes, change this parent
 gate too**, or the parent would hide Levels from someone entitled to it. Children:
-Compensation (no extra gate), Levels (`ratings.view`), Edit levels (`ratings.edit`).
-Consequence: finance sees only **one** visible child, so `NavMenuItem` degrades to
-a plain link to `/performance` (which redirects) — see [ui.md](../ui.md) →
-*App shell & sidebar* → Submenus.
+Compensation (no extra gate), Bonuses (no extra gate), Levels (`ratings.view`).
+Consequence: finance sees **two** visible children (Compensation + Bonuses) and no
+Levels entry.
+
+The **People management** parent gates on `{ ratings: ["edit"] }`. That is not
+merely the loosest child gate — every child there resolves to exactly
+{manager, admin} (`ratings.edit` and `staff.edit` have identical role rows, and the
+two conjunctions only add `viewCompensation`, which both roles already hold), so the
+parent gate **equals** the union of its children rather than over-admitting anyone.
+Children: Edit levels (`ratings.edit`), Compensation plans
+(`COMPENSATION_PLAN_ACCESS`), Bonus payments (`BONUS_PAYMENT_WRITE_ACCESS`).
+
+When a section has ≤1 visible child, `NavMenuItem` degrades to a plain link to the
+parent href (which redirects) — see [ui.md](../ui.md) → *App shell & sidebar* →
+Submenus.
 
 ## Compensation dashboard — **built**
 
-The first **analytics** slice: **`/performance/compensation`** shows workforce
+The first **analytics** slice: **`/dashboards/compensation`** shows workforce
 **compensation & headcount**, overall and broken down **by role** and **by staff
 level**. Metrics per group: headcount, average compensation, comp range (min/max),
 average hourly rate, and hourly-rate range. Reads **no new table** — it aggregates
@@ -318,7 +339,7 @@ requires **both** capabilities:
 So **finance sees this dashboard minus the by-level table**; managers/admins see all
 of it. Enforcing the stricter capability by *not reading the data* is the strongest
 form available on a server page — and the mirror-image tightening is that
-`/performance/levels` surfaces no compensation at all.
+`/dashboards/levels` surfaces no compensation at all.
 
 **Reading nuance:** only **rated** staff **with** an employment row contribute, so
 this table's "All levels" footer can total less than the headcount KPI above it. Its
@@ -330,7 +351,7 @@ group key, over `LEVEL_ORDER` (ascending L0 → L4).
 > `ratings.view` alone.** `RatingRecord.employment` is the full
 > `CompensationDimensions` (`base`, `guaranteedBonus`, `hourlyRate`, `currency` — not
 > just role / LoB / employment type), because the by-level table needs them. So
-> `/performance/levels` still **ships** those amounts in its RSC payload even though
+> `/dashboards/levels` still **ships** those amounts in its RSC payload even though
 > it now **renders** no money. Safe today only because every role holding
 > `ratings.view` also holds `staff.viewCompensation` — the same matrix coupling the
 > nav parent relies on. **If `ratings.view` is ever granted to a role without
@@ -351,7 +372,7 @@ is unchanged.** Defense in depth: the page `notFound()`s unauthorized users
 The nav entries are **hidden** from users who lack the capability via the
 permission-aware sidebar mechanism (`NavItem.permission` → `visibleNavHrefs`; see
 [ui.md](../ui.md) → *App shell & sidebar* and [architecture.md](../architecture.md)).
-A user with **neither** capability can't even reach the section: `/performance`
+A user with **neither** capability can't even reach the section: `/dashboards`
 `notFound()`s them rather than redirecting.
 
 ### Data read — anonymized rows
@@ -368,7 +389,7 @@ client only filters, currency-normalizes, and aggregates. It also exports
   **`src/lib/performance/performance-stats.ts`** (`computeGroupStats`, `computeByRole` — pure
   aggregation over normalized rows; empty groups yield `null` so the UI renders an
   em dash, not NaN). Both client-importable.
-- UI: `src/app/(app)/performance/compensation/page.tsx` (server — the double read,
+- UI: `src/app/(app)/dashboards/compensation/page.tsx` (server — the double read,
   ratings conditional), `compensation-dashboard.tsx` (client — KPI cards for
   headcount / avg comp / avg hourly, the by-role table, the by-level table (when
   `ratingRecords` is passed), the distribution scatter + its metric toggle; renders
@@ -399,8 +420,8 @@ dataviz styling rules.
 Each person gets an **overall performance level** — a single integer **L0–L4** a
 manager assigns and adjusts over time — distinct from peer feedback (per-interaction)
 and compensation, **plus optional per-category subratings** (each **L1–L4**) whose
-rubric differs per role. Surfaced on their own route — the **Performance dashboard**
-at `/performance/levels` (analytics) and the editor at `/performance/levels/edit`.
+rubric differs per role. Surfaced on their own route — the **Levels dashboard**
+at `/dashboards/levels` (analytics) and the editor at `/people/levels`.
 **Effective-dated exactly like `staff_employment`
 ([ADR 0007](../decisions/0007-staff-employment-effective-dating.md)):** saving an
 evaluation inserts a **new dated row per changed staff member** carrying **both**
@@ -476,11 +497,11 @@ entirely inside the manager/admin tier. See [permissions.md](./permissions.md) a
 [ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md).
 
 Defense in depth: both reads `requirePermission({ ratings: ["view"] })`, the write
-gates `metadata.permission: { ratings: ["edit"] }`, and **`/performance/levels`
+gates `metadata.permission: { ratings: ["edit"] }`, and **`/dashboards/levels`
 `notFound()`s anyone without `ratings.view`** — finance is redirected to
-`/performance/compensation` and has no levels route to land on.
+`/dashboards/compensation` and has no levels route to land on.
 
-**`/performance/levels` shows no compensation at all.** The one money-shaped cut
+**`/dashboards/levels` shows no compensation at all.** The one money-shaped cut
 (comp by level) lives on the Compensation dashboard, where the page gate is the comp
 capability and the levels data is fetched only for `ratings.view` holders — so that
 table needs **both** capabilities and the `ratings.view` gate alone can never reach
@@ -495,7 +516,7 @@ financial — distribution, averages, subratings.
   `subratings: Subratings | null`; no id/name/email — subratings carry no identity,
   only aggregated), for the levels dashboard. Latest employment row + latest rating
   row per active staff (two queries each, `firstPerKey`, no N+1). It exports **no**
-  filter-option list — `/performance/levels` imports `performanceFilterOptions` from
+  filter-option list — `/dashboards/levels` imports `performanceFilterOptions` from
   `getCompensationSummaryData` (both dashboards filter on the same enums).
 - **`getStaffRatingsForEdit`** (server-only read, `ratings.view`) — one row per
   active staff (name, current role **and line of business** for context/filtering)
@@ -534,8 +555,10 @@ financial — distribution, averages, subratings.
   levels dashboard needs — the money-shaped comp-per-level table (which reuses
   `computeByRole` from `performance-stats.ts`) lives on the **Compensation**
   dashboard.
-- **The Performance dashboard** (`/performance/levels`) — `performance-dashboard.tsx`
-  exports **`PerformanceDashboard`**, which *is* the levels dashboard: it absorbed
+- **The Levels dashboard** (`/dashboards/levels`) — `levels-dashboard.tsx`
+  exports **`LevelsDashboard`** (both renamed from `performance-dashboard.tsx` /
+  `PerformanceDashboard` when "Performance" left the UI —
+  [ADR 0055](../decisions/0055-nav-dashboards-vs-people-management.md)): it absorbed
   the former `levels-section.tsx` (**deleted**) when the page split
   ([ADR 0044](../decisions/0044-performance-dashboards-split-by-permission.md)), so
   it now owns its own `useDashboardFilters()` + `DashboardFilterBar` instead of
@@ -549,13 +572,13 @@ financial — distribution, averages, subratings.
   filter-respecting** (subratings carry no identity — only aggregated). **No money,
   no FX, no currency toggle**: it takes no `rates` prop and passes none to
   `DashboardFilterBar`, and it imports none of `convert` / `aggregateMoneyFormatters`
-  / `computeByRole`. The page `<h2>` is "Performance dashboard", so the old inner
+  / `computeByRole`. The page `<h2>` is "Levels dashboard", so the old inner
   `<h3>Levels</h3>` header is gone and the inner headings shifted up one level
   (`h3`/`h4`).
-- **The editor** `/performance/levels/edit/page.tsx` → `edit-levels.tsx` reuses the
+- **The editor** `/people/levels/page.tsx` → `edit-levels.tsx` reuses the
   shared `EditableTable`/`useEditableRows` batch pattern (a level dropdown per active
   staff, save-on-dirty bar, confirm-diff dialog) and offers **name search + role +
-  line-of-business filters**; its "back" link points to `/performance/levels`
+  line-of-business filters**; its "back" link points to `/dashboards/levels`
   ("Back to performance dashboard"). It's reached from the **Performance sidebar
   submenu** ("Edit levels", gated on `ratings.edit`), not from a button on the
   dashboard (see [ui.md](../ui.md) → *App shell & sidebar* → Submenus).
@@ -584,12 +607,12 @@ financial — distribution, averages, subratings.
 ### Own route, still no tabs
 
 The levels analytics are a **separate `ratings.view`-gated route**, not a section of
-the compensation page and **not a tab** — see *The two analytics dashboards* above
+the compensation page and **not a tab** — see *The three analytics dashboards* above
 and [ADR 0044](../decisions/0044-performance-dashboards-split-by-permission.md) for
 why (differently-gated audiences shouldn't share a page whose shape silently
 changes by role; tabs across two gates would either 404 or vary per viewer).
 Historical note for anyone reading older docs or commits: levels lived **inline on
-`/performance`** behind an optional `ratingRecords` prop for a while (ADR 0032),
+`/dashboards`** behind an optional `ratingRecords` prop for a while (ADR 0032),
 and before that behind a cross-route `performance-tabs.tsx` bar. Both are gone;
 `levels-section.tsx` and `performance-tabs.tsx` no longer exist.
 
@@ -798,7 +821,7 @@ editor out from under the typist.
    `snapshotAmount`/`snapshotCurrency`/`snapshotEmploymentType`.
 3. Plan → `COMMITTED` + `committedAt` + `committedByUserId`.
 
-Then revalidates `/performance` and `/performance/levels/edit` (new levels move the
+Then revalidates `/dashboards` and `/people/levels` (new levels move the
 dashboard distribution and the edit grid) plus the plan paths.
 
 > **Shared rating-write hardening.** `sanitizeSubratings` and `canonicalSubratings`
@@ -809,7 +832,7 @@ dashboard distribution and the edit grid) plus the plan paths.
 
 ### UI
 
-**Three** routes: **`/performance/compensation-plans`** (list),
+**Three** routes: **`/people/compensation-plans`** (list),
 **`[planId]`** (editor), and **`[planId]/staff`** ("Plan staff" — the membership
 roster); one sub-item under Performance in `nav.ts`, gated on
 `COMPENSATION_PLAN_ACCESS`. Components in

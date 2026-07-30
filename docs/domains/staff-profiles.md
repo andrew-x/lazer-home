@@ -199,7 +199,7 @@ above), which is what its plan-agnostic design was for.
   unlike comp (own always visible) and feedback (a limited recipient tier), there is no
   self tier to degrade to, so a staffer sees no tab. Note the known, *inherited* wrinkle: a
   capability holder can see **their own** history here, exactly as they already can in the
-  `/performance/levels/edit` grid — excluding self would diverge from that grid for no real
+  `/people/levels` grid — excluding self would diverge from that grid for no real
   gain.
 - **The one interactive surface is Review notes**, deliberately: that's where the review
   conversation actually gets written up, so making it read-only would defeat the drawer's

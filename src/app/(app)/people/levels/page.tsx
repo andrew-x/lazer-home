@@ -21,12 +21,14 @@ export default async function EditLevelsPage() {
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
       <div className="flex flex-col gap-2">
+        {/* `ratings.edit` implies `ratings.view` (identical role rows), so this
+            link across to the read-only dashboard can never 404. */}
         <Link
-          href="/performance/levels"
+          href="/dashboards/levels"
           className="flex w-fit items-center gap-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
           <IconArrowLeft className="size-4" />
-          Back to performance dashboard
+          Back to levels dashboard
         </Link>
         <div>
           <h2 className="font-heading text-2xl font-semibold tracking-tight">
