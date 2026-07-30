@@ -837,7 +837,10 @@ roster); one sub-item under Performance in `nav.ts`, gated on
   (`profileStaffId` + `profileOpen` state on the editor — kept as two pieces of state so
   the id survives the close animation); a per-row drawer would duplicate fetches and
   state. The name button is deliberately **not** the expand toggle — the chevron stays
-  the only expand affordance, so one click never means two things.
+  the only expand affordance, so one click never means two things. **The plan editor is
+  no longer its only host** — the `/staff` org chart opens the same drawer on a node
+  click ([staff-profiles.md](./staff-profiles.md) → *Org chart*), so changes here ripple
+  there; nothing about the drawer is plan-specific and it should stay that way.
   - **What it shows is the reviewer's whole case in one pane:** current compensation,
     skills, client intro, projects, the history feed, and (when permitted) time off, peer
     feedback, review notes and the **dated rating history** (`EvaluationHistory` — every

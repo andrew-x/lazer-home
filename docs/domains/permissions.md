@@ -457,6 +457,12 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
     feedback visible but tier-limited**, **own review notes visible once shared**, **own
     rating level never visible at all** ([ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md)).
     Don't regularise it — each row's asymmetry is the decision.
+  - **This table is why a new drawer host needs no new gate.** The `/staff` org chart
+    (`?view=org`) opens the same drawer from a node click and adds **no permission
+    surface of its own** — it reads only `getStaffDirectory`, which never touches
+    `staff_rating` or comp, so `ratings.view` can't be sidestepped by rendering a chart
+    instead of a profile ([ADR 0054](../decisions/0054-staff-org-chart-dom-tree.md)). Any
+    *future* host is safe on the same terms — and only on those terms.
   - **`compensation` is split out of `employment` on purpose.** The employment *facets*
     (role / line of business / employment type / billable) carry no money; the amounts
     live in a separate object built **only** when the comp gate passed. `getStaffProfile`

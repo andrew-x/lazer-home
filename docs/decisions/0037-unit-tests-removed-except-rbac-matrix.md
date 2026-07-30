@@ -46,7 +46,11 @@ and the test is what enforces that lockstep. It stays, and it still runs in
 one that must never go — plus a *small, deliberate* set of invariant tests." A few
 `*.test.ts` files have since been (re-)added where a correctness invariant is
 **genuinely beyond the type checker**: `allocations-grid`, `timesheet-grid`,
-`timesheet-week`, and `project-derived`. The last asserts that the derived-status
+`timesheet-week`, `project-derived`, `compensation-plan`, and `org-chart`. The last
+pins `buildOrgForest`'s structural contract — every input row appears in the output
+exactly once, and a self-reference / dangling id / cycle in `staff.managerId` can
+neither hang the page nor drop a subtree ([ADR 0054](./0054-staff-org-chart-dom-tree.md)) —
+which no type can state. `project-derived` asserts that the derived-status
 **SQL bucket filter** (`src/lib/projects/project-status-sql.ts`) agrees with its pure
 JS mirror `statusesMatchBucket` and with `deriveProjectStatus`, across all 16
 role-status presence combinations — a cross-representation (SQL↔JS) invariant types
