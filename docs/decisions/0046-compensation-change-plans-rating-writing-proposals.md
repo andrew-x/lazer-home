@@ -85,8 +85,13 @@ item. This is what makes "we don't write comp" workable rather than merely hones
 `snapshotEmploymentType` is stored because `plannedAmount` is **one figure whose
 meaning depends on employment type** — an annual `base` for `FULL_TIME`, an
 `hourlyRate` for `HOURLY` (`currentCompAmount` is the single place that mapping
-lives; bonuses are out of scope). Without the type recorded, a years-old snapshot of
-someone who has since switched could be misread by two orders of magnitude.
+lives; bonuses were out of scope *for this figure*). Without the type recorded, a
+years-old snapshot of someone who has since switched could be misread by two orders of
+magnitude. **Amended since:** the item gained a separate **`plannedBonus`** lump-sum
+column (`drizzle/0017_perfect_cyclops.sql`) — still never written anywhere on commit,
+and deliberately excluded from the Change/Gap columns and the annual↔hourly toggle, so
+nothing above changes. A bonus that actually gets paid lands in `staff_bonus_payment`
+as a `DISCRETIONARY` row; see [performance.md](../domains/performance.md).
 
 ### Access: the conjunction of two existing capabilities, no matrix change
 

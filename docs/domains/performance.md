@@ -1,8 +1,10 @@
 # Domain: Performance management
 
-**Status: partially built.** Five concrete slices are realized: **peer feedback**,
+**Status: partially built.** Seven concrete slices are realized: **peer feedback**,
 a **compensation & headcount analytics dashboard**, **staff rating levels
-(L0–L4)**, **compensation change plans**, and **performance review notes**.
+(L0–L4)**, **compensation change plans**, **performance review notes**,
+**bonus payments** (the `staff_bonus_payment` table + its dashboard and entry screen),
+and **staff self-evaluations**.
 
 The domain's surfaces are split across **two nav sections by whether they read
 aggregates or write about named people** ([ADR 0055](../decisions/0055-nav-dashboards-vs-people-management.md)):
@@ -25,14 +27,19 @@ described — that framing is superseded). Plans are the one identity-bearing
 profile and inside the plan editor's profile drawer, and they are the **one place in
 the whole codebase where authorization reads the reporting line**
 ([ADR 0049](../decisions/0049-review-notes-reporting-line-as-authorization-boundary.md)).
+**Self-evaluations** likewise have **no route of their own** — same two hosts, and
+they are the first-person counterpart to all of the above
+([ADR 0058](../decisions/0058-self-evaluations-dated-records-with-snapshotted-answers.md)).
 The rest of the review/goal machinery (ReviewCycle, PerformanceReview, Goal) is still
 **proposed**.
 
-> **Read this first if you're touching gates here.** This domain now holds **three
+> **Read this first if you're touching gates here.** This domain now holds **four
 > different kinds of gate**, and they are not interchangeable: a plain capability
 > (`feedback.review`, `ratings.*`), a **conjunction** of two capabilities
-> (`COMPENSATION_PLAN_ACCESS`), and a **relationship** (`staff.managerId`, review
-> notes only). See [permissions.md](./permissions.md).
+> (`COMPENSATION_PLAN_ACCESS`), a **relationship** (`staff.managerId`, review
+> notes only), and a **capability with a full owner path plus author-only writes**
+> (self-evaluations — `ratings.view` to read *anyone's*, but only the author may write
+> their own, with **no admin override**). See [permissions.md](./permissions.md).
 
 ## Purpose
 
@@ -239,7 +246,7 @@ boundary, encoded in the route structure ([ADR 0044](../decisions/0044-performan
 | Route | Title on page | Gate | Read | Component |
 |---|---|---|---|---|
 | `/dashboards/compensation` | "Compensation dashboard" | `staff.viewCompensation` (finance/manager/admin) | `getCompensationSummaryData` + `getExchangeRates`, **plus `getRatingsSummaryData` iff `ratings.view`** | `CompensationDashboard` (`compensation-dashboard.tsx`) |
-| `/dashboards/bonuses` | "Bonus dashboard" | `staff.viewCompensation` (as `BONUS_PAYMENT_READ_ACCESS`) | `getBonusSummaryData(year)` + `getExchangeRates` | `BonusDashboard` (`bonus-dashboard.tsx`) → `BonusBreakdown` |
+| `/dashboards/bonuses` | "Bonus dashboard" | `staff.viewCompensation` (as `BONUS_PAYMENT_READ_ACCESS`) | `getBonusSummaryData(year)` + `getExchangeRates` | `BonusDashboard` (`bonus-dashboard.tsx`) → `BonusBreakdown` → `BonusTypeMatrix` |
 | `/dashboards/levels` | "Levels dashboard" | `ratings.view` (**manager/admin only**, not finance) | `getRatingsSummaryData` **only** (no FX — no money on this page) | `LevelsDashboard` (`levels-dashboard.tsx`) |
 | `/people/levels` | "Edit levels" | `ratings.edit` | `getStaffRatingsForEdit` | `EditLevels` (`edit-levels.tsx`) |
 | `/people/bonus-payments` | "Bonus payments" | `staff.edit` **AND** `staff.viewCompensation` (`BONUS_PAYMENT_WRITE_ACCESS`) | `getBonusPayments(year)` | `BonusPaymentsManager` (`bonus-payments-manager.tsx`) |
@@ -278,15 +285,24 @@ module `dashboard-filters.tsx`:
   `null` dimensions (the rare active staffer with no employment row) pass **only**
   while every filter is "All" — any narrowing excludes them, since there's nothing
   to match.
+- **`extraFilters?: ReactNode`** — the escape hatch for a dimension **exactly one
+  dashboard has**, rendered at the end of the dimension row. Today's only user is the
+  bonus dashboard's **bonus type**: it must stay *out* of `useDashboardFilters` /
+  `matchesFilters`, because those are shared with compensation and levels where no row
+  has a type — adding it there would render a dead control on two other pages. The
+  owning dashboard holds the state and passes the control in
+  ([ADR 0056](../decisions/0056-bonus-type-cross-cut-matrix.md)). Same spirit as the
+  optional `rates`. **If a second dashboard ever needs the same dimension, move it into
+  the hook** rather than duplicating the slot.
 - `FilterOptions` — the enum option lists type (moved here from the old combined
   dashboard); the values come from `performanceFilterOptions`, exported by
   `getCompensationSummaryData` so pages never import Drizzle.
 
 Aggregate money formatting is factored out into
 **`aggregateMoneyFormatters(currency)`** (`src/lib/format/currency.ts`) → `{ money,
-range }` — whole dollars, em dash for the `null` an empty group yields. It was
-duplicated inline in the merged page's two halves; **now only the Compensation
-dashboard uses it**, since it owns every money-bearing table.
+range }` — whole dollars, em dash for the `null` an empty group yields. Used by the
+Compensation dashboard, the bonus dashboard (which passes its `money` down into the
+type matrix), the plan editor and the projects budget/planner panels.
 
 **Nav** (`src/components/app-shell/nav.ts`): the **Dashboards** parent keeps
 `permission: { staff: ["viewCompensation"] }` — deliberately the section's
@@ -325,8 +341,11 @@ latest-row-per-staff pattern `getStaffDirectory` uses). **No charting library** 
 KPI cards, plain tables, and a **hand-rolled inline-SVG scatter** (see below).
 Layout order: KPI cards → by-role table → **by-level table** → scatter.
 
-- **"Compensation" = `base + guaranteedBonus`** (excludes `discretionaryBonus`,
-  which isn't imported yet). Hourly stats use the stored `hourlyRate` column.
+- **"Compensation" = `base + guaranteedBonus`** — the *ongoing* terms only. One-off
+  bonuses are not employment terms at all: they live in `staff_bonus_payment` and are
+  reported on the sibling bonus dashboard (below). (`staff_employment` no longer has a
+  `discretionaryBonus` column — it was dropped when that table landed.) Hourly stats
+  use the stored `hourlyRate` column.
 - **Filters** (segmented controls, default "All"): line of business, employment
   type (`FULL_TIME` / `HOURLY`), and role — from the shared `dashboard-filters.tsx`
   (above). Applied client-side over the once-fetched rows.
@@ -429,6 +448,152 @@ takes plain `values: number[]` + a `formatValue` + a `caption`. **The chart is
 hand-rolled inline SVG — no charting library.** This is the documented pattern for
 charts in this codebase; see [ui.md](../ui.md) → *Charts (hand-rolled SVG)* for the
 dataviz styling rules.
+
+## Bonus payments + the Bonus dashboard — **built**
+
+One-off bonuses as **dated payment records**, reported at `/dashboards/bonuses` and
+entered at `/people/bonus-payments`. The pure core is
+**`src/lib/staff/staff-bonus.ts`** (client-importable, no drizzle): the `BONUS_TYPES`
+tuple feeding the `staff_bonus_type` pgEnum, its labels + one-line descriptions, both
+gate constants, and the year param/parser.
+
+### Entity — `staff_bonus_payment` (`src/lib/db/staff-schema.ts`)
+
+`drizzle/0018_flippant_chameleon.sql`; full column list in
+[data-model.md](../data-model.md). What matters here:
+
+- **A payment happened on a date** — one `paymentDate`, **not effective-dated**, never
+  superseded. This replaced `staff_employment.discretionaryBonus` (**dropped in the
+  same migration**), a column that read as an ongoing *term of employment* and had
+  room for only one payment per comp row.
+- **It carries no `lineOfBusiness`/`role` and no FK to `staff_employment`.** The
+  dashboard derives both from the employment row in force on the payment date via the
+  pure **`employmentAsOf`** (`src/lib/staff/bonus-attribution.ts`), so a February bonus
+  keeps counting under the discipline held in February. **A payment predating all
+  employment history falls back to the *earliest* row** (the normal case for a signing
+  bonus) — dropping it would silently under-report spend.
+- **`DISCRETIONARY` ≠ `SPOT`**, and the distinction is the *decision process*, not the
+  amount: discretionary was decided in a comp review cycle (it is what
+  `compensation_plan_item.plannedBonus` proposes), spot was ad-hoc. Separating those
+  two is the point of the by-type breakdown.
+- **`GIFT` is non-cash** (`NON_CASH_BONUS_TYPES`): the amount is a cash-equivalent
+  value, so the dashboard's total is **reward spend, not cash out the door**.
+
+### Access control — the read/write pair, both existing capabilities
+
+Two named constants in the pure module, so the pages and actions can't drift:
+
+- **`BONUS_PAYMENT_READ_ACCESS` = `staff.viewCompensation`** — reading bonus totals is
+  reading compensation. Gates `/dashboards/bonuses` (page `notFound()`s) *and*
+  `getBonusSummaryData` server-side.
+- **`BONUS_PAYMENT_WRITE_ACCESS` = `staff.edit` AND `staff.viewCompensation`** — a real
+  conjunction (Better Auth ANDs across resources), leaving {manager, admin}. So
+  **finance reads the totals but writes nothing**, and the dashboard renders its
+  "Manage payments" link only for a viewer holding both. Same shape as
+  `COMPENSATION_PLAN_ACCESS`; **no matrix change**.
+
+`getBonusPayments` (the entry screen's read) is **identity-bearing** and therefore
+carries the *write*-level gate — you can't correct a payment without knowing whose it
+is.
+
+### Data read — anonymized, and deliberately not active-only
+
+`getBonusSummaryData(year)` (`src/actions/performance/`) returns `BonusRecord[]`
+(dimensions + amount + currency), the years with payments, and an `unattributed`
+count. Two nuances worth keeping:
+
+- **`recipientKey` is a per-request sequential token, NOT the staff id.** The client
+  needs to count *distinct* recipients, which takes a per-person key — but a staff id
+  is joinable (`getStaffDirectory` hands ids to any staffer;
+  `loadStaffProfileDrawer` takes one), so a real id would let an authorized viewer map
+  exact amounts back to named people from a surface whose whole point is aggregates.
+- **Not filtered to active staff**, unlike every comp/headcount read. A bonus paid in
+  March to someone who left in June was still spent this year — which is why bonuses
+  are their own dashboard ([ADR 0055](../decisions/0055-nav-dashboards-vs-people-management.md))
+  and why the page says out loud that it doesn't reconcile per-head with the
+  Compensation dashboard. Payments whose recipient has **no employment row at all** are
+  counted in `unattributed` and surfaced on screen rather than swallowed.
+
+### Pure stats — `src/lib/performance/bonus-stats.ts`
+
+Pure, client-importable, and unit-tested (`bonus-stats.test.ts`, plus
+`bonus-attribution.test.ts` for `employmentAsOf` — both deliberate exceptions under
+[ADR 0037](../decisions/0037-unit-tests-removed-except-rbac-matrix.md)):
+
+- **`computeBonusStats(rows)`** → `{ total, payments, recipients, avgPerRecipient }`.
+  Takes only `Pick<BonusStatRow, "recipientKey" | "amount">` — it never reads `group` —
+  which is what lets the one- and two-dimensional row shapes share it.
+- **`computeBonusBreakdown(rows, groupOrder)`** — one axis: groups in the given order,
+  empty groups skipped, out-of-order values counted in `overall` only.
+- **`computeBonusMatrix(rows, rowOrder, colOrder)`** — two axes, same contract, plus:
+  an empty **intersection is `null`** (→ em dash, not a misleading `$0`), and only
+  `total` is safe to display per cell (see below).
+- **`bonusGroupsCovered`** is the assertion tool pinning "the rows sum to the overall
+  total", applied per dimension for the matrix.
+
+### UI — `BonusBreakdown` and the type matrix
+
+`bonus-dashboard.tsx` is a thin shell (filters + the write-gated link);
+**`bonus-breakdown.tsx` owns every number on the page**: stat cards → three single-axis
+tables (line of business, role, type) → **`BonusTypeMatrix`** → the reconciliation
+caveat. Load-bearing details:
+
+- **One filtered, FX-normalized payment set, built once**, and every aggregate derives
+  from it — which is what makes the `overall = byAxis[0].overall` shortcut for the stat
+  cards honest. **The bonus-type filter narrows that shared set *before* any axis is
+  built**; filtering per-axis would make footers contradict the cards.
+- **The type matrix crosses bonus type against line of business *or* role**, picked by a
+  local `ToggleGroup`. Its **cells show money only**: recipients are *distinct* counts,
+  so one person paid two kinds of bonus is one recipient in two cells and still one in
+  the margin — per-cell counts would look like an arithmetic error. **The single-axis
+  tables stay the place to count people.** It also **renders nothing below two type
+  columns** (with one type in play every cell repeats the axis table's Total). FX stays
+  in `bonus-breakdown.tsx`; the matrix receives already-converted amounts and the
+  parent's `money` formatter. Axis headings/labels come from the shared
+  `CROSS_CUT_AXES`/`AXES` constants. See
+  [ADR 0056](../decisions/0056-bonus-type-cross-cut-matrix.md).
+- **Bonus type is dashboard-local state**, passed into `DashboardFilterBar` through
+  `extraFilters` — see *The three analytics dashboards* above for why it must not enter
+  the shared hook.
+- **`/people/bonus-payments`** (`bonus-payments-manager.tsx`) is the entry screen:
+  a year-scoped table with create/edit/delete dialogs (`createBonusPayment` /
+  `updateBonusPayment` / `deleteBonusPayment`, all on `BONUS_PAYMENT_WRITE_ACCESS`,
+  revalidating both bonus routes via the shared `bonusPaymentMutation` helper). The
+  type picker shows `BONUS_TYPE_DESCRIPTIONS` because the discretionary/spot split is
+  unguessable from the labels.
+
+> **Gotcha — `BONUS_YEAR_PARAM` must stay in the pure module, never in a
+> `"use client"` file.** Both pages read the year from `searchParams`, and when a
+> Server Component imports a value *from* a client module the bundler substitutes a
+> client-reference proxy instead of the string: the lookup silently misses and the page
+> reads its default forever (the picker changes the URL and nothing else happens). This
+> is a bug that already occurred; the module comment exists to stop it recurring.
+> `parseBonusYear` lives beside it, bounded to 2000…next year.
+
+### Per-person surfaces (staff domain, same gate)
+
+A bonus is compensation about a named person, so the per-person views reuse
+`canViewCompensation` (own always; anyone else's needs `staff.viewCompensation`) and
+return **`null` when not permitted** so callers omit the surface entirely:
+
+- **`getStaffBonusHistory(staffId)`** → the profile drawer's **Bonuses tab**
+  (`BonusList`), newest first, plus **per-currency** year-to-date totals — no FX here,
+  because summing CAD and USD into one figure on a per-person view would be a made-up
+  number.
+- **`getStaffHistory`** folds payments into the timeline as their own **`BONUS`
+  category** (`HistoryCategory = "EMPLOYMENT" | "BONUS" | "ALLOCATION"`) — the first
+  real second category on the category-agnostic feed
+  ([ADR 0011](../decisions/0011-category-agnostic-history-feed.md)).
+
+### Seed
+
+`scripts/seed/staff.ts` gives ~55% of staff 1–4 payments spread over the last three
+years (`ripplingId` stays null — the hand-entered shape). Three details are
+deliberate: **departed staff always get one**, so the "counts leavers" path is
+exercised (a coin-flip seeded zero of them); `SIGNING` bonuses are dated the day
+*before* the join date and everything else is clamped to on-or-after it, so
+`employmentAsOf`'s predates-all-history fallback is hit by exactly the case it exists
+for; and ~15% are paid in a currency other than the person's own, to exercise FX.
 
 ## Staff rating levels (L0–L4) + per-role subratings — **built**
 
@@ -681,10 +846,20 @@ guard** that makes a second commit an error rather than a duplicate write.
 - **`plannedAmount`** (`numeric(12,2)`) + **`plannedCurrency`** — **one** figure per
   person, compared against **`base` for `FULL_TIME` and `hourlyRate` for `HOURLY`**
   (`currentCompAmount` in the pure module is the single place that mapping lives;
-  **bonuses are untouched**). The currency is stored, not assumed, so a CAD → USD
+  **this figure is ongoing comp only** — a lump-sum bonus is the separate `plannedBonus`
+  below). The currency is stored, not assumed, so a CAD → USD
   move is expressible. `plannedAmount` is deliberately **not** seeded from current
   comp — pre-filling would make "not yet proposed" indistinguishable from "reviewed,
   deliberately no change".
+- **`plannedBonus`** (`numeric(12,2)`, nullable, `drizzle/0017_perfect_cyclops.sql`) — a
+  one-off discretionary bonus proposed *alongside* the ongoing figure, in the same
+  `plannedCurrency`. **A lump sum, not a rate:** the editor's annual↔hourly toggle never
+  restates it, and it is deliberately absent from the Change and Gap columns (which
+  compare ongoing comp against an annual level target). `planBonusTotals`
+  (`compensation-plan.ts`) rolls the cohort's spend up for the summary strip and commit
+  dialog as **a sum over a sum**, never a mean of per-row ratios. Commit writes it
+  **nowhere** — like `plannedAmount` it stays a proposal; when Rippling actually pays it,
+  it shows up as a `DISCRETIONARY` row in `staff_bonus_payment` (above).
 - **`status`** — how far the review conversation has got, as **one ordered ladder**
   (`compensation_plan_item_status` pgEnum: `NOT_STARTED` → `RATING_DONE` →
   `MEETING_DONE` → `COMPLETE`; values in the pure module below, per
@@ -1161,17 +1336,251 @@ can see). It applies the **same self-guard** as the reads. ~38 rows.
 > — still readable through the reporting line, just with no author name and no author
 > path. Don't "fix" it by inventing accounts.
 
+## Staff self-evaluations — **built**
+
+A **self-evaluation** is a **periodic, dated questionnaire a person fills out about
+themselves**: seven free-text reflection prompts plus one overall self-rating. It is the
+**first-person counterpart** to peer feedback (what colleagues think), review notes (what
+the manager wrote up) and `staff_rating` (the level the manager assigned) — the one thing
+this domain previously had no home for. Full rationale in
+[ADR 0058](../decisions/0058-self-evaluations-dated-records-with-snapshotted-answers.md).
+
+> **!! `selfRating` IS NOT a `staff_rating` level, and the two must never meet. !!** This
+> slice reuses the **`ratings.view`** capability — the one guarding manager-assigned L0–L4
+> levels that a staffer **must never see about themselves**
+> ([ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md)) —
+> for data that has a **full owner path**. They coexist only because they guard **different
+> things**: a self-rating is the person's own five-word self-assessment, on a different
+> scale, chosen by them; a level is a judgement made about them. **ADR 0032 is not
+> weakened** — and the invariants that keep it that way are:
+> `getStaffSelfEvaluations` **must never join `staff_rating` or project a level**, and the
+> Self-evaluations tab **must never render an assigned level beside a self-rating**.
+> **"Show the assigned level for comparison" is the change that would quietly end ADR
+> 0032.** It is the obvious next request; refuse it, or reopen 0032 deliberately.
+
+### Entity — `staff_self_evaluation` (`src/lib/db/performance-schema.ts`)
+
+`drizzle/0019_yummy_grandmaster.sql`. **Not effective-dated** — like
+`performance_review_note` and `compensation_plan` it is a *document*, not a fact about a
+person, so nothing supersedes anything ([ADR 0007](../decisions/0007-staff-employment-effective-dating.md)
+doesn't apply).
+
+- **`staffId`** — FK → `staff.id`, **cascade**. Indexed
+  (`staff_self_evaluation_staff_idx`). It is **subject *and* author**: only the subject may
+  write one, so a separate author column would be a redundant copy of it. An "on behalf
+  of" path would be a migration — deliberately not pre-built.
+- **`evaluationDate`** — `date` (string mode): the **period reflected on**, chosen by the
+  author, not the date it was typed. **No `unique(staffId, evaluationDate)`** — records are
+  free-form and same-day ones order stably on `desc(evaluationDate), desc(createdAt)`.
+- **`questionSetVersion`** — `integer`. A column, not a jsonb field, so "how many records
+  still answer the v1 questions" is a plain query **and** the update action can refuse to
+  edit a record whose set has moved on (below).
+- **`selfRating`** — `self_evaluation_rating` pgEnum, **notNull**. Its own column, not a
+  jsonb entry: the only answer with a **closed value set** (so the DB can constrain it),
+  the only one anything will aggregate or filter on, and the one a list row must **badge
+  without parsing jsonb** — exactly the typed-`level` vs jsonb-`subratings` split of
+  [ADR 0042](../decisions/0042-per-role-subratings-app-owned-jsonb.md). `notNull` is what
+  guarantees **no record is entirely empty**, since every free-text answer may be blank.
+- **`answers`** — `jsonb().$type<SelfEvaluationAnswer[]>()`, notNull. `[]` is legal (a
+  record with only a self-rating is thin but valid). Shape owned by the pure module and
+  validated at the zod/action layer, **not the DB** — same arrangement as
+  `staff_rating.subratings` and the survey `responses` jsonb, so changing the questions
+  needs **no migration**.
+
+**Why a new table and not the generic `responses` table** (the question worth
+understanding before touching this): `responses` is `unique(staffId, questionId)` + upsert
+— **one *current* answer per question** ([ADR 0028](../decisions/0028-generic-responses-table-app-validated-question-ids.md)).
+A periodic record needs **N rows per (person, occasion)**, with two occasions coexisting
+forever. And ADR 0028's tolerance — *"an orphaned question id simply stops being read"* —
+is fine for a profile survey but is **silent data loss** for a dated snapshot.
+
+### The snapshot — a record renders entirely from itself
+
+Each stored entry is `{ questionId, section, prompt, answer }`: the section heading and
+prompt **as presented when the person answered**, stored beside their text. So rewording a
+prompt, retiring a question, or adding one leaves every existing record reading exactly as
+it was written.
+
+- **`self-evaluation-record.tsx` must not import `SELF_EVALUATION_QUESTIONS`** (its header
+  comment says so in capitals). Reaching for the current set there — even to "fill in" a
+  missing prompt — would start misattributing words to people.
+- **Exactly two things may consult the current set:** the form (which prompts to show) and
+  the write path (deriving the snapshot).
+- **The client never sends the snapshot.** It posts raw answer text keyed by question id;
+  `section`/`prompt` come from `buildSelfEvaluationEntries` and `questionSetVersion` is
+  stamped server-side. Accepting them from the client would let a crafted payload store a
+  fabricated prompt above a real answer.
+- **Not snapshotted, on purpose:** each question's `guidance` sub-bullets (scaffolding for
+  the *writer*, useless to a reader) and the rating's option **labels** (it's a pgEnum
+  value, so its label is looked up at render — correct for a closed set).
+- **`questionId` reads back as `string`, not the id union** — a stored row may hold a
+  retired id, and typing it as the union would make those rows unrepresentable and push
+  readers toward a cast. The write path validates against the union. Two schemas, one shape.
+- **Blank answers are omitted entirely**, so `answers.length` *is* the answered count (the
+  record header shows "N of 7 answered"; a stale record shows just "N answered", since we
+  no longer know the older set's size).
+
+### Pure module — `src/lib/performance/self-evaluation.ts`
+
+Client-importable, no drizzle. Owns `SELF_EVALUATION_QUESTION_SET_VERSION` (currently
+**1**), `SELF_EVALUATION_QUESTION_IDS` (the canonical display order **and** the stable ids
+stored in the jsonb: `SE_OUTPUT`, `SE_COMMUNICATION`, `SE_PRODUCT_MANAGEMENT`,
+`SE_AI_COMPETENCY`, `SE_LAZER_CULTURE`, `SE_PERSONAL_DEVELOPMENT`, `SE_GROWTH`),
+`SELF_EVALUATION_QUESTIONS` (a **`Record` keyed by the id union**, not a bare array, so
+`tsc` fails if an id has no question — a compile error rather than a blank section),
+`SelfEvaluationAnswer`, `SELF_RATING_PROMPT` / `SELF_RATING_DESCRIPTIONS`, the length caps,
+`SELF_EVALUATION_SAVE_WARNING`, `SELF_EVALUATION_QUESTION_COUNT`, and
+**`buildSelfEvaluationEntries()`** (shared by both writes *and* the seed, which makes the
+seed a genuine drift guard rather than a parallel implementation).
+
+- **Renaming a `questionId` is a data migration**; prompts, section titles and guidance
+  change freely. **Never reuse a retired id for a different question** — old records would
+  claim to answer something they don't.
+- **The rating scale is peer feedback's five words**, imported from
+  `feedback-rating.ts` so there is one TS source
+  ([ADR 0016](../decisions/0016-junction-table-and-shared-enum-conventions.md)) — but the
+  DB gets a **separate pg type `self_evaluation_rating`**, so peer-feedback churn never
+  forces an `ALTER TYPE` on a type **two** tables depend on. Only the *descriptions* are
+  re-written here (first-person; `FEEDBACK_RATING_DESCRIPTIONS` is phrased about someone
+  else).
+- **Bumping the version** is for when the *meaning* of the set changes — a question added
+  or retired, or a prompt reworded enough that old and new answers aren't comparable.
+
+### Access control — own always; anyone else needs `ratings.view`. Writes: author only
+
+**No new capability, and no matrix change:** `permissions.ts`, `permissions.test.ts` and
+permissions.md's matrix table are all **untouched**. permissions.md carries prose.
+
+**Read — `getStaffSelfEvaluations(staffId)`** (`src/actions/performance/`, server-only) →
+`{ canCreate, isSelf, evaluations } | null`:
+
+- **Self is checked FIRST**, because it decides `canCreate`/`canManage` — a capability
+  holder looking at their **own** profile must get the write affordances, not just the read.
+  (Contrast the peer-feedback tab, where checking self first is a *tightening*; here being
+  yourself is the **widest** answer.)
+- Otherwise **`ratings.view`** (manager/admin) → read-only.
+- Anyone else → **`null`**, and no tab is rendered at all. **`[]` means "permitted, nothing
+  written yet"** — keep them distinct, or a tab that appeared for everyone would itself
+  disclose that self-evaluations exist (the ADR 0047 §5 convention).
+- Each row carries **`canManage` = `isSelf` AND the record's question set is current**.
+- The caller is resolved with **plain `ownStaffId`, not `activeOnly: true`** — this is an
+  **ownership** check; see [permissions.md](./permissions.md) → *Resolving the caller*.
+
+**Writes — `authorizeSelfEvaluationMutate` (`selfEvaluationAccess.ts`): the author, and
+nobody else.** **No capability path and no admin override** — deliberately unlike
+`reviewNoteAccess`, where `admin` *is* a blanket override because a manager writing about
+someone *else* needs an escalation route. A self-evaluation is a first-person document with
+**no separate author column**, so a third-party edit would be putting words in someone's
+mouth, undetectably. `ratings.view` grants reading and nothing more; `ratings.edit` means
+"assign levels" and doesn't apply. A missing record denies with the same message as a
+forbidden one, so ids can't be probed. If HR ever needs a retraction path, that's a
+separate audited action — **not a widening of this hook**.
+
+> **`ratings.view` is wider than the reporting line — a chosen asymmetry, recorded not
+> fixed.** *Any* manager can read *any* person's self-evaluation, while that same
+> manager's **review notes** about the same conversation are reporting-line-gated and
+> therefore **narrower**. So **a person's own words are more widely readable than their
+> manager's notes about them.** That falls straight out of matching the Evaluations tab's
+> gate instead of inventing a third one; narrowing it would need either a new capability
+> (a matrix change) or a second relationship gate, which
+> [ADR 0049](../decisions/0049-review-notes-reporting-line-as-authorization-boundary.md)
+> wants to remain the only one.
+
+### Server layer (`src/actions/performance/`)
+
+- **`getStaffSelfEvaluations`** — above. Newest first; serves **both** hosts (the profile
+  tab and the plan-editor profile drawer).
+- **`createSelfEvaluation`** — **gated by nothing beyond `secureActionClient`'s auth, and
+  that is not an omission:** the input carries **no target id**, so there's nothing to
+  forge; the subject comes from `getCurrentStaffId()` and an `authorize` hook would have no
+  `clientInput` field to read. Id prefix `sev`. Stamps the current
+  `questionSetVersion`.
+- **`updateSelfEvaluation`** — content only; never touches `staffId` or
+  `questionSetVersion`. **Refused once the question set has moved on:** the form shows only
+  *current* questions and this replaces `answers` **wholesale**, so editing an older record
+  would silently drop its answers to retired questions and re-label the survivors — data
+  loss on an edit, the exact failure the snapshot exists to prevent. The version is
+  **re-read from the DB**, never taken from the client (the `requireDraftPlan` discipline),
+  and the refusal is enforced on **both** sides (`canManage` false in the read; a named
+  `UserSafeActionError` in the action). **Never fires today — v1 is the only set.**
+- **`deleteSelfEvaluation`** — works **regardless of version**: a record too old to amend
+  must still be retractable. With no draft state this is the **only** way to take back
+  something saved too early, and since it's the person's own words it is their call alone.
+- All three `revalidateStaffProfile(staffId)`.
+- **`selfEvaluations.schema.ts`** — one **family module** (the `reviewNotes.schema.ts`
+  precedent), drizzle-free because the client form imports it
+  ([ADR 0035](../decisions/0035-schema-modules-by-import-boundary.md)). The per-question
+  textarea fields are generated **from the id tuple**, so adding a question can't be
+  forgotten here. Note what is **not** in it: **the stored snapshot** (derived server-side)
+  and **`staffId`** on create (you can only write as yourself). Answers use `optionalText`
+  (accepts null on input) so the form can hand its already-validated values straight to the
+  action.
+
+### No draft/submitted lifecycle — a deliberate product decision
+
+**The first Save publishes.** The moment a self-evaluation is saved, every `ratings.view`
+holder can read it; `SELF_EVALUATION_SAVE_WARNING` says so out loud above the button, and
+the delete confirmation says managers will lose access. **Delete is the only retraction.**
+
+If that proves wrong, the retrofit is named and small: copy `performanceReviewNote`'s
+**`status`/`sharedAt`** pair — one nullable column, one enum column, and one `where`
+clause in the read. Don't invent a different lifecycle shape.
+
+### UI (`src/components/performance/self-evaluation-*.tsx`)
+
+**No route of its own** — a **Self-evaluations tab** on `/profile`, `/staff/[id]` and
+inside the compensation-plan **profile drawer**, rendered only when the read came back
+non-null (see [staff-profiles.md](./staff-profiles.md) → *Viewer-dependent tabs*).
+
+- **`self-evaluation-panel.tsx`** — the tab: newest-first list, a "Start a
+  self-evaluation" button when `canCreate`, per-record Edit/Delete when `canManage`
+  (Delete behind the shared `ConfirmDialog`). It renders **only the affordances the server
+  told it about** — never its own permission logic. It passes **`onChanged`** for
+  client-fetched hosts (the drawer re-loads itself) and falls back to `router.refresh()`
+  for server-rendered pages — refreshing the route from the drawer would re-render the plan
+  editor underneath, mid-edit (the `ReviewNotesPanel` precedent).
+- **`self-evaluation-record.tsx`** — one saved record, read-only, rendered **entirely off
+  the snapshot** (see above). Date + self-rating badge + "N of 7 answered" + an "edited"
+  marker when `updatedAt > createdAt`; answers are `whitespace-pre-wrap` with **no
+  clamping** (a truncated self-assessment is a misleading one). A stale record says
+  "Answered against an earlier set of questions, and shown as it was written."
+- **`self-evaluation-form.tsx`** — the composer/editor: seven textareas plus the rating
+  radio group, **one explicit submit, no autosave** (a document a person finishes, not a
+  field they nudge — see [ui.md](../ui.md) → *Save-on-edit vs. batch edit*). **Loose form
+  binding** (`useForm` + `useAction`, not `useHookFormAction`) because the form shape
+  deliberately omits the id the update action needs; both action hooks are instantiated
+  every render and the mode picks between them; create vs. edit is a **union**
+  (`{ mode: "create" }` | `{ evaluation }`), so "neither" can't be constructed. This is one
+  of the only two places allowed to read `SELF_EVALUATION_QUESTIONS`.
+- **The drawer renders the panel `readOnly`** — a **host display constraint, not permission
+  logic**: a seven-textarea form inside a 56rem sheet layered over a mid-edit plan editor
+  is the wrong place to write one, and the header's "Open full profile" is the way. It
+  narrows nothing the server allows. The rejected alternative — forcing `canCreate: false`
+  inside `loadStaffProfileDrawer` — would have put a presentation decision inside a gate.
+
+### Seed
+
+**`seedSelfEvaluations`** (`scripts/seed/performance.ts`, wired into `scripts/seed.ts`
+after `seedReviewNotes`; `staff_self_evaluation` added to `scripts/seed/wipe.ts`'s
+`SEEDABLE_TABLES`) gives ~55% of active staff **1–2 records** dated across the last ~18
+months, each prompt skipped ~25% of the time (so thin records exist), with weighted
+self-ratings (people rate themselves generously). It depends on **nothing but `staff`**.
+Entries go through the **real `buildSelfEvaluationEntries`**, so a question-set change that
+breaks the stored shape fails `bun run check` instead of shipping.
+
 ## Still proposed
 
 - **ReviewCycle** — a period in which reviews happen (quarterly, annual). Review notes
-  (above) are standalone documents with no cycle attached — a cycle would group them.
+  **and self-evaluations** (above) are standalone dated documents with no cycle attached —
+  a cycle would group them, and both already carry the date it would group on.
 - **PerformanceReview** — a Person's assessment within a cycle; may pull in project
   work and utilization.
 - **Goal** — an objective for a Person, tracked over time.
 
 Proposed flows: review cycle (open → collect self/manager/peer input → assess →
 close), goal setting & tracking, and an evidence pull surfacing allocations,
-utilization, and project contributions as review context.
+utilization, and project contributions as review context. **The "self input" leg of that
+flow now exists** as self-evaluations — a cycle would attach them, not replace them.
 
 ## Connects to
 
@@ -1182,9 +1591,11 @@ utilization, and project contributions as review context.
   (its first non-display consumer, and the first query in the *inverse* direction "who
   reports to me"), and `reviewNoteAccess` **gates** with it. So a bad import now changes
   what a manager can read *and write*, not just a profile line. **This domain also owns
-  two of the profile's tabs** — Peer feedback and Review notes — each rendered only when
-  its read came back non-null, which is why the **profile tab set is viewer-dependent**
-  (see [staff-profiles.md](./staff-profiles.md)). Both analytics
+  three of the profile's tabs** — Peer feedback, Review notes and **Self-evaluations** —
+  each rendered only when its read came back non-null, which is why the **profile tab set
+  is viewer-dependent** (see [staff-profiles.md](./staff-profiles.md)). Self-evaluations
+  key off `staff` alone (no reporting line, no employment row) and are the profile's
+  **second writable** performance surface — but only for the person themselves. Both analytics
   reads join the latest
   `staff_employment` row per **active** staff member — the Compensation dashboard to
   display money, the levels read for filter dimensions (**though `RatingRecord.employment`
@@ -1193,6 +1604,10 @@ utilization, and project contributions as review context.
   Compensation plans read `staff_employment` heavily (current, previous, and live
   comp per person) but **never write it** — see
   [ADR 0046](../decisions/0046-compensation-change-plans-rating-writing-proposals.md).
+  **Bonus payments** live in the *staff* domain (`staff_bonus_payment`, actions under
+  `src/actions/staff/`) but are reported here: the dashboard read joins each payment to
+  the employment row **in force on its payment date** (`employmentAsOf`), not the latest
+  one, and unlike every other analytics read it includes **departed** staff.
   Future reviews would target a Person and may update role/seniority.
 - **Rippling (external)** — the system of record for pay
   ([ADR 0020](../decisions/0020-compensation-effective-dated-import-only.md)). A
@@ -1212,16 +1627,26 @@ utilization, and project contributions as review context.
   Compensation dashboard reuses `staff.viewCompensation` (finance/manager/admin);
   the Performance (levels) dashboard + editor use `ratings.view` / `ratings.edit`
   (manager/admin **only** — not finance, no self-view), and its comp-by-level table
-  additionally requires `staff.viewCompensation`; compensation plans require
+  additionally requires `staff.viewCompensation`; **self-evaluations reuse `ratings.view`
+  *with* a full owner path** — own always (read **and** write), anyone else's read-only,
+  writes author-only with **no admin override**
+  ([ADR 0058](../decisions/0058-self-evaluations-dated-records-with-snapshotted-answers.md)),
+  and that reuse is exactly why nothing there may join `staff_rating`; compensation plans require
   **both** `staff.viewCompensation` **and** `ratings.edit` (the strictest surface
   in the domain, and the only identity-bearing one). See
   [domains/permissions.md](./permissions.md).
 
 ## Open questions (for the proposed pieces)
 
-- Review types: self / manager / 360, and how peer feedback feeds them.
+- Review types: self / manager / 360, and how peer feedback feeds them. (The **self** leg
+  is built — see *Staff self-evaluations*; the cycle it would hang off isn't.)
 - How tightly utilization factors into ratings (and who can see it).
-- Cycle cadence; whether the peer-feedback rating scale is reused for reviews.
+- Cycle cadence; whether the peer-feedback rating scale is reused for reviews. (It already
+  is, twice: `feedback_rating`'s five words back both peer feedback and the self-rating —
+  as **separate pg types** over one TS tuple.)
+- Whether **self-evaluations** need a draft state, and whether their `ratings.view` read
+  gate is too wide (any manager, not just the person's own) — both deliberate, both
+  reversible; see [ADR 0058](../decisions/0058-self-evaluations-dated-records-with-snapshotted-answers.md).
 - Locking down reviewers seeing their own feedback (the deferred gap above).
 - Whether **review notes** should attach to a cycle (and whether a skip-level or an HR
   role should read them — today only the direct manager and admins can, by design).

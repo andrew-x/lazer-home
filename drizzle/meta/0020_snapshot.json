@@ -1,6 +1,6 @@
 {
-  "id": "0bf9d1e3-4ae0-48a8-94e6-1a8dcdcab6a1",
-  "prevId": "d970f4a0-1b1e-4b69-8779-1a035d8e0c5e",
+  "id": "a06cbd0c-2af2-4cf5-b481-287ac59bee4c",
+  "prevId": "0bf9d1e3-4ae0-48a8-94e6-1a8dcdcab6a1",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2330,12 +2330,6 @@
         "staff_id": {
           "name": "staff_id",
           "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "evaluation_date": {
-          "name": "evaluation_date",
-          "type": "date",
           "primaryKey": false,
           "notNull": true
         },

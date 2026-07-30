@@ -8,18 +8,28 @@ import {
   type Staff,
   staffEmployment,
   staffRating,
+  staffSelfEvaluation,
 } from "@/lib/db/schema";
 import { parseIsoDate } from "@/lib/format/format";
 import {
   type CompensationPlanItemStatus,
   currentCompAmount,
 } from "@/lib/performance/compensation-plan";
-import { FEEDBACK_RATINGS } from "@/lib/performance/feedback-rating";
+import {
+  FEEDBACK_RATINGS,
+  type FeedbackRating,
+} from "@/lib/performance/feedback-rating";
 import {
   rubricForRole,
   SUBRATING_LEVELS,
   type Subratings,
 } from "@/lib/performance/rating-rubric";
+import {
+  buildSelfEvaluationEntries,
+  SELF_EVALUATION_QUESTION_IDS,
+  SELF_EVALUATION_QUESTION_SET_VERSION,
+  type SelfEvaluationQuestionId,
+} from "@/lib/performance/self-evaluation";
 import type { SeedDb } from "./client";
 import { chance, faker, isoDate } from "./faker";
 
@@ -28,6 +38,7 @@ const FEEDBACK_COUNT = 50;
 type FeedbackInsert = InferInsertModel<typeof feedback>;
 type ReviewNoteInsert = InferInsertModel<typeof performanceReviewNote>;
 type StaffRatingInsert = InferInsertModel<typeof staffRating>;
+type StaffSelfEvaluationInsert = InferInsertModel<typeof staffSelfEvaluation>;
 type CompensationPlanInsert = InferInsertModel<typeof compensationPlan>;
 type CompensationPlanItemInsert = InferInsertModel<typeof compensationPlanItem>;
 
@@ -213,6 +224,83 @@ export async function seedRatings(db: SeedDb, staff: Staff[]): Promise<number> {
   }
 
   if (rows.length > 0) await db.insert(staffRating).values(rows);
+  return rows.length;
+}
+
+// --- Self-evaluations ------------------------------------------------------
+
+/** Share of active staff who have written a self-evaluation at all. */
+const SELF_EVALUATION_COVERAGE = 0.55;
+const MAX_SELF_EVALUATIONS_PER_STAFF = 2;
+/** Chance any one prompt is left blank — a thin record is a real shape. */
+const SELF_EVALUATION_SKIP_CHANCE = 0.25;
+
+/**
+ * People rate themselves generously, but not uniformly — weighted so the badge has
+ * variety without "Needs improvement" being as common as "Solid contributor".
+ */
+const SELF_RATING_WEIGHTS = [
+  { value: "ABOVE_AND_BEYOND", weight: 2 },
+  { value: "TOP_PERFORMER", weight: 5 },
+  { value: "SOLID_CONTRIBUTOR", weight: 6 },
+  { value: "MINOR_MISSES", weight: 2 },
+  { value: "NEEDS_IMPROVEMENT", weight: 1 },
+] as const satisfies { value: FeedbackRating; weight: number }[];
+
+/**
+ * Seed self-evaluations for a bit over half of active staff, 1–2 each, submitted
+ * across the last ~18 months.
+ *
+ * `createdAt` is set explicitly — it is the record's only date, so leaving it to
+ * `defaultNow()` would stack every seeded record on today and make the list
+ * meaningless. `updatedAt` is set to the SAME instant on purpose: the panel marks a
+ * record "edited" when `updatedAt > createdAt`, and its own `defaultNow()` would
+ * otherwise label every seeded record as edited.
+ *
+ * Entries go through the **real `buildSelfEvaluationEntries`** rather than being
+ * hand-assembled: that keeps the seed a genuine drift guard (a question-set change
+ * that breaks the stored shape fails `bun run check`) and means seeded records carry
+ * exactly the section/prompt snapshot the app writes.
+ */
+export async function seedSelfEvaluations(
+  db: SeedDb,
+  staff: Staff[],
+): Promise<number> {
+  const rows: StaffSelfEvaluationInsert[] = [];
+
+  for (const person of staff.filter((s) => s.isActive)) {
+    if (!chance(SELF_EVALUATION_COVERAGE)) continue;
+
+    const count = faker.number.int({
+      min: 1,
+      max: MAX_SELF_EVALUATIONS_PER_STAFF,
+    });
+
+    for (let i = 0; i < count; i++) {
+      const answers = Object.fromEntries(
+        SELF_EVALUATION_QUESTION_IDS.map((questionId) => [
+          questionId,
+          chance(SELF_EVALUATION_SKIP_CHANCE) ? null : faker.lorem.paragraph(),
+        ]),
+      ) as Record<SelfEvaluationQuestionId, string | null>;
+
+      const submittedAt = faker.date.past({ years: 1.5 });
+
+      rows.push({
+        id: generateId("sev"),
+        staffId: person.id,
+        questionSetVersion: SELF_EVALUATION_QUESTION_SET_VERSION,
+        selfRating: faker.helpers.weightedArrayElement([
+          ...SELF_RATING_WEIGHTS,
+        ]),
+        answers: buildSelfEvaluationEntries(answers),
+        createdAt: submittedAt,
+        updatedAt: submittedAt,
+      });
+    }
+  }
+
+  if (rows.length > 0) await db.insert(staffSelfEvaluation).values(rows);
   return rows.length;
 }
 

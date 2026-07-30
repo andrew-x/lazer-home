@@ -1,0 +1,1 @@
+ALTER TABLE "staff_self_evaluation" DROP COLUMN "evaluation_date";

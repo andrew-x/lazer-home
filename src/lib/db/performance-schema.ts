@@ -20,6 +20,7 @@ import {
 import { FEEDBACK_RATINGS } from "@/lib/performance/feedback-rating";
 import type { Subratings } from "@/lib/performance/rating-rubric";
 import { PERFORMANCE_REVIEW_NOTE_STATUSES } from "@/lib/performance/review-note";
+import type { SelfEvaluationAnswer } from "@/lib/performance/self-evaluation";
 import { MAX_RATING_LEVEL, MIN_RATING_LEVEL } from "@/lib/staff/staff-rating";
 import { user } from "./auth-schema";
 import { currencyEnum, employmentTypeEnum, staff } from "./staff-schema";
@@ -318,9 +319,89 @@ export const performanceReviewNote = pgTable(
   (t) => [index("performance_review_note_staff_idx").on(t.staffId)],
 );
 
+// ---------------------------------------------------------------------------
+// Staff self-evaluations
+//
+// A questionnaire a person fills out ABOUT THEMSELVES: free-text reflection prompts
+// plus one overall self-rating. Like `performanceReviewNote` it is a document, not a
+// fact about a person, so nothing here supersedes anything — but unlike a note it
+// carries no author-chosen date at all. Because there is no draft state, `createdAt`
+// IS the submission time, and a separate "period covered" column would just be a
+// second, hand-maintained copy of it.
+//
+// `answers` stores a SNAPSHOT: each entry carries the section and prompt as they
+// were presented when answered, so a record reads back exactly as written even
+// after the question set is reworded or a question retires. The shape is owned by
+// `@/lib/performance/self-evaluation` and validated at the zod/action layer, not
+// the DB — same arrangement as `staffRating.subratings` and the survey
+// `responses` jsonb, so changing the questions needs no migration.
+//
+// Reads are gated on `ratings.view` — with, unlike `staffRating`, a FULL OWNER
+// PATH: this is the person's own writing, so they always see (and are the only one
+// who may write) their own. See `getStaffSelfEvaluations`.
+//
+// !! `selfRating` IS NOT `staffRating.level` !! It is the person's own five-point
+// self-assessment, on a different scale, chosen by them. ADR 0032 keeps
+// manager-assigned levels invisible to the person they are about; nothing here may
+// join `staffRating` or render a level beside a self-rating. See
+// docs/domains/performance.md.
+// ---------------------------------------------------------------------------
+
+// The scale IS peer feedback's five words, so the TS tuple in
+// `@/lib/performance/feedback-rating` is shared (ADR 0016) — but this is a
+// SEPARATE pg type rather than a reuse of `feedback_rating`, so peer-feedback
+// churn never forces an `ALTER TYPE` on a type two tables depend on.
+export const selfEvaluationRatingEnum = pgEnum("self_evaluation_rating", [
+  ...FEEDBACK_RATINGS,
+]);
+
+export const staffSelfEvaluation = pgTable(
+  "staff_self_evaluation",
+  {
+    id: text().primaryKey(),
+
+    // Subject AND author: only the subject may write one, so a separate author
+    // column would be a redundant copy of this one. An "on behalf of" path would
+    // be a migration — deliberately not pre-built. Cascade: the document is
+    // meaningless without the person.
+    staffId: text()
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+
+    // Which question set the answers below were written against. A column rather
+    // than a jsonb field so "how many records still answer the v1 questions" is a
+    // plain query, and so the update action can refuse to edit a record whose set
+    // has moved on.
+    questionSetVersion: integer().notNull(),
+
+    // The overall self-assessment. Its own column, not a jsonb entry: it is the
+    // only answer with a closed value set (so the DB can actually constrain it),
+    // the only one anything will aggregate or filter on, and the one a list row
+    // needs to badge without parsing jsonb. Exactly the typed-`level` vs
+    // jsonb-`subratings` split above. `notNull` guarantees no record is entirely
+    // empty, since every free-text answer may be blank.
+    selfRating: selfEvaluationRatingEnum().notNull(),
+
+    // The free-text answers, in the order they were presented. `[]` is legal — a
+    // record with only a self-rating is a valid, if thin, record.
+    answers: jsonb().$type<SelfEvaluationAnswer[]>().notNull(),
+
+    // When it was submitted — this record's only date, and the one it is ordered
+    // and displayed by. No unique constraint with `staffId`: a person may submit
+    // more than one, and a timestamp orders them without needing a tiebreaker.
+    createdAt: timestamp().defaultNow().notNull(),
+    updatedAt: timestamp()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [index("staff_self_evaluation_staff_idx").on(t.staffId)],
+);
+
 // --- Row types -------------------------------------------------------------
 
 export type Feedback = InferSelectModel<typeof feedback>;
+export type StaffSelfEvaluation = InferSelectModel<typeof staffSelfEvaluation>;
 export type PerformanceReviewNote = InferSelectModel<
   typeof performanceReviewNote
 >;

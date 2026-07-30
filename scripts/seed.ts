@@ -20,6 +20,7 @@ import {
   seedFeedback,
   seedRatings,
   seedReviewNotes,
+  seedSelfEvaluations,
 } from "./seed/performance";
 import { seedProjects } from "./seed/projects";
 import { seedResponses } from "./seed/responses";
@@ -83,6 +84,9 @@ async function main() {
     // Authored by each person's manager — the reporting line is what grants
     // access to a review note, so the author has to be that manager's account.
     const reviewNoteCount = await seedReviewNotes(db, staff);
+    // No dependency beyond staff — a self-evaluation is written by the person, and
+    // references nothing else.
+    const selfEvaluationCount = await seedSelfEvaluations(db, staff);
     const entries = await seedEntries(
       db,
       contacts,
@@ -116,6 +120,7 @@ async function main() {
       ratings: ratingsCount,
       compensationPlans: compPlanCount,
       reviewNotes: reviewNoteCount,
+      selfEvaluations: selfEvaluationCount,
       contactEntries: entries.contactEntries,
       opportunityEntries: entries.opportunityEntries,
       companyEntries: entries.companyEntries,

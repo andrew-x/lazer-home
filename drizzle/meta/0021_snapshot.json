@@ -1,6 +1,6 @@
 {
-  "id": "0bf9d1e3-4ae0-48a8-94e6-1a8dcdcab6a1",
-  "prevId": "d970f4a0-1b1e-4b69-8779-1a035d8e0c5e",
+  "id": "8247ef2b-d262-437a-ab95-41dc3db2f5ff",
+  "prevId": "a06cbd0c-2af2-4cf5-b481-287ac59bee4c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2333,12 +2333,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "evaluation_date": {
-          "name": "evaluation_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
         "question_set_version": {
           "name": "question_set_version",
           "type": "integer",
@@ -2964,6 +2958,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'[]'::jsonb"
+        },
+        "skills_updated_at": {
+          "name": "skills_updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         },
         "join_date": {
           "name": "join_date",

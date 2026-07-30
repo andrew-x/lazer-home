@@ -45,8 +45,17 @@ and the test is what enforces that lockstep. It stays, and it still runs in
 "Keep exactly one test" has softened in practice into "the RBAC matrix test is the
 one that must never go — plus a *small, deliberate* set of invariant tests." A few
 `*.test.ts` files have since been (re-)added where a correctness invariant is
-**genuinely beyond the type checker**: `allocations-grid`, `timesheet-grid`,
-`timesheet-week`, `project-derived`, `compensation-plan`, and `org-chart`. The last
+**genuinely beyond the type checker** — as of 2026-07-30, alongside `permissions`:
+`allocations-grid`, `timesheet-grid`, `timesheet-week`, `timesheet-alerts`,
+`project-derived`, `project-margin`, `project-planner-grid`, `compensation-plan`,
+`compensation-unit`, `plan-format`, `rating-rubric`, `rating-stats`, `bonus-stats`,
+`bonus-attribution`, `pg-error`, and `org-chart`. The two bonus ones are typical of the
+bar: `bonus-stats` pins the aggregation contracts the bonus dashboard's tables and its
+type × LoB/role matrix share — rows/columns in the given order, wholly empty ones
+skipped, an empty intersection `null` rather than `0`, and "the rows sum to the overall
+total" per dimension ([ADR 0056](./0056-bonus-type-cross-cut-matrix.md)); and
+`bonus-attribution` pins that a payment predating all employment history lands on the
+*earliest* row instead of being dropped. `org-chart`
 pins `buildOrgForest`'s structural contract — every input row appears in the output
 exactly once, and a self-reference / dangling id / cycle in `staff.managerId` can
 neither hang the page nor drop a subtree ([ADR 0054](./0054-staff-org-chart-dom-tree.md)) —

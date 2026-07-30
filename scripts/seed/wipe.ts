@@ -18,6 +18,7 @@ const SEEDABLE_TABLES = [
   "feedback",
   "performance_review_note",
   "staff_rating",
+  "staff_self_evaluation",
   "responses",
   // timesheets
   "time_entries",
