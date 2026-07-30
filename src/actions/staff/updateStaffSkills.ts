@@ -21,7 +21,7 @@ export const updateStaffSkills = secureActionClient
   .action(async ({ parsedInput }) => {
     const rows = await db
       .update(staff)
-      .set({ skills: parsedInput.skills })
+      .set({ skills: parsedInput.skills, skillsUpdatedAt: new Date() })
       .where(eq(staff.id, parsedInput.staffId))
       .returning({ id: staff.id });
 

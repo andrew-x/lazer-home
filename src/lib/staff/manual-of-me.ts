@@ -90,6 +90,26 @@ export const MANUAL_OF_ME_QUESTIONS: readonly ManualOfMeQuestion[] = [
 ];
 
 /**
+ * Terse names for the questions, for places that list all seven in a confined
+ * space — the profile-completeness tooltip today. `title` is a sentence starter
+ * ("The basics you should know about me are…") which reads well above a textarea
+ * but can't be stacked seven deep in a tooltip.
+ *
+ * A `Record` over the id union, so adding a question is a type error until it
+ * gets a label — the same no-drift discipline as `ROLE_LABELS` in
+ * `staff-enums.ts`. Keep each one short enough to sit on one line.
+ */
+export const MANUAL_OF_ME_SHORT_LABELS: Record<ManualOfMeQuestionId, string> = {
+  MOM_BASICS: "The basics",
+  MOM_THRIVE: "Thriving & productivity",
+  MOM_NEEDS: "What I need to succeed",
+  MOM_SUPERPOWERS: "Superpowers",
+  MOM_FEEDBACK: "Giving me feedback",
+  MOM_STRESS: "Handling stress",
+  MOM_PASSIONS: "Outside work",
+};
+
+/**
  * Reusable questionId validator — the union of known Manual of Me ids. Reused by
  * `upsertResponse.schema.ts`. As more surveys are added, a shared action can
  * accept a `z.union([...])` of each survey's id enum.

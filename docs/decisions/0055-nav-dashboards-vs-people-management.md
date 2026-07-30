@@ -11,6 +11,16 @@ identity-bearing write screens (`/people/{levels,compensation-plans,bonus-paymen
 Both section indexes are permission-aware redirects. Bonuses stop being a section of
 the Compensation dashboard and become a page. **No gate, read or schema changed.**
 
+> **Amended, 2026-07-30 (same day).** `People management` gained a **fourth** child,
+> `/people/profile-completeness` — which is **read-only, and owned by the staff
+> domain, not performance**. The dividing line the ADR actually draws is
+> **aggregate-and-anonymized vs. about-named-individuals**, not read vs. write, so a
+> named-person read belongs here rather than under Dashboards; read the section names
+> as "aggregate analytics" and "per-person management screens". The redirect ladder
+> takes the new branch **last** (all four gates are {manager, admin} today, so nobody's
+> landing page moved). See
+> [domains/staff-profiles.md](../domains/staff-profiles.md#profile-completeness-peopleprofile-completeness).
+
 ## Context
 
 ADR 0044 replaced one merged `/performance` page with sibling gated routes, and the

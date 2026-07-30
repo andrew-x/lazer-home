@@ -16,6 +16,7 @@ import {
 } from "@tabler/icons-react";
 import type { PermissionCheck } from "@/lib/auth/permissions";
 import { COMPENSATION_PLAN_ACCESS } from "@/lib/performance/compensation-plan";
+import { PROFILE_COMPLETENESS_ACCESS } from "@/lib/staff/profile-completeness";
 import { BONUS_PAYMENT_WRITE_ACCESS } from "@/lib/staff/staff-bonus";
 
 /**
@@ -89,6 +90,7 @@ export const NAV_ITEMS: NavItem[] = [
     // {manager, admin} (`ratings.edit` and `staff.edit` have identical role rows,
     // and the two conjunctions add `viewCompensation`, which both already hold).
     // So this gate equals the union of the children rather than over-admitting.
+    // Profile completeness is the plain `staff.edit` case of that same set.
     permission: { ratings: ["edit"] },
     children: [
       // Assigning levels is more sensitive than viewing them → its own gate.
@@ -109,6 +111,14 @@ export const NAV_ITEMS: NavItem[] = [
         title: "Bonus payments",
         href: "/people/bonus-payments",
         permission: BONUS_PAYMENT_WRITE_ACCESS,
+      },
+      // Who has and hasn't filled out their profile. Named per-person, but the
+      // only thing disclosed is whether a field is populated — so it takes the
+      // plain `staff.edit` gate held by whoever would chase them.
+      {
+        title: "Profile completeness",
+        href: "/people/profile-completeness",
+        permission: PROFILE_COMPLETENESS_ACCESS,
       },
     ],
   },
