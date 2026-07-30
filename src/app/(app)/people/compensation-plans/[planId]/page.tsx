@@ -48,7 +48,7 @@ export default async function CompensationPlanPage({ params }: Params) {
     <div className="flex h-[calc(100svh-2rem)] w-full min-w-0 flex-col gap-4 md:h-[calc(100svh-3rem)]">
       <div className="flex flex-col gap-1">
         <Link
-          href="/performance/compensation-plans"
+          href="/people/compensation-plans"
           className="flex w-fit items-center gap-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
           <IconArrowLeft className="size-4" />

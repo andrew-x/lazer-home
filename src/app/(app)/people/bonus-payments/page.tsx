@@ -6,23 +6,15 @@ import { BonusPaymentsManager } from "@/components/performance/bonus-payments-ma
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { userHasPermission } from "@/lib/auth/permissions";
-import { firstParam } from "@/lib/core/list-href";
 import {
-  BONUS_MANAGER_YEAR_PARAM,
   BONUS_PAYMENT_WRITE_ACCESS,
+  BONUS_YEAR_PARAM,
+  parseBonusYear,
 } from "@/lib/staff/staff-bonus";
 
 export const metadata: Metadata = { title: "Bonus payments" };
 
 type SearchParams = Record<string, string | string[] | undefined>;
-
-/** Validate the year param, defaulting to the current calendar year. */
-function parseYear(value: string | string[] | undefined): number {
-  const thisYear = new Date().getFullYear();
-  const parsed = Number.parseInt(firstParam(value), 10);
-  if (!Number.isInteger(parsed)) return thisYear;
-  return parsed >= 2000 && parsed <= thisYear + 1 ? parsed : thisYear;
-}
 
 export default async function BonusPaymentsPage({
   searchParams,
@@ -37,7 +29,7 @@ export default async function BonusPaymentsPage({
     notFound();
   }
 
-  const year = parseYear((await searchParams)[BONUS_MANAGER_YEAR_PARAM]);
+  const year = parseBonusYear((await searchParams)[BONUS_YEAR_PARAM]);
   const { payments, staffOptions, years } = await getBonusPayments(year);
 
   return (
@@ -55,7 +47,7 @@ export default async function BonusPaymentsPage({
         <Button
           variant="outline"
           size="sm"
-          render={<Link href="/performance/compensation" />}
+          render={<Link href="/dashboards/bonuses" />}
         >
           Back to dashboard
         </Button>

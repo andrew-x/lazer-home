@@ -96,7 +96,7 @@ export function PlanEditor({
   // (someone else committed it while this editor was open).
   const readOnly = plan.status === "COMMITTED" || autosave.locked;
 
-  const staffHref = `/performance/compensation-plans/${plan.id}/staff`;
+  const staffHref = `/people/compensation-plans/${plan.id}/staff`;
 
   // One derived model per row, shared by the cells and the comparator so the order
   // can never disagree with the numbers on screen. `draftFor` is memoized on the

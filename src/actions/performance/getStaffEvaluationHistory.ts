@@ -33,7 +33,7 @@ export type EvaluationHistoryEntry = {
  *
  * Known consequence, inherited rather than introduced: a capability *holder* can
  * see their **own** history through this, exactly as they already can in the
- * `/performance/levels/edit` grid (`getStaffRatingsForEdit` lists every active
+ * `/people/levels` grid (`getStaffRatingsForEdit` lists every active
  * staff member including the caller). Excluding self here would diverge from that
  * grid for no real gain — the level is one click away either way.
  */

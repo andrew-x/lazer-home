@@ -31,7 +31,7 @@ import { ROLE_LABELS } from "@/lib/staff/staff-enums";
 import { formatAverageLevel } from "@/lib/staff/staff-rating";
 
 /**
- * The **Performance dashboard** (`/performance/levels`): staff level (L0–L4)
+ * The **Levels dashboard** (`/dashboards/levels`): staff level (L0–L4)
  * analytics — distribution, average level overall and per role, and per-role
  * subrating averages. Gated by `ratings.view` (manager/admin) at the page, which
  * is stricter than the sibling Compensation dashboard's `staff.viewCompensation`
@@ -41,7 +41,7 @@ import { formatAverageLevel } from "@/lib/staff/staff-rating";
  * Compensation dashboard, so the filter bar renders no currency toggle (it gets no
  * `rates`) and nothing here needs the FX rates.
  */
-export function PerformanceDashboard({
+export function LevelsDashboard({
   records,
   filterOptions,
 }: {

@@ -11,10 +11,12 @@ import {
   IconSettings,
   IconTargetArrow,
   IconUser,
+  IconUserStar,
   IconUsers,
 } from "@tabler/icons-react";
 import type { PermissionCheck } from "@/lib/auth/permissions";
 import { COMPENSATION_PLAN_ACCESS } from "@/lib/performance/compensation-plan";
+import { BONUS_PAYMENT_WRITE_ACCESS } from "@/lib/staff/staff-bonus";
 
 /**
  * A sub-entry under a {@link NavItem}. Has no icon of its own — it renders
@@ -52,9 +54,11 @@ export const NAV_ITEMS: NavItem[] = [
   { title: "Projects", href: "/projects", icon: IconBriefcase },
   { title: "Allocations", href: "/allocations", icon: IconCalendarStats },
   { title: "Timesheets", href: "/timesheets", icon: IconClock },
+  // Read-only analytics over the workforce. Everything here is aggregate and
+  // anonymized; the named, per-person surfaces live under People management.
   {
-    title: "Performance",
-    href: "/performance",
+    title: "Dashboards",
+    href: "/dashboards",
     icon: IconChartBar,
     // The section's loosest gate: every role granting `ratings.view` also grants
     // `staff.viewCompensation` (see permissions.ts), so this never hides Levels
@@ -62,26 +66,49 @@ export const NAV_ITEMS: NavItem[] = [
     // dashboard the viewer may see.
     permission: { staff: ["viewCompensation"] },
     children: [
-      // Compensation & headcount analytics — same gate as the parent.
-      { title: "Compensation", href: "/performance/compensation" },
+      // Headcount & compensation analytics — same gate as the parent.
+      { title: "Compensation", href: "/dashboards/compensation" },
+      // Bonus payments paid out, by year — reading a bonus is reading
+      // compensation, so the same gate again.
+      { title: "Bonuses", href: "/dashboards/bonuses" },
       // Levels are stricter than comp: manager/admin only, not finance.
       {
         title: "Levels",
-        href: "/performance/levels",
+        href: "/dashboards/levels",
         permission: { ratings: ["view"] },
       },
+    ],
+  },
+  // The write surfaces of performance management: identity-bearing screens where
+  // levels are assigned, comp is proposed and payments are recorded.
+  {
+    title: "People management",
+    href: "/people",
+    icon: IconUserStar,
+    // Not merely the loosest child gate — every child here resolves to exactly
+    // {manager, admin} (`ratings.edit` and `staff.edit` have identical role rows,
+    // and the two conjunctions add `viewCompensation`, which both already hold).
+    // So this gate equals the union of the children rather than over-admitting.
+    permission: { ratings: ["edit"] },
+    children: [
       // Assigning levels is more sensitive than viewing them → its own gate.
       {
         title: "Edit levels",
-        href: "/performance/levels/edit",
+        href: "/people/levels",
         permission: { ratings: ["edit"] },
       },
-      // Named, per-person compensation proposals — the strictest surface here,
-      // needing both the comp and the ratings-edit capabilities.
+      // Named, per-person compensation proposals — needs both the comp and the
+      // ratings-edit capabilities.
       {
         title: "Compensation plans",
-        href: "/performance/compensation-plans",
+        href: "/people/compensation-plans",
         permission: COMPENSATION_PLAN_ACCESS,
+      },
+      // Recording money against a named individual — comp + staff.edit.
+      {
+        title: "Bonus payments",
+        href: "/people/bonus-payments",
+        permission: BONUS_PAYMENT_WRITE_ACCESS,
       },
     ],
   },
@@ -95,8 +122,8 @@ export function isActivePath(href: string, pathname: string): boolean {
 
 /**
  * Active check for a submenu sub-item. Uses exact match rather than the prefix
- * match of {@link isActivePath}, so a "Dashboard" sub-item at `/performance` does
- * not read as active on `/performance/levels/edit` (its sibling's prefix).
+ * match of {@link isActivePath}, so a sub-item at `/people/levels` does not read
+ * as active on a deeper sibling that happens to share its prefix.
  */
 export function isActiveSubPath(href: string, pathname: string): boolean {
   return pathname === href;

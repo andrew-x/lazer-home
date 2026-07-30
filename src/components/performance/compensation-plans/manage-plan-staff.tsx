@@ -87,7 +87,7 @@ export function ManagePlanStaff({
         data?.removed ? `${data.removed} removed` : null,
       ].filter(Boolean);
       toast.success(parts.length ? parts.join(", ") : "No changes.");
-      router.push(`/performance/compensation-plans/${planId}`);
+      router.push(`/people/compensation-plans/${planId}`);
     },
     onError: ({ error }) =>
       toast.error(error.serverError ?? "Couldn't update the plan's staff."),
@@ -259,9 +259,7 @@ export function ManagePlanStaff({
           <Button
             variant="outline"
             render={
-              <Link href={`/performance/compensation-plans/${planId}`}>
-                Cancel
-              </Link>
+              <Link href={`/people/compensation-plans/${planId}`}>Cancel</Link>
             }
           />
           <Button onClick={submit} disabled={!dirty} loading={save.isPending}>

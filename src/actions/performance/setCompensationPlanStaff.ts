@@ -85,7 +85,7 @@ export const setCompensationPlanStaff = secureActionClient
       });
 
       for (const path of planPaths(planId)) revalidatePath(path);
-      revalidatePath(`/performance/compensation-plans/${planId}/staff`);
+      revalidatePath(`/people/compensation-plans/${planId}/staff`);
 
       return { added: toInsert.length, removed: removedCount };
     },

@@ -37,12 +37,12 @@ import {
 import { ROLE_LABELS } from "@/lib/staff/staff-enums";
 
 /**
- * Calendar-year selector for the bonus section.
+ * Calendar-year selector for the bonus dashboard.
  *
  * Unlike the dimension filters — which narrow rows already in the browser — the
  * year selects which rows are READ, so it navigates rather than setting state.
- * `scroll: false` keeps the viewport where it is: the section sits well down the
- * page, and jumping to the top on every year change would lose the reader's place.
+ * `scroll: false` keeps the viewport where it is rather than snapping to the top,
+ * so a reader partway down the breakdown tables stays put when they change year.
  */
 function YearPicker({ years, year }: { years: number[]; year: number }) {
   const router = useRouter();
@@ -90,17 +90,17 @@ const AXES = [
 type AxisKey = (typeof AXES)[number]["key"];
 
 /**
- * The **bonus payments** section of the compensation dashboard: what we paid out
+ * The body of the **Bonuses dashboard** (`/dashboards/bonuses`): what we paid out
  * in one calendar year, broken down by line of business, role and bonus type.
  *
- * Reads the dashboard's shared filter/currency state rather than owning its own,
- * so narrowing to one discipline narrows this section too. The year, by contrast,
- * is a server concern (each year is a separate read) and arrives as a prop —
- * see the `bonusYear` search param on the page.
+ * Takes the filter/currency state as a prop rather than owning it — see
+ * `bonus-dashboard.tsx`, the shell that holds it. The year, by contrast, is a
+ * server concern (each year is a separate read) and arrives as a prop from the
+ * page's `year` search param.
  *
  * Two things worth knowing about the numbers, both said on screen because a reader
- * comparing this section to the headcount tables above will otherwise assume they
- * reconcile:
+ * carrying over the headcount tables from the Compensation dashboard will otherwise
+ * assume the two reconcile:
  *
  *  - Payments to people who have since LEFT are included. A March bonus to
  *    someone who left in June was still spent this year.
@@ -269,8 +269,8 @@ export function BonusBreakdown({
 
       <p className="text-xs text-muted-foreground">
         Bonus totals count everyone paid during {year}, including people who
-        have since left — so they don't reconcile per-head with the headcount
-        above.
+        have since left — so they don't reconcile per-head with the headcount on
+        the Compensation dashboard.
         {years.length > 1
           ? " Use the year selector to compare against another year."
           : ""}
