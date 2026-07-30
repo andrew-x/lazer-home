@@ -64,7 +64,6 @@ export const commitBulkEditEmployment = localActionClient
             base: staffEmployment.base,
             hourlyRate: staffEmployment.hourlyRate,
             guaranteedBonus: staffEmployment.guaranteedBonus,
-            discretionaryBonus: staffEmployment.discretionaryBonus,
             currency: staffEmployment.currency,
           })
           .from(staffEmployment)
@@ -148,7 +147,6 @@ export const commitBulkEditEmployment = localActionClient
               base: latest?.base ?? 0,
               hourlyRate: latest?.hourlyRate ?? 0,
               guaranteedBonus: latest?.guaranteedBonus ?? 0,
-              discretionaryBonus: latest?.discretionaryBonus ?? 0,
               currency: latest?.currency ?? "CAD",
             };
           });

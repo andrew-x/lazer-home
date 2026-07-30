@@ -1,8 +1,10 @@
-import type { InferSelectModel } from "drizzle-orm";
+import { type InferSelectModel, sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   boolean,
+  check,
   date,
+  index,
   integer,
   jsonb,
   numeric,
@@ -14,6 +16,7 @@ import {
 import { LINE_OF_BUSINESS } from "@/lib/crm/line-of-business";
 import { CURRENCY } from "@/lib/format/currency";
 import type { StaffSkill } from "@/lib/staff/skills";
+import { BONUS_TYPES } from "@/lib/staff/staff-bonus";
 import { user } from "./auth-schema";
 
 // ---------------------------------------------------------------------------
@@ -23,7 +26,8 @@ import { user } from "./auth-schema";
 // the time-varying employment facts (role, line of business, billability,
 // target). A new employment row is created whenever those facts change, keyed
 // by `effectiveFromDate` — the current state is the row with the latest date.
-// `staffPto` records discrete leave spans. See ADR 0007.
+// `staffPto` records discrete leave spans, and `staffBonusPayment` discrete bonus
+// payments — both dated events rather than effective-dated state. See ADR 0007.
 // ---------------------------------------------------------------------------
 
 // --- Enums -----------------------------------------------------------------
@@ -57,6 +61,12 @@ export const billableTypeEnum = pgEnum("billable_type", ["HUB", "GLOBAL"]);
 // Compensation currency. Values live in `@/lib/format/currency` (a pure module) so this
 // pgEnum, the import's zod enum, and display formatting share one source of truth.
 export const currencyEnum = pgEnum("currency", [...CURRENCY]);
+
+// Why a bonus was paid. Values live in `@/lib/staff/staff-bonus` (a pure module)
+// so this pgEnum, the client form's zod enum, and the dashboard labels share one
+// source of truth. `DISCRETIONARY` (decided in a review cycle) and `SPOT`
+// (ad-hoc) are deliberately distinct — see that module.
+export const staffBonusTypeEnum = pgEnum("staff_bonus_type", [...BONUS_TYPES]);
 
 export const ptoTypeEnum = pgEnum("pto_type", [
   "VACATION",
@@ -158,7 +168,11 @@ export const staffEmployment = pgTable("staff_employment", {
   // Compensation facts. Required for staff going forward. Effective-dated like the
   // rest of this table: a comp change spawns a new row. Populated by the CSV import
   // only; carried forward (never wiped) whenever a non-comp change spawns a new row.
-  // `discretionaryBonus` isn't imported yet, so it defaults to 0.
+  //
+  // Only ONGOING terms belong here. One-off bonuses deliberately do NOT: they are
+  // dated payments, not terms of employment, and live in `staffBonusPayment`. (A
+  // `discretionaryBonus` column used to sit here and was wrong for exactly that
+  // reason — it read as part of go-forward pay and had room for only one payment.)
   base: numeric({ precision: 12, scale: 2, mode: "number" }).notNull(),
   hourlyRate: numeric({ precision: 12, scale: 2, mode: "number" }).notNull(),
   guaranteedBonus: numeric({
@@ -166,9 +180,6 @@ export const staffEmployment = pgTable("staff_employment", {
     scale: 2,
     mode: "number",
   }).notNull(),
-  discretionaryBonus: numeric({ precision: 12, scale: 2, mode: "number" })
-    .notNull()
-    .default(0),
   currency: currencyEnum().notNull(),
 
   createdAt: timestamp().defaultNow().notNull(),
@@ -177,6 +188,68 @@ export const staffEmployment = pgTable("staff_employment", {
     .$onUpdate(() => new Date())
     .notNull(),
 });
+
+/**
+ * A bonus paid to a staff member on a date.
+ *
+ * Sibling to `staffPto`, and the same kind of thing: a discrete dated event about
+ * a person, destined to be sourced from Rippling. Explicitly NOT effective-dated
+ * and never superseded — a payment either happened or it didn't, so there is one
+ * date (`paymentDate`) and no history chain.
+ *
+ * Deliberately carries NO `lineOfBusiness`/`role` and no FK to `staffEmployment`:
+ * the dashboard derives those from the employment row effective on `paymentDate`
+ * (`employmentAsOf`), so a February bonus keeps counting under the discipline the
+ * person held in February even after they move. Snapshotting them here would
+ * freeze a guess taken at entry time instead.
+ */
+export const staffBonusPayment = pgTable(
+  "staff_bonus_payment",
+  {
+    id: text().primaryKey(),
+    // Cascade mirrors `staffPto`: a payment is meaningless without the person.
+    staffId: text()
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+
+    // The point in time, and the only date this table has.
+    paymentDate: date().notNull(),
+
+    // No default: recording a payment means knowing why it was paid. Values and
+    // their meanings live in `@/lib/staff/staff-bonus`.
+    type: staffBonusTypeEnum().notNull(),
+
+    // For a non-cash type (`GIFT`) this is the cash-equivalent value, not money
+    // that left an account.
+    amount: numeric({ precision: 12, scale: 2, mode: "number" }).notNull(),
+    // Stored per payment rather than read off the person: a bonus can be paid in
+    // a currency other than the one they're salaried in.
+    currency: currencyEnum().notNull(),
+
+    // Anything the type doesn't capture — which milestone, who was referred,
+    // what the gift was.
+    notes: text(),
+
+    // Rippling's payment id, reserved for the importer that will eventually own
+    // this table. Nullable while rows are entered by hand; unique so a re-import
+    // is idempotent rather than duplicating a payment.
+    ripplingId: text().unique(),
+
+    createdAt: timestamp().defaultNow().notNull(),
+    updatedAt: timestamp()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    index("staff_bonus_payment_staff_idx").on(t.staffId),
+    // The dashboard reads a calendar year at a time.
+    index("staff_bonus_payment_date_idx").on(t.paymentDate),
+    // A zero or negative bonus isn't a payment. Guarded in the DB as well as the
+    // zod schema, because the importer will write here without the form.
+    check("staff_bonus_payment_amount_positive", sql`${t.amount} > 0`),
+  ],
+);
 
 export const staffPto = pgTable("staff_pto", {
   id: text().primaryKey(),
@@ -204,4 +277,5 @@ export const staffPto = pgTable("staff_pto", {
 
 export type Staff = InferSelectModel<typeof staff>;
 export type StaffEmployment = InferSelectModel<typeof staffEmployment>;
+export type StaffBonusPayment = InferSelectModel<typeof staffBonusPayment>;
 export type StaffPto = InferSelectModel<typeof staffPto>;

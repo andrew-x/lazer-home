@@ -37,20 +37,14 @@ export function CompensationSection({
   base,
   hourlyRate,
   guaranteedBonus,
-  discretionaryBonus,
   currency,
 }: {
   base: number | null;
   hourlyRate: number | null;
   guaranteedBonus: number | null;
-  discretionaryBonus: number | null;
   currency: Currency | null;
 }) {
-  const hasAny =
-    base != null ||
-    hourlyRate != null ||
-    guaranteedBonus != null ||
-    discretionaryBonus != null;
+  const hasAny = base != null || hourlyRate != null || guaranteedBonus != null;
 
   if (!hasAny) {
     return (
@@ -62,18 +56,12 @@ export function CompensationSection({
     <div className="flex flex-col gap-2">
       <MoneyRow label="Base" amount={base} currency={currency} />
       <MoneyRow label="Hourly rate" amount={hourlyRate} currency={currency} />
-      {/* Bonuses are hidden when zero (nothing to show). */}
+      {/* A zero guaranteed bonus is hidden (nothing to show). One-off bonuses are
+          NOT here — they're dated payments, shown on their own. */}
       {guaranteedBonus ? (
         <MoneyRow
           label="Guaranteed bonus"
           amount={guaranteedBonus}
-          currency={currency}
-        />
-      ) : null}
-      {discretionaryBonus ? (
-        <MoneyRow
-          label="Discretionary bonus"
-          amount={discretionaryBonus}
           currency={currency}
         />
       ) : null}

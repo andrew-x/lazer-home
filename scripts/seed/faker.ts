@@ -27,6 +27,21 @@ export function pastDate(yearsAgo: number): string {
   return isoDate(faker.date.past({ years: yearsAgo }));
 }
 
+/**
+ * The later of two `"YYYY-MM-DD"` dates. String comparison is correct for that
+ * format and keeps these wall-clock values free of `Date`/timezone round-trips.
+ */
+export function maxDate(a: string, b: string): string {
+  return a >= b ? a : b;
+}
+
+/** A new `Date` `days` before/after the given one (negative shifts backwards). */
+export function shiftDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
 /** Money rounded to 2 decimals (numeric(12,2) columns are `mode: "number"`). */
 export function money(min: number, max: number): number {
   return Math.round(faker.number.float({ min, max }) * 100) / 100;

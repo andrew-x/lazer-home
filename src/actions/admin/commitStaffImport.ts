@@ -72,7 +72,6 @@ export const commitStaffImport = localActionClient
         base: row.base,
         hourlyRate: row.hourlyRate,
         guaranteedBonus: row.guaranteedBonus,
-        discretionaryBonus: row.discretionaryBonus,
         currency: row.currency,
       });
     }
@@ -109,7 +108,6 @@ export const commitStaffImport = localActionClient
           base: incoming.base,
           hourlyRate: incoming.hourlyRate,
           guaranteedBonus: incoming.guaranteedBonus,
-          discretionaryBonus: incoming.discretionaryBonus,
           currency: incoming.currency,
           // isManagement and billableType aren't CSV facts — carry the current
           // values forward so a role/LoB change never silently resets them.

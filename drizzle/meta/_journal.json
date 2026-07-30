@@ -127,6 +127,13 @@
       "when": 1785352883213,
       "tag": "0017_perfect_cyclops",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1785409101480,
+      "tag": "0018_flippant_chameleon",
+      "breakpoints": true
     }
   ]
 }

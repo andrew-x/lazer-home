@@ -37,7 +37,6 @@ export type StaffProfile = {
     | "base"
     | "hourlyRate"
     | "guaranteedBonus"
-    | "discretionaryBonus"
     | "currency"
   > | null;
 };
@@ -86,7 +85,6 @@ export const getStaffProfile = cache(
         base: staffEmployment.base,
         hourlyRate: staffEmployment.hourlyRate,
         guaranteedBonus: staffEmployment.guaranteedBonus,
-        discretionaryBonus: staffEmployment.discretionaryBonus,
         currency: staffEmployment.currency,
       })
       .from(staffEmployment)
