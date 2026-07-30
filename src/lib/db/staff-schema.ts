@@ -130,7 +130,13 @@ export const staff = pgTable("staff", {
 
   // Skills held, as an inline list of { name, level } picked from the hardcoded
   // catalogue in `@/lib/staff/skills` (deliberately not a normalized skills table).
+  // `skillsUpdatedAt` is stamped explicitly by the update action when the list is
+  // saved — NOT $onUpdate, for the same reason as `resumeUpdatedAt` above: a row
+  // write from an import re-sync would otherwise report as a skills edit. Null for
+  // anyone who hasn't saved their skills since the column shipped (there is no
+  // honest backfill — `staff.updatedAt` moves on every import).
   skills: jsonb().$type<StaffSkill[]>().notNull().default([]),
+  skillsUpdatedAt: timestamp(),
 
   joinDate: date(),
   terminationDate: date(),

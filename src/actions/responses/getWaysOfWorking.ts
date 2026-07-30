@@ -5,16 +5,17 @@ import { cache } from "react";
 import { db } from "@/lib/db/db";
 import { responses } from "@/lib/db/schema";
 import {
+  isResponseAnswered,
+  type SurveyAnswerShape,
+} from "@/lib/staff/survey-answers";
+import {
   WAYS_OF_WORKING_QUESTION_IDS,
   type WowQuestionId,
 } from "@/lib/staff/ways-of-working";
 
 /** One question's stored answer. A question uses exactly one shape; the other
  * stays null. Both null → unanswered. */
-export type WowAnswer = {
-  textResponse: string | null;
-  listResponse: string[] | null;
-};
+export type WowAnswer = SurveyAnswerShape;
 
 /** A person's Ways of Working answers, keyed by question id (every id present,
  * unanswered ones null on both shapes), plus how many are answered. */
@@ -23,12 +24,6 @@ export type WaysOfWorking = {
   answeredCount: number;
   totalCount: number;
 };
-
-function isAnswered({ textResponse, listResponse }: WowAnswer): boolean {
-  return (
-    textResponse !== null || (listResponse !== null && listResponse.length > 0)
-  );
-}
 
 /**
  * A person's Ways of Working survey answers. NOT ownership-scoped — like
@@ -65,7 +60,7 @@ export const getWaysOfWorking = cache(
         listResponse: row?.listResponse ?? null,
       };
       answers[questionId] = answer;
-      if (isAnswered(answer)) answeredCount += 1;
+      if (isResponseAnswered(answer)) answeredCount += 1;
     }
 
     return {

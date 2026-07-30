@@ -27,13 +27,18 @@ Permissions are `(resource, action)` pairs. The `statement` merges Better Auth's
 so the admin role retains its built-in capabilities) with two business resources:
 
 - **`staff.edit`** — edit *another* staff member's profile. (Editing your *own*
-  linked profile never needs it — see ownership rule below.) **One exception has no
-  owner path:** the allocations planner's `allocationNotes` are cross-person staffing
-  metadata gated on the **static `staff.edit` capability** for both read and write
-  (managers/admins only — a person cannot edit their own), *not* the owner-or-`staff.edit`
-  hook the profile fields use. Same capability, no new matrix row — see
-  [ADR 0041](../decisions/0041-allocation-notes-on-staff.md) and
-  [allocations.md](./allocations.md).
+  linked profile never needs it — see ownership rule below.) **Two surfaces use the
+  static capability with no owner path at all**, because neither is a thing you own:
+  - the allocations planner's `allocationNotes` — cross-person staffing metadata,
+    gated on the **static `staff.edit` capability** for both read and write
+    (managers/admins only), *not* the owner-or-`staff.edit` hook the profile fields
+    use — [ADR 0041](../decisions/0041-allocation-notes-on-staff.md),
+    [allocations.md](./allocations.md);
+  - the **profile-completeness table** (`/people/profile-completeness`, exported as
+    `PROFILE_COMPLETENESS_ACCESS`) — a cross-person *read* of who has and hasn't
+    filled their profile in. See *Reusing a capability for a new surface* below.
+
+  Same capability, no new matrix row, in both cases.
 - **`staff.viewCompensation`** — view *another* staff member's compensation (on
   their profile and in the history feed, **and their bonus payments** — the drawer's
   Bonuses tab and the feed's `BONUS` entries, since the fact a bonus was paid is itself
@@ -197,6 +202,33 @@ Auth's `authorize` ANDs across resources (`connector = "AND"` in
   a plain single capability, spelled as a constant only so the dashboard page and
   `getBonusSummaryData` can't drift. **No matrix change.** See
   [performance.md](performance.md) → *Bonus payments*.
+
+### Reusing a capability for a new surface — named gate constants
+
+Most new surfaces need **no new capability**. The recurring question is "which existing
+one already describes the audience?", and the answer is expressed as a **named
+`PermissionCheck` constant** exported from a pure, client-importable module, so the
+route, the nav entry and the read(s) all reference the *same* object and can't drift.
+The composite gates above are two of these; the single-capability ones are:
+
+- **`PROFILE_COMPLETENESS_ACCESS = { staff: ["edit"] }`**
+  (`src/lib/staff/profile-completeness.ts`) — the profile-completeness table
+  (`/people/profile-completeness`, see
+  [staff-profiles.md](./staff-profiles.md#profile-completeness-peopleprofile-completeness)).
+  **Chasing profile completion belongs to whoever may edit those profiles**, so it
+  reuses `staff.edit` ({manager, admin}); null/unknown roles deny as always.
+  Two things make that sound rather than merely convenient: the surface is
+  **named per-person but discloses only whether a field is populated** — the read
+  computes presence/counts in SQL and ships **no profile content** — and the gate is
+  enforced **at the read** (`requirePermission`) as well as at the route, since an
+  action has no layout above it.
+- **`BONUS_PAYMENT_READ_ACCESS = { staff: ["viewCompensation"] }`** — the bonus
+  dashboard, the read half of the bonus pair (its write half is the composite
+  `BONUS_PAYMENT_WRITE_ACCESS`; see [performance.md](./performance.md)).
+
+**No matrix change, so ADR 0014's lockstep rule isn't engaged** — but the *audience*
+claim is only as good as the matrix row it points at. If you change a role's
+`staff.edit`, you change who sees profile completeness.
 
 ### The one relationship-based gate — review notes (`staff.managerId` as an authorization input)
 

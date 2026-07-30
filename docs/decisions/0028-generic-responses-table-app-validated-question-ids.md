@@ -43,7 +43,9 @@ table. Adding a survey or a question needs **no migration**.
   to a `z.union([...])` of each survey's enum and add the list/json shapes as more
   surveys arrive).
   (**Update, 2026-07-18 — this widening has now happened, on schedule:** the second
-  survey, **Ways of Working** (`src/lib/staff/ways-of-working.ts`, 28 `WOW_`-prefixed ids),
+  survey, **Ways of Working** (`src/lib/staff/ways-of-working.ts`, 28 `WOW_`-prefixed ids
+  at the time — **30 today**, which is the point: the tuple is the source of truth and
+  nothing downstream hardcodes a count),
   landed as a **code-only** change — no migration. `upsertResponse.schema.ts`'s
   `questionId` is now `z.union([manualOfMeQuestionId, waysOfWorkingQuestionId])`, and
   the action accepts an optional `listResponse: string[]` alongside `textResponse`,
@@ -80,7 +82,14 @@ table. Adding a survey or a question needs **no migration**.
   gap; the generic table would need an append grain or a sibling history table.
 - **One table serves many surveys**, so cross-survey reads must filter by the
   survey's id set (`inArray(questionId, MANUAL_OF_ME_QUESTION_IDS)`) — cheap, and
-  indexed by `responses_staff_idx` on `staffId`.
+  indexed by `responses_staff_idx` on `staffId`. The first *cross-person* consumer
+  (the profile-completeness roll-up) does exactly that for both surveys in one pass.
+- **"Answered" is a judgement, and it must live in one place** (added 2026-07-30).
+  Because the payload is three nullable shapes, every reader has to decide what
+  counts as an answer — and two of them silently disagreed (`listResponse: []` from
+  a cleared multi-select). It is now the shared `isResponseAnswered`
+  (`src/lib/staff/survey-answers.ts`); **new readers must call it, not re-test the
+  columns.** The same applies to counts: derive denominators from the id tuples.
 
 ## Alternatives considered
 
