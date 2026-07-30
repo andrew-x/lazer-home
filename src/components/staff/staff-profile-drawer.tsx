@@ -9,6 +9,7 @@ import { loadStaffProfileDrawer } from "@/actions/staff/loadStaffProfileDrawer";
 import { StaffFeedbackPanel } from "@/components/feedback/staff-feedback-panel";
 import { EvaluationHistory } from "@/components/performance/evaluation-history";
 import { ReviewNotesPanel } from "@/components/performance/review-notes-panel";
+import { BonusList } from "@/components/staff/bonus-list";
 import { CompensationSection } from "@/components/staff/compensation-section";
 import { HistoryTimeline } from "@/components/staff/history-timeline";
 import { PtoContent } from "@/components/staff/pto-section";
@@ -71,11 +72,11 @@ function Section({
  * written up, so making it read-only would defeat the point of the drawer.
  *
  * Tabs: Overview (identity facts, compensation, skills, client intro) · Projects ·
- * Time off · Peer feedback · Review notes · Evaluations · History. **Four of them
- * are viewer-dependent** — Time off, Peer feedback, Review notes and Evaluations
- * render only when their read came back non-null, i.e. when this viewer is
- * permitted that slice, so an absent tab never has to explain itself (the
- * `/feedback` convention). Projects, Time off and Evaluations are separate tabs
+ * Time off · Peer feedback · Review notes · Evaluations · Bonuses · History.
+ * **Five of them are viewer-dependent** — Time off, Peer feedback, Review notes,
+ * Evaluations and Bonuses render only when their read came back non-null, i.e.
+ * when this viewer is permitted that slice, so an absent tab never has to explain
+ * itself (the `/feedback` convention). Projects, Time off and Evaluations are separate tabs
  * rather than Overview sections because each is a history in its own right, and a
  * review pane is read down a tab at a time.
  */
@@ -218,6 +219,9 @@ export function StaffProfileDrawer({
                   {data.evaluationHistory ? (
                     <TabsTrigger value="evaluations">Evaluations</TabsTrigger>
                   ) : null}
+                  {data.bonusHistory ? (
+                    <TabsTrigger value="bonuses">Bonuses</TabsTrigger>
+                  ) : null}
                   <TabsTrigger value="history">History</TabsTrigger>
                 </TabsList>
 
@@ -262,6 +266,14 @@ export function StaffProfileDrawer({
                 <TabsContent value="projects" className="pt-2">
                   <StaffProjectsSection projects={data.projects} />
                 </TabsContent>
+
+                {/* Null when this viewer may not see this person's comp — bonuses
+                    are money, so they follow the compensation gate. */}
+                {data.bonusHistory ? (
+                  <TabsContent value="bonuses" className="pt-2">
+                    <BonusList view={data.bonusHistory} />
+                  </TabsContent>
+                ) : null}
 
                 {/* Same convention as the other gated tabs: `pto` is null when
                     this viewer lacks `pto.review`, and then there is no tab at

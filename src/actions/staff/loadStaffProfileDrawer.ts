@@ -8,6 +8,8 @@ import { getStaffEvaluationHistory } from "@/actions/performance/getStaffEvaluat
 import type { StaffReviewNotesView } from "@/actions/performance/getStaffReviewNotes";
 import { getStaffReviewNotes } from "@/actions/performance/getStaffReviewNotes";
 import { canViewCompensation } from "@/actions/staff/canViewCompensation";
+import type { StaffBonusView } from "@/actions/staff/getStaffBonusHistory";
+import { getStaffBonusHistory } from "@/actions/staff/getStaffBonusHistory";
 import type { HistoryEntry } from "@/actions/staff/getStaffHistory";
 import { getStaffHistory } from "@/actions/staff/getStaffHistory";
 import { getStaffProfile } from "@/actions/staff/getStaffProfile";
@@ -58,7 +60,6 @@ export type StaffProfileDrawerData = {
     base: number | null;
     hourlyRate: number | null;
     guaranteedBonus: number | null;
-    discretionaryBonus: number | null;
     currency: Currency | null;
   } | null;
   projects: StaffProjectSummary[];
@@ -66,6 +67,12 @@ export type StaffProfileDrawerData = {
   pto: StaffPtoView | null;
   /** Comp amounts are folded into entries only when the comp gate passed. */
   history: HistoryEntry[];
+  /**
+   * Bonus payments. Null when this viewer may not see this person's compensation
+   * (own always; anyone else's needs `staff.viewCompensation`) — the drawer then
+   * renders no Bonuses tab at all.
+   */
+  bonusHistory: StaffBonusView | null;
   /**
    * Rating history. Null when this viewer lacks `ratings.view` — the strictest
    * gate here, and the only one with **no** owner fallback: a staffer never sees
@@ -109,6 +116,7 @@ export const loadStaffProfileDrawer = secureActionClient
         feedback,
         reviewNotes,
         evaluationHistory,
+        bonusHistory,
         canViewComp,
       ] = await Promise.all([
         getStaffProfile(parsedInput.staffId),
@@ -119,6 +127,9 @@ export const loadStaffProfileDrawer = secureActionClient
         getFeedbackAboutStaff(parsedInput.staffId),
         getStaffReviewNotes(parsedInput.staffId),
         getStaffEvaluationHistory(parsedInput.staffId),
+        // Self-gating on the same rule as `compensation`: own bonuses always,
+        // anyone else's needs `staff.viewCompensation`.
+        getStaffBonusHistory(parsedInput.staffId),
         canViewCompensation(ctx.user, parsedInput.staffId),
       ]);
 
@@ -152,13 +163,13 @@ export const loadStaffProfileDrawer = secureActionClient
                 base: employment.base,
                 hourlyRate: employment.hourlyRate,
                 guaranteedBonus: employment.guaranteedBonus,
-                discretionaryBonus: employment.discretionaryBonus,
                 currency: employment.currency,
               }
             : null,
         projects,
         pto,
         history,
+        bonusHistory,
         evaluationHistory,
         feedback,
         reviewNotes,
