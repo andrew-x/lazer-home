@@ -31,7 +31,7 @@ compensation, so this is the projects domain's first (and carefully masked) cont
 tags** (Negative margin / Low margin / Ending soon) whose thresholds live in code — with a
 different currency strategy from the plan surfaces
 ([Margin & flags on the list](#margin--flags-on-the-list),
-[ADR 0056](../decisions/0056-projects-list-margin-and-derived-flags.md)).
+[ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)).
 
 **Otherwise a project stores little of its own** — `id`, `name`, `companyId`, the budget columns,
 timestamps (plus delivery-managers + roles relations). It carries **no stored `status` and no
@@ -325,7 +325,7 @@ delivery, allocations, timesheets, and billing.
     Exports **`ProjectListItem`** (the prior fields — id, name, derived `status`,
     `linesOfBusiness[]`, company, delivery-manager names, role count — **plus a `startDate`/`endDate`
     string range** aggregated from the project's roles, null when role-less, **plus the commercial
-    trio added by [ADR 0056](../decisions/0056-projects-list-margin-and-derived-flags.md):
+    trio added by [ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md):
     `billingType` (null ⇒ "No budget"), `flags: ProjectFlag[]`, and
     `margin: Record<DisplayCurrency, ProjectListMargin> | null`** — see
     [Margin & flags on the list](#margin--flags-on-the-list)),
@@ -680,7 +680,7 @@ delivery, allocations, timesheets, and billing.
   `PROJECT_ROLE_STATUS_LABELS` text, **not** a `ProjectStatusBadge`) · Line of business (comma-joined
   labels, "None" when role-less) · Delivery ("Unassigned") · Dates (`formatDateRange`, "No dates") ·
   **Margin**. Status and LoB are *facts*; the flags are *warnings*, and a badge on every card
-  distinguishes nothing — see [ADR 0056](../decisions/0056-projects-list-margin-and-derived-flags.md)
+  distinguishes nothing — see [ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)
   §7 for why the detail page still badges status and the companies table's badges are still facts.
   The **Margin field renders only when the server sent figures** (so a viewer without
   `projects.viewMargin` sees no row at all, not a blank one), leads with the money and trails the
@@ -715,7 +715,7 @@ delivery, allocations, timesheets, and billing.
   payload. It **defaults to CAD** (a list is for comparing; cards in five denominations can't be),
   deliberately unlike the detail page's per-project `resolveDisplayCurrency`, and the toggle
   **renders only when a cost basis came back** — cosmetic only, since the read is what withholds the
-  figures ([ADR 0056](../decisions/0056-projects-list-margin-and-derived-flags.md) §8). **When any of the three filters is active the sections collapse
+  figures ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md) §8). **When any of the three filters is active the sections collapse
   into a single flat, paginated grid across all statuses, ordered by end date descending**
   (latest-ending first, role-less projects last — via `getProjectsPage`'s `"endDate"` order),
   rather than the name-ordered sections; clearing filters restores the sections. `add-project-dialog.tsx` (a **deliberately minimal**
@@ -913,7 +913,7 @@ that for the *why* behind each rule below. Math lives in the pure
 ### Margin & flags on the list
 
 The third margin surface, added by
-[ADR 0056](../decisions/0056-projects-list-margin-and-derived-flags.md) — read it for the *why*.
+[ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md) — read it for the *why*.
 The rules above still hold (same `computeProjectMargin`, same gate); what differs is **how the
 list converts** and **what it does with the number**.
 
@@ -1101,7 +1101,7 @@ page** (`getProjectPlan`/`getProjectPto` are server-only; the `(app)` gate is th
     can fire** (so a non-holder only ever sees "Ending soon"). The list additionally sends **no
     per-role cost at all**, only two whole-project figures — see
     [Margin & flags on the list](#margin--flags-on-the-list) and
-    [ADR 0056](../decisions/0056-projects-list-margin-and-derived-flags.md).
+    [ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md).
 - **PTO type/pending state needs `pto.review`:** the detail page's Time off tab shows dates + who to
   everyone but masks each leave's **type/pending state** otherwise — and **non-reviewers only get
   approved leave at all** (`getProjectPto` filters pending rows out and nulls those fields in the
@@ -1152,7 +1152,7 @@ The detail page's `canEdit` prop is an **affordance flag only**. **The matrix ga
   staffing change. A viewer **without `projects.viewMargin`** sees the same page with revenue only;
   the cost numbers are never sent. See [Budget & margin](#budget--margin).
 - **Spot the engagements in trouble without opening them** (built,
-  [ADR 0056](../decisions/0056-projects-list-margin-and-derived-flags.md)) — `/projects` shows each
+  [ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)) — `/projects` shows each
   card's **plan margin** and up to three **derived risk tags** (Negative margin / Low margin /
   Ending soon), so the question the page is opened with ("what needs attention?") is answered in the
   grid rather than one project at a time. One CAD/USD toggle in the filter bar re-denominates every
@@ -1297,7 +1297,7 @@ The detail page's `canEdit` prop is an **affordance flag only**. **The matrix ga
   before proposing it again); and margin per *person* (as opposed to per role and
   per project) doesn't exist.
 - **The list's risk flags have no history and can't be sorted or filtered on**
-  ([ADR 0056](../decisions/0056-projects-list-margin-and-derived-flags.md)). Revising a threshold
+  ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)). Revising a threshold
   re-tags every project retroactively and silently — `PROJECT_FLAGS_REVIEWED_ON` is the only signal
   of when the policy last moved. There is **no "flagged only" filter and no margin sort**: a margin
   column would need a story for the nulls (no budget, no roles, no `viewMargin`) first, and a

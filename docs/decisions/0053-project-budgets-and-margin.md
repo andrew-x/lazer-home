@@ -12,7 +12,7 @@ single card in code; the create-then-drop migration pair was **collapsed into on
 leaves no trace in the schema history. The reasoning is recorded below rather than deleted,
 because the rejected shape is the obvious one to re-propose.
 
-> **Extended, 2026-07-30 ([ADR 0056](./0056-projects-list-margin-and-derived-flags.md)) — margin
+> **Extended, 2026-07-30 ([ADR 0057](./0057-projects-list-margin-and-derived-flags.md)) — margin
 > now also appears on the `/projects` **list**, which deviates from §8 on purpose.** The list
 > **precomputes margin server-side in both display currencies** instead of shipping native
 > amounts + the rate table for the client to convert, so no individual's compensation-derived

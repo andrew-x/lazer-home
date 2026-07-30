@@ -79,7 +79,7 @@ external service is down.
   precomputes each project's plan margin server-side **in both display currencies**
   (there are only two) because the alternative would put per-role,
   compensation-derived hourly costs in a list payload — see
-  [ADR 0056](./0056-projects-list-margin-and-derived-flags.md) §3. The project
+  [ADR 0057](./0057-projects-list-margin-and-derived-flags.md) §3. The project
   *detail* page still follows the pattern above. The deciding question is **what the
   client-side path would have to put on the wire**, not which is tidier.
 - **Hardcoding all rates** — rejected: comp figures would silently go stale; the
