@@ -78,7 +78,8 @@ derived from individual compensation.
   concluding the laxer one is a hole.
 
 - **`projects.viewMargin`** — see a project's **cost and margin**: the budget summary panel
-  and per-role figures on the opportunity's Project-plan tab and the project detail page. A
+  and per-role figures on the opportunity's Project-plan tab and the project detail page, **and
+  the margin figure + margin-derived risk badges on the `/projects` list**. A
   **read** capability, deliberately separate from `projects.edit`, because a role's cost *is*
   an individual's compensation — a staffed role costs that person's pay ÷ 2080, so on a
   one-role project even the aggregate discloses their salary, and the open-role figure is a
@@ -87,7 +88,12 @@ derived from individual compensation.
   through `loadOpportunityPlan` (gated `crm.edit`) and sees revenue only.
   Masking lives **inside the reads** — `getProjectCostBasis` decides once and both plan
   readers omit `costBasis` entirely for a viewer without it, so no compensation-derived value
-  is ever sent to a client that merely hides it. See the
+  is ever sent to a client that merely hides it. The **list** goes through the same door
+  (`getProjectsMarginContext` → `getProjectCostBasis`): a null cost basis means every card's
+  `margin` is null, no currency toggle renders, and **no margin-based flag can fire**, so a
+  non-holder only ever sees "Ending soon". The list also sends **no per-role cost at all** —
+  only two whole-project figures per card
+  ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)). See the
   [projects domain](projects.md) and
   [ADR 0053](../decisions/0053-project-budgets-and-margin.md).
 
