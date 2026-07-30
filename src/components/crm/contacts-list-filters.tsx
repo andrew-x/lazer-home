@@ -16,8 +16,11 @@ import {
 } from "@/lib/core/list-href";
 
 /**
- * The contacts list filter bar: a name search (debounced), an "Include inactive"
- * toggle, and a location filter (city + "search nearby"), on one wrapping row.
+ * The contacts list filter bar, on two lines: a name search (debounced) with the
+ * "Include inactive" toggle and "Clear filters" on the first, and the location
+ * filter (city + "search nearby") spanning the second — same shape as the staff
+ * directory, where location gets its own line because the city picker plus its
+ * nearby switch is already a two-control unit.
  * State lives in the URL — each control navigates via `router.replace`, so the
  * server page re-fetches the filtered page and the back button restores prior
  * filters. Reads its current values from the `params` the page already parsed (no
@@ -49,29 +52,42 @@ export function ContactsListFilters({ params }: { params: SearchParams }) {
     currentInactive;
 
   return (
-    <div className="flex flex-wrap items-end gap-3">
-      <SearchFilter
-        value={search}
-        onChange={setSearch}
-        placeholder="Search by name…"
-      />
-
-      <div className="flex h-9 items-center gap-2 text-sm">
-        <Switch
-          id={inactiveId}
-          checked={currentInactive}
-          onCheckedChange={(checked) =>
-            router.replace(
-              buildListHref("/contacts", "contactsPage", params, {
-                inactive: checked ? "1" : null,
-              }),
-            )
-          }
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <SearchFilter
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by name…"
         />
-        <label htmlFor={inactiveId}>Include inactive</label>
+
+        <div className="flex h-9 items-center gap-2 text-sm">
+          <Switch
+            id={inactiveId}
+            checked={currentInactive}
+            onCheckedChange={(checked) =>
+              router.replace(
+                buildListHref("/contacts", "contactsPage", params, {
+                  inactive: checked ? "1" : null,
+                }),
+              )
+            }
+          />
+          <label htmlFor={inactiveId}>Include inactive</label>
+        </div>
+
+        {hasFilters ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.replace("/contacts")}
+          >
+            Clear filters
+          </Button>
+        ) : null}
       </div>
 
       <LocationFilterControl
+        fullWidth
         city={currentCity}
         nearby={currentNearby}
         onCityChange={(label) =>
@@ -91,16 +107,6 @@ export function ContactsListFilters({ params }: { params: SearchParams }) {
           )
         }
       />
-
-      {hasFilters ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.replace("/contacts")}
-        >
-          Clear filters
-        </Button>
-      ) : null}
     </div>
   );
 }
