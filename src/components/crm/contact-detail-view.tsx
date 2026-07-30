@@ -3,8 +3,6 @@ import type {
   ContactOpportunity,
   ContactProject,
 } from "@/actions/crm/getContactDetail";
-import { MailLink, PhoneLink } from "@/components/contact-link";
-import { ExternalLink } from "@/components/external-link";
 import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { InternalLink } from "@/components/internal-link";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -20,12 +18,17 @@ import {
   DetailLayout,
   DetailSection,
   DetailTable,
-  MetaField,
   SidebarSection,
   TableEmpty,
 } from "./detail-parts";
 import { EditContactDialog } from "./edit-contact-dialog";
 import { EntryLog } from "./entry-log";
+import { InlineContactCompanyField } from "./inline-contact-company-field";
+import {
+  InlineContactEmailField,
+  InlineContactLinkedinField,
+  InlineContactPhoneField,
+} from "./inline-contact-text-fields";
 import { InlineLocationField } from "./inline-location-field";
 import { InlineOwnerField } from "./inline-owner-field";
 import { InlineRelationshipStrengthField } from "./inline-relationship-strength-field";
@@ -104,10 +107,17 @@ function ProjectTable({ rows }: { rows: ContactProject[] }) {
 }
 
 /**
- * Read view of a contact: a meta sidebar (identity, contact methods, employer, the
- * Relationships group, plus the inline location, relationship-strength rating and
- * owner) beside three tabs — Activity (tasks + notes), Companies, and
- * Opportunities.
+ * Read view of a contact: a meta sidebar (identity, contact methods, employer,
+ * location, the Relationships group, relationship-strength rating and owner) beside
+ * three tabs — Activity (tasks + notes), Companies, and Opportunities.
+ *
+ * Every sidebar row below the identity block is **editable in place** — the pencil
+ * turns that one row into a control and saves just it, through
+ * `updateContactField`. The `EditContactDialog` is left with the identity block
+ * (names, job title, status): the things you'd change as one deliberate edit, not
+ * the ones you fix in passing. That split is why the dialog no longer round-trips
+ * hidden defaults — a scoped save can't clobber a value changed inline while it sat
+ * open.
  *
  * Every person-to-person link — manager included — lives in the sidebar's
  * Relationships group, which is also the only place they're added or removed; the
@@ -182,30 +192,34 @@ export function ContactDetailView({
             action={canEdit ? <EditContactDialog contact={contact} /> : null}
           />
 
+          {/* Every "how and where to reach them" fact, each editable in place. They
+              read as the same links they always did and only become inputs on the
+              pencil, so the block stays scannable. Location sits with them rather
+              than in a section of its own — it's the same kind of fact, and it reads
+              as one block with Company above it. */}
           <SidebarSection>
-            <MetaField label="Email">
-              <MailLink email={contact.email} />
-            </MetaField>
-            <MetaField label="Phone">
-              {contact.phone ? <PhoneLink phone={contact.phone} /> : null}
-            </MetaField>
-            <MetaField label="LinkedIn">
-              {contact.linkedinUrl ? (
-                <ExternalLink href={contact.linkedinUrl}>Profile</ExternalLink>
-              ) : null}
-            </MetaField>
-            <MetaField label="Company">
-              {contact.companyId && contact.companyName ? (
-                <InternalLink href={`/companies/${contact.companyId}`}>
-                  {contact.companyName}
-                </InternalLink>
-              ) : null}
-            </MetaField>
-            {/* Location sits with the contact methods rather than in a section of
-                its own: it's another "where to find them" fact, and it reads as one
-                block with Company above it. `SidebarSection` already expects mixed
-                label sources, so the inline editor's `FormField` picks up the same
-                label styling as the `MetaField`s around it. */}
+            <InlineContactEmailField
+              contactId={contact.id}
+              canEdit={canEdit}
+              email={contact.email}
+            />
+            <InlineContactPhoneField
+              contactId={contact.id}
+              canEdit={canEdit}
+              phone={contact.phone}
+            />
+            <InlineContactLinkedinField
+              contactId={contact.id}
+              canEdit={canEdit}
+              linkedinUrl={contact.linkedinUrl}
+            />
+            <InlineContactCompanyField
+              contactId={contact.id}
+              canEdit={canEdit}
+              companyId={contact.companyId}
+              companyName={contact.companyName}
+              hasManager={contact.manager !== null}
+            />
             <InlineLocationField
               kind="contact"
               entityId={contact.id}
