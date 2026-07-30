@@ -50,7 +50,7 @@ export default async function BonusDashboardPage({
         </h2>
         <p className="text-muted-foreground">
           One-off bonuses paid out in a calendar year, by line of business, role
-          and type.
+          and type — and by type within each of those.
         </p>
       </div>
 
