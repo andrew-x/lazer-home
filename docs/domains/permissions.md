@@ -227,6 +227,54 @@ decides access**, and everything about the entity routes through it.
   does need it, reuse this shape — one module, one decision function, hooks in metadata
   — never inline `managerId` comparisons in action bodies.
 
+### A capability *with* a full owner path — self-evaluations (reader ≠ writer)
+
+A **fourth** gate shape, also outside the matrix, also prose-only: **staff
+self-evaluations** (`staff_self_evaluation` — a person's own dated reflection
+questionnaire; [ADR 0055](../decisions/0055-self-evaluations-dated-records-with-snapshotted-answers.md)).
+Its distinguishing feature is that **reading and writing have different gates**, and the
+owner path is the *widest* answer rather than the narrowest.
+
+- **Read (`getStaffSelfEvaluations`): own always, anyone else needs `ratings.view`.** Self
+  is checked **first**, because it decides the write affordances too — a capability holder
+  on their own profile must get them. Anyone else gets **`null`** (no tab at all); `[]`
+  means "permitted, nothing written yet".
+- **Write (`authorizeSelfEvaluationMutate`): the author, and nobody else.** **No capability
+  path and no admin override** — deliberately unlike `reviewNoteAccess`, where `admin` *is*
+  a blanket override because a manager writing about someone else needs an escalation
+  route. A self-evaluation is a first-person document with **no separate author column**, so
+  a third party editing it would be putting words in someone's mouth, undetectably.
+  `ratings.view` grants reading and nothing more; `ratings.edit` means "assign levels" and
+  doesn't apply. If HR ever needs a retraction path, that's a separate audited action —
+  **not a widening of this hook.** A missing record denies with the same message as a
+  forbidden one, so ids can't be probed.
+- **`createSelfEvaluation` is intentionally gated by nothing beyond
+  `secureActionClient`'s auth** — its input carries **no target id**, the subject comes from
+  `getCurrentStaffId()`, and an `authorize` hook would have no `clientInput` field to read.
+  This is one of the few legitimate "no metadata gate" mutations; it is legitimate *only*
+  because the target is unforgeable.
+- **No matrix change.** `permissions.ts`, `permissions.test.ts` and the matrix table below
+  are **untouched** — this section is the contract.
+
+> **This reuses `ratings.view`, and that is precisely why ADR 0032 has to be defended
+> explicitly.** `ratings.view` guards manager-assigned L0–L4 levels that a staffer must
+> **never** see about themselves — yet here it guards data with a **full owner path**. The
+> two coexist only because they guard **different things**: a self-rating is the person's
+> own five-word self-assessment, chosen by them, on a different scale. **ADR 0032 is not
+> weakened.** The invariants: `getStaffSelfEvaluations` **must never join `staff_rating` or
+> project a level**, and the Self-evaluations tab **must never render an assigned level
+> beside a self-rating**. **"Show the assigned level for comparison" is the change that
+> would quietly end ADR 0032** — refuse it, or reopen 0032 on purpose.
+
+> **A chosen asymmetry worth knowing before you reason about "who can see what about me".**
+> `ratings.view` is **wider than the reporting line**, so *any* manager can read *any*
+> person's self-evaluation — while that same manager's **review notes** about the same
+> conversation are reporting-line-gated and therefore **narrower**. Net effect: **a
+> person's own words are more widely readable than their manager's notes about them.**
+> That follows from matching the Evaluations tab's gate rather than inventing a third one;
+> narrowing it would need either a new capability (a matrix change) or a **second**
+> relationship gate, which ADR 0049 wants to stay the only one. Recorded, not fixed.
+
 ### Resolving the caller — `ownStaffId` and the `activeOnly` decision
 
 `src/actions/staff/ownStaffId.ts` is the **one** low-level "user → own staff id" lookup
@@ -235,8 +283,17 @@ pass is an access-control decision — make it deliberately in every new action.
 
 | Pass `activeOnly: true` | Leave it off |
 |---|---|
-| `canGiveFeedback`, `getReviewNoteAccess`, `loadStaffProfileDrawer` | `canEditStaff`, `canViewCompensation`, `canEditTimesheet`, `getCurrentStaffId` |
+| `canGiveFeedback`, `getReviewNoteAccess`, `loadStaffProfileDrawer` | `canEditStaff`, `canViewCompensation`, `canEditTimesheet`, `getCurrentStaffId`, **`authorizeSelfEvaluationMutate` / `getStaffSelfEvaluations`** |
 | **Relationship / eligibility** checks — the caller's identity is used to reach **other people's** data, so `isActive` is part of "are you still one of us" | **Ownership** checks — the caller is resolved only to compare against **their own** row, so a stale-active caller reaches nothing but themselves |
+
+**The self-evaluation gates are the newest worked example of the right-hand column, and the
+reasoning is worth copying verbatim:** `authorizeSelfEvaluationMutate` resolves the caller
+*only* to compare against the record's own `staffId`, so a terminated-but-still-signed-in
+caller reaches **nothing but themselves** — harmless, and the `(app)` layout gives them no
+page to do it from anyway. Its read counterpart uses the same variant deliberately, so the
+two can't disagree about who "you" are. Contrast the *relationship* gates beside it in the
+same domain (`reviewNoteAccess`, `canGiveFeedback`), which use the caller's identity to
+reach **other people's** data and therefore must pass `activeOnly`.
 
 **Why this is load-bearing and not tidiness.** A terminated person **keeps a valid
 session until it expires**, and their former reports' `staff.managerId` **still points at
@@ -430,11 +487,20 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
   the four review-note mutations declare it in metadata and carry no authz in their
   bodies, and `getStaffReviewNotes` projects by the same decision (`null` = no surface
   at all). See *The one relationship-based gate* above.
+- **`src/actions/performance/selfEvaluationAccess.ts`** — the **author-only-write** site
+  (`authorizeSelfEvaluationMutate`, declared in the metadata of `updateSelfEvaluation` and
+  `deleteSelfEvaluation`, which carry no authz in their bodies). **No capability path, no
+  admin override**; `createSelfEvaluation` needs no hook at all because its input carries
+  no target id. The matching read `getStaffSelfEvaluations` projects by its own decision
+  (`null` = no surface at all) and additionally refuses `canManage` on a record whose
+  question set has moved on — an *integrity* rule, not authorization, enforced again inside
+  `updateSelfEvaluation` by re-reading the version from the DB. See *A capability with a
+  full owner path* above.
 - **`src/actions/staff/loadStaffProfileDrawer.ts`** — an **interactive read** (a
   `"use server"` + `secureActionClient` read, the documented exception to the
   server-only read rule, same shape as `loadOpportunityDetail`) and **the single best
-  worked example of this model in the codebase: one read composing five different gates,
-  none of them on the action itself.**
+  worked example of this model in the codebase: one read composing seven slice gates in
+  six different shapes, none of them on the action itself.**
   - **No capability gate on the action**, matching `/staff/[id]` — browsing a colleague's
     profile is open to any staff member. Each sensitive slice gates itself instead, and
     **every one returns `null` rather than throwing**, so an unentitled viewer gets a
@@ -443,20 +509,27 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
     | Slice | Gate | Kind of gate |
     |---|---|---|
     | `compensation` | `canViewCompensation(ctx.user, staffId)` | **ownership-or-capability** (own comp always; else `staff.viewCompensation`) |
+    | `bonusHistory` | `getStaffBonusHistory` → the same `canViewCompensation` | **ownership-or-capability** (own bonuses always; else `staff.viewCompensation` — *that a bonus was paid* is itself comp information) |
     | `pto` | `getStaffPto` self-gates | **ownership-or-capability** (`pto.review`) |
     | `feedback` | `getFeedbackAboutStaff` | **capability, with a self *tightening*** (`feedback.review`, but the recipient tier for yourself) |
     | `reviewNotes` | `getStaffReviewNotes` → `reviewNoteAccess` | **relationship** (`staff.managerId`) |
     | `evaluationHistory` | `getStaffEvaluationHistory` self-gates | **bare capability, no owner path** (`ratings.view` — a staffer never sees their own level) |
+    | `selfEvaluations` | `getStaffSelfEvaluations` self-gates | **capability *with* a full owner path, and a separate narrower write gate** (`ratings.view` to read anyone's; own always; **only the author may write, no admin override**) |
 
-    Five gates, five different shapes, one read — and note that **the action's own
+    Seven gates, **six** distinct shapes, one read — and note that **the action's own
     metadata declares none of them.** That's correct here precisely because the action
     grants nothing by itself; what it returns is assembled from reads that each answer
     for their own data. Don't "simplify" this by hoisting a capability onto the action.
     The table is also the clearest statement of how **unevenly** self-access is treated
-    across this app, and that unevenness is deliberate: **own comp always visible**, **own
-    feedback visible but tier-limited**, **own review notes visible once shared**, **own
-    rating level never visible at all** ([ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md)).
-    Don't regularise it — each row's asymmetry is the decision.
+    across this app, and that unevenness is deliberate: **own comp and bonuses always
+    visible**, **own feedback visible but tier-limited**, **own review notes visible once
+    shared**, **own rating level never visible at all**
+    ([ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md)),
+    **own self-evaluations always visible *and* the only thing here you may write**
+    ([ADR 0055](../decisions/0055-self-evaluations-dated-records-with-snapshotted-answers.md)).
+    Don't regularise it — each row's asymmetry is the decision. Note also the two rows that
+    share `ratings.view` and must **never** be merged or cross-joined: `evaluationHistory`
+    (levels, no owner path) and `selfEvaluations` (the person's own words, full owner path).
   - **This table is why a new drawer host needs no new gate.** The `/staff` org chart
     (`?view=org`) opens the same drawer from a node click and adds **no permission
     surface of its own** — it reads only `getStaffDirectory`, which never touches
