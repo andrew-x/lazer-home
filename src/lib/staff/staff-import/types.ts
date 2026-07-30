@@ -51,11 +51,11 @@ export const normalizedStaffSchema = z
     isBillable: z.boolean(),
     utilizationTarget: z.number().int().min(0).max(100),
     // Compensation. Required for staff going forward — the transform skips any row
-    // missing a comp value. `discretionaryBonus` isn't imported yet (defaults to 0).
+    // missing a comp value. One-off bonuses are NOT imported here: they are dated
+    // payments in `staffBonusPayment`, not employment terms.
     base: z.number().nonnegative(),
     hourlyRate: z.number().nonnegative(),
     guaranteedBonus: z.number().nonnegative(),
-    discretionaryBonus: z.number().nonnegative(),
     currency: z.enum(CURRENCY),
   })
   .refine((r) => r.terminationDate === null || !r.isActive, {
@@ -89,7 +89,6 @@ export const EMPLOYMENT_FIELDS = [
   "base",
   "hourlyRate",
   "guaranteedBonus",
-  "discretionaryBonus",
   "currency",
 ] as const satisfies readonly (keyof NormalizedStaff)[];
 
@@ -123,7 +122,6 @@ export type ComparableSnapshot = {
   base: number | null;
   hourlyRate: number | null;
   guaranteedBonus: number | null;
-  discretionaryBonus: number | null;
   currency: Currency | null;
   // Set in-app, never from the CSV; carried forward when import spawns a new
   // employment row so a re-sync never resets them.

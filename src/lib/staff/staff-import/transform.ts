@@ -132,8 +132,7 @@ export function transformRows(
     }
 
     // Compensation is required for staff going forward. Skip any row missing a
-    // value (0 is allowed; blank/invalid/negative parses to null). `discretionaryBonus`
-    // isn't imported yet, so it defaults to 0.
+    // value (0 is allowed; blank/invalid/negative parses to null).
     const base = parseNumber(getField(raw, "Annual base remuneration"));
     const hourlyRate = parseNumber(getField(raw, "Hourly Rate"));
     // Guaranteed bonus is optional in the source data: a blank cell means "no
@@ -193,7 +192,6 @@ export function transformRows(
       base,
       hourlyRate,
       guaranteedBonus,
-      discretionaryBonus: 0,
       currency,
     });
   });

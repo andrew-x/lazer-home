@@ -30,7 +30,6 @@ const MONEY_FIELDS = new Set<ComparableField>([
   "base",
   "hourlyRate",
   "guaranteedBonus",
-  "discretionaryBonus",
 ]);
 
 function formatValue(field: ComparableField, value: unknown): string {

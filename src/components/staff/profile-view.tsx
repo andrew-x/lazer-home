@@ -233,7 +233,6 @@ export function ProfileView({
                 base={employment?.base ?? null}
                 hourlyRate={employment?.hourlyRate ?? null}
                 guaranteedBonus={employment?.guaranteedBonus ?? null}
-                discretionaryBonus={employment?.discretionaryBonus ?? null}
                 currency={employment?.currency ?? null}
               />
             </CardContent>

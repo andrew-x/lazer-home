@@ -5,6 +5,7 @@ import { generateId } from "@/lib/db/ids";
 import {
   type Staff,
   staff,
+  staffBonusPayment,
   staffEmployment,
   staffPto,
   user,
@@ -15,8 +16,17 @@ import {
   PROFICIENCY_LEVELS,
   type StaffSkill,
 } from "@/lib/staff/skills";
+import { BONUS_TYPES } from "@/lib/staff/staff-bonus";
 import type { SeedDb } from "./client";
-import { chance, faker, isoDate, money, pastDate } from "./faker";
+import {
+  chance,
+  faker,
+  isoDate,
+  maxDate,
+  money,
+  pastDate,
+  shiftDays,
+} from "./faker";
 
 // Seeded staff locations focus on US & Canada, drawn from the static world-cities
 // list so every seeded value is one the location picker would actually offer.
@@ -50,6 +60,7 @@ const MANAGER_COUNT = 8;
 type StaffInsert = InferInsertModel<typeof staff>;
 type EmploymentInsert = InferInsertModel<typeof staffEmployment>;
 type PtoInsert = InferInsertModel<typeof staffPto>;
+type BonusInsert = InferInsertModel<typeof staffBonusPayment>;
 type UserInsert = InferInsertModel<typeof user>;
 
 function pickSkills(): StaffSkill[] {
@@ -86,15 +97,15 @@ function makeEmployment(
     base: money(90_000, 210_000),
     hourlyRate: money(60, 180),
     guaranteedBonus: money(0, 20_000),
-    discretionaryBonus: 0,
     currency: faker.helpers.arrayElement(CURRENCY),
   };
 }
 
 /**
  * Seed users + staff (with a 3-tier manager hierarchy: leaders → managers → ICs),
- * one current employment row each, and PTO for a subset. Returns the inserted
- * staff rows for downstream domains to reference.
+ * one current employment row each, PTO for a subset, and bonus payments spread
+ * over the last three calendar years. Returns the inserted staff rows for
+ * downstream domains to reference.
  */
 export async function seedStaff(db: SeedDb): Promise<Staff[]> {
   const staffRows: StaffInsert[] = [];
@@ -210,6 +221,50 @@ export async function seedStaff(db: SeedDb): Promise<Staff[]> {
     }
   }
   if (ptoRows.length > 0) await db.insert(staffPto).values(ptoRows);
+
+  // --- Bonus payments ------------------------------------------------------
+  // Spread over the last few calendar years so the dashboard's year selector has
+  // something to compare. `ripplingId` stays null — these are the hand-entered
+  // shape, not imported ones.
+  const bonusRows: BonusInsert[] = [];
+  for (const row of staffRows) {
+    // Not everyone gets a bonus; some get several across different years. Departed
+    // staff ALWAYS get one: the dashboard deliberately counts payments to people
+    // who have since left, and with only a handful of leavers a coin-flip leaves
+    // that path unexercised (it seeded zero of them before this was forced).
+    if (!row.terminationDate && !chance(0.55)) continue;
+    const joinDate = row.joinDate as string;
+    for (let i = 0; i < faker.number.int({ min: 1, max: 4 }); i++) {
+      const type = faker.helpers.arrayElement(BONUS_TYPES);
+      bonusRows.push({
+        id: generateId("sbp"),
+        staffId: row.id,
+        // A SIGNING bonus is dated the day BEFORE the join date, so it precedes
+        // the person's first employment row — the attribution-fallback case
+        // `employmentAsOf` handles, and the only case that should hit it.
+        //
+        // Every other type is clamped to on-or-after the join date: a spot bonus
+        // paid before someone was hired is not data we'd ever see, and seeding it
+        // makes the fallback path look far commoner than it is.
+        paymentDate:
+          type === "SIGNING"
+            ? isoDate(shiftDays(new Date(joinDate), -1))
+            : maxDate(isoDate(faker.date.recent({ days: 3 * 365 })), joinDate),
+        type,
+        // A gift is a modest equivalent value; cash bonuses are larger.
+        amount: type === "GIFT" ? money(100, 1_500) : money(1_000, 25_000),
+        // Usually the currency they're paid in, occasionally another — the
+        // dashboard converts, so a mixed set exercises that path.
+        currency: chance(0.85)
+          ? (employmentRows.find((e) => e.staffId === row.id)?.currency ??
+            "CAD")
+          : faker.helpers.arrayElement(CURRENCY),
+        notes: chance(0.5) ? faker.lorem.sentence() : null,
+      });
+    }
+  }
+  if (bonusRows.length > 0)
+    await db.insert(staffBonusPayment).values(bonusRows);
 
   // Re-read so downstream domains get the canonical persisted rows.
   return db.query.staff.findMany();

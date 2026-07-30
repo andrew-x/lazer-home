@@ -13,7 +13,7 @@ export * from "./performance-schema";
 export * from "./projects-schema";
 // Survey responses domain (generic responses table).
 export * from "./responses-schema";
-// Staff profiles domain (staff, staff_employment, staff_pto + enums).
+// Staff profiles domain (staff, staff_employment, staff_bonus_payment, staff_pto + enums).
 export * from "./staff-schema";
 // Tasks — assignable, completable to-dos on CRM entities.
 export * from "./tasks-schema";
