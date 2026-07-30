@@ -5,7 +5,12 @@ import { usePathname, useRouter } from "next/navigation";
 import { useMemo } from "react";
 import type { BonusRecord } from "@/actions/performance/getBonusSummaryData";
 import type { ExchangeRates } from "@/actions/staff/getExchangeRates";
-import { FilterLabel } from "@/components/form/filters";
+import { ALL, FilterLabel } from "@/components/form/filters";
+import {
+  type BonusMatrixPayment,
+  BonusTypeMatrix,
+  type MatrixAxis,
+} from "@/components/performance/bonus-type-matrix";
 import {
   type DashboardFilters,
   type FilterOptions,
@@ -80,18 +85,36 @@ function YearPicker({ years, year }: { years: number[]; year: number }) {
   );
 }
 
-/** The three axes the same payment set is broken down along. */
-const AXES = [
-  { key: "lineOfBusiness", heading: "Line of business" },
-  { key: "role", heading: "Role" },
-  { key: "type", heading: "Bonus type" },
-] as const;
+/**
+ * The dimensions bonus type is crossed with in {@link BonusTypeMatrix}. They are
+ * also the first two single-axis tables, so heading and labels are declared once
+ * here and shared rather than restated per table.
+ */
+const CROSS_CUT_AXES: readonly Omit<MatrixAxis, "order">[] = [
+  {
+    key: "lineOfBusiness",
+    heading: "Line of business",
+    labels: LINE_OF_BUSINESS_LABELS,
+  },
+  { key: "role", heading: "Role", labels: ROLE_LABELS },
+];
 
-type AxisKey = (typeof AXES)[number]["key"];
+type AxisKey = MatrixAxis["key"] | "type";
+
+/** The three axes the same payment set is broken down along. */
+const AXES: readonly {
+  key: AxisKey;
+  heading: string;
+  labels: Record<string, string>;
+}[] = [
+  ...CROSS_CUT_AXES,
+  { key: "type", heading: "Bonus type", labels: BONUS_TYPE_LABELS },
+];
 
 /**
  * The body of the **Bonuses dashboard** (`/dashboards/bonuses`): what we paid out
- * in one calendar year, broken down by line of business, role and bonus type.
+ * in one calendar year, broken down by line of business, role and bonus type, then
+ * with type crossed against the other two ({@link BonusTypeMatrix}).
  *
  * Takes the filter/currency state as a prop rather than owning it — see
  * `bonus-dashboard.tsx`, the shell that holds it. The year, by contrast, is a
@@ -115,6 +138,7 @@ export function BonusBreakdown({
   rates,
   filters,
   filterOptions,
+  bonusType,
 }: {
   records: BonusRecord[];
   years: number[];
@@ -123,22 +147,38 @@ export function BonusBreakdown({
   rates: ExchangeRates;
   filters: DashboardFilters;
   filterOptions: FilterOptions;
+  /** The bonus-type filter, or `ALL`. Bonus-only, so it lives outside `filters`. */
+  bonusType: string;
 }) {
   const { lineOfBusiness, role, employmentType, currency } = filters;
 
   // Normalize every payment to the display currency once, then aggregate along
   // each axis off the same rows — so the three tables can never disagree on a
   // total. Payments, not people: one person may appear repeatedly.
-  const byAxis = useMemo(() => {
-    const filtered = records.filter((r) =>
-      matchesFilters(r, { lineOfBusiness, role, employmentType }),
-    );
+  //
+  // The type filter narrows this one shared set, BEFORE any axis: the stat cards,
+  // every table and the matrix must aggregate identical rows or the footers start
+  // contradicting the cards (see `overall` below).
+  const { byAxis, payments, matrixAxes } = useMemo(() => {
+    const payments: BonusMatrixPayment[] = records
+      .filter(
+        (r) =>
+          (bonusType === ALL || r.type === bonusType) &&
+          matchesFilters(r, { lineOfBusiness, role, employmentType }),
+      )
+      .map((r) => ({
+        recipientKey: r.recipientKey,
+        lineOfBusiness: r.lineOfBusiness,
+        role: r.role,
+        type: r.type,
+        amount: convert(r.amount, r.currency, currency, rates.rates),
+      }));
 
     const rowsFor = (axis: AxisKey): BonusStatRow[] =>
-      filtered.map((r) => ({
-        recipientKey: r.recipientKey,
-        group: r[axis],
-        amount: convert(r.amount, r.currency, currency, rates.rates),
+      payments.map((p) => ({
+        recipientKey: p.recipientKey,
+        group: p[axis],
+        amount: p.amount,
       }));
 
     const order: Record<AxisKey, readonly string[]> = {
@@ -146,17 +186,18 @@ export function BonusBreakdown({
       role: filterOptions.role,
       type: BONUS_TYPES,
     };
-    const labels: Record<AxisKey, Record<string, string>> = {
-      lineOfBusiness: LINE_OF_BUSINESS_LABELS,
-      role: ROLE_LABELS,
-      type: BONUS_TYPE_LABELS,
-    };
 
-    return AXES.map((axis) => ({
-      ...axis,
-      labels: labels[axis.key],
-      ...computeBonusBreakdown(rowsFor(axis.key), order[axis.key]),
-    }));
+    return {
+      payments,
+      byAxis: AXES.map((axis) => ({
+        ...axis,
+        ...computeBonusBreakdown(rowsFor(axis.key), order[axis.key]),
+      })),
+      matrixAxes: CROSS_CUT_AXES.map((axis) => ({
+        ...axis,
+        order: order[axis.key],
+      })),
+    };
   }, [
     records,
     rates,
@@ -165,6 +206,7 @@ export function BonusBreakdown({
     lineOfBusiness,
     role,
     employmentType,
+    bonusType,
     currency,
   ]);
 
@@ -212,59 +254,69 @@ export function BonusBreakdown({
           No bonus payments in {year} match the selected filters.
         </p>
       ) : (
-        byAxis.map(({ key, heading, labels, groups, overall: axis }) => (
-          <div key={key} className="rounded border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{heading}</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Payments</TableHead>
-                  <TableHead className="text-right">Recipients</TableHead>
-                  <TableHead className="text-right">Avg / recipient</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {groups.map(({ group, stats }) => (
-                  <TableRow key={group}>
-                    <TableCell className="font-medium">
-                      {labels[group] ?? group}
+        <>
+          {byAxis.map(({ key, heading, labels, groups, overall: axis }) => (
+            <div key={key} className="rounded border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{heading}</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Payments</TableHead>
+                    <TableHead className="text-right">Recipients</TableHead>
+                    <TableHead className="text-right">
+                      Avg / recipient
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {groups.map(({ group, stats }) => (
+                    <TableRow key={group}>
+                      <TableCell className="font-medium">
+                        {labels[group] ?? group}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {money(stats.total)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {stats.payments}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {stats.recipients}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {money(stats.avgPerRecipient)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+                <TableFooter>
+                  <TableRow>
+                    <TableCell>All</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {money(axis.total)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {money(stats.total)}
+                      {axis.payments}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {stats.payments}
+                      {axis.recipients}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {stats.recipients}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {money(stats.avgPerRecipient)}
+                      {money(axis.avgPerRecipient)}
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-              <TableFooter>
-                <TableRow>
-                  <TableCell>All</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {money(axis.total)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {axis.payments}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {axis.recipients}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {money(axis.avgPerRecipient)}
-                  </TableCell>
-                </TableRow>
-              </TableFooter>
-            </Table>
-          </div>
-        ))
+                </TableFooter>
+              </Table>
+            </div>
+          ))}
+
+          <BonusTypeMatrix
+            payments={payments}
+            axes={matrixAxes}
+            money={money}
+          />
+        </>
       )}
 
       <p className="text-xs text-muted-foreground">

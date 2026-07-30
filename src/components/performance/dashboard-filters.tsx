@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import type { ExchangeRates } from "@/actions/staff/getExchangeRates";
 import { toEnumValue } from "@/components/form/enum-select";
 import { ALL, FilterLabel, SegmentedFilter } from "@/components/form/filters";
@@ -92,15 +92,23 @@ export function matchesFilters(
  * on screen** (the levels dashboard) — the toggle would change nothing there, and
  * tying it to the rates makes it impossible to offer a currency choice without the
  * rates that would honour it.
+ *
+ * `extraFilters` is the slot for a dimension only ONE dashboard has (the bonus
+ * dashboard's bonus type). Such a filter must stay out of `useDashboardFilters` and
+ * `matchesFilters` — those are shared with dashboards where the dimension doesn't
+ * exist — so the owning dashboard holds its state and passes the control in here to
+ * sit alongside the shared ones.
  */
 export function DashboardFilterBar({
   filters,
   options,
   rates,
+  extraFilters,
 }: {
   filters: DashboardFilters;
   options: FilterOptions;
   rates?: ExchangeRates;
+  extraFilters?: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -126,6 +134,7 @@ export function DashboardFilterBar({
           labels={ROLE_LABELS}
           onChange={filters.setRole}
         />
+        {extraFilters}
       </div>
 
       {rates ? (
