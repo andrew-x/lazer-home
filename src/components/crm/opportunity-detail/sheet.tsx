@@ -15,6 +15,7 @@ import type { OpportunityDetail } from "@/actions/crm/getOpportunity";
 import { loadOpportunityDetail } from "@/actions/crm/loadOpportunityDetail";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import type { EntityOption } from "@/components/form/entity-multi-combobox";
+import { COMPACT_META_FIELDS } from "@/components/form/field-density";
 import { IconButton } from "@/components/icon-button";
 import { OpportunityProjectPlan } from "@/components/projects/opportunity-plan/opportunity-project-plan";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/core/utils";
 import { EntryLog } from "../entry-log";
 import { TaskList } from "../task-list";
 import { CompanyField } from "./fields/company-field";
@@ -234,7 +236,7 @@ function OpportunityDetailView({
           value="details"
           className="grid grid-cols-1 gap-6 pt-4 lg:grid-cols-[18rem_1fr] lg:gap-8"
         >
-          <div className="flex flex-col gap-4">
+          <div className={cn("flex flex-col gap-3", COMPACT_META_FIELDS)}>
             <LineOfBusinessField detail={detail} refresh={refresh} />
             <SourceField detail={detail} refresh={refresh} />
             <CompanyField detail={detail} refresh={refresh} />
