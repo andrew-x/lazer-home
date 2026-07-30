@@ -7,6 +7,8 @@ import type { EvaluationHistoryEntry } from "@/actions/performance/getStaffEvalu
 import { getStaffEvaluationHistory } from "@/actions/performance/getStaffEvaluationHistory";
 import type { StaffReviewNotesView } from "@/actions/performance/getStaffReviewNotes";
 import { getStaffReviewNotes } from "@/actions/performance/getStaffReviewNotes";
+import type { StaffSelfEvaluationsView } from "@/actions/performance/getStaffSelfEvaluations";
+import { getStaffSelfEvaluations } from "@/actions/performance/getStaffSelfEvaluations";
 import { canViewCompensation } from "@/actions/staff/canViewCompensation";
 import type { StaffBonusView } from "@/actions/staff/getStaffBonusHistory";
 import { getStaffBonusHistory } from "@/actions/staff/getStaffBonusHistory";
@@ -83,6 +85,13 @@ export type StaffProfileDrawerData = {
   feedback: StaffFeedbackView | null;
   /** Null when this viewer may see no review notes about this person. */
   reviewNotes: StaffReviewNotesView | null;
+  /**
+   * The person's own self-evaluations. Null when this viewer may see none — own
+   * always, anyone else's needs `ratings.view` — never "none written yet", which the
+   * panel renders itself. Unlike `evaluationHistory` this read HAS an owner path: a
+   * self-rating is the person's own words, not a level assigned to them.
+   */
+  selfEvaluations: StaffSelfEvaluationsView | null;
 };
 
 /**
@@ -117,6 +126,7 @@ export const loadStaffProfileDrawer = secureActionClient
         reviewNotes,
         evaluationHistory,
         bonusHistory,
+        selfEvaluations,
         canViewComp,
       ] = await Promise.all([
         getStaffProfile(parsedInput.staffId),
@@ -130,6 +140,8 @@ export const loadStaffProfileDrawer = secureActionClient
         // Self-gating on the same rule as `compensation`: own bonuses always,
         // anyone else's needs `staff.viewCompensation`.
         getStaffBonusHistory(parsedInput.staffId),
+        // Self-gating: own always, anyone else's needs `ratings.view`.
+        getStaffSelfEvaluations(parsedInput.staffId),
         canViewCompensation(ctx.user, parsedInput.staffId),
       ]);
 
@@ -173,6 +185,7 @@ export const loadStaffProfileDrawer = secureActionClient
         evaluationHistory,
         feedback,
         reviewNotes,
+        selfEvaluations,
       };
     },
   );

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getFeedbackAboutStaff } from "@/actions/feedback/getFeedbackAboutStaff";
 import { getStaffReviewNotes } from "@/actions/performance/getStaffReviewNotes";
+import { getStaffSelfEvaluations } from "@/actions/performance/getStaffSelfEvaluations";
 import { getManualOfMe } from "@/actions/responses/getManualOfMe";
 import { getWaysOfWorking } from "@/actions/responses/getWaysOfWorking";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
@@ -27,11 +28,13 @@ export default async function ProfilePage() {
   // page if the record vanished mid-request.
   if (!user || !staffId) notFound();
 
-  // Own profile — always allowed to see own compensation. Feedback and review
-  // notes are NOT hard-coded like `canEdit`/`canViewCompensation` below: seeing
-  // your own profile doesn't decide either. The reads do — you get the limited
-  // recipient tier of your feedback, and only the review notes your manager has
-  // *shared* (a person is never their own note-manager).
+  // Own profile — always allowed to see own compensation. Feedback, review notes and
+  // self-evaluations are NOT hard-coded like `canEdit`/`canViewCompensation` below:
+  // seeing your own profile doesn't decide any of them. The reads do — you get the
+  // limited recipient tier of your feedback, only the review notes your manager has
+  // *shared* (a person is never their own note-manager), and full read/write on your
+  // own self-evaluations (where being yourself is the *widest* answer, not the
+  // narrowest — passing the read's answer is right either way).
   const [
     profile,
     projects,
@@ -41,6 +44,7 @@ export default async function ProfilePage() {
     waysOfWorking,
     feedback,
     reviewNotes,
+    selfEvaluations,
   ] = await Promise.all([
     getStaffProfile(staffId),
     getStaffProjects(staffId),
@@ -50,6 +54,7 @@ export default async function ProfilePage() {
     getWaysOfWorking(staffId),
     getFeedbackAboutStaff(staffId),
     getStaffReviewNotes(staffId),
+    getStaffSelfEvaluations(staffId),
   ]);
   if (!profile) notFound();
 
@@ -65,6 +70,7 @@ export default async function ProfilePage() {
       pto={pto}
       feedback={feedback}
       reviewNotes={reviewNotes}
+      selfEvaluations={selfEvaluations}
       canEdit={true}
       canViewCompensation={true}
     />

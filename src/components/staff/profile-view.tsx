@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { StaffFeedbackView } from "@/actions/feedback/getFeedbackAboutStaff";
 import type { StaffReviewNotesView } from "@/actions/performance/getStaffReviewNotes";
+import type { StaffSelfEvaluationsView } from "@/actions/performance/getStaffSelfEvaluations";
 import type { ManualOfMeEntry } from "@/actions/responses/getManualOfMe";
 import type { WaysOfWorking } from "@/actions/responses/getWaysOfWorking";
 import type { HistoryEntry } from "@/actions/staff/getStaffHistory";
@@ -11,6 +12,7 @@ import type { StaffProjectSummary } from "@/actions/staff/getStaffProjects";
 import type { StaffPtoView } from "@/actions/staff/getStaffPto";
 import { StaffFeedbackPanel } from "@/components/feedback/staff-feedback-panel";
 import { ReviewNotesPanel } from "@/components/performance/review-notes-panel";
+import { SelfEvaluationPanel } from "@/components/performance/self-evaluation-panel";
 import { CompensationSection } from "@/components/staff/compensation-section";
 import { EditClientIntroDialog } from "@/components/staff/edit-client-intro-dialog";
 import { EditLinksDialog } from "@/components/staff/edit-links-dialog";
@@ -109,6 +111,7 @@ export function ProfileView({
   pto,
   feedback,
   reviewNotes,
+  selfEvaluations,
   canEdit,
   canViewCompensation,
 }: {
@@ -132,6 +135,11 @@ export function ProfileView({
   feedback: StaffFeedbackView | null;
   /** Review notes as this viewer may see them; null hides the tab entirely. */
   reviewNotes: StaffReviewNotesView | null;
+  /**
+   * This person's own self-evaluations, or null when this viewer may see none (own
+   * always; anyone else's needs `ratings.view`) — the tab isn't rendered at all.
+   */
+  selfEvaluations: StaffSelfEvaluationsView | null;
   /** Whether the viewer may edit this profile (own profile, or `staff.edit`). */
   canEdit: boolean;
   /** Whether the viewer may see this person's compensation (own, or `staff.viewCompensation`). */
@@ -251,13 +259,18 @@ export function ProfileView({
               <TabsTrigger value="manual-of-me">Manual of Me</TabsTrigger>
               <TabsTrigger value="ways-of-working">Ways of Working</TabsTrigger>
               <TabsTrigger value="resume">Resume</TabsTrigger>
-              {/* Both gated tabs are viewer-dependent: rendered only when their
+              {/* All three gated tabs are viewer-dependent: rendered only when their
                   read returned something this viewer may see. */}
               {feedback ? (
                 <TabsTrigger value="peer-feedback">Peer feedback</TabsTrigger>
               ) : null}
               {reviewNotes ? (
                 <TabsTrigger value="review-notes">Review notes</TabsTrigger>
+              ) : null}
+              {selfEvaluations ? (
+                <TabsTrigger value="self-evaluations">
+                  Self-evaluations
+                </TabsTrigger>
               ) : null}
               <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
@@ -444,6 +457,17 @@ export function ProfileView({
                     staffId={staffId}
                     staffName={profile.name}
                     view={reviewNotes}
+                  />
+                </TabSection>
+              </TabsContent>
+            ) : null}
+
+            {selfEvaluations ? (
+              <TabsContent value="self-evaluations">
+                <TabSection title="Self-evaluations">
+                  <SelfEvaluationPanel
+                    staffName={profile.name}
+                    view={selfEvaluations}
                   />
                 </TabSection>
               </TabsContent>
