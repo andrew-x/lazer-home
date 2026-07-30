@@ -1,13 +1,10 @@
 "use client";
 
 import { IconClock, IconCoin, IconUsers } from "@tabler/icons-react";
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { BonusSummaryData } from "@/actions/performance/getBonusSummaryData";
 import type { RatingRecord } from "@/actions/performance/getRatingsSummaryData";
 import type { CompensationRecord } from "@/actions/staff/getCompensationSummaryData";
 import type { ExchangeRates } from "@/actions/staff/getExchangeRates";
-import { BonusBreakdown } from "@/components/performance/bonus-breakdown";
 import { CompensationScatter } from "@/components/performance/compensation-scatter";
 import {
   DashboardFilterBar,
@@ -16,7 +13,6 @@ import {
   useDashboardFilters,
 } from "@/components/performance/dashboard-filters";
 import { StatCard } from "@/components/performance/stat-card";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -40,27 +36,23 @@ import { formatLevel, RATING_LEVELS } from "@/lib/staff/staff-rating";
 const LEVEL_ORDER = RATING_LEVELS.map((level) => formatLevel(level));
 
 /**
- * The **Compensation dashboard** (`/performance/compensation`): workforce
- * headcount + compensation, overall and broken down **by role** and **by staff
- * level**, over anonymized latest-employment rows, plus a **bonus payments**
- * section for one calendar year. Gated by `staff.viewCompensation` at the page.
- * The level *analytics* (distribution, average level, subratings) live on the
- * sibling Performance dashboard (`/performance/levels`) — see
- * `performance-dashboard.tsx`.
+ * The **Compensation dashboard** (`/dashboards/compensation`): workforce headcount
+ * + compensation, overall and broken down **by role** and **by staff level**, over
+ * anonymized latest-employment rows. Gated by `staff.viewCompensation` at the page.
  *
- * The filter bar and display currency are owned here and shared with the bonus
- * section, so narrowing to one discipline narrows the whole page. The bonus
- * section's *year* is a server concern (a separate read per year) and so arrives
- * as props rather than living in this component's state.
+ * Two sibling dashboards own the neighbouring cuts of the same workforce, and the
+ * split is deliberate — each answers one question rather than this page answering
+ * three: level *analytics* (distribution, average level, subratings) live at
+ * `/dashboards/levels` (`levels-dashboard.tsx`), and one-off **bonus payments** at
+ * `/dashboards/bonuses` (`bonus-dashboard.tsx`). Bonuses in particular don't
+ * reconcile per-head with anything here — they include people who have since left
+ * — which is why they no longer sit under these tables.
  */
 export function CompensationDashboard({
   records,
   ratingRecords,
   rates,
   filterOptions,
-  bonuses,
-  bonusYear,
-  canEditBonuses,
 }: {
   records: CompensationRecord[];
   /**
@@ -71,12 +63,6 @@ export function CompensationDashboard({
   ratingRecords?: RatingRecord[];
   rates: ExchangeRates;
   filterOptions: FilterOptions;
-  /** The bonus section's data for the selected year — see `getBonusSummaryData`. */
-  bonuses: BonusSummaryData;
-  /** The selected calendar year, from the `bonusYear` search param. */
-  bonusYear: number;
-  /** True when this viewer may also record payments (`staff.edit` + comp). */
-  canEditBonuses: boolean;
 }) {
   const filters = useDashboardFilters();
   const { lineOfBusiness, role, employmentType, currency } = filters;
@@ -353,40 +339,6 @@ export function CompensationDashboard({
           </div>
         </>
       )}
-
-      {/* Bonus payments — outside the headcount guard above on purpose: bonuses
-          were paid to whoever was paid, including people no longer on staff, so
-          "no active staff match these filters" must not hide them. */}
-      <section className="flex flex-col gap-4 border-t pt-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 className="font-heading text-lg font-semibold">
-              Bonus payments
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              One-off bonuses paid out, by line of business, role and type.
-            </p>
-          </div>
-          {canEditBonuses ? (
-            <Button
-              variant="outline"
-              size="sm"
-              render={<Link href="/performance/compensation/bonuses" />}
-            >
-              Manage payments
-            </Button>
-          ) : null}
-        </div>
-        <BonusBreakdown
-          records={bonuses.records}
-          years={bonuses.years}
-          year={bonusYear}
-          unattributed={bonuses.unattributed}
-          rates={rates}
-          filters={filters}
-          filterOptions={filterOptions}
-        />
-      </section>
     </div>
   );
 }

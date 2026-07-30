@@ -14,6 +14,7 @@
  */
 
 import type { PermissionCheck } from "@/lib/auth/permissions";
+import { firstParam } from "@/lib/core/list-href";
 
 /**
  * Why a bonus was paid. Ordered roughly by how often we expect to record each.
@@ -94,12 +95,13 @@ export const BONUS_PAYMENT_READ_ACCESS: PermissionCheck = {
 };
 
 /**
- * The URL search params the two bonus surfaces carry their selected year in: the
- * dashboard section (`bonusYear`, alongside the rest of that page) and the entry
- * screen (`year`, which owns its whole page).
+ * The URL search param both bonus surfaces — the dashboard (`/dashboards/bonuses`)
+ * and the entry screen (`/people/bonus-payments`) — carry their selected calendar
+ * year in. One key, because each owns its whole page; it was two while the
+ * dashboard was a section sharing a URL with the rest of compensation.
  *
- * These live HERE, in a neutral module, and **must not** move into the client
- * components that render the pickers — even though that is where they are used.
+ * This lives HERE, in a neutral module, and **must not** move into the client
+ * components that render the pickers — even though that is where it is used.
  * A Server Component page has to read `searchParams[thisKey]`, and when a server
  * module imports a value from a `"use client"` module the bundler replaces it with
  * a client-reference proxy rather than the string. The lookup then silently misses
@@ -107,5 +109,17 @@ export const BONUS_PAYMENT_READ_ACCESS: PermissionCheck = {
  * else. That is not a hypothetical — it is the bug this module comment exists to
  * prevent recurring.
  */
-export const BONUS_YEAR_PARAM = "bonusYear";
-export const BONUS_MANAGER_YEAR_PARAM = "year";
+export const BONUS_YEAR_PARAM = "year";
+
+/**
+ * Validate a `year` search param, falling back to the current calendar year.
+ * Bounded to a plausible range so a crafted value can't drive an absurd query or
+ * render a nonsense heading. Shared by both bonus pages so they can't disagree on
+ * what counts as a valid year.
+ */
+export function parseBonusYear(value: string | string[] | undefined): number {
+  const thisYear = new Date().getFullYear();
+  const parsed = Number.parseInt(firstParam(value), 10);
+  if (!Number.isInteger(parsed)) return thisYear;
+  return parsed >= 2000 && parsed <= thisYear + 1 ? parsed : thisYear;
+}

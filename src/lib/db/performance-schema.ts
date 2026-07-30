@@ -151,7 +151,7 @@ export const staffRating = pgTable(
 // of `staffEmployment` (ADR 0020), so a committed plan keeps comparing its
 // proposal against live comp and flags anything not yet applied upstream.
 //
-// Unlike the aggregate `/performance` reads (which are deliberately identity-
+// Unlike the aggregate `/dashboards` reads (which are deliberately identity-
 // free), this surface is inherently per-person. It carries the stricter combined
 // gate — `staff.viewCompensation` AND `ratings.edit` — on every read and write.
 // See docs/domains/performance.md.

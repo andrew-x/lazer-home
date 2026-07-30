@@ -35,10 +35,13 @@ so the admin role retains its built-in capabilities) with two business resources
   [ADR 0041](../decisions/0041-allocation-notes-on-staff.md) and
   [allocations.md](./allocations.md).
 - **`staff.viewCompensation`** — view *another* staff member's compensation (on
-  their profile and in the history feed), **and** every bulk/aggregate comp surface:
-  the Compensation dashboard (`/performance/compensation`), including its
-  comp-by-level table (which additionally needs `ratings.view`). (Your own
-  compensation is always visible.)
+  their profile and in the history feed, **and their bonus payments** — the drawer's
+  Bonuses tab and the feed's `BONUS` entries, since the fact a bonus was paid is itself
+  comp information), **and** every bulk/aggregate comp surface: the Compensation
+  dashboard (`/dashboards/compensation`), including its comp-by-level table (which
+  additionally needs `ratings.view`), and the Bonus dashboard
+  (`/dashboards/bonuses`, as `BONUS_PAYMENT_READ_ACCESS`). (Your own
+  compensation — and your own bonuses — are always visible.)
 - **`pto.review`** — view the aggregated PTO summary of *other* staff. (Your own
   PTO is always visible.)
 
@@ -75,7 +78,8 @@ derived from individual compensation.
   concluding the laxer one is a hole.
 
 - **`projects.viewMargin`** — see a project's **cost and margin**: the budget summary panel
-  and per-role figures on the opportunity's Project-plan tab and the project detail page. A
+  and per-role figures on the opportunity's Project-plan tab and the project detail page, **and
+  the margin figure + margin-derived risk badges on the `/projects` list**. A
   **read** capability, deliberately separate from `projects.edit`, because a role's cost *is*
   an individual's compensation — a staffed role costs that person's pay ÷ 2080, so on a
   one-role project even the aggregate discloses their salary, and the open-role figure is a
@@ -84,7 +88,12 @@ derived from individual compensation.
   through `loadOpportunityPlan` (gated `crm.edit`) and sees revenue only.
   Masking lives **inside the reads** — `getProjectCostBasis` decides once and both plan
   readers omit `costBasis` entirely for a viewer without it, so no compensation-derived value
-  is ever sent to a client that merely hides it. See the
+  is ever sent to a client that merely hides it. The **list** goes through the same door
+  (`getProjectsMarginContext` → `getProjectCostBasis`): a null cost basis means every card's
+  `margin` is null, no currency toggle renders, and **no margin-based flag can fire**, so a
+  non-holder only ever sees "Ending soon". The list also sends **no per-role cost at all** —
+  only two whole-project figures per card
+  ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)). See the
   [projects domain](projects.md) and
   [ADR 0053](../decisions/0053-project-budgets-and-margin.md).
 
@@ -136,12 +145,13 @@ A resource with **two actions** gates staff overall ratings (levels L0–L4), a
 sensitive read/write with **no ownership dimension** — unlike compensation or
 feedback, a staffer never sees their *own* rating:
 
-- **`ratings.view`** — view staff overall levels: the **Performance dashboard** at
-  `/performance/levels` (distribution, average level, average-by-role, per-role
+- **`ratings.view`** — view staff overall levels: the **Levels dashboard** at
+  `/dashboards/levels` (distribution, average level, average-by-role, per-role
   subrating averages — **no compensation rendered there at all**) and the edit page's
-  current levels. Manager/admin only; there is no self-view path. Its sibling
-  `/performance/compensation` is gated on `staff.viewCompensation` instead, and
-  **`/performance` is a redirect** to whichever of the two the viewer may see.
+  current levels. Manager/admin only; there is no self-view path. Its siblings
+  `/dashboards/compensation` and `/dashboards/bonuses` are gated on
+  `staff.viewCompensation` instead, and **`/dashboards` is a redirect** to whichever
+  of the three the viewer may see.
   The one **overlap** sits on the *comp* page: its **compensation-by-level** table
   needs **both** capabilities — `staff.viewCompensation` gates the page, and the
   levels input is fetched only for `ratings.view` holders (the optional
@@ -154,7 +164,7 @@ feedback, a staffer never sees their *own* rating:
   `ratings.view` alone, yet its rows carry comp **amounts**
   (`RatingRecord.employment` is the full `CompensationDimensions`) — so granting
   `ratings.view` to a role *without* `staff.viewCompensation` would make that read
-  (and `/performance/levels`, which fetches it) a bulk-comp leak, even though the
+  (and `/dashboards/levels`, which fetches it) a bulk-comp leak, even though the
   page renders no money. See [performance.md](performance.md) → *Compensation by
   level*.
 - **`ratings.edit`** — assign / change levels and save an evaluation (a new dated
@@ -177,6 +187,16 @@ Auth's `authorize` ANDs across resources (`connector = "AND"` in
   pages, and nav entry can never drift apart. **It is a request against the existing
   matrix, not new access-control logic** — `permissions.ts` remains the only place
   that lives. See [ADR 0046](../decisions/0046-compensation-change-plans-rating-writing-proposals.md).
+- **`BONUS_PAYMENT_WRITE_ACCESS = { staff: ["edit", "viewCompensation"] }`**
+  (`src/lib/staff/staff-bonus.ts`) — recording, editing or deleting a
+  `staff_bonus_payment`: the `/people/bonus-payments` page, its three mutations, **and
+  `getBonusPayments`** (that read is identity-bearing, so it carries the *write* gate).
+  Same effective audience, **manager + admin**, and the same deliberate exclusion:
+  finance reads bonus totals but writes no money records about individuals. Its
+  read-side sibling **`BONUS_PAYMENT_READ_ACCESS = { staff: ["viewCompensation"] }`** is
+  a plain single capability, spelled as a constant only so the dashboard page and
+  `getBonusSummaryData` can't drift. **No matrix change.** See
+  [performance.md](performance.md) → *Bonus payments*.
 
 ### The one relationship-based gate — review notes (`staff.managerId` as an authorization input)
 
@@ -231,7 +251,7 @@ decides access**, and everything about the entity routes through it.
 
 A **fourth** gate shape, also outside the matrix, also prose-only: **staff
 self-evaluations** (`staff_self_evaluation` — a person's own dated reflection
-questionnaire; [ADR 0055](../decisions/0055-self-evaluations-dated-records-with-snapshotted-answers.md)).
+questionnaire; [ADR 0058](../decisions/0058-self-evaluations-dated-records-with-snapshotted-answers.md)).
 Its distinguishing feature is that **reading and writing have different gates**, and the
 owner path is the *widest* answer rather than the narrowest.
 
@@ -509,7 +529,7 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
     | Slice | Gate | Kind of gate |
     |---|---|---|
     | `compensation` | `canViewCompensation(ctx.user, staffId)` | **ownership-or-capability** (own comp always; else `staff.viewCompensation`) |
-    | `bonusHistory` | `getStaffBonusHistory` → the same `canViewCompensation` | **ownership-or-capability** (own bonuses always; else `staff.viewCompensation` — *that a bonus was paid* is itself comp information) |
+    | `bonusHistory` | `getStaffBonusHistory` → the same `canViewCompensation` | **ownership-or-capability** (the *same* decision point as comp — *that a bonus was paid* is itself comp information) |
     | `pto` | `getStaffPto` self-gates | **ownership-or-capability** (`pto.review`) |
     | `feedback` | `getFeedbackAboutStaff` | **capability, with a self *tightening*** (`feedback.review`, but the recipient tier for yourself) |
     | `reviewNotes` | `getStaffReviewNotes` → `reviewNoteAccess` | **relationship** (`staff.managerId`) |
@@ -526,7 +546,7 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
     shared**, **own rating level never visible at all**
     ([ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md)),
     **own self-evaluations always visible *and* the only thing here you may write**
-    ([ADR 0055](../decisions/0055-self-evaluations-dated-records-with-snapshotted-answers.md)).
+    ([ADR 0058](../decisions/0058-self-evaluations-dated-records-with-snapshotted-answers.md)).
     Don't regularise it — each row's asymmetry is the decision. Note also the two rows that
     share `ratings.view` and must **never** be merged or cross-joined: `evaluationHistory`
     (levels, no owner path) and `selfEvaluations` (the person's own words, full owner path).

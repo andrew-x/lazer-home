@@ -49,8 +49,7 @@ function NewPlanForm({ onCreated }: { onCreated: () => void }) {
       actionProps: {
         onSuccess: ({ data }) => {
           onCreated();
-          if (data)
-            router.push(`/performance/compensation-plans/${data.planId}`);
+          if (data) router.push(`/people/compensation-plans/${data.planId}`);
         },
       },
       formProps: {

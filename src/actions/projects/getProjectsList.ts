@@ -12,6 +12,7 @@ import {
   type SQL,
   sql,
 } from "drizzle-orm";
+import { getProjectsMarginContext } from "@/actions/projects/getProjectsMarginContext";
 import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/core/pagination";
 import type { LineOfBusiness } from "@/lib/crm/line-of-business";
 import { db } from "@/lib/db/db";
@@ -23,16 +24,37 @@ import {
   staff,
 } from "@/lib/db/schema";
 import {
+  type Currency,
+  DISPLAY_CURRENCIES,
+  type DisplayCurrency,
+} from "@/lib/format/currency";
+import type { BillingType } from "@/lib/projects/project-billing";
+import {
   deriveProjectLinesOfBusiness,
   deriveProjectStatus,
   type ProjectStatusBucket,
 } from "@/lib/projects/project-derived";
+import {
+  MARGIN_FLAG_CURRENCY,
+  type ProjectFlag,
+  projectFlags,
+} from "@/lib/projects/project-flags";
+import {
+  computeProjectMargin,
+  type MarginRoleInput,
+} from "@/lib/projects/project-margin";
 import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
 import {
   derivedStatusCondition,
   latestRoleEndDate,
 } from "@/lib/projects/project-status-sql";
 import { currentDay } from "@/lib/timesheets/timesheet-week";
+
+/** A project's plan margin, in one display currency. */
+export type ProjectListMargin = {
+  margin: number | null;
+  marginPercent: number | null;
+};
 
 export type ProjectListItem = {
   id: string;
@@ -49,6 +71,22 @@ export type ProjectListItem = {
   startDate: string | null;
   /** Latest role end date ("YYYY-MM-DD"); null when the project has no roles. */
   endDate: string | null;
+  /** Null when no budget has been set — the card says so rather than showing "—". */
+  billingType: BillingType | null;
+  /** The derived risk tags for this project (see `project-flags.ts`). */
+  flags: ProjectFlag[];
+  /**
+   * Plan margin, precomputed in each display currency, or **null** when the viewer
+   * lacks `projects.viewMargin`.
+   *
+   * Precomputed server-side for both currencies rather than shipping native amounts
+   * for the client to convert (the detail page's approach, ADR 0029): there are only
+   * two display currencies, so two figures per project is far less payload than every
+   * role's hours/type/assignee — and, load-bearing, it means no individual's
+   * compensation-derived hourly cost is ever sent to the browser for the *list*,
+   * which has no per-role table to justify it.
+   */
+  margin: Record<DisplayCurrency, ProjectListMargin> | null;
 };
 
 /** Optional filters shared by the list views — name/company search, a line of
@@ -156,19 +194,36 @@ export async function getDeliveryManagerOptions(): Promise<
     .orderBy(asc(staff.name));
 }
 
+/** The columns every base row query selects — the project's own facts. */
+const baseColumns = {
+  id: projects.id,
+  name: projects.name,
+  companyId: projects.companyId,
+  companyName: companies.name,
+  billingType: projects.billingType,
+  budgetAmount: projects.budgetAmount,
+  budgetCurrency: projects.budgetCurrency,
+};
+
+type ProjectBaseRow = {
+  id: string;
+  name: string;
+  companyId: string;
+  companyName: string;
+  billingType: BillingType | null;
+  budgetAmount: number | null;
+  budgetCurrency: Currency | null;
+};
+
 /**
  * Assemble full `ProjectListItem`s for the given base rows: one grouped
  * delivery-manager query and one role query (scoped to these ids), then derive
- * status, lines of business, role count, and the date range in JS. No N+1 — two
- * follow-up queries regardless of row count. Preserves the input order.
+ * status, lines of business, role count, the date range, the plan margin and the
+ * risk flags in JS. No N+1 — two follow-up queries regardless of row count, plus the
+ * request-scoped `getProjectsMarginContext`. Preserves the input order.
  */
 async function assembleRows(
-  baseRows: {
-    id: string;
-    name: string;
-    companyId: string;
-    companyName: string;
-  }[],
+  baseRows: ProjectBaseRow[],
 ): Promise<ProjectListItem[]> {
   if (baseRows.length === 0) return [];
   const ids = baseRows.map((row) => row.id);
@@ -176,6 +231,7 @@ async function assembleRows(
   const managersByProject = new Map<string, string[]>();
   const roleStatusesByProject = new Map<string, ProjectRoleStatus[]>();
   const roleLobsByProject = new Map<string, LineOfBusiness[]>();
+  const marginRolesByProject = new Map<string, MarginRoleInput[]>();
   const startDateByProject = new Map<string, string>();
   const endDateByProject = new Map<string, string>();
 
@@ -192,13 +248,19 @@ async function assembleRows(
     managersByProject.set(projectId, list);
   }
 
+  const { rates, costBasis } = await getProjectsMarginContext();
+
   const roleRows = await db
     .select({
+      id: projectRoles.id,
       projectId: projectRoles.projectId,
       status: projectRoles.status,
       lineOfBusiness: projectRoles.lineOfBusiness,
       startDate: projectRoles.startDate,
       endDate: projectRoles.endDate,
+      roleType: projectRoles.roleType,
+      hoursPerDay: projectRoles.hoursPerDay,
+      staffId: projectRoles.staffId,
     })
     .from(projectRoles)
     .where(inArray(projectRoles.projectId, ids));
@@ -212,6 +274,22 @@ async function assembleRows(
     lobs.push(row.lineOfBusiness);
     roleLobsByProject.set(row.projectId, lobs);
 
+    if (costBasis) {
+      const marginRoles = marginRolesByProject.get(row.projectId) ?? [];
+      marginRoles.push({
+        roleId: row.id,
+        roleType: row.roleType,
+        status: row.status,
+        startDate: row.startDate,
+        endDate: row.endDate,
+        hoursPerDay: row.hoursPerDay,
+        staffId: row.staffId,
+        staffHourlyCost:
+          (row.staffId && costBasis.staffHourlyCost[row.staffId]) || null,
+      });
+      marginRolesByProject.set(row.projectId, marginRoles);
+    }
+
     // "YYYY-MM-DD" is zero-padded, so lexicographic min/max === chronological.
     const currentStart = startDateByProject.get(row.projectId);
     if (currentStart === undefined || row.startDate < currentStart) {
@@ -223,20 +301,104 @@ async function assembleRows(
     }
   }
 
+  // One clock read for the whole page, so two cards can't disagree about "soon".
+  const today = currentDay();
+
   return baseRows.map((row) => {
     const statuses = roleStatusesByProject.get(row.id) ?? [];
+    const status = deriveProjectStatus(statuses);
+    const endDate = endDateByProject.get(row.id) ?? null;
+
+    const margin = costBasis
+      ? listMargin({
+          billing: row,
+          roles: marginRolesByProject.get(row.id) ?? [],
+          openRoleCostUsd: costBasis.openRoleCostUsd,
+          usdRates: rates.rates,
+        })
+      : null;
+
     return {
-      ...row,
-      status: deriveProjectStatus(statuses),
+      id: row.id,
+      name: row.name,
+      companyId: row.companyId,
+      companyName: row.companyName,
+      status,
       linesOfBusiness: deriveProjectLinesOfBusiness(
         roleLobsByProject.get(row.id) ?? [],
       ),
       deliveryManagerNames: managersByProject.get(row.id) ?? [],
       roleCount: statuses.length,
       startDate: startDateByProject.get(row.id) ?? null,
-      endDate: endDateByProject.get(row.id) ?? null,
+      endDate,
+      billingType: row.billingType,
+      margin,
+      flags: projectFlags({
+        status,
+        endDate,
+        today,
+        margin: margin?.[MARGIN_FLAG_CURRENCY] ?? null,
+      }),
     };
   });
+}
+
+/**
+ * A project's plan margin in each display currency — the whole-project totals from
+ * `computeProjectMargin`, with the per-role detail dropped: the list shows one figure
+ * per card, and the roles were only ever the inputs to it.
+ *
+ * A plan with **no counted roles** reports null rather than a number, even when it has
+ * a budget. Its cost total is a true zero only because nobody is staffed, so a fixed
+ * fee would read as a triumphant 100% margin and a T&M project as exactly 0 — which
+ * the flags would then call a loss. Neither is a fact about the engagement; the detail
+ * page says the same thing in words ("nothing to cost against the budget").
+ *
+ * Called once per currency (there are two), so `roleBillableHours`' working-day count
+ * runs twice per role. That's the first thing to look at if the unpaginated Active
+ * section ever gets long; caching hours per role would break the currency symmetry
+ * for no gain at today's scale.
+ */
+function listMargin({
+  billing,
+  roles,
+  openRoleCostUsd,
+  usdRates,
+}: {
+  billing: {
+    billingType: BillingType | null;
+    budgetAmount: number | null;
+    budgetCurrency: Currency | null;
+  };
+  roles: MarginRoleInput[];
+  openRoleCostUsd: Parameters<
+    typeof computeProjectMargin
+  >[0]["openRoleCostUsd"];
+  usdRates: Record<Currency, number>;
+}): Record<DisplayCurrency, ProjectListMargin> {
+  const figures = DISPLAY_CURRENCIES.map((displayCurrency) => {
+    const { totals, countedRoleCount } = computeProjectMargin({
+      billing,
+      roles,
+      openRoleCostUsd,
+      displayCurrency,
+      usdRates,
+      includeCost: true,
+    });
+    const unstaffed = countedRoleCount === 0;
+    return [
+      displayCurrency,
+      {
+        margin: unstaffed ? null : totals.margin,
+        marginPercent: unstaffed ? null : totals.marginPercent,
+      },
+    ] as const;
+  });
+
+  return Object.fromEntries(figures) as Record<
+    DisplayCurrency,
+    ProjectListMargin
+  >;
 }
 
 /**
@@ -248,12 +410,7 @@ export async function getProjectsInBuckets(
   filters: ProjectsListFilters = {},
 ): Promise<ProjectListItem[]> {
   const baseRows = await db
-    .select({
-      id: projects.id,
-      name: projects.name,
-      companyId: projects.companyId,
-      companyName: companies.name,
-    })
+    .select(baseColumns)
     .from(projects)
     .innerJoin(companies, eq(projects.companyId, companies.id))
     .where(projectsWhere(buckets, filters))
@@ -289,12 +446,7 @@ export async function getProjectsPage(
   const { pageCount, safePage } = clampPage(total, page, pageSize);
 
   const baseRows = await db
-    .select({
-      id: projects.id,
-      name: projects.name,
-      companyId: projects.companyId,
-      companyName: companies.name,
-    })
+    .select(baseColumns)
     .from(projects)
     .innerJoin(companies, eq(projects.companyId, companies.id))
     .where(where)

@@ -68,7 +68,7 @@ export function PlansList({ plans }: { plans: CompensationPlanListRow[] }) {
                 <TableRow key={plan.id}>
                   <TableCell>
                     <Link
-                      href={`/performance/compensation-plans/${plan.id}`}
+                      href={`/people/compensation-plans/${plan.id}`}
                       className="font-medium text-primary underline-offset-4 hover:underline"
                     >
                       {plan.name}

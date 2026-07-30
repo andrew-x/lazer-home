@@ -47,16 +47,16 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CURRENCY, CURRENCY_LABELS, formatMoney } from "@/lib/format/currency";
 import { formatDate } from "@/lib/format/format";
 import {
-  BONUS_MANAGER_YEAR_PARAM,
   BONUS_TYPE_DESCRIPTIONS,
   BONUS_TYPE_LABELS,
   BONUS_TYPES,
+  BONUS_YEAR_PARAM,
 } from "@/lib/staff/staff-bonus";
 
 /**
- * The **bonus payments** entry screen (`/performance/compensation/bonuses`):
- * record, correct and remove the one-off bonuses that feed the compensation
- * dashboard's breakdown.
+ * The **bonus payments** entry screen (`/people/bonus-payments`): record, correct
+ * and remove the one-off bonuses that feed the Bonuses dashboard's breakdown at
+ * `/dashboards/bonuses`.
  *
  * This is a stopgap by design. Bonuses will arrive from Rippling like comp and
  * PTO do, keyed on `staffBonusPayment.ripplingId`; until that importer exists
@@ -254,7 +254,7 @@ function YearPicker({ years, year }: { years: number[]; year: number }) {
         onValueChange={(values) => {
           const next = values[0];
           if (next) {
-            router.push(`${pathname}?${BONUS_MANAGER_YEAR_PARAM}=${next}`);
+            router.push(`${pathname}?${BONUS_YEAR_PARAM}=${next}`);
           }
         }}
       >

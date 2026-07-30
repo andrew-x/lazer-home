@@ -5,8 +5,13 @@ import {
   getProjectsInBuckets,
   getProjectsPage,
 } from "@/actions/projects/getProjectsList";
+import { getProjectsMarginContext } from "@/actions/projects/getProjectsMarginContext";
 import { PaginationControls } from "@/components/pagination-controls";
 import { AddProjectDialog } from "@/components/projects/add-project-dialog";
+import {
+  ProjectsCurrencyProvider,
+  ProjectsCurrencyToggle,
+} from "@/components/projects/projects-currency";
 import {
   ProjectsGrid,
   ProjectsSection,
@@ -49,9 +54,11 @@ export default async function ProjectsPage({
 }) {
   const params = await searchParams;
 
-  const [user, deliveryManagers] = await Promise.all([
+  const [user, deliveryManagers, marginContext] = await Promise.all([
     getCurrentUser(),
     getDeliveryManagerOptions(),
+    // Request-cached, so the section reads below share this one fetch.
+    getProjectsMarginContext(),
   ]);
 
   const query = firstParam(params.q).trim();
@@ -81,23 +88,39 @@ export default async function ProjectsPage({
         {canEdit ? <AddProjectDialog /> : null}
       </header>
 
-      <div className="flex flex-col gap-8">
-        <ProjectsListFilters
-          params={params}
-          deliveryManagers={deliveryManagers}
-        />
-        {filtering ? (
-          <FilteredView
-            params={params}
-            page={page}
-            query={query}
-            lineOfBusiness={lineOfBusiness}
-            deliveryManagerId={deliveryManagerId}
-          />
-        ) : (
-          <GroupedView params={params} />
-        )}
-      </div>
+      {/* The provider wraps the filter bar AND every section, so the toggle up here
+          governs cards rendered further down. */}
+      <ProjectsCurrencyProvider>
+        <div className="flex flex-col gap-8">
+          <div className="flex flex-wrap items-end gap-3">
+            <ProjectsListFilters
+              params={params}
+              deliveryManagers={deliveryManagers}
+            />
+            {/* Cosmetic only — a viewer without `viewMargin` has no figures to
+                convert because the read withheld them, not because this is hidden. */}
+            {marginContext.costBasis ? (
+              <div className="ml-auto">
+                <ProjectsCurrencyToggle
+                  rates={marginContext.rates}
+                  nativeCurrencies={marginContext.nativeCurrencies}
+                />
+              </div>
+            ) : null}
+          </div>
+          {filtering ? (
+            <FilteredView
+              params={params}
+              page={page}
+              query={query}
+              lineOfBusiness={lineOfBusiness}
+              deliveryManagerId={deliveryManagerId}
+            />
+          ) : (
+            <GroupedView params={params} />
+          )}
+        </div>
+      </ProjectsCurrencyProvider>
     </div>
   );
 }

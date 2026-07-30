@@ -26,10 +26,7 @@ export type CompensationPlanItemInsert = InferInsertModel<
 
 /** The paths every plan mutation invalidates. */
 export function planPaths(planId: string): string[] {
-  return [
-    "/performance/compensation-plans",
-    `/performance/compensation-plans/${planId}`,
-  ];
+  return ["/people/compensation-plans", `/people/compensation-plans/${planId}`];
 }
 
 type PlanRow = {
