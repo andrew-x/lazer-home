@@ -27,7 +27,11 @@ over its roles ([Budget & margin](#budget--margin) below,
 [ADR 0053](../decisions/0053-project-budgets-and-margin.md)). **Cost and margin are gated on the
 new read capability `projects.viewMargin`; revenue is not** — a role's cost *is* an individual's
 compensation, so this is the projects domain's first (and carefully masked) contact with
-`staff_employment`.
+`staff_employment`. **Margin now also reads on the `/projects` list**, alongside **derived risk
+tags** (Negative margin / Low margin / Ending soon) whose thresholds live in code — with a
+different currency strategy from the plan surfaces
+([Margin & flags on the list](#margin--flags-on-the-list),
+[ADR 0056](../decisions/0056-projects-list-margin-and-derived-flags.md)).
 
 **Otherwise a project stores little of its own** — `id`, `name`, `companyId`, the budget columns,
 timestamps (plus delivery-managers + roles relations). It carries **no stored `status` and no
@@ -287,6 +291,25 @@ delivery, allocations, timesheets, and billing.
   grounds as `compensation-plan.test.ts`). **Pure and client-importable**, so the server read and
   the client's currency toggle share one implementation. See
   [Budget & margin](#budget--margin) below for the rules it encodes.
+- **Risk-flag policy (code as policy again)** — `src/lib/projects/project-flags.ts`
+  (+ `project-flags.test.ts`, 22 tests — another sanctioned
+  [ADR 0037](../decisions/0037-unit-tests-removed-except-rbac-matrix.md) exception on ADR 0053's
+  margin-math grounds). A **pure, client-importable** module holding the `/projects` list's
+  **derived risk tags** and the thresholds that define them: `PROJECT_FLAGS`
+  (`negativeMargin` → `lowMargin` → `endingSoon`, **worst first**), `PROJECT_FLAG_LABELS`,
+  `PROJECT_FLAG_VARIANTS` (**only the loss gets colour** — `destructive`; the other two are
+  `secondary`, matching `marginAmountTone`'s "colour losses only" rule), the `ProjectFlagInputs`
+  shape, and `projectFlags(input)` — a filter over the tuple against a
+  `Record<ProjectFlag, predicate>` table. **Exactly the shape of `src/lib/crm/company-status.ts`**
+  ([ADR 0034](../decisions/0034-company-status-derived-tags.md)) and `project-derived.ts`, so the
+  read that evaluates the flags and the card that renders the badges share one definition. Config
+  constants: `ENDING_SOON_DAYS = 14`, `NEGATIVE_MARGIN_AT_OR_BELOW = 0`,
+  `LOW_MARGIN_PERCENT = 0.25`, `LOW_MARGIN_AMOUNT = 10_000`, `MARGIN_FLAG_CURRENCY = "CAD"`, plus
+  **`PROJECT_FLAGS_REVIEWED_ON`** — bump it when you change a threshold. Thresholds live in code
+  for `bill-rates.ts` / `compensation-targets.ts` reasons: "thin margin" is **policy** the company
+  revises centrally, and one shared set means two projects can't disagree about what "healthy"
+  means. See [Margin & flags on the list](#margin--flags-on-the-list) for the rules and the
+  currency caveat.
 - **Shared line-of-business module** — `src/lib/crm/line-of-business.ts` exports the
   `LINE_OF_BUSINESS` tuple, the `LineOfBusiness` type, and `LINE_OF_BUSINESS_LABELS`.
   A **pure, client-importable** module (no `db`/drizzle) so the `lineOfBusinessEnum`
@@ -301,7 +324,11 @@ delivery, allocations, timesheets, and billing.
     backing `/projects`, **replacing the deleted `getProjectsPage.ts` + its `ProjectRow`**.
     Exports **`ProjectListItem`** (the prior fields — id, name, derived `status`,
     `linesOfBusiness[]`, company, delivery-manager names, role count — **plus a `startDate`/`endDate`
-    string range** aggregated from the project's roles, null when role-less),
+    string range** aggregated from the project's roles, null when role-less, **plus the commercial
+    trio added by [ADR 0056](../decisions/0056-projects-list-margin-and-derived-flags.md):
+    `billingType` (null ⇒ "No budget"), `flags: ProjectFlag[]`, and
+    `margin: Record<DisplayCurrency, ProjectListMargin> | null`** — see
+    [Margin & flags on the list](#margin--flags-on-the-list)),
     **`ProjectsListFilters`** (`{ query?, lineOfBusiness?, deliveryManagerId? }` — a
     case-insensitive substring match on project **or** company name, a single line of business,
     and a single delivery manager: a `staff.id` matched via a **correlated `EXISTS` on
@@ -321,14 +348,34 @@ delivery, allocations, timesheets, and billing.
       which the page also requests with `"endDate"`.
       The `where` also decides the active/past split from **`currentDay()`**, read once per call —
       the one clock read in the loader.
-    Both **inner**-join companies for `companyName` (required); `assembleRows` then resolves
-    delivery managers, role statuses/LoBs, role count, and the min-start/max-end date range in
-    **two grouped follow-up queries** scoped to the page's ids — **no N+1**. `status` +
+    Both **inner**-join companies for `companyName` (required, via the shared `baseColumns`, which
+    now also selects the three budget columns); `assembleRows` then resolves
+    delivery managers, role statuses/LoBs, role count, the min-start/max-end date range, **the plan
+    margin and the risk flags** in **two grouped follow-up queries** scoped to the page's ids —
+    **no N+1, and the same query count as before budgets** (the role query just selects
+    `id`/`roleType`/`hoursPerDay`/`staffId` too). `status` +
     `linesOfBusiness` are derived in JS via `deriveProjectStatus`/`deriveProjectLinesOfBusiness`;
     the date range exploits `"YYYY-MM-DD"` being zero-padded (lexicographic min/max ==
-    chronological). Also exports **`getDeliveryManagerOptions()`** →
+    chronological). **`currentDay()` is read once for the whole page**, so two cards can't disagree
+    about what "soon" means. Its local `listMargin()` helper runs `computeProjectMargin` **once per
+    display currency** and keeps only the whole-project totals. Also exports
+    **`getDeliveryManagerOptions()`** →
     `DeliveryManagerOption[]` (`{ id, name }`) — the distinct, name-ordered staff who are a
     delivery manager on ≥1 project, the option set for the list's delivery-manager filter.
+  - `getProjectsMarginContext.ts` — **server-only, React `cache()`-wrapped, request-scoped**: the
+    shared cost/FX inputs for margin on the *list*, as `{ rates, costBasis, nativeCurrencies }`.
+    Deliberately request-scoped rather than per-call: the grouped view fires **five** list reads in
+    parallel and `getRoleTypeAverageCostsUsd` scans all of `staff_employment`, so `cache()`
+    memoizes the *promise* and those five callers (plus the page itself, which needs `costBasis` to
+    decide whether to render the currency toggle) share one fetch. That scope is also why the cost
+    basis covers **every** staff member on any project role rather than the current page's rows — a
+    page-scoped id list would be a different cache key per section and defeat the sharing.
+    **Cost still comes only from `getProjectCostBasis`**, so the `projects.viewMargin` enforcement
+    is unchanged and still lives in exactly one place. `nativeCurrencies` is the **list-scoped**
+    input to the FX note (see [Margin & flags on the list](#margin--flags-on-the-list)):
+    every currency a rate could be applied to *anywhere* in the list — each fixed fee's own
+    denomination, `BILL_RATE_CURRENCY` when any project bills T&M, USD when an open role is costed
+    from the per-discipline averages, and each assignee's compensation currency.
   - `getProjectPlan.ts` — **server-only** read backing the **project detail page**
     (`/projects/[id]`). A **project-keyed sibling of `getOpportunityPlan`**: it takes a
     `projectId`, joins the owning company (`company: {id,name}`, for the header link), and returns
@@ -626,11 +673,20 @@ delivery, allocations, timesheets, and billing.
 - **UI** — `/projects` (`src/app/(app)/projects/page.tsx`) + `src/components/projects/**` —
   see [../ui.md](../ui.md). The list is now a **responsive grid of project cards, not a table**
   (the old `projects-table.tsx`/`ProjectRow` were **deleted**). `project-card.tsx` (`ProjectCard`)
-  is a clickable `Card` linking to `/projects/[id]`, showing name + company, the derived
-  `ProjectStatusBadge` (still `project-status-badge.tsx` over the four-state
-  `PROJECT_ROLE_STATUS_LABELS`/`_VARIANTS`: confirmed=outline, tentative=secondary,
-  paused=outline, cancelled=destructive) + derived LoB badges, delivery managers, and the role
-  date range (`formatDateRange` from `src/lib/format/format.ts`). `projects-grid.tsx` exports
+  is a clickable `Card` linking to `/projects/[id]`, and is now a **client component** (it reads the
+  list's currency context). Its **badge row carries only the derived risk flags**
+  (`PROJECT_FLAG_LABELS`/`_VARIANTS`), and is omitted entirely when there are none: **status and
+  line of business moved into the card's definition list as plain fields** — Status (the
+  `PROJECT_ROLE_STATUS_LABELS` text, **not** a `ProjectStatusBadge`) · Line of business (comma-joined
+  labels, "None" when role-less) · Delivery ("Unassigned") · Dates (`formatDateRange`, "No dates") ·
+  **Margin**. Status and LoB are *facts*; the flags are *warnings*, and a badge on every card
+  distinguishes nothing — see [ADR 0056](../decisions/0056-projects-list-margin-and-derived-flags.md)
+  §7 for why the detail page still badges status and the companies table's badges are still facts.
+  The **Margin field renders only when the server sent figures** (so a viewer without
+  `projects.viewMargin` sees no row at all, not a blank one), leads with the money and trails the
+  percentage (ADR 0053 §5), and says **"No budget" / "No roles" in words** rather than a bare dash.
+  `ProjectStatusBadge` (`project-status-badge.tsx`) survives — just not here: it's still on the
+  project detail page and the staff profile's Projects section. `projects-grid.tsx` exports
   `ProjectsGrid` (the grid) + `ProjectsSection` (a titled section with a count, optionally a
   **closed-by-default disclosure**). The page **groups projects by derived-status bucket into five
   sections in `PROJECT_STATUS_BUCKETS` order — Tentative → Paused → Active → Past → Cancelled**:
@@ -649,7 +705,17 @@ delivery, allocations, timesheets, and billing.
   `buildListHref`/`PaginationControls` pattern as the
   opportunities/companies/contacts lists, with the search box + its debounce-to-URL effect coming
   from the shared `useUrlSearchFilter`/`SearchFilter` (`src/components/form/search-filter.tsx`; see
-  [../ui.md](../ui.md#list-filter-bars)). **When any of the three filters is active the sections collapse
+  [../ui.md](../ui.md#list-filter-bars)). **The list's CAD/USD display currency is *not* a URL
+  filter** — `projects-currency.tsx` holds it in React context (`ProjectsCurrencyProvider` wrapping
+  the filter bar **and** every section, `useProjectsCurrency()` read by the cards) with the
+  `ToggleGroup` + `FxRateNote` pushed right in the filter row (`ProjectsCurrencyToggle`). Context
+  because the control and the cards it governs sit in five independently server-rendered sections;
+  client state because currency is a *display* preference, not a filter — putting it in the URL
+  would conflate the two and make flipping it a navigation, when both currencies are already in the
+  payload. It **defaults to CAD** (a list is for comparing; cards in five denominations can't be),
+  deliberately unlike the detail page's per-project `resolveDisplayCurrency`, and the toggle
+  **renders only when a cost basis came back** — cosmetic only, since the read is what withholds the
+  figures ([ADR 0056](../decisions/0056-projects-list-margin-and-derived-flags.md) §8). **When any of the three filters is active the sections collapse
   into a single flat, paginated grid across all statuses, ordered by end date descending**
   (latest-ending first, role-less projects last — via `getProjectsPage`'s `"endDate"` order),
   rather than the name-ordered sections; clearing filters restores the sections. `add-project-dialog.tsx` (a **deliberately minimal**
@@ -844,6 +910,56 @@ that for the *why* behind each rule below. Math lives in the pure
 - **It's a *plan* margin, not an actual** — it costs the allocation, not the logged time.
   `time_entries` are untouched; forecast-vs-actual reconciliation is still unbuilt.
 
+### Margin & flags on the list
+
+The third margin surface, added by
+[ADR 0056](../decisions/0056-projects-list-margin-and-derived-flags.md) — read it for the *why*.
+The rules above still hold (same `computeProjectMargin`, same gate); what differs is **how the
+list converts** and **what it does with the number**.
+
+- **The list precomputes margin server-side in BOTH display currencies** —
+  `ProjectListItem.margin` is a `Record<DisplayCurrency, { margin, marginPercent }> | null` — where
+  the *detail* page ships native amounts + the rate table and converts on the client
+  ([ADR 0029](../decisions/0029-external-fx-rates-and-currency-normalization.md)). **Two surfaces,
+  two strategies, on purpose:** there are only two display currencies, so two figures per card is
+  far less payload than every role's hours/type/assignee — and, load-bearing, **no individual's
+  compensation-derived hourly cost is ever sent to the browser for the list**, which has no
+  per-role table to justify it. `null` still means exactly "this viewer lacks
+  `projects.viewMargin`". Don't unify the two paths without re-reading both rationales.
+- **A plan with no counted roles reports a null margin**, even with a budget set. Its cost total is
+  a true zero only because nobody is staffed, so an unstaffed fixed fee would read as a 100% margin
+  and an unstaffed T&M project as exactly 0 — which the flags would then call a **loss**. The card
+  says "No roles" in words; the detail page says the same thing in a notice.
+- **Flags are evaluated server-side, always in `MARGIN_FLAG_CURRENCY` (CAD)**, never recomputed on
+  the client. The CAD/USD control is a *display* choice; applying the amount floor to the displayed
+  figure would make a project gain and lose "Low margin" as the reader toggled — the tag would
+  describe the rendering, not the engagement. **Consequence to expect:** in USD a card can read
+  "$7,400" and still carry "Low margin" because it is CA$10,100.
+- **The rules** (`project-flags.ts`): `negativeMargin` at margin **≤ 0** (zero counts — breaking
+  even earns nothing) and it **suppresses** `lowMargin`; `lowMargin` on `marginPercent < 25%`
+  **OR** `margin < 10,000` (deliberately OR'd — a big engagement at 15% and a small one clearing
+  only $10k are both worth a look, and either floor alone misses one); `endingSoon` when the latest
+  role end date is within **14 days** of today and not already past. **A cancelled project gets no
+  flags** (nothing left to deliver or bill), and **unknown/withheld margin yields no margin flags
+  at all** — "we can't tell" is not "it's bad", and the absence of a tag must not leak the figure.
+- **Which flags you see therefore depends on your capability:** without `projects.viewMargin`,
+  margin is null and only **Ending soon** can ever appear. Don't read a bare card as "this project
+  is fine".
+- **The list's FX note is list-scoped, not per-project provenance.** `ProjectMargin.convertedFrom`
+  (what a budget panel states) records the currencies *one project* converted from; the list ships
+  `nativeCurrencies` — everything a rate could apply to anywhere in the list — because its control
+  converts every card at once. Threading a per-project, per-currency `convertedFrom` up through
+  five independently paginated sections would put per-role provenance in the payload to qualify one
+  footnote. **Accepted cost:** a filtered view showing one CAD project can still quote a rate for a
+  currency only some *other* project is priced in.
+- **Gotcha — one residual em dash.** The card's "No roles" branch tests `roleCount` (**all** roles,
+  cancelled included) while the null margin comes from `countedRoleCount` (which excludes
+  cancelled). A budgeted project whose roles are *all* cancelled therefore renders "—" for Margin.
+  It sits in the Cancelled section and carries no flags; it's the only path left to a bare dash.
+- **Perf note:** `roleBillableHours`' working-day count runs **twice per role** (once per
+  currency). First thing to look at if the unpaginated Active section ever gets long — caching
+  hours per role would break the currency symmetry for no gain at today's scale.
+
 ## Delete / detach
 
 When a project's link to an opportunity is severed, `detachProjectFromOpportunity` (the shared
@@ -979,6 +1095,13 @@ page** (`getProjectPlan`/`getProjectPto` are server-only; the `(app)` gate is th
   filter cost in the UI, and never widen `loadOpportunityPlan`'s gate to compensate.** See
   [permissions.md](./permissions.md) and
   [ADR 0053](../decisions/0053-project-budgets-and-margin.md).
+  - **The `/projects` list obeys the same gate through the same door** —
+    `getProjectsMarginContext` calls `getProjectCostBasis`, and a null cost basis means
+    `ProjectListItem.margin` is null for every card, no toggle renders, and **no margin-based flag
+    can fire** (so a non-holder only ever sees "Ending soon"). The list additionally sends **no
+    per-role cost at all**, only two whole-project figures — see
+    [Margin & flags on the list](#margin--flags-on-the-list) and
+    [ADR 0056](../decisions/0056-projects-list-margin-and-derived-flags.md).
 - **PTO type/pending state needs `pto.review`:** the detail page's Time off tab shows dates + who to
   everyone but masks each leave's **type/pending state** otherwise — and **non-reviewers only get
   approved leave at all** (`getProjectPto` filters pending rows out and nulls those fields in the
@@ -1028,6 +1151,14 @@ The detail page's `canEdit` prop is an **affordance flag only**. **The matrix ga
   panel** above the grid and a **per-role margin line inside it**, recomputed from the roles on every
   staffing change. A viewer **without `projects.viewMargin`** sees the same page with revenue only;
   the cost numbers are never sent. See [Budget & margin](#budget--margin).
+- **Spot the engagements in trouble without opening them** (built,
+  [ADR 0056](../decisions/0056-projects-list-margin-and-derived-flags.md)) — `/projects` shows each
+  card's **plan margin** and up to three **derived risk tags** (Negative margin / Low margin /
+  Ending soon), so the question the page is opened with ("what needs attention?") is answered in the
+  grid rather than one project at a time. One CAD/USD toggle in the filter bar re-denominates every
+  card instantly (both figures ship precomputed), while the **tags are always judged in CAD** so
+  they don't move with the display. `projects.viewMargin` holders get the money; everyone else gets
+  the dates. See [Margin & flags on the list](#margin--flags-on-the-list).
 - **Create a standalone project, then staff it** (built) — creation is minimal: a company,
   a name, and **how it bills** (no LoB/status — those derive). The project starts with **no roles and no delivery
   managers** (so it reads `tentative` with no LoBs). Staffing then happens on **either editor**:
@@ -1165,4 +1296,11 @@ The detail page's `canEdit` prop is an **affordance flag only**. **The matrix ga
   `BILL_RATES` are a **placeholder**; **no per-project pricing** (rejected on purpose — see the ADR
   before proposing it again); and margin per *person* (as opposed to per role and
   per project) doesn't exist.
+- **The list's risk flags have no history and can't be sorted or filtered on**
+  ([ADR 0056](../decisions/0056-projects-list-margin-and-derived-flags.md)). Revising a threshold
+  re-tags every project retroactively and silently — `PROJECT_FLAGS_REVIEWED_ON` is the only signal
+  of when the policy last moved. There is **no "flagged only" filter and no margin sort**: a margin
+  column would need a story for the nulls (no budget, no roles, no `viewMargin`) first, and a
+  `SelectFilter` over flags would have to be evaluated in SQL rather than in `assembleRows`. Both
+  are additive, no schema.
 - **No richer lifecycle/stage model** beyond the derived status.
