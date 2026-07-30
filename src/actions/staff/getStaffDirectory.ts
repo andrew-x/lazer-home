@@ -29,6 +29,12 @@ export const staffDirectoryFilterOptions = STAFF_FILTER_OPTIONS;
  * their latest employment facts. Employment fields are null when a staff row has
  * no employment history (still listed). Includes inactive staff so the directory
  * can offer an "active only" toggle (defaults on in the UI).
+ *
+ * Feeds both `/staff` views — the card grid and the org chart (`?view=org`) —
+ * which is why `managerId` rides along even though the grid ignores it. One read
+ * and one entry type keep "line of business = Fintech" meaning the same people in
+ * both views; a second near-copy of the two-query + `latestEmploymentFirst` shape
+ * is where the effective-dating rule would drift.
  */
 export type StaffDirectoryEntry = {
   id: string;
@@ -38,6 +44,13 @@ export type StaffDirectoryEntry = {
   isActive: boolean;
   imageUrl: string | null;
   skills: StaffSkill[];
+  /**
+   * Who this person reports to (`staff.managerId`), or null at the top of the org.
+   * Import-only and unguarded against cycles or self-reference at the DB level
+   * (ADR 0026) — the org chart's `buildOrgForest` does its own self/cycle/orphan
+   * guarding rather than trusting this to be a well-formed tree.
+   */
+  managerId: string | null;
   lineOfBusiness: StaffEmployment["lineOfBusiness"] | null;
   role: StaffEmployment["role"] | null;
   employmentType: StaffEmployment["employmentType"] | null;
@@ -54,6 +67,7 @@ export async function getStaffDirectory(): Promise<StaffDirectoryEntry[]> {
       isActive: staff.isActive,
       imageUrl: user.image,
       skills: staff.skills,
+      managerId: staff.managerId,
     })
     .from(staff)
     .leftJoin(user, eq(staff.userId, user.id))
@@ -86,6 +100,7 @@ export async function getStaffDirectory(): Promise<StaffDirectoryEntry[]> {
       isActive: s.isActive,
       imageUrl: s.imageUrl,
       skills: s.skills,
+      managerId: s.managerId,
       lineOfBusiness: employment?.lineOfBusiness ?? null,
       role: employment?.role ?? null,
       employmentType: employment?.employmentType ?? null,
