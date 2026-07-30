@@ -35,10 +35,13 @@ so the admin role retains its built-in capabilities) with two business resources
   [ADR 0041](../decisions/0041-allocation-notes-on-staff.md) and
   [allocations.md](./allocations.md).
 - **`staff.viewCompensation`** — view *another* staff member's compensation (on
-  their profile and in the history feed), **and** every bulk/aggregate comp surface:
-  the Compensation dashboard (`/dashboards/compensation`), including its
-  comp-by-level table (which additionally needs `ratings.view`). (Your own
-  compensation is always visible.)
+  their profile and in the history feed, **and their bonus payments** — the drawer's
+  Bonuses tab and the feed's `BONUS` entries, since the fact a bonus was paid is itself
+  comp information), **and** every bulk/aggregate comp surface: the Compensation
+  dashboard (`/dashboards/compensation`), including its comp-by-level table (which
+  additionally needs `ratings.view`), and the Bonus dashboard
+  (`/dashboards/bonuses`, as `BONUS_PAYMENT_READ_ACCESS`). (Your own
+  compensation — and your own bonuses — are always visible.)
 - **`pto.review`** — view the aggregated PTO summary of *other* staff. (Your own
   PTO is always visible.)
 
@@ -178,6 +181,16 @@ Auth's `authorize` ANDs across resources (`connector = "AND"` in
   pages, and nav entry can never drift apart. **It is a request against the existing
   matrix, not new access-control logic** — `permissions.ts` remains the only place
   that lives. See [ADR 0046](../decisions/0046-compensation-change-plans-rating-writing-proposals.md).
+- **`BONUS_PAYMENT_WRITE_ACCESS = { staff: ["edit", "viewCompensation"] }`**
+  (`src/lib/staff/staff-bonus.ts`) — recording, editing or deleting a
+  `staff_bonus_payment`: the `/people/bonus-payments` page, its three mutations, **and
+  `getBonusPayments`** (that read is identity-bearing, so it carries the *write* gate).
+  Same effective audience, **manager + admin**, and the same deliberate exclusion:
+  finance reads bonus totals but writes no money records about individuals. Its
+  read-side sibling **`BONUS_PAYMENT_READ_ACCESS = { staff: ["viewCompensation"] }`** is
+  a plain single capability, spelled as a constant only so the dashboard page and
+  `getBonusSummaryData` can't drift. **No matrix change.** See
+  [performance.md](performance.md) → *Bonus payments*.
 
 ### The one relationship-based gate — review notes (`staff.managerId` as an authorization input)
 
@@ -434,8 +447,8 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
 - **`src/actions/staff/loadStaffProfileDrawer.ts`** — an **interactive read** (a
   `"use server"` + `secureActionClient` read, the documented exception to the
   server-only read rule, same shape as `loadOpportunityDetail`) and **the single best
-  worked example of this model in the codebase: one read composing five different gates,
-  none of them on the action itself.**
+  worked example of this model in the codebase: one read composing six slices across
+  five different gate shapes, none of them on the action itself.**
   - **No capability gate on the action**, matching `/staff/[id]` — browsing a colleague's
     profile is open to any staff member. Each sensitive slice gates itself instead, and
     **every one returns `null` rather than throwing**, so an unentitled viewer gets a
@@ -444,12 +457,13 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
     | Slice | Gate | Kind of gate |
     |---|---|---|
     | `compensation` | `canViewCompensation(ctx.user, staffId)` | **ownership-or-capability** (own comp always; else `staff.viewCompensation`) |
+    | `bonusHistory` | `getStaffBonusHistory` → the same `canViewCompensation` | **ownership-or-capability** (the *same* decision point as comp — a bonus is comp) |
     | `pto` | `getStaffPto` self-gates | **ownership-or-capability** (`pto.review`) |
     | `feedback` | `getFeedbackAboutStaff` | **capability, with a self *tightening*** (`feedback.review`, but the recipient tier for yourself) |
     | `reviewNotes` | `getStaffReviewNotes` → `reviewNoteAccess` | **relationship** (`staff.managerId`) |
     | `evaluationHistory` | `getStaffEvaluationHistory` self-gates | **bare capability, no owner path** (`ratings.view` — a staffer never sees their own level) |
 
-    Five gates, five different shapes, one read — and note that **the action's own
+    Six slices, five gate shapes, one read — and note that **the action's own
     metadata declares none of them.** That's correct here precisely because the action
     grants nothing by itself; what it returns is assembled from reads that each answer
     for their own data. Don't "simplify" this by hoisting a capability onto the action.
