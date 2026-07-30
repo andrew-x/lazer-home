@@ -75,7 +75,9 @@ export function InlineEditField({
       {editing ? (
         children
       ) : (
-        <div className="min-h-8 py-1 text-sm">{display}</div>
+        <div data-slot="field-value" className="min-h-8 py-1 text-sm">
+          {display}
+        </div>
       )}
     </FormField>
   );

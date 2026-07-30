@@ -8,6 +8,7 @@
 import type { ReactNode } from "react";
 import { EmptyCell } from "@/components/empty-cell";
 import { EmptyState } from "@/components/empty-state";
+import { COMPACT_META_FIELDS } from "@/components/form/field-density";
 import { ROOMY_TABLE } from "@/components/table-density";
 import { Label } from "@/components/ui/label";
 import {
@@ -38,11 +39,11 @@ export function DetailLayout({
   return (
     <div
       className={cn(
-        "flex flex-col gap-8 md:flex-row md:gap-10",
+        "flex flex-col gap-6 md:flex-row md:gap-8",
         fullWidth ? "w-full" : "mx-auto max-w-6xl",
       )}
     >
-      <aside className="flex w-full flex-col gap-5 md:w-80 md:shrink-0">
+      <aside className="flex w-full flex-col gap-4 md:w-80 md:shrink-0">
         {sidebar}
       </aside>
       <div className="flex min-w-0 flex-1 flex-col gap-8">{children}</div>
@@ -67,7 +68,7 @@ export function DetailIdentity({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       <div className="flex items-start gap-3">
         {media}
         {action ? <div className="ml-auto">{action}</div> : null}
@@ -87,19 +88,23 @@ export function DetailIdentity({
  * meta fields and, separately, the inline-editable owner section beneath them.
  *
  * The section also owns the sidebar's **label styling** (small, uppercase, muted)
- * via a descendant selector rather than each field applying it. Three different
- * components emit labels in here — {@link MetaField}, `FormField` (through
- * `InlineEditField`), and the bespoke `<Label>` in
- * `inline-relationship-strength-field.tsx` — so styling per-field would mean
- * threading a prop through all three and forwarding it through `InlineEditField`,
- * and putting a `variant` on `FormField` would push a sidebar-only concern into
- * the app's most-used form primitive. Targeting `[data-slot=label]` (not `label`)
+ * and its **row density** ({@link COMPACT_META_FIELDS}) via descendant selectors
+ * rather than each field applying them. Both {@link MetaField} and `FormField`
+ * (through `InlineEditField`) emit labels in here, so styling per-field would mean
+ * threading a prop through both and forwarding it through `InlineEditField`, and
+ * putting a `variant` on `FormField` would push a sidebar-only concern into the
+ * app's most-used form primitive. Targeting `[data-slot=label]` (not `label`)
  * keeps the selector pinned to our own `Label`, so a checkbox/switch label inside
  * some future edit control can't get swept up in it.
  */
 export function SidebarSection({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-5 border-t pt-5 [&_[data-slot=label]]:text-xs [&_[data-slot=label]]:font-medium [&_[data-slot=label]]:uppercase [&_[data-slot=label]]:tracking-wide [&_[data-slot=label]]:text-muted-foreground">
+    <div
+      className={cn(
+        "flex flex-col gap-4 border-t pt-4 [&_[data-slot=label]]:text-xs [&_[data-slot=label]]:font-medium [&_[data-slot=label]]:uppercase [&_[data-slot=label]]:tracking-wide [&_[data-slot=label]]:text-muted-foreground",
+        COMPACT_META_FIELDS,
+      )}
+    >
       {children}
     </div>
   );
@@ -109,7 +114,8 @@ export function SidebarSection({ children }: { children: ReactNode }) {
  * A stacked label/value pair in the detail sidebar; em dash when empty. Geometry
  * matches `FormField`/`InlineEditField` (`gap-1.5`, a `min-h-8 py-1` value box) so
  * read-only rows and inline-editable rows sitting in the same sidebar share one
- * vertical rhythm.
+ * vertical rhythm — including when {@link SidebarSection} tightens both at once
+ * (hence the `data-slot`s, which are what those overrides hook onto).
  *
  * Deliberately renders a `Label` even though it labels no control: that's what
  * carries the `data-slot="label"` {@link SidebarSection} styles. Swapping it for a
@@ -124,9 +130,11 @@ export function MetaField({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div data-slot="form-field" className="flex flex-col gap-1.5">
       <Label>{label}</Label>
-      <div className="min-h-8 py-1 text-sm">{children ?? <EmptyCell />}</div>
+      <div data-slot="field-value" className="min-h-8 py-1 text-sm">
+        {children ?? <EmptyCell />}
+      </div>
     </div>
   );
 }
@@ -152,7 +160,7 @@ export function SidebarGroup({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
         <Label>{label}</Label>
         {action}

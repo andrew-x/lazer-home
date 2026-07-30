@@ -18,6 +18,11 @@ import { cn } from "@/lib/core/utils";
  * `labelAction` fills an optional right-aligned slot on the label row (e.g. a
  * ghost "New …" button on the entity-picker fields), so those wrappers don't
  * hand-roll their own label/action header.
+ *
+ * Carries `data-slot="form-field"` so a container can restyle the rows it holds
+ * without every field taking a prop — see `COMPACT_META_FIELDS`
+ * (`src/components/form/field-density.ts`), which tightens the label gap for
+ * fields rendered in a detail page's meta rail.
  */
 export function FormField({
   label,
@@ -35,7 +40,10 @@ export function FormField({
   children: ReactNode;
 }) {
   return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
+    <div
+      data-slot="form-field"
+      className={cn("flex flex-col gap-1.5", className)}
+    >
       {labelAction ? (
         <div className="flex items-center justify-between gap-2">
           <Label htmlFor={htmlFor}>{label}</Label>

@@ -4,8 +4,8 @@ import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
 import { toast } from "sonner";
 import { updateContactField } from "@/actions/crm/updateContactField";
+import { FormField } from "@/components/form/form-field";
 import { StarRating } from "@/components/form/star-rating";
-import { Label } from "@/components/ui/label";
 import { relationshipStrengthLabel } from "@/lib/crm/relationship-strength";
 
 /**
@@ -51,8 +51,11 @@ export function InlineRelationshipStrengthField({
   const described = preview ?? value;
 
   return (
-    <div className="flex flex-col gap-2.5">
-      <Label>Relationship strength</Label>
+    // `FormField` rather than a hand-rolled Label + stack: the sidebar styles its
+    // labels and tightens its rows by descendant selector (see
+    // `SidebarSection`/`COMPACT_META_FIELDS`), so a bespoke row here would drift
+    // out of the rail's rhythm.
+    <FormField label="Relationship strength">
       <div className="flex flex-col gap-1">
         <StarRating
           label="Relationship strength"
@@ -66,6 +69,6 @@ export function InlineRelationshipStrengthField({
           {relationshipStrengthLabel(described)}
         </p>
       </div>
-    </div>
+    </FormField>
   );
 }

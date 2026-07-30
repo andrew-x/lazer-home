@@ -155,11 +155,13 @@ export function ProfileView({
 
   return (
     <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[20rem_1fr] lg:items-start">
-      {/* Left rail: identity, links, compensation. */}
-      <div className="flex flex-col gap-6">
+      {/* Left rail: identity, links, compensation. Deliberately tighter than the
+          main column — it's a stack of short facts, so the rail's cards and rows
+          sit closer together than page-level sections do. */}
+      <div className="flex flex-col gap-4">
         <Card>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3">
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2.5">
               <Avatar className="size-14">
                 {imageUrl ? (
                   <AvatarImage src={imageUrl} alt={profile.name} />
@@ -178,7 +180,7 @@ export function ProfileView({
               </div>
             </div>
 
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2.5">
               <MetaRow label="Email">{profile.email}</MetaRow>
               {profile.location ? (
                 <MetaRow label="Location">{profile.location}</MetaRow>
