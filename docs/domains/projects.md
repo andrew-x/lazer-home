@@ -28,10 +28,20 @@ over its roles ([Budget & margin](#budget--margin) below,
 new read capability `projects.viewMargin`; revenue is not** — a role's cost *is* an individual's
 compensation, so this is the projects domain's first (and carefully masked) contact with
 `staff_employment`. **Margin now also reads on the `/projects` list**, alongside **derived risk
-tags** (Negative margin / Low margin / Ending soon) whose thresholds live in code — with a
+tags** (Negative margin / Low health / Low margin / Ending soon) whose thresholds live in code — with a
 different currency strategy from the plan surfaces
 ([Margin & flags on the list](#margin--flags-on-the-list),
 [ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)).
+
+**And it now carries a human read on how delivery is actually going** — `project_delivery_notes`,
+a **dated write-up carrying its author's 1–10 health rating**, logged on the detail page's
+**Delivery notes** tab ([Delivery notes](#delivery-notes),
+[ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)). There is **no
+`projects.health` column**: the list's Health figure and its **Low health** tag are derived from
+the project's **latest note**, the same "derive it, don't store it" call as status and LoB. Writes
+are the existing `projects.edit` capability (**not** author-only — the team that runs an
+engagement owns its record) and **reads are open, so unlike margin the health figure and its flag
+are shown to every viewer**.
 
 **Otherwise a project stores little of its own** — `id`, `name`, `companyId`, the budget columns,
 timestamps (plus delivery-managers + roles relations). It carries **no stored `status` and no
@@ -123,6 +133,28 @@ delivery, allocations, timesheets, and billing.
   junction convention exactly ([ADR 0016](../decisions/0016-junction-table-and-shared-enum-conventions.md)):
   surrogate `text` PK (`proj-dm`), a `unique(projectId, staffId)` for set-semantics,
   an `index` on `staffId` for reverse lookups, and **both FKs `onDelete: cascade`**.
+- **Project delivery note** (built, [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)) —
+  a **dated write-up of how an engagement is going**, carrying its author's **1–10 health
+  rating**. Table `project_delivery_notes`, id prefix `pdn`
+  (`drizzle/0021_special_doctor_spectrum.sql`). A **document, not a fact about the project**:
+  nothing supersedes anything, and `projects` has **no `health` column** — see
+  [Delivery notes](#delivery-notes).
+  - `projectId` → projects **cascade** (a note is meaningless without its engagement),
+    **`authorStaffId`** → staff **`set null`, nullable** — *attribution only, never an
+    authorization input* (which is also why it points at **`staff`**, like
+    `projectDeliveryManagers.staffId`, rather than at `user` as
+    `performanceReviewNote.authorUserId` does), **`noteDate`** (`date`, the date the note is
+    *about* — `createdAt` is when it was typed), nullable **`title`** (the panel falls back to the
+    date), **`body`**, and **`projectHealth`** (`integer`, **notNull**).
+  - **`check("project_delivery_notes_health_range")`** — `between 1 and 10`, with the bounds
+    interpolated from the scale module via `sql.raw` (a bare `${number}` would emit a bind
+    parameter, which a check constraint can't carry), so zod and the DB can't drift. **Not a
+    pgEnum:** a numeric rating in one stores strings and needs an `ALTER TYPE` to widen the scale.
+  - **Index `(project_id, note_date DESC, created_at DESC)`** — one index serving **both**
+    readers in the exact direction each wants (the detail log, and the list's
+    `distinct on (project_id)`). **The trailing `.desc()`s are load-bearing:** Postgres walks a
+    btree backwards only for a *wholly* reversed ordering, so an ascending index would force a
+    sort node.
 - **Bill rates are NOT an entity.** There is **one company-wide rate card, in code** —
   `BILL_RATES` in `src/lib/projects/bill-rates.ts` — and a T&M project stores nothing about
   pricing at all.
@@ -188,7 +220,7 @@ delivery, allocations, timesheets, and billing.
 ## What's built
 
 - **Schema** — `src/lib/db/projects-schema.ts` (`projects`, `project_delivery_managers`,
-  `project_roles` — **three tables**), barrelled by `src/lib/db/schema.ts`; imports `opportunities` from
+  `project_roles`, **`project_delivery_notes`** — **four tables**), barrelled by `src/lib/db/schema.ts`; imports `opportunities` from
   `./opportunities-schema` (opportunities were split out of `crm-schema.ts` —
   [ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
   **Schema files are the source of truth for the current shape**; the drizzle history was
@@ -208,7 +240,9 @@ delivery, allocations, timesheets, and billing.
   `project_billing_type` enum (`drizzle/0016_violet_whistler.sql`; there is **no rate-card
   table** — see the bill-rates bullet under
   [Key entities](#key-entities) and
-  [ADR 0053](../decisions/0053-project-budgets-and-margin.md)), and the delivery link on
+  [ADR 0053](../decisions/0053-project-budgets-and-margin.md)), the **`project_delivery_notes`
+  table + its health check constraint** (`drizzle/0021_special_doctor_spectrum.sql`,
+  [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)), and the delivery link on
   `opportunities.project_id`.
 - **Derived-fields module** — `src/lib/projects/project-derived.ts`
   exports `deriveProjectStatus(roleStatuses)` and `deriveProjectLinesOfBusiness(roleLobs)`, plus
@@ -291,20 +325,41 @@ delivery, allocations, timesheets, and billing.
   grounds as `compensation-plan.test.ts`). **Pure and client-importable**, so the server read and
   the client's currency toggle share one implementation. See
   [Budget & margin](#budget--margin) below for the rules it encodes.
+- **Project-health scale** — `src/lib/projects/project-health.ts`
+  (+ `project-health.test.ts`, 5 tests). A **pure, client-importable** module
+  ([ADR 0016](../decisions/0016-junction-table-and-shared-enum-conventions.md) shape, mirroring
+  `relationship-strength.ts` / `feedback-rating.ts`): `PROJECT_HEALTH_MIN`/`PROJECT_HEALTH_MAX`
+  (**1–10**), the `ProjectHealth` type, ten **distinct** labels (Critical · Failing · At risk ·
+  Struggling · Mixed · Fair · Steady · Healthy · Strong · Exemplary), `projectHealthLabel(value)`
+  and **`PROJECT_HEALTH_UNRATED_LABEL`** (`"Not rated"`). One source for the check constraint's
+  bounds, the zod schema, the `StarRating` input, the list card and the detail tile.
+  **Ten points, not five:** delivery leads already say "a seven", and a five-point scale collapses
+  the interesting middle. **It deliberately does *not* own the low-health threshold** — that is
+  policy, and lives in `project-flags.ts`; this module answers "what does a 4 *mean*".
+- **Delivery-note limits** — `src/lib/projects/delivery-note.ts`: `DELIVERY_NOTE_TITLE_MAX` (200),
+  `DELIVERY_NOTE_BODY_MAX` (20 000), and the shared strings (`DELIVERY_NOTE_HINT`, the title
+  placeholder). Pure/client-importable, so the zod schema and the form's inputs share one source.
+  Split from the scale module because `project-flags.ts` imports the scale and has no business
+  knowing a note's text limits.
 - **Risk-flag policy (code as policy again)** — `src/lib/projects/project-flags.ts`
-  (+ `project-flags.test.ts`, 22 tests — another sanctioned
+  (+ `project-flags.test.ts`, **28 tests** — another sanctioned
   [ADR 0037](../decisions/0037-unit-tests-removed-except-rbac-matrix.md) exception on ADR 0053's
   margin-math grounds). A **pure, client-importable** module holding the `/projects` list's
   **derived risk tags** and the thresholds that define them: `PROJECT_FLAGS`
-  (`negativeMargin` → `lowMargin` → `endingSoon`, **worst first**), `PROJECT_FLAG_LABELS`,
-  `PROJECT_FLAG_VARIANTS` (**only the loss gets colour** — `destructive`; the other two are
-  `secondary`, matching `marginAmountTone`'s "colour losses only" rule), the `ProjectFlagInputs`
+  (`negativeMargin` → **`lowHealth`** → `lowMargin` → `endingSoon`, **worst first** — a human
+  saying the engagement is going badly outranks a thin-but-positive margin), `PROJECT_FLAG_LABELS`,
+  `PROJECT_FLAG_VARIANTS` (**only the loss gets colour** — `destructive`; the other three are
+  `secondary`, matching `marginAmountTone`'s "colour losses only" rule — `lowHealth` included,
+  because a 1–10 score is a human judgement that may be stale where a loss is a computed fact),
+  the `ProjectFlagInputs`
   shape, and `projectFlags(input)` — a filter over the tuple against a
   `Record<ProjectFlag, predicate>` table. **Exactly the shape of `src/lib/crm/company-status.ts`**
   ([ADR 0034](../decisions/0034-company-status-derived-tags.md)) and `project-derived.ts`, so the
   read that evaluates the flags and the card that renders the badges share one definition. Config
   constants: `ENDING_SOON_DAYS = 14`, `NEGATIVE_MARGIN_AT_OR_BELOW = 0`,
-  `LOW_MARGIN_PERCENT = 0.25`, `LOW_MARGIN_AMOUNT = 10_000`, `MARGIN_FLAG_CURRENCY = "CAD"`, plus
+  `LOW_MARGIN_PERCENT = 0.25`, `LOW_MARGIN_AMOUNT = 10_000`, `MARGIN_FLAG_CURRENCY = "CAD"`,
+  **`LOW_PROJECT_HEALTH_AT_OR_BELOW = 4`** (inclusive — the *policy* half of the health scale,
+  kept out of `project-health.ts`, which owns the *vocabulary*), plus
   **`PROJECT_FLAGS_REVIEWED_ON`** — bump it when you change a threshold. Thresholds live in code
   for `bill-rates.ts` / `compensation-targets.ts` reasons: "thin margin" is **policy** the company
   revises centrally, and one shared set means two projects can't disagree about what "healthy"
@@ -327,7 +382,11 @@ delivery, allocations, timesheets, and billing.
     string range** aggregated from the project's roles, null when role-less, **plus the commercial
     trio added by [ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md):
     `billingType` (null ⇒ "No budget"), `flags: ProjectFlag[]`, and
-    `margin: Record<DisplayCurrency, ProjectListMargin> | null`** — see
+    `margin: Record<DisplayCurrency, ProjectListMargin> | null`**, **plus `latestHealth` +
+    `latestHealthDate`** from the project's most recent delivery note
+    ([ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)) — null ⇒ "Not rated",
+    and unlike `margin` it is **not capability-gated**; the date ships because a bare "3/10" reads
+    as *now* — see
     [Margin & flags on the list](#margin--flags-on-the-list)),
     **`ProjectsListFilters`** (`{ query?, lineOfBusiness?, deliveryManagerId? }` — a
     case-insensitive substring match on project **or** company name, a single line of business,
@@ -351,9 +410,18 @@ delivery, allocations, timesheets, and billing.
     Both **inner**-join companies for `companyName` (required, via the shared `baseColumns`, which
     now also selects the three budget columns); `assembleRows` then resolves
     delivery managers, role statuses/LoBs, role count, the min-start/max-end date range, **the plan
-    margin and the risk flags** in **two grouped follow-up queries** scoped to the page's ids —
-    **no N+1, and the same query count as before budgets** (the role query just selects
-    `id`/`roleType`/`hoursPerDay`/`staffId` too). `status` +
+    margin, the latest delivery-note health and the risk flags** in **three grouped follow-up
+    queries** scoped to the page's ids — **no N+1** (budgets added none: the role query just
+    selects `id`/`roleType`/`hoursPerDay`/`staffId` too; delivery-note health added the third,
+    `Promise.all`'d with the delivery-manager one). The health query is a
+    **`selectDistinctOn([projectId])`** ordered by `projectId` then the **shared
+    `latestDeliveryNoteFirst`** clause exported by `getProjectDeliveryNotes` — one ordering rule for
+    both readers, so the list and the detail log can't disagree about which note is current;
+    `distinct on` rather than reducing every note in JS because a weekly note over a two-year
+    engagement is ~100 rows and the Active section is unpaginated.
+    **`assembleRows` is called once per section**, so the grouped view runs each of those three
+    queries **five** times per render — that's the multiplier anything added there inherits.
+    `status` +
     `linesOfBusiness` are derived in JS via `deriveProjectStatus`/`deriveProjectLinesOfBusiness`;
     the date range exploits `"YYYY-MM-DD"` being zero-padded (lexicographic min/max ==
     chronological). **`currentDay()` is read once for the whole page**, so two cards can't disagree
@@ -409,6 +477,36 @@ delivery, allocations, timesheets, and billing.
       allocations grid, which has always shown approved PTO only.
     - **The read fails closed with no session** (`getCurrentUser()` null ⇒ empty spans,
       `canSeeType: false`) rather than leaning on the `(app)` layout's redirect.
+  - **Delivery notes** ([ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md),
+    [Delivery notes](#delivery-notes) below):
+    - `getProjectDeliveryNotes.ts` — **server-only** read backing the detail page's **Delivery
+      notes** tab: every note on a project, **newest first**, left-joined to `staff` for the
+      author's name (**LEFT**, not inner — `authorStaffId` is nullable, and an inner join would
+      silently drop unattributed notes). Takes **no user and applies no mask**: reads are open like
+      every other project read. Returns a **bare array**, not a `…View` object with a `canCreate`
+      flag — who may write is the static capability the page already computes as `canEdit`
+      (contrast `getStaffReviewNotes`, where what a reader may see genuinely varies per row).
+      It also exports **`latestDeliveryNoteFirst`** — `desc(noteDate), desc(createdAt)` — reused by
+      `getProjectsList`'s `distinct on`, and the direction the table's index is declared in.
+    - `deliveryNotes.schema.ts` — **pure/client-importable** zod (the form imports
+      `deliveryNoteContentSchema` as its resolver, so a drizzle-derived schema here would pull the
+      table into the client bundle — [ADR 0035](../decisions/0035-schema-modules-by-import-boundary.md)).
+      **One `deliveryNoteFields` object spread into create and update**, as
+      `selfEvaluations.schema.ts`/`reviewNotes.schema.ts` do, so content rules can't drift between
+      them; bounds for `projectHealth` come from the scale module that also drives the check
+      constraint. **Deliberately absent everywhere:** `authorStaffId` (session-resolved) and
+      `projectId` on update (a note can't be moved between engagements).
+    - `createProjectDeliveryNote.ts` / `updateProjectDeliveryNote.ts` /
+      `deleteProjectDeliveryNote.ts` — **all three gated on the static `permission: { projects:
+      ["edit"] }` and nothing else**: no `authorize` hook, no ownership dimension, so **edit and
+      delete are NOT author-only** (the team that runs the engagement owns its record — the
+      deliberate inverse of self-evaluations, see [Authorization](#authorization)). Create resolves
+      the author via the shared **`resolveAuthorStaffId`** (**moved from `src/actions/crm/` to
+      `src/actions/shared/`** for this — two CRM importers updated) and maps an FK violation to
+      "That project no longer exists" instead of pre-reading. Update never touches `authorStaffId`
+      (an editor usually isn't the writer) or `projectId`; update/delete use
+      `.returning()` + `assertRowExists` to catch a note deleted mid-edit and to get the project id.
+      All three revalidate via `revalidateProject`.
   - `createProjectFromOpportunity.ts` (+ `.schema.ts`) — **create from an
     opportunity**, gated `projects.edit`. Its input is now `{ opportunityId, budget }` — the
     project still inherits the opportunity's `name` +
@@ -935,16 +1033,29 @@ list converts** and **what it does with the number**.
   figure would make a project gain and lose "Low margin" as the reader toggled — the tag would
   describe the rendering, not the engagement. **Consequence to expect:** in USD a card can read
   "$7,400" and still carry "Low margin" because it is CA$10,100.
-- **The rules** (`project-flags.ts`): `negativeMargin` at margin **≤ 0** (zero counts — breaking
-  even earns nothing) and it **suppresses** `lowMargin`; `lowMargin` on `marginPercent < 25%`
+- **The rules** (`project-flags.ts`, worst first): `negativeMargin` at margin **≤ 0** (zero counts —
+  breaking even earns nothing) and it **suppresses** `lowMargin`; **`lowHealth` when the latest
+  delivery note's health is ≤ 4** (inclusive — see [Delivery notes](#delivery-notes));
+  `lowMargin` on `marginPercent < 25%`
   **OR** `margin < 10,000` (deliberately OR'd — a big engagement at 15% and a small one clearing
   only $10k are both worth a look, and either floor alone misses one); `endingSoon` when the latest
   role end date is within **14 days** of today and not already past. **A cancelled project gets no
-  flags** (nothing left to deliver or bill), and **unknown/withheld margin yields no margin flags
-  at all** — "we can't tell" is not "it's bad", and the absence of a tag must not leak the figure.
-- **Which flags you see therefore depends on your capability:** without `projects.viewMargin`,
-  margin is null and only **Ending soon** can ever appear. Don't read a bare card as "this project
-  is fine".
+  flags** (nothing left to deliver or bill — including no health flag: its last note describes work
+  nobody still has to do), and **unknown/withheld margin, or an unrated project, yields no flag** —
+  "we can't tell" is not "it's bad", and the absence of a tag must not leak the figure.
+- **Which flags you see depends on your capability — but only the *margin* ones.** Without
+  `projects.viewMargin`, margin is null, so **Negative margin** and **Low margin** can never
+  appear; such a viewer sees only **Ending soon** and **Low health**. **Health is deliberately
+  ungated** (nothing about it derives from anyone's compensation —
+  [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md) §4), so it is the first
+  flag a `sales` or `user` reader gets beyond the dates. Still: don't read a bare card as "this
+  project is fine".
+- **The card's `Health` field renders as text (`7/10` + the note's date), not stars.** The whole
+  card is wrapped in a `<Link>`, and `StarRating`'s interactive mode is a fieldset of buttons that
+  must not nest inside one — while its read-only mode would put ten icons on every card in the
+  grid. The **date is shown beside the figure** on purpose: nothing expires a rating, so a bare
+  "3/10" would read as *now* (see [Open questions](#open-questions--not-yet-built) on stale health).
+  Unrated projects read **"Not rated"**, not a dash.
 - **The list's FX note is list-scoped, not per-project provenance.** `ProjectMargin.convertedFrom`
   (what a budget panel states) records the currencies *one project* converted from; the list ships
   `nativeCurrencies` — everything a rate could apply to anywhere in the list — because its control
@@ -959,6 +1070,45 @@ list converts** and **what it does with the number**.
 - **Perf note:** `roleBillableHours`' working-day count runs **twice per role** (once per
   currency). First thing to look at if the unpaginated Active section ever gets long — caching
   hours per role would break the currency symmetry for no gain at today's scale.
+
+## Delivery notes
+
+The human counterpart to margin: **how the engagement is actually going**, stated by the people
+running it. Built by [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md) —
+read it for the *why*, especially the two calls that differ from their nearest precedents (no
+stored `health` column; writes not author-only).
+
+- **A note is a dated document, and health is derived from the newest one.** Each
+  `project_delivery_notes` row is a `noteDate` + optional `title` + `body` + a **1–10
+  `projectHealth`** (entity shape under [Key entities](#key-entities)). Nothing supersedes anything.
+  **"How is this project doing" = the latest note**, ordered `desc(noteDate), desc(createdAt)` — the
+  author-chosen date decides, `createdAt` breaks a same-day tie — via the single exported
+  `latestDeliveryNoteFirst` clause shared by the detail read and the list's `distinct on`. So the
+  two surfaces can never disagree about which note is current, and **deleting the newest note is how
+  the list's health falls back to the one before it** (the delete confirmation says so).
+- **The scale is vocabulary; the threshold is policy.** `project-health.ts` owns 1–10 and its ten
+  labels (Critical → Exemplary) plus `"Not rated"`; `project-flags.ts` owns
+  `LOW_PROJECT_HEALTH_AT_OR_BELOW = 4`. Two modules because they're revised on different cadences —
+  and the note's text limits live in a *third* (`delivery-note.ts`), so `project-flags.ts` can
+  import the scale without inheriting them.
+- **≤ 4, inclusive, and 4 rather than 5 on purpose.** Five is the midpoint where a lead parks an
+  engagement they can't call either way (its label is literally "Mixed"), and a badge on half the
+  grid isn't a warning; three would only re-state what's already being escalated in a standup. The
+  bottom four labels are each a sentence you'd want on a card.
+- **No notes ⇒ "Not rated" and no flag.** Extends ADR 0057's rule: "nobody has assessed this" is a
+  different statement from "the assessment came back badly".
+- **Reads are open; writes are the static `projects.edit` capability, and edit/delete are NOT
+  author-only.** See [Authorization](#authorization). The consequence to hold onto:
+  **`authorStaffId` is attribution only and is never an authorization input.**
+- **Where it shows.** The detail page's **Delivery notes** tab (the log + inline composer/editor)
+  and its **Health** summary tile, and on `/projects` the card's `Health` field + the **Low health**
+  badge (see [Margin & flags on the list](#margin--flags-on-the-list)). The tab uses
+  `StarRating max={10}` with a hover-preview label — a 10-point scale is hard to read without one —
+  which is safe there because nothing wraps it in a link.
+- **Seed fixtures pin the list's rules** (`seedProjectDeliveryNotes`): a project with **no** notes, one
+  **at** the threshold, one **one above** it, and one with **two notes on the same `noteDate`** to
+  exercise the `createdAt` tie-break. Their `createdAt`s are set explicitly, because `now()` is
+  transaction-scoped in Postgres and a bulk insert would otherwise leave that tie-break undefined.
 
 ## Delete / detach
 
@@ -990,10 +1140,16 @@ See [ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status
 `/projects/[id]` (`src/app/(app)/projects/[id]/page.tsx`) is the **first per-project detail
 route** — previously the only in-depth single-project surface was the opportunity drawer's
 Project-plan tab (keyed by `opportunityId`). The Server Component `Promise.all`s
-`getProjectPlan(id)` + `getProjectPto(id)` + **`getCurrentUser()`** (its `generateMetadata` also
+`getProjectPlan(id)` + `getProjectPto(id)` + **`getProjectDeliveryNotes(id)`** +
+**`getCurrentUser()`** (its `generateMetadata` also
 calls `getProjectPlan` to title the tab), `notFound()`s when the plan is null (unknown id), and
 renders the client `ProjectDetailView` (`src/components/projects/detail/project-detail-view.tsx`)
 with **`canEdit = userHasPermission(user, { projects: ["edit"] })`**.
+
+**Delivery notes are a *sibling* read, not part of `ProjectDetailPlan`** — deliberately, for two
+reasons: `generateMetadata` calls the plan read too, so anything folded into it is fetched twice per
+request just to title the tab, and that type is shared with the opportunity drawer's planner, which
+has no notes to show.
 
 **This page is the delivery-side editor of the engagement** — not read-only ([ADR
 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md)). `canEdit` drives the
@@ -1034,10 +1190,16 @@ left as plain text by design are the **editable timesheet week grid** row labels
   `ProjectStatusBadge`, the editable company field, derived LoB text, then the **same summary
   `StatCard` tiles** as the opportunity Project-plan tab (Length, Dates, Confirmed span, Tentative
   span, Delivery managers) — now the shared `PlanSummaryTiles` component over `plan-summary.ts`, so
-  the two surfaces can't drift — and, **above the tabs, the shared `BudgetSummaryPanel`** (revenue /
+  the two surfaces can't drift — **plus a `Health` tile** (`IconHeartbeat`: `n/10` with the label and
+  the **note's date** as its hint, or "Not rated"), fed from `notes[0]` because that read is already
+  ordered latest-first, i.e. by the same rule the list derives its figure from. `health` is an
+  **optional** `PlanSummaryTiles` prop, omitted on the opportunity's Project-plan tab, which has no
+  notes to read. And, **above the tabs, the shared `BudgetSummaryPanel`** (revenue /
   cost / margin + the currency toggle + Set/Edit budget). Its per-role counterpart is the
   Timeline grid's `margins` prop. See [Budget & margin](#budget--margin).
-- **Three tabs. Roles are editable from *two* of them** — the Timeline Gantt and the Roles table
+- **Four tabs** (Timeline · Roles · **Delivery notes** · Time off — the two structural views first,
+  then the narrative, then the ancillary one). **Roles are editable from *two* of them** — the
+  Timeline Gantt and the Roles table
   both open the same `ProjectRoleDialog`, so there is no "read-only view + edit view" split here:
   - **Timeline — an *editable* reuse of the opportunity planner's `PlannerGrid`**
     (`opportunity-plan/planner-grid.tsx`) fed by the pure `buildWeekColumns`/`buildPlannerRows` with
@@ -1069,6 +1231,15 @@ left as plain text by design are the **editable timesheet week grid** row labels
     - **Ripples:** adding/removing a role can shift the project's **derived status** and derived
       lines of business (`deriveProjectStatus` / `deriveProjectLinesOfBusiness`), and every write
       revalidates `/allocations` because project roles are that grid's rows.
+  - **Delivery notes** — `delivery-notes-panel.tsx`: the log newest-first (title, or the date when
+    blank; author linked to `/staff/[id]`; an "edited" marker when `updatedAt > createdAt`;
+    read-only `StarRating max={10}` + `n/10 · label`), with an **inline** composer and per-note
+    editor rather than a dialog, and a `ConfirmDialog` delete whose wording explains that removing
+    the newest note moves the list's health back to the one before it. The form is **loosely bound**
+    (`useForm` + `useAction`, per the forms rule) because the shape deliberately omits the ids, and
+    `projectHealth` starts **unset** when composing so an unrated note fails validation rather than
+    defaulting someone into a judgement. `canEdit` gates the affordances only; **an editor need not
+    be the author.** See [Delivery notes](#delivery-notes).
   - **Time off** — the project's PTO from `getProjectPto`, split Upcoming / Past. The **Type
     column renders only for `pto.review` reviewers** (driven by `canSeeType`), and **non-reviewers
     see approved leave only** — see the read's permission nuance above.
@@ -1098,7 +1269,8 @@ page** (`getProjectPlan`/`getProjectPto` are server-only; the `(app)` gate is th
   - **The `/projects` list obeys the same gate through the same door** —
     `getProjectsMarginContext` calls `getProjectCostBasis`, and a null cost basis means
     `ProjectListItem.margin` is null for every card, no toggle renders, and **no margin-based flag
-    can fire** (so a non-holder only ever sees "Ending soon"). The list additionally sends **no
+    can fire** (so a non-holder sees only the two **ungated** tags, "Ending soon" and "Low
+    health"). The list additionally sends **no
     per-role cost at all**, only two whole-project figures — see
     [Margin & flags on the list](#margin--flags-on-the-list) and
     [ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md).
@@ -1107,6 +1279,13 @@ page** (`getProjectPlan`/`getProjectPto` are server-only; the `(app)` gate is th
   approved leave at all** (`getProjectPto` filters pending rows out and nulls those fields in the
   read; it also fails closed with no session — see
   [Project detail page](#project-detail-page)).
+
+**Delivery notes add no third carve-out.** `getProjectDeliveryNotes` takes no user and masks
+nothing — the notes, their authors and their health ratings are readable by anyone who can see the
+project — and the list's `latestHealth`/`latestHealthDate` and **Low health** badge ship to every
+viewer. That asymmetry with margin is deliberate: health is a **human delivery judgement**, not a
+figure derived from an individual's compensation, which is the only reason margin is withheld
+([ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md) §4).
 
 **All project writes** are gated by a single flat capability (no
 ownership dimension): **`projects.edit`**, granted to `delivery-manager`, `manager`,
@@ -1124,6 +1303,17 @@ planner role CRUD** (`createProjectRole`/`updateProjectRole`/`deleteProjectRole`
 (`createProjectRoleOnProject`/`updateProjectRoleOnProject`/`deleteProjectRoleOnProject`),
 **the bulk role actions + inline staff assignment**
 (`deleteProjectRoles`/`duplicateProjectRoles`/`bumpProjectRoles`/`assignRoleStaff`),
+**delivery-note CRUD**
+(`createProjectDeliveryNote`/`updateProjectDeliveryNote`/`deleteProjectDeliveryNote` — **all three
+the plain static capability, with edit and delete deliberately *not* author-only**: a delivery note
+is the operational record of a shared engagement, so the team that runs it can correct it, exactly
+as CRM notes and tasks have no per-entry ownership. This is the deliberate **inverse** of
+self-evaluations, which are author-only with no admin override
+([ADR 0058](../decisions/0058-self-evaluations-dated-records-with-snapshotted-answers.md) §5) —
+there authorship *is* the point. Hence **`authorStaffId` is attribution only and never an
+authorization input**, and it points at `staff` rather than `user`; a signed-in user with no staff
+row writes an unattributed note. See
+[ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md) §3),
 **associating an opportunity to an existing project** (`associateOpportunityProject` — a
 delivery decision even though it writes an `opportunities` column), and the type-ahead pickers
 (`searchStaff`/`searchCompanies`/`searchProjects`). (**Deleting the opportunity itself** —
@@ -1137,7 +1327,10 @@ actions to **roles on this project** (any status). Neither is access control, an
 **not a bypass** — see [ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md).
 The detail page's `canEdit` prop is an **affordance flag only**. **The matrix gained one column —
 `projects.viewMargin`** — updated in lockstep across `permissions.ts`, `permissions.test.ts` and
-[permissions.md](./permissions.md); no *write* gate changed.
+[permissions.md](./permissions.md); no *write* gate changed. **Delivery notes added no capability at
+all** (`permissions.ts`, `permissions.test.ts` and permissions.md's matrix table are untouched):
+"may correct an engagement's delivery record" has exactly the audience of "may re-date its roles",
+so a `projects.deliveryNotes` row would be a second way to spell `projects.edit`.
 
 ## Key flows
 
@@ -1151,14 +1344,26 @@ The detail page's `canEdit` prop is an **affordance flag only**. **The matrix ga
   panel** above the grid and a **per-role margin line inside it**, recomputed from the roles on every
   staffing change. A viewer **without `projects.viewMargin`** sees the same page with revenue only;
   the cost numbers are never sent. See [Budget & margin](#budget--margin).
+- **Record how an engagement is going** (built,
+  [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)) — on `/projects/[id]`'s
+  **Delivery notes** tab a `projects.edit` holder writes a dated note: what's going on, what's at
+  risk, what happens next, plus a **1–10 health rating**. Saving it is immediately visible to
+  everyone who can see the project (no draft), updates the page's **Health** tile, and — because the
+  list reads the **latest** note — changes the project's `Health` field on `/projects` and may raise
+  or clear its **Low health** badge (≤ 4). Anyone with the capability can correct or delete the note
+  afterwards, author or not; deleting the newest one falls back to the one before it. A project with
+  no notes reads **"Not rated"** and carries no badge. See [Delivery notes](#delivery-notes).
 - **Spot the engagements in trouble without opening them** (built,
   [ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)) — `/projects` shows each
-  card's **plan margin** and up to three **derived risk tags** (Negative margin / Low margin /
-  Ending soon), so the question the page is opened with ("what needs attention?") is answered in the
+  card's **plan margin**, its latest **health**, and up to four **derived risk tags** (Negative
+  margin / Low health / Low margin / Ending soon), so the question the page is opened with ("what
+  needs attention?") is answered in the
   grid rather than one project at a time. One CAD/USD toggle in the filter bar re-denominates every
   card instantly (both figures ship precomputed), while the **tags are always judged in CAD** so
   they don't move with the display. `projects.viewMargin` holders get the money; everyone else gets
-  the dates. See [Margin & flags on the list](#margin--flags-on-the-list).
+  the dates — **and, since [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md),
+  the health**: every viewer sees each card's latest delivery-note rating and its **Low health**
+  badge. See [Margin & flags on the list](#margin--flags-on-the-list).
 - **Create a standalone project, then staff it** (built) — creation is minimal: a company,
   a name, and **how it bills** (no LoB/status — those derive). The project starts with **no roles and no delivery
   managers** (so it reads `tentative` with no LoBs). Staffing then happens on **either editor**:
@@ -1221,6 +1426,8 @@ The detail page's `canEdit` prop is an **affordance flag only**. **The matrix ga
   role.
 - **Staff** — delivery managers and (staffed) role staff are `staff` rows. Delivery-manager
   FKs cascade; a role's `staffId` is `restrict` and **nullable** (null ⇒ placeholder).
+  **A delivery note's `authorStaffId` is a third staff reference** — `set null`, attribution only,
+  so losing the person keeps the note (and a writer with no staff row leaves it unattributed).
   The **reverse read** (which projects a person is on) lives in the staff domain:
   `getStaffProjects(staffId)` (`src/actions/staff/getStaffProjects.ts`) unions
   `project_roles.staffId` + `project_delivery_managers.staffId` into one row per project
@@ -1303,4 +1510,15 @@ The detail page's `canEdit` prop is an **affordance flag only**. **The matrix ga
   column would need a story for the nulls (no budget, no roles, no `viewMargin`) first, and a
   `SelectFilter` over flags would have to be evaluated in SQL rather than in `assembleRows`. Both
   are additive, no schema.
+- **Health can go stale, and nothing says so** ([ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)).
+  No rating expires, so a **Low health** badge can be driven by a note from a year ago — and, worse,
+  a project that was healthy last winter still *reads* healthy today. That's why
+  **`latestHealthDate` ships to the card** and both the card and the detail tile print the date
+  beside the figure. The obvious next step is a **`staleHealth` flag or a recency cutoff on
+  `lowHealth`** — deliberately not built, because it needs a policy answer ("how old is too old"),
+  which is a threshold decision to make on purpose rather than guess. No schema change either way.
+- **Health can't be sorted or filtered on**, for the same reason as the flags: the figure is derived
+  in `assembleRows`, not in the base query, so a `health` sort or a "Not rated" filter would need the
+  latest-note lookup pushed into that query — a **lateral join** — before the ordering could touch
+  it. Additive, no schema.
 - **No richer lifecycle/stage model** beyond the derived status.

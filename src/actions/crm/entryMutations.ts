@@ -3,6 +3,7 @@ import "server-only";
 import { eq, type InferInsertModel } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { assertRowExists } from "@/actions/shared/assertRowExists";
+import { resolveAuthorStaffId } from "@/actions/shared/resolveAuthorStaffId";
 import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { isForeignKeyViolation } from "@/lib/db/foreign-key-violation";
@@ -12,7 +13,6 @@ import {
   contactEntries,
   opportunityEntries,
 } from "@/lib/db/schema";
-import { resolveAuthorStaffId } from "./resolveAuthorStaffId";
 import { revalidateCompany, revalidateContact } from "./revalidate";
 
 /**

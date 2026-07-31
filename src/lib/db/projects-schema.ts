@@ -3,6 +3,7 @@ import {
   check,
   date,
   index,
+  integer,
   numeric,
   pgEnum,
   pgTable,
@@ -11,6 +12,10 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import { BILLING_TYPES } from "@/lib/projects/project-billing";
+import {
+  PROJECT_HEALTH_MAX,
+  PROJECT_HEALTH_MIN,
+} from "@/lib/projects/project-health";
 import {
   DEFAULT_PROJECT_ROLE_STATUS,
   PROJECT_ROLE_STATUSES,
@@ -176,6 +181,86 @@ export const projectRoles = pgTable(
   ],
 );
 
+// Delivery notes: a dated write-up of how an engagement is actually going, plus
+// the author's own 1–10 health rating. Like `performance_review_note` this is a
+// DOCUMENT, not a fact about the project — nothing here supersedes anything, and
+// `projects` carries no `health` column of its own. "How is this project doing" is
+// answered by the LATEST note (see `getProjectsList`), so a stored scalar would be
+// a hand-maintained duplicate of the newest row that silently disagrees with it
+// the moment a note is edited or deleted. Same "derive it, don't store it" call as
+// status and line of business above.
+//
+// Unlike a review note there is NO lifecycle and no draft: reads are open like
+// every other project read, and writes — create, edit and delete alike — are the
+// static `projects.edit` capability, so the team that runs the engagement can
+// correct its record. `authorStaffId` is therefore ATTRIBUTION ONLY and is never
+// an authorization input (contrast `performance_review_note.authorUserId`, where
+// it is). See docs/decisions/0059.
+export const projectDeliveryNotes = pgTable(
+  "project_delivery_notes",
+  {
+    id: text().primaryKey(),
+    // `cascade`: a note is meaningless without its engagement (as `project_roles`).
+    projectId: text()
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    // Who wrote it. Author = staff, matching the other people-FKs in this domain
+    // (`projectDeliveryManagers.staffId`, `projectRoles.staffId`) and so the panel
+    // can link the name to /staff/[id]. `set null` because this is attribution,
+    // not ownership: losing it narrows nothing, since the write gate is a
+    // capability rather than the author. A signed-in user with no staff row (an
+    // admin, say) writes an unattributed note — the cost CRM entries already accept.
+    authorStaffId: text().references(() => staff.id, { onDelete: "set null" }),
+    // The date the note is ABOUT — `createdAt` is when it was typed. Named after
+    // `performanceReviewNote.noteDate`; labelled simply "Date" in the UI.
+    noteDate: date().notNull(),
+    // Optional, so a weekly note doesn't demand a headline; the panel falls back
+    // to the date, exactly as the review-notes panel does.
+    title: text(),
+    body: text().notNull(),
+    // The 1–10 health rating, in ITS OWN COLUMN rather than jsonb — the same
+    // reasoning as `staffSelfEvaluation.selfRating` (ADR 0058): it is the only
+    // part of a note with a closed value set, the only thing anything aggregates
+    // on, and the one value a LIST ROW needs without parsing jsonb.
+    //
+    // `notNull` so the list's rule stays statable in one sentence ("the latest
+    // note's health"); a nullable rating would force a look-further-back clause
+    // nobody wants to explain or test. It is also unreachable from the only UI
+    // that writes it — `StarRating` has no clear affordance.
+    projectHealth: integer().notNull(),
+    createdAt: timestamp().defaultNow().notNull(),
+    updatedAt: timestamp()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    // Serves BOTH readers with one index, in the exact direction each wants: the
+    // detail read (`project_id = $1 order by note_date desc, created_at desc`) and
+    // the list's `distinct on (project_id)` over a scoped id set, whose order by is
+    // `project_id, note_date desc, created_at desc`. The trailing `.desc()` calls
+    // are load-bearing, not decoration — Postgres can only walk a btree backwards
+    // for a WHOLLY reversed ordering, so a plain ascending index cannot supply this
+    // mixed direction and would force a sort node.
+    index("project_delivery_notes_project_date_idx").on(
+      t.projectId,
+      t.noteDate.desc(),
+      t.createdAt.desc(),
+    ),
+    // The scale as a DB invariant, so an out-of-range rating can't reach the
+    // low-health flag from a future import or a hand-written update. Mirrors
+    // `projects_budget_shape`. NOT a pgEnum: a numeric rating in a pgEnum stores
+    // strings and needs an `alter type` to widen the scale. Bounds come from the
+    // scale module via `sql.raw` (a bare `${number}` would emit a bind parameter,
+    // which a check constraint can't carry) so the DB and zod can't drift.
+    check(
+      "project_delivery_notes_health_range",
+      sql`${t.projectHealth} between ${sql.raw(String(PROJECT_HEALTH_MIN))} and ${sql.raw(String(PROJECT_HEALTH_MAX))}`,
+    ),
+  ],
+);
+
 // --- Row types -------------------------------------------------------------
 
 export type Project = InferSelectModel<typeof projects>;
+export type ProjectDeliveryNote = InferSelectModel<typeof projectDeliveryNotes>;

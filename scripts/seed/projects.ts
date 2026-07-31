@@ -7,11 +7,18 @@ import {
   opportunities as opportunitiesTable,
   type Project,
   projectDeliveryManagers,
+  projectDeliveryNotes,
   projectRoles,
   projects,
   type Staff,
 } from "@/lib/db/schema";
 import { CURRENCY } from "@/lib/format/currency";
+import { parseIsoDate } from "@/lib/format/format";
+import { LOW_PROJECT_HEALTH_AT_OR_BELOW } from "@/lib/projects/project-flags";
+import {
+  PROJECT_HEALTH_MAX,
+  PROJECT_HEALTH_MIN,
+} from "@/lib/projects/project-health";
 import { PROJECT_ROLE_STATUSES } from "@/lib/projects/project-role-status";
 import { PROJECT_ROLE_TYPES } from "@/lib/projects/project-role-type";
 import type { SeedDb } from "./client";
@@ -22,6 +29,7 @@ const PROJECT_COUNT = 15;
 type ProjectInsert = InferInsertModel<typeof projects>;
 type DeliveryManagerInsert = InferInsertModel<typeof projectDeliveryManagers>;
 type RoleInsert = InferInsertModel<typeof projectRoles>;
+type DeliveryNoteInsert = InferInsertModel<typeof projectDeliveryNotes>;
 
 /**
  * The billing columns for one project, spanning all three real states: a fixed fee
@@ -174,4 +182,126 @@ export async function seedProjects(
   await db.insert(projectRoles).values(roles);
 
   return db.query.projects.findMany();
+}
+
+/** Fraction of the remaining projects that have any delivery notes at all. */
+const DELIVERY_NOTE_COVERAGE = 0.65;
+const MAX_DELIVERY_NOTES_PER_PROJECT = 4;
+
+/**
+ * Health weighted toward the top of the scale, so a low rating stays meaningful —
+ * a book where a third of the projects are on fire would make the **Low health**
+ * badge useless to look at.
+ */
+const HEALTH_WEIGHTS = [
+  { value: 3, weight: 1 },
+  { value: 4, weight: 2 },
+  { value: 5, weight: 2 },
+  { value: 6, weight: 3 },
+  { value: 7, weight: 5 },
+  { value: 8, weight: 5 },
+  { value: 9, weight: 3 },
+  { value: 10, weight: 1 },
+];
+
+const DELIVERY_NOTE_TITLES = [
+  "Weekly delivery check-in",
+  "Steering committee readout",
+  "Sprint review notes",
+  "Escalation summary",
+  "Mid-engagement health check",
+];
+
+/**
+ * Seed delivery notes — dated write-ups carrying a 1–10 health rating, whose newest
+ * entry per project drives the health metric and the **Low health** tag on the
+ * projects list.
+ *
+ * The first four projects are **forced** rather than left to the dice, because each
+ * one is a rule the list has to obey and a random book might not contain it:
+ *
+ * - `[0]` no notes at all → "Not rated" and, deliberately, **no badge**.
+ * - `[1]` latest health exactly at the threshold → the badge fires (it's inclusive).
+ * - `[2]` latest health one above it → the badge does *not* fire.
+ * - `[3]` two notes on the SAME `noteDate`, worst then best → the `createdAt`
+ *   tie-break decides, so the expected outcome is no badge.
+ *
+ * The thresholds and scale bounds are imported rather than hardcoded, so moving the
+ * policy moves these fixtures with it.
+ */
+export async function seedProjectDeliveryNotes(
+  db: SeedDb,
+  projectList: Project[],
+  staff: Staff[],
+): Promise<number> {
+  const notes: DeliveryNoteInsert[] = [];
+
+  projectList.forEach((project, index) => {
+    const healths = forcedHealths(index);
+    if (healths === null) return;
+
+    // One shared date for the tie-break fixture, distinct dates otherwise.
+    const sameDay = index === 3;
+    const sharedDate = isoDate(faker.date.recent({ days: 30 }));
+    const dates = healths
+      .map(() =>
+        sameDay ? sharedDate : isoDate(faker.date.recent({ days: 240 })),
+      )
+      // Ascending, so the last note generated is the latest one.
+      .sort();
+
+    healths.forEach((projectHealth, i) => {
+      notes.push({
+        id: generateId("pdn"),
+        projectId: project.id,
+        authorStaffId: faker.helpers.arrayElement(staff).id,
+        noteDate: dates[i],
+        title: chance(0.7)
+          ? faker.helpers.arrayElement(DELIVERY_NOTE_TITLES)
+          : null,
+        body: faker.lorem.paragraphs({ min: 1, max: 3 }, "\n\n"),
+        projectHealth,
+        // Set EXPLICITLY, not left to `defaultNow()`: `now()` is transaction-scoped
+        // in Postgres, so every row of a bulk insert would share one `created_at`
+        // and the same-date tie-break above would be undefined — precisely the
+        // thing project `[3]` exists to pin.
+        createdAt: new Date(parseIsoDate(dates[i]).getTime() + i * 60_000),
+      });
+    });
+  });
+
+  await db.insert(projectDeliveryNotes).values(notes);
+  return notes.length;
+}
+
+/**
+ * The health ratings to write for the project at `index`, oldest first, or null for
+ * a project that should have no notes. See {@link seedProjectDeliveryNotes} for why
+ * the first four are fixed.
+ */
+function forcedHealths(index: number): number[] | null {
+  switch (index) {
+    case 0:
+      return null;
+    case 1:
+      return [PROJECT_HEALTH_MAX - 2, LOW_PROJECT_HEALTH_AT_OR_BELOW];
+    case 2:
+      return [
+        LOW_PROJECT_HEALTH_AT_OR_BELOW,
+        LOW_PROJECT_HEALTH_AT_OR_BELOW + 1,
+      ];
+    case 3:
+      return [PROJECT_HEALTH_MIN, PROJECT_HEALTH_MAX];
+    default:
+      if (!chance(DELIVERY_NOTE_COVERAGE)) return null;
+      return Array.from(
+        {
+          length: faker.number.int({
+            min: 1,
+            max: MAX_DELIVERY_NOTES_PER_PROJECT,
+          }),
+        },
+        () => faker.helpers.weightedArrayElement(HEALTH_WEIGHTS),
+      );
+  }
 }

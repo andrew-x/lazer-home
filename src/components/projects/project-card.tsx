@@ -9,11 +9,17 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/core/utils";
 import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
 import { aggregateMoneyFormatters } from "@/lib/format/currency";
-import { formatDateRange, formatPercent } from "@/lib/format/format";
+import {
+  formatDateRange,
+  formatPercent,
+  formatShortDate,
+  parseIsoDate,
+} from "@/lib/format/format";
 import {
   PROJECT_FLAG_LABELS,
   PROJECT_FLAG_VARIANTS,
 } from "@/lib/projects/project-flags";
+import { PROJECT_HEALTH_MAX } from "@/lib/projects/project-health";
 import { marginAmountTone } from "@/lib/projects/project-margin";
 import { PROJECT_ROLE_STATUS_LABELS } from "@/lib/projects/project-role-status";
 
@@ -83,6 +89,17 @@ export function ProjectCard({ project }: { project: ProjectListItem }) {
               <span className="text-muted-foreground">No dates</span>
             )}
           </CardField>
+          {/* Rendered as a number, not stars: this card is wrapped in a `<Link>`,
+              and `StarRating`'s interactive mode is a fieldset of buttons, which
+              must not nest inside one — while its read-only mode would put ten
+              icons on every card in the grid. The words live on the detail page.
+              Unlike Margin below, Health is shown to every viewer. */}
+          <CardField label="Health">
+            <HealthValue
+              health={project.latestHealth}
+              noteDate={project.latestHealthDate}
+            />
+          </CardField>
           {/* Omitted entirely, not blanked, when the viewer lacks
               `projects.viewMargin` — the server never sent a figure. */}
           {project.margin ? (
@@ -114,6 +131,39 @@ function CardField({
       <dt className="shrink-0 text-muted-foreground">{label}</dt>
       <dd className="truncate">{children}</dd>
     </div>
+  );
+}
+
+/**
+ * The latest delivery note's health, with the note's date beside it. The date is
+ * shown because the figure could be months old and a bare "3/10" reads as *now* —
+ * the same reason a **Low health** badge deserves to be dated.
+ *
+ * "Not rated" rather than a dash: nobody has assessed this engagement yet, which is
+ * a different statement from an assessment that came back badly (and earns no
+ * badge — see `project-flags.ts`).
+ */
+function HealthValue({
+  health,
+  noteDate,
+}: {
+  health: number | null;
+  noteDate: string | null;
+}) {
+  if (health === null) {
+    return <span className="text-muted-foreground">Not rated</span>;
+  }
+  return (
+    <>
+      <span className="tabular-nums">
+        {health}/{PROJECT_HEALTH_MAX}
+      </span>
+      {noteDate ? (
+        <span className="ml-1.5 text-muted-foreground">
+          {formatShortDate(parseIsoDate(noteDate))}
+        </span>
+      ) : null}
+    </>
   );
 }
 

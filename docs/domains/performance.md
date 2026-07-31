@@ -1369,9 +1369,13 @@ doesn't apply).
   (`staff_self_evaluation_staff_idx`). It is **subject *and* author**: only the subject may
   write one, so a separate author column would be a redundant copy of it. An "on behalf
   of" path would be a migration — deliberately not pre-built.
-- **`evaluationDate`** — `date` (string mode): the **period reflected on**, chosen by the
-  author, not the date it was typed. **No `unique(staffId, evaluationDate)`** — records are
-  free-form and same-day ones order stably on `desc(evaluationDate), desc(createdAt)`.
+- **No date column at all.** An author-chosen `evaluationDate` shipped in
+  `drizzle/0019_yummy_grandmaster.sql` and was **dropped again by
+  `drizzle/0020_wakeful_nightcrawler.sql`**: a record is dated by **`createdAt` alone** — when it
+  was submitted — which is also the only ordering key (`desc(createdAt)`), so no tiebreaker is
+  needed and there is nothing to be unique against. Reads and the record header show that
+  timestamp. (Contrast `performance_review_note.noteDate` and `project_delivery_notes.noteDate`,
+  which *do* carry an author-chosen date because those notes are written *about* a period.)
 - **`questionSetVersion`** — `integer`. A column, not a jsonb field, so "how many records
   still answer the v1 questions" is a plain query **and** the update action can refuse to
   edit a record whose set has moved on (below).

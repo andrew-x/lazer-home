@@ -12,6 +12,7 @@ import {
   type SQL,
   sql,
 } from "drizzle-orm";
+import { latestDeliveryNoteFirst } from "@/actions/projects/getProjectDeliveryNotes";
 import { getProjectsMarginContext } from "@/actions/projects/getProjectsMarginContext";
 import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/core/pagination";
 import type { LineOfBusiness } from "@/lib/crm/line-of-business";
@@ -19,6 +20,7 @@ import { db } from "@/lib/db/db";
 import {
   companies,
   projectDeliveryManagers,
+  projectDeliveryNotes,
   projectRoles,
   projects,
   staff,
@@ -71,6 +73,21 @@ export type ProjectListItem = {
   startDate: string | null;
   /** Latest role end date ("YYYY-MM-DD"); null when the project has no roles. */
   endDate: string | null;
+  /**
+   * Health from the project's MOST RECENT delivery note (latest `noteDate`, with
+   * `createdAt` breaking a tie), or **null** when it has none — which reads as "Not
+   * rated" and, deliberately, earns no flag.
+   *
+   * Unlike `margin` this is NOT capability-gated: a health rating is a delivery
+   * judgement, not anything derived from an individual's compensation, so every
+   * viewer sees it and the low-health tag fires for everyone.
+   */
+  latestHealth: number | null;
+  /**
+   * The date of that note ("YYYY-MM-DD"). Shipped alongside the figure because the
+   * rating could be a year old, and a bare "3/10" on a card reads as *now*.
+   */
+  latestHealthDate: string | null;
   /** Null when no budget has been set — the card says so rather than showing "—". */
   billingType: BillingType | null;
   /** The derived risk tags for this project (see `project-flags.ts`). */
@@ -217,10 +234,14 @@ type ProjectBaseRow = {
 
 /**
  * Assemble full `ProjectListItem`s for the given base rows: one grouped
- * delivery-manager query and one role query (scoped to these ids), then derive
- * status, lines of business, role count, the date range, the plan margin and the
- * risk flags in JS. No N+1 — two follow-up queries regardless of row count, plus the
- * request-scoped `getProjectsMarginContext`. Preserves the input order.
+ * delivery-manager query, one latest-delivery-note query and one role query (all
+ * scoped to these ids), then derive status, lines of business, role count, the date
+ * range, the plan margin, the latest health rating and the risk flags in JS. No
+ * N+1 — three follow-up queries regardless of row count, plus the request-scoped
+ * `getProjectsMarginContext`. Preserves the input order.
+ *
+ * Called once per section, so the grouped view runs each of those queries five
+ * times per render. That's the multiplier anything added here inherits.
  */
 async function assembleRows(
   baseRows: ProjectBaseRow[],
@@ -235,12 +256,43 @@ async function assembleRows(
   const startDateByProject = new Map<string, string>();
   const endDateByProject = new Map<string, string>();
 
-  const managerRows = await db
-    .select({ projectId: projectDeliveryManagers.projectId, name: staff.name })
-    .from(projectDeliveryManagers)
-    .innerJoin(staff, eq(projectDeliveryManagers.staffId, staff.id))
-    .where(inArray(projectDeliveryManagers.projectId, ids))
-    .orderBy(asc(staff.name));
+  // Independent of each other and of the margin context, so they overlap.
+  const [managerRows, healthRows] = await Promise.all([
+    db
+      .select({
+        projectId: projectDeliveryManagers.projectId,
+        name: staff.name,
+      })
+      .from(projectDeliveryManagers)
+      .innerJoin(staff, eq(projectDeliveryManagers.staffId, staff.id))
+      .where(inArray(projectDeliveryManagers.projectId, ids))
+      .orderBy(asc(staff.name)),
+
+    // The latest delivery note per project, via `distinct on` rather than pulling
+    // every note back and reducing in JS. Both are correct given identical
+    // ordering; the difference is payload growth. `getStaffDirectory` reduces in JS
+    // and its own comment anticipates this case — an employment history is a
+    // handful of rows per person forever, while a note a week over a two-year
+    // engagement is ~100 rows per project, and the unpaginated Active section can
+    // hold every live project at once. This returns at most one row per id
+    // regardless, and keeps this function's fixed-query-count contract.
+    db
+      .selectDistinctOn([projectDeliveryNotes.projectId], {
+        projectId: projectDeliveryNotes.projectId,
+        projectHealth: projectDeliveryNotes.projectHealth,
+        noteDate: projectDeliveryNotes.noteDate,
+      })
+      .from(projectDeliveryNotes)
+      .where(inArray(projectDeliveryNotes.projectId, ids))
+      // `distinct on` requires its own expressions to lead the `order by`; the rest
+      // is the ordering shared with the detail read, which the table's index is
+      // declared to serve in this exact direction.
+      .orderBy(asc(projectDeliveryNotes.projectId), ...latestDeliveryNoteFirst),
+  ]);
+
+  const healthByProject = new Map(
+    healthRows.map((row) => [row.projectId, row]),
+  );
 
   for (const { projectId, name } of managerRows) {
     const list = managersByProject.get(projectId) ?? [];
@@ -308,6 +360,7 @@ async function assembleRows(
     const statuses = roleStatusesByProject.get(row.id) ?? [];
     const status = deriveProjectStatus(statuses);
     const endDate = endDateByProject.get(row.id) ?? null;
+    const latestNote = healthByProject.get(row.id) ?? null;
 
     const margin = costBasis
       ? listMargin({
@@ -331,6 +384,8 @@ async function assembleRows(
       roleCount: statuses.length,
       startDate: startDateByProject.get(row.id) ?? null,
       endDate,
+      latestHealth: latestNote?.projectHealth ?? null,
+      latestHealthDate: latestNote?.noteDate ?? null,
       billingType: row.billingType,
       margin,
       flags: projectFlags({
@@ -338,6 +393,7 @@ async function assembleRows(
         endDate,
         today,
         margin: margin?.[MARGIN_FLAG_CURRENCY] ?? null,
+        latestHealth: latestNote?.projectHealth ?? null,
       }),
     };
   });

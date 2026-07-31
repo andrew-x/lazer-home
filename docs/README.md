@@ -12,7 +12,7 @@ The durable knowledge base for the PSA platform — maintained by the `librarian
 | [data-model.md](./data-model.md) | Core entities, how the five domains connect, and what's realized in code |
 | [flows.md](./flows.md) | Cross-domain flows, the auth flow, + the technical request flow every mutation follows |
 | [domains/crm.md](./domains/crm.md) | Companies (clients + partners), contacts, sales pipeline |
-| [domains/projects.md](./domains/projects.md) | Projects (client engagements) + delivery managers + role/staffing lines + **budgets, rate cards and plan margin** (cost/margin gated on `projects.viewMargin`) + the list's **derived risk tags** (code-owned thresholds, judged in CAD) |
+| [domains/projects.md](./domains/projects.md) | Projects (client engagements) + delivery managers + role/staffing lines + **budgets, rate cards and plan margin** (cost/margin gated on `projects.viewMargin`) + the list's **derived risk tags** (code-owned thresholds, judged in CAD) + **delivery notes** (dated write-ups with a 1–10 health rating; list health derived from the latest note, ungated) |
 | [domains/allocations.md](./domains/allocations.md) | Staffing people onto projects over time; the `/allocations` planner view (built) + its manager-only inline notes |
 | [domains/timesheets.md](./domains/timesheets.md) | Weekly time capture (built); approval + billing deferred |
 | [domains/staff-profiles.md](./domains/staff-profiles.md) | People, roles, skills, compensation, availability; the **viewer-dependent** profile tab set (5–8 tabs), the read-only profile drawer (3–9), the `/staff` **org chart** view + the `/people/profile-completeness` table |
