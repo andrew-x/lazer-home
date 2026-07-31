@@ -24,6 +24,7 @@ const SEEDABLE_TABLES = [
   "time_entries",
   "timesheets",
   // projects
+  "project_delivery_notes",
   "project_roles",
   "project_delivery_managers",
   "projects",

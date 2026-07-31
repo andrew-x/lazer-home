@@ -22,7 +22,7 @@ import {
   seedReviewNotes,
   seedSelfEvaluations,
 } from "./seed/performance";
-import { seedProjects } from "./seed/projects";
+import { seedProjectDeliveryNotes, seedProjects } from "./seed/projects";
 import { seedOpportunities } from "./seed/sales";
 import { seedStaff } from "./seed/staff";
 import { seedTasks } from "./seed/tasks";
@@ -75,6 +75,12 @@ async function main() {
       staff,
     );
     const projects = await seedProjects(db, companies, opportunities, staff);
+    // Depends on projects + staff only — a delivery note references nothing else.
+    const deliveryNoteCount = await seedProjectDeliveryNotes(
+      db,
+      projects,
+      staff,
+    );
     const timesheets = await seedTimesheets(db, staff, projects);
     const feedbackCount = await seedFeedback(db, staff);
     const ratingsCount = await seedRatings(db, staff);
@@ -110,6 +116,7 @@ async function main() {
       contactRelationships: contactRelationshipCount,
       opportunities: opportunities.length,
       projects: projects.length,
+      projectDeliveryNotes: deliveryNoteCount,
       timesheets: timesheets.timesheets,
       timeEntries: timesheets.entries,
       feedback: feedbackCount,

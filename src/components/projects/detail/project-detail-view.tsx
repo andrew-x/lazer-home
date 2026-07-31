@@ -3,6 +3,7 @@
 import { IconBriefcase, IconPencil, IconPlus } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import type { PlanRole } from "@/actions/projects/getOpportunityPlan";
+import type { ProjectDeliveryNoteRow } from "@/actions/projects/getProjectDeliveryNotes";
 import type { ProjectDetailPlan } from "@/actions/projects/getProjectPlan";
 import type {
   ProjectPtoSpan,
@@ -41,16 +42,18 @@ import {
 import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
 import { PTO_TYPE_LABELS } from "@/lib/staff/staff-enums";
 import { DeliveryManagersField } from "./delivery-managers-field";
+import { DeliveryNotesPanel } from "./delivery-notes-panel";
 import { ProjectCompanyField } from "./project-company-field";
 import { ProjectNameField } from "./project-name-field";
 import { ProjectRoleDialog } from "./project-role-dialog";
 
 /**
  * The standalone project detail page: a meta sidebar (name, company, lines of
- * business, delivery managers) beside a main column of summary stats and three
+ * business, delivery managers) beside a main column of summary stats and four
  * tabs — a Gantt timeline of the project's roles (the same planner grid the
- * opportunity's Project-plan tab uses), the roles as a table, and the time off of
- * everyone connected to the project (split upcoming/past).
+ * opportunity's Project-plan tab uses), the roles as a table, the log of dated
+ * delivery notes, and the time off of everyone connected to the project (split
+ * upcoming/past).
  *
  * This is the **delivery-side** editor of the engagement: with `projects.edit`, the
  * name, company and delivery managers are editable in place in the sidebar, and roles
@@ -63,10 +66,12 @@ import { ProjectRoleDialog } from "./project-role-dialog";
 export function ProjectDetailView({
   plan,
   pto,
+  notes,
   canEdit,
 }: {
   plan: ProjectDetailPlan;
   pto: ProjectPtoView;
+  notes: ProjectDeliveryNoteRow[];
   canEdit: boolean;
 }) {
   const {
@@ -194,12 +199,19 @@ export function ProjectDetailView({
       }
     >
       {/* Summary stats — the same tiles as the opportunity Project-plan tab.
-          Delivery managers are omitted: they already have a sidebar field. */}
+          Delivery managers are omitted: they already have a sidebar field. Health
+          comes from `notes[0]` because the read is already ordered latest-first,
+          which is the same ordering the projects list derives its figure from — one
+          rule, so the two surfaces can't disagree about which note is current. */}
       <PlanSummaryTiles
         roles={roles}
         timeline={timeline}
         status={project.status}
         lengthWeeks={lengthWeeks}
+        health={{
+          value: notes[0]?.projectHealth ?? null,
+          noteDate: notes[0]?.noteDate ?? null,
+        }}
       />
 
       {/* Above the tabs, because a budget is a property of the project rather
@@ -218,6 +230,9 @@ export function ProjectDetailView({
         <TabsList variant="line" className="mb-4">
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="roles">Roles</TabsTrigger>
+          {/* The two structural tabs first, then the narrative, then the ancillary
+              time-off view. */}
+          <TabsTrigger value="notes">Delivery notes</TabsTrigger>
           <TabsTrigger value="pto">Time off</TabsTrigger>
         </TabsList>
 
@@ -303,6 +318,16 @@ export function ProjectDetailView({
                 ))}
               </DetailTable>
             )}
+          </DetailSection>
+        </TabsContent>
+
+        <TabsContent value="notes">
+          <DetailSection title="Delivery notes" count={notes.length}>
+            <DeliveryNotesPanel
+              projectId={project.id}
+              notes={notes}
+              canEdit={canEdit}
+            />
           </DetailSection>
         </TabsContent>
 

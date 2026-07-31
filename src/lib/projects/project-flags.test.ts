@@ -4,9 +4,11 @@ import {
   ENDING_SOON_DAYS,
   LOW_MARGIN_AMOUNT,
   LOW_MARGIN_PERCENT,
+  LOW_PROJECT_HEALTH_AT_OR_BELOW,
   type ProjectFlagInputs,
   projectFlags,
 } from "./project-flags";
+import { PROJECT_HEALTH_MAX, PROJECT_HEALTH_MIN } from "./project-health";
 
 /**
  * The thresholds are policy and will be revised, so every case below is expressed
@@ -15,7 +17,10 @@ import {
  */
 const TODAY = "2026-07-30";
 
-/** A healthy project: comfortably above both margin floors, ending far out. */
+/**
+ * A healthy project: comfortably above both margin floors, top-rated, ending far
+ * out.
+ */
 function inputs(overrides: Partial<ProjectFlagInputs> = {}): ProjectFlagInputs {
   return {
     status: "confirmed",
@@ -25,6 +30,7 @@ function inputs(overrides: Partial<ProjectFlagInputs> = {}): ProjectFlagInputs {
       margin: LOW_MARGIN_AMOUNT * 10,
       marginPercent: LOW_MARGIN_PERCENT * 2,
     },
+    latestHealth: PROJECT_HEALTH_MAX,
     ...overrides,
   };
 }
@@ -50,9 +56,10 @@ describe("projectFlags", () => {
         inputs({
           endDate: addDays(TODAY, 1),
           margin: { margin: -1, marginPercent: -0.5 },
+          latestHealth: LOW_PROJECT_HEALTH_AT_OR_BELOW,
         }),
       ),
-    ).toEqual(["negativeMargin", "endingSoon"]);
+    ).toEqual(["negativeMargin", "lowHealth", "endingSoon"]);
   });
 
   describe("low margin", () => {
@@ -190,6 +197,53 @@ describe("projectFlags", () => {
     });
   });
 
+  describe("low health", () => {
+    test("trips at the threshold, which is inclusive", () => {
+      expect(
+        projectFlags(inputs({ latestHealth: LOW_PROJECT_HEALTH_AT_OR_BELOW })),
+      ).toEqual(["lowHealth"]);
+    });
+
+    test("does not trip one above the threshold", () => {
+      expect(
+        projectFlags(
+          inputs({ latestHealth: LOW_PROJECT_HEALTH_AT_OR_BELOW + 1 }),
+        ),
+      ).toEqual([]);
+    });
+
+    test("trips at the bottom of the scale", () => {
+      expect(
+        projectFlags(inputs({ latestHealth: PROJECT_HEALTH_MIN })),
+      ).toEqual(["lowHealth"]);
+    });
+
+    test("an unrated project (no delivery notes) carries no flag", () => {
+      expect(projectFlags(inputs({ latestHealth: null }))).toEqual([]);
+    });
+
+    // Pins the deliberate asymmetry: margin flags are withheld from a viewer
+    // without `projects.viewMargin`, health flags are not, because health is a
+    // delivery judgement rather than anything derived from compensation.
+    test("fires even when margin is withheld", () => {
+      expect(
+        projectFlags(
+          inputs({
+            margin: null,
+            latestHealth: LOW_PROJECT_HEALTH_AT_OR_BELOW,
+          }),
+        ),
+      ).toEqual(["lowHealth"]);
+    });
+
+    test("the threshold leaves room above and below it", () => {
+      expect(LOW_PROJECT_HEALTH_AT_OR_BELOW).toBeGreaterThanOrEqual(
+        PROJECT_HEALTH_MIN,
+      );
+      expect(LOW_PROJECT_HEALTH_AT_OR_BELOW).toBeLessThan(PROJECT_HEALTH_MAX);
+    });
+  });
+
   describe("cancelled projects", () => {
     test("carry no flags at all", () => {
       expect(
@@ -198,6 +252,7 @@ describe("projectFlags", () => {
           endDate: addDays(TODAY, 1),
           today: TODAY,
           margin: { margin: -50_000, marginPercent: -1 },
+          latestHealth: PROJECT_HEALTH_MIN,
         }),
       ).toEqual([]);
     });

@@ -5,11 +5,13 @@ import {
   IconCalendarStats,
   IconCircleCheck,
   IconClock,
+  IconHeartbeat,
   IconUsers,
 } from "@tabler/icons-react";
 import { useMemo } from "react";
 import type { PlanRole } from "@/actions/projects/getOpportunityPlan";
 import { StatCard } from "@/components/performance/stat-card";
+import { formatShortDate, parseIsoDate } from "@/lib/format/format";
 import {
   type DateRange,
   deliveryManagerLabel,
@@ -17,6 +19,10 @@ import {
   rangeOf,
   yearHint,
 } from "@/lib/projects/plan-summary";
+import {
+  PROJECT_HEALTH_MAX,
+  projectHealthLabel,
+} from "@/lib/projects/project-health";
 import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
 import {
   PROJECT_ROLE_STATUS_LABELS,
@@ -25,8 +31,8 @@ import {
 
 /**
  * The timeline tiles above a project's planner grid: overall length and dates, the
- * confirmed and tentative spans once anything is committed, and (where the surface
- * has nowhere else for them) the delivery managers.
+ * confirmed and tentative spans once anything is committed, and — where the surface
+ * has them to show — the delivery managers and the latest delivery-note health.
  *
  * Shared by the opportunity's Project-plan tab and the project detail page, which
  * rendered a near-identical copy each. The confirmed/tentative split is the point of
@@ -38,6 +44,7 @@ export function PlanSummaryTiles({
   status,
   lengthWeeks,
   deliveryManagers,
+  health,
 }: {
   roles: PlanRole[];
   timeline: DateRange | null;
@@ -47,6 +54,13 @@ export function PlanSummaryTiles({
   lengthWeeks: number;
   /** Omit on surfaces that show the managers elsewhere (the detail page sidebar). */
   deliveryManagers?: { id: string; name: string }[];
+  /**
+   * The latest delivery note's health rating and its date. Omit on surfaces with
+   * no delivery notes to read (the opportunity's Project-plan tab); pass
+   * `{ value: null }` on a project that simply has none yet, which reads as
+   * "Not rated".
+   */
+  health?: { value: number | null; noteDate: string | null };
 }) {
   const confirmedRange = useMemo(
     () => rangeOf(roles.filter((r) => r.status === ROLE_STATUS.confirmed)),
@@ -92,6 +106,31 @@ export function PlanSummaryTiles({
           label="Delivery managers"
           value={deliveryManagerLabel(deliveryManagers)}
           icon={IconUsers}
+        />
+      ) : null}
+      {health ? (
+        <StatCard
+          label="Health"
+          value={
+            health.value !== null
+              ? `${health.value}/${PROJECT_HEALTH_MAX}`
+              : projectHealthLabel(null)
+          }
+          // The date matters as much as the figure: the rating is whatever the last
+          // note said, which could be months ago.
+          hint={
+            health.value !== null
+              ? [
+                  projectHealthLabel(health.value),
+                  health.noteDate
+                    ? formatShortDate(parseIsoDate(health.noteDate))
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+              : "No delivery notes yet"
+          }
+          icon={IconHeartbeat}
         />
       ) : null}
     </div>

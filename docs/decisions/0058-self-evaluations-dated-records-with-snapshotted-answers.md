@@ -1,4 +1,4 @@
-# 0055 — Staff self-evaluations: a dated table with snapshotted answers, author-only writes
+# 0058 — Staff self-evaluations: a dated table with snapshotted answers, author-only writes
 
 **Status:** accepted · 2026-07-30 · **departs from**
 [ADR 0028](./0028-generic-responses-table-app-validated-question-ids.md) for *periodic*
@@ -54,6 +54,15 @@ reflected on, chosen by the author) · `questionSetVersion` (`integer`) · `self
 (pgEnum, notNull) · `answers` (jsonb) · timestamps. **Not effective-dated**, and **no
 `unique(staffId, evaluationDate)`** — two records may share a date, ordered by
 `desc(evaluationDate), desc(createdAt)`.
+
+> **Amended, same day:** `evaluation_date` was **dropped again** by
+> `drizzle/0020_wakeful_nightcrawler.sql`. A record is dated by **`createdAt`** — when it
+> was submitted — and ordered by `desc(createdAt)` alone, so no tiebreaker and nothing to be
+> unique against. Everything else in this ADR stands; read `performance-schema.ts` for the
+> shipped shape. (The author-chosen-date pattern survives on
+> `performance_review_note.noteDate` and `project_delivery_notes.noteDate`, where the note is
+> written *about* a period — see
+> [ADR 0059](./0059-project-delivery-notes-and-list-health.md).)
 
 `staffId` is **subject *and* author**; a separate author column would be a redundant copy
 of it (see §4). An "on behalf of" path would be a migration, deliberately not pre-built.

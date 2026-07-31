@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { getProjectDeliveryNotes } from "@/actions/projects/getProjectDeliveryNotes";
 import { getProjectPlan } from "@/actions/projects/getProjectPlan";
 import { getProjectPto } from "@/actions/projects/getProjectPto";
 import { ProjectDetailView } from "@/components/projects/detail/project-detail-view";
@@ -22,9 +23,15 @@ export default async function ProjectDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [plan, pto, user] = await Promise.all([
+  // Delivery notes are a sibling read rather than part of `getProjectPlan`, the
+  // same way PTO is: `generateMetadata` above calls the plan read too, so anything
+  // folded into it is fetched twice per request just to title the tab — and
+  // `ProjectDetailPlan` is shared with the opportunity drawer's planner, which has
+  // no notes to show.
+  const [plan, pto, notes, user] = await Promise.all([
     getProjectPlan(id),
     getProjectPto(id),
+    getProjectDeliveryNotes(id),
     getCurrentUser(),
   ]);
 
@@ -36,5 +43,7 @@ export default async function ProjectDetailPage({
     ? userHasPermission(user, { projects: ["edit"] })
     : false;
 
-  return <ProjectDetailView plan={plan} pto={pto} canEdit={canEdit} />;
+  return (
+    <ProjectDetailView plan={plan} pto={pto} notes={notes} canEdit={canEdit} />
+  );
 }

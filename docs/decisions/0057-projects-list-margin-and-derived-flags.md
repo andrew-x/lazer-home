@@ -184,6 +184,12 @@ context (`ProjectsCurrencyProvider` / `useProjectsCurrency`), with the `ToggleGr
   margin is null, so only **Ending soon** can ever appear. That's the intended fail-quiet
   behaviour (§1), but it means two people can legitimately see different badge rows on the same
   project — don't read a bare card as "this project is fine".
+  > **Amended by [ADR 0059](./0059-project-delivery-notes-and-list-health.md):** the tuple now has
+  > a fourth tag, **`lowHealth`** (second, after `negativeMargin`), and it is **ungated** — a
+  > non-`viewMargin` viewer sees *two* tags, Ending soon **and** Low health. Health is a human
+  > delivery judgement, not compensation-derived, which is the only thing §1's fail-quiet rule was
+  > protecting. The rest of this ADR is unchanged, and the "unknown ⇒ no tag" rule extends to
+  > unrated projects.
 - **One residual em dash.** The card's "No roles" branch tests `roleCount` (**all** roles,
   including cancelled) while the null margin comes from `countedRoleCount` (which excludes
   cancelled). So a budgeted project whose roles are *all cancelled* has `roleCount > 0` and a

@@ -1,6 +1,6 @@
 /**
  * The risk tags a project carries in the list — "ending soon", "low margin",
- * "negative margin" — and the thresholds that define them. A pure,
+ * "negative margin", "low health" — and the thresholds that define them. A pure,
  * client-importable module (no `db`/drizzle, no UI) so the read that evaluates the
  * flags (`getProjectsList`) and the card that renders the badges share exactly one
  * definition of the tags, their order, and their labels — the same shape as
@@ -33,7 +33,7 @@ import { addDays } from "@/lib/timesheets/timesheet-week";
  * When the thresholds below were last revised. Bump it when you edit one, so a tag
  * can be read with the right amount of confidence.
  */
-export const PROJECT_FLAGS_REVIEWED_ON = "2026-07-30";
+export const PROJECT_FLAGS_REVIEWED_ON = "2026-07-31";
 
 /**
  * How close to its end a project has to be to read as "ending soon", counted from
@@ -65,11 +65,37 @@ export const LOW_MARGIN_AMOUNT = 10_000;
 export const MARGIN_FLAG_CURRENCY: DisplayCurrency = "CAD";
 
 /**
+ * Health at or below this — on the 1–10 scale in `@/lib/projects/project-health` —
+ * reads as "low". The threshold lives here rather than in the scale module because
+ * the two answer different questions on different cadences: the scale says what a 4
+ * *means* (vocabulary, and it is bundled to the client by the star input), while
+ * this says what counts as *trouble* (policy, revised alongside the margin floors
+ * above and stamped by {@link PROJECT_FLAGS_REVIEWED_ON}).
+ *
+ * **Four**, inclusive. Five would flood the badge row: the midpoint of a 10-point
+ * scale is where a delivery manager parks an engagement they can't call either way
+ * — its label is literally "Mixed" — and the badges are reserved for warnings
+ * (ADR 0057). Three would say nothing you didn't already know, since a project
+ * rated 1–3 is being escalated in a standup already; a list-level tag earns its
+ * keep on the population that is *quietly* not going well. Four is the highest
+ * rating unambiguously below the middle, and it maps onto the bottom four labels —
+ * Critical, Failing, At risk, Struggling — each of which is a sentence you'd want
+ * on a card. "Mixed" is not.
+ */
+export const LOW_PROJECT_HEALTH_AT_OR_BELOW = 4;
+
+/**
  * The flags a project can carry, in canonical order: worst first, so the most
  * urgent tag reads first in the badge row.
+ *
+ * `lowHealth` sits second. A loss is money we are already losing — machine-derived
+ * and unarguable — but a low health rating is the person running the engagement
+ * telling you it is going badly, which outranks a thin-but-positive margin and an
+ * approaching end date.
  */
 export const PROJECT_FLAGS = [
   "negativeMargin",
+  "lowHealth",
   "lowMargin",
   "endingSoon",
 ] as const;
@@ -79,6 +105,7 @@ export type ProjectFlag = (typeof PROJECT_FLAGS)[number];
 /** Human-readable labels for each flag. */
 export const PROJECT_FLAG_LABELS: Record<ProjectFlag, string> = {
   negativeMargin: "Negative margin",
+  lowHealth: "Low health",
   lowMargin: "Low margin",
   endingSoon: "Ending soon",
 };
@@ -94,6 +121,12 @@ export const PROJECT_FLAG_VARIANTS: Record<
   "destructive" | "secondary"
 > = {
   negativeMargin: "destructive",
+  // Neutral, despite being the strongest "look at this one" signal on the card: a
+  // 1–10 score is a human judgement that may be stale, where a loss is a computed
+  // fact about money. If a coloured tier is ever wanted, the clean shape is a
+  // second `criticalHealth` flag that suppresses this one, exactly as
+  // `negativeMargin` suppresses `lowMargin`.
+  lowHealth: "secondary",
   lowMargin: "secondary",
   endingSoon: "secondary",
 };
@@ -117,6 +150,18 @@ export type ProjectFlagInputs = {
    * must not become a channel for the figure itself.
    */
   margin: ProjectFlagMargin | null;
+  /**
+   * Health from the project's most recent delivery note (see
+   * `@/lib/projects/project-health`), or **null** when it has none. Null yields no
+   * flag — the same "we can't tell is not it's bad" rule `margin: null` follows.
+   *
+   * Unlike `margin` this is NOT withheld from anyone: a health rating is a delivery
+   * judgement, not something derived from an individual's compensation, so this tag
+   * fires for every viewer. Required rather than optional on purpose — an optional
+   * field would silently degrade to "no tag" for a caller that forgot it, with no
+   * complaint from the compiler.
+   */
+  latestHealth: number | null;
 };
 
 const TAG_PREDICATES: Record<
@@ -127,6 +172,13 @@ const TAG_PREDICATES: Record<
     isLive(input) &&
     input.margin?.margin != null &&
     input.margin.margin <= NEGATIVE_MARGIN_AT_OR_BELOW,
+
+  // `isLive` first: a cancelled project's last health note describes work nobody
+  // still has to do.
+  lowHealth: (input) =>
+    isLive(input) &&
+    input.latestHealth != null &&
+    input.latestHealth <= LOW_PROJECT_HEALTH_AT_OR_BELOW,
 
   lowMargin: (input) => {
     if (!isLive(input) || input.margin?.margin == null) return false;
@@ -161,7 +213,8 @@ function isLive(input: ProjectFlagInputs): boolean {
 /**
  * The flags that apply to a project, in canonical order. Returns an empty array
  * when none do — including whenever margin is unknown (no budget set, or no cost
- * basis for any role): "we can't tell" is not "it's bad".
+ * basis for any role) or health is unrated (no delivery notes yet): "we can't
+ * tell" is not "it's bad".
  */
 export function projectFlags(input: ProjectFlagInputs): ProjectFlag[] {
   return PROJECT_FLAGS.filter((flag) => TAG_PREDICATES[flag](input));

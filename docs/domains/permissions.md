@@ -76,6 +76,19 @@ derived from individual compensation.
   any status). Neither is access control; see
   [ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md) before
   concluding the laxer one is a hole.
+  It also covers **delivery notes** — `createProjectDeliveryNote` / `updateProjectDeliveryNote` /
+  `deleteProjectDeliveryNote`, the dated write-ups carrying a project's 1–10 health rating
+  (**again no matrix change**: "may correct an engagement's delivery record" has exactly the
+  audience of "may re-date its roles"). Two things to know before touching them: **edit and delete
+  are deliberately *not* author-only** — a delivery note is the operational record of a shared
+  engagement, so any capability holder may correct it, exactly as CRM notes and tasks have no
+  per-entry ownership, and the deliberate **inverse** of self-evaluations below, where authorship is
+  the point ([ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md) §3). Which
+  means **`authorStaffId` is attribution only and must never become an authorization input.** And
+  **the notes read is open** (`getProjectDeliveryNotes` takes no user, masks nothing), so the health
+  figure and the **Low health** badge on `/projects` reach *every* viewer — unlike the
+  margin-derived badges below, because health is a human delivery judgement rather than something
+  computed from anyone's pay.
 
 - **`projects.viewMargin`** — see a project's **cost and margin**: the budget summary panel
   and per-role figures on the opportunity's Project-plan tab and the project detail page, **and
@@ -91,8 +104,10 @@ derived from individual compensation.
   is ever sent to a client that merely hides it. The **list** goes through the same door
   (`getProjectsMarginContext` → `getProjectCostBasis`): a null cost basis means every card's
   `margin` is null, no currency toggle renders, and **no margin-based flag can fire**, so a
-  non-holder only ever sees "Ending soon". The list also sends **no per-role cost at all** —
-  only two whole-project figures per card
+  non-holder sees only the two **ungated** tags — "Ending soon" and "Low health" (health is a human
+  delivery judgement, not compensation-derived —
+  [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)). The list also sends **no
+  per-role cost at all** — only two whole-project figures per card
   ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)). See the
   [projects domain](projects.md) and
   [ADR 0053](../decisions/0053-project-budgets-and-margin.md).
