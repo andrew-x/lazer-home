@@ -11,7 +11,11 @@ aggregates or write about named people** ([ADR 0055](../decisions/0055-nav-dashb
 **Dashboards** holds the three anonymized, read-only analytics routes —
 `/dashboards/compensation`, `/dashboards/bonuses` and `/dashboards/levels` — while
 **People management** holds the identity-bearing write screens — `/people/levels`,
-`/people/compensation-plans` and `/people/bonus-payments`. **Neither `/dashboards`
+`/people/compensation-plans` and `/people/bonus-payments` — plus one borrowed
+read-only screen from the staff domain, `/people/profile-completeness`
+([staff-profiles.md](./staff-profiles.md#profile-completeness-peopleprofile-completeness)):
+the section is "named-person management", so a per-person read that isn't an
+anonymized aggregate belongs here rather than under Dashboards. **Neither `/dashboards`
 nor `/people` is a page**: each is a permission-aware redirect to whichever child the
 viewer may see ([ADR 0044](../decisions/0044-performance-dashboards-split-by-permission.md);
 the dashboards used to share one page, which [ADR 0032](../decisions/0032-staff-rating-levels-effective-dated-manager-only.md)
@@ -247,6 +251,7 @@ boundary, encoded in the route structure ([ADR 0044](../decisions/0044-performan
 | `/people/levels` | "Edit levels" | `ratings.edit` | `getStaffRatingsForEdit` | `EditLevels` (`edit-levels.tsx`) |
 | `/people/bonus-payments` | "Bonus payments" | `staff.edit` **AND** `staff.viewCompensation` (`BONUS_PAYMENT_WRITE_ACCESS`) | `getBonusPayments(year)` | `BonusPaymentsManager` (`bonus-payments-manager.tsx`) |
 | `/people/compensation-plans` (+ `[planId]`, `[planId]/staff`) | "Compensation plans" | `COMPENSATION_PLAN_ACCESS` | see *Compensation change plans* | `PlansList` / `PlanEditor` / `ManagePlanStaff` |
+| `/people/profile-completeness` | "Profile completeness" | `staff.edit` (`PROFILE_COMPLETENESS_ACCESS`) | `getProfileCompleteness` | `ProfileCompletenessTable` — **a staff-domain screen**, see [staff-profiles.md](./staff-profiles.md#profile-completeness-peopleprofile-completeness) |
 
 **`/dashboards/levels` shows no compensation at all**; the one cross-domain cut,
 **compensation by level**, sits on the Compensation dashboard (see below).
@@ -257,8 +262,13 @@ boundary, encoded in the route structure ([ADR 0044](../decisions/0044-performan
 `notFound()`. The order matters — finance holds only the comp capability and must
 never land on levels. `/people` (`src/app/(app)/people/page.tsx`): `ratings.edit` →
 `/people/levels`, else `COMPENSATION_PLAN_ACCESS` → `/people/compensation-plans`,
-else `BONUS_PAYMENT_WRITE_ACCESS` → `/people/bonus-payments`, else `notFound()`.
-Both exist because the sidebar's **parent** nav entries point at them.
+else `BONUS_PAYMENT_WRITE_ACCESS` → `/people/bonus-payments`, else
+`PROFILE_COMPLETENESS_ACCESS` → `/people/profile-completeness`, else `notFound()`.
+Both exist because the sidebar's **parent** nav entries point at them. All four
+`/people` branches resolve to {manager, admin} today, so in practice everyone lands
+on the levels grid — the ladder is written out rather than short-circuited so that
+narrowing one child's gate later can't silently drop a viewer onto a 404, and the
+newest branch is appended **last** so adding it changed nobody's landing page.
 
 **Each dashboard owns its own filter + currency state**; they share only the
 module `dashboard-filters.tsx`:
@@ -309,7 +319,12 @@ merely the loosest child gate — every child there resolves to exactly
 two conjunctions only add `viewCompensation`, which both roles already hold), so the
 parent gate **equals** the union of its children rather than over-admitting anyone.
 Children: Edit levels (`ratings.edit`), Compensation plans
-(`COMPENSATION_PLAN_ACCESS`), Bonus payments (`BONUS_PAYMENT_WRITE_ACCESS`).
+(`COMPENSATION_PLAN_ACCESS`), Bonus payments (`BONUS_PAYMENT_WRITE_ACCESS`),
+**Profile completeness** (`PROFILE_COMPLETENESS_ACCESS` — plain `staff.edit`, whose
+role row is identical to `ratings.edit`'s, so the equality above still holds). That
+fourth child is **not** a performance surface: it belongs to the staff-profiles
+domain and is the section's only read-only screen — the section is now "per-person
+management screens", not strictly "write screens".
 
 When a section has ≤1 visible child, `NavMenuItem` degrades to a plain link to the
 parent href (which redirects) — see [ui.md](../ui.md) → *App shell & sidebar* →

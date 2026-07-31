@@ -137,6 +137,7 @@ export async function seedStaff(db: SeedDb): Promise<Staff[]> {
     resumeUpdatedAt: faker.date.recent({ days: 60 }),
     allocationNotes: faker.lorem.sentence(),
     skills: pickSkills(),
+    skillsUpdatedAt: faker.date.recent({ days: 60 }),
     joinDate: adminJoin,
     isActive: true,
   });
@@ -286,6 +287,9 @@ function buildStaff(
   const departed = tier === "ic" && chance(0.1);
   const hasIntro = chance(0.6);
   const hasResume = chance(0.7);
+  // Not everyone has picked skills — the profile-completeness table is only
+  // legible when some rows are genuinely empty.
+  const hasSkills = chance(0.75);
   return {
     id,
     ripplingId: `rip-${seq}`,
@@ -303,7 +307,8 @@ function buildStaff(
     resume: hasResume ? faker.lorem.paragraphs(2) : null,
     resumeUpdatedAt: hasResume ? faker.date.recent({ days: 120 }) : null,
     allocationNotes: chance(0.4) ? faker.lorem.sentence() : null,
-    skills: pickSkills(),
+    skills: hasSkills ? pickSkills() : [],
+    skillsUpdatedAt: hasSkills ? faker.date.recent({ days: 120 }) : null,
     joinDate,
     terminationDate: departed ? pastDate(1) : null,
     isActive: !departed,

@@ -23,6 +23,7 @@ import {
   seedSelfEvaluations,
 } from "./seed/performance";
 import { seedProjectDeliveryNotes, seedProjects } from "./seed/projects";
+import { seedResponses } from "./seed/responses";
 import { seedOpportunities } from "./seed/sales";
 import { seedStaff } from "./seed/staff";
 import { seedTasks } from "./seed/tasks";
@@ -99,6 +100,9 @@ async function main() {
       companies,
       staff,
     );
+    // Both profile surveys (Manual of Me + Ways of Working), unevenly filled in
+    // so `/people/profile-completeness` has a real spread to sort.
+    const responseCount = await seedResponses(db, staff);
     const taskCount = await seedTasks(
       db,
       companies,
@@ -127,6 +131,7 @@ async function main() {
       contactEntries: entries.contactEntries,
       opportunityEntries: entries.opportunityEntries,
       companyEntries: entries.companyEntries,
+      surveyResponses: responseCount,
       tasks: taskCount,
     });
     console.log(

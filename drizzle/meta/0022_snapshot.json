@@ -1,6 +1,6 @@
 {
-  "id": "8247ef2b-d262-437a-ab95-41dc3db2f5ff",
-  "prevId": "a06cbd0c-2af2-4cf5-b481-287ac59bee4c",
+  "id": "cb0a2c71-c074-4410-885f-521fb0ede989",
+  "prevId": "8247ef2b-d262-437a-ab95-41dc3db2f5ff",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2493,6 +2493,135 @@
       },
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_delivery_notes": {
+      "name": "project_delivery_notes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "author_staff_id": {
+          "name": "author_staff_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note_date": {
+          "name": "note_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_health": {
+          "name": "project_health",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "project_delivery_notes_project_date_idx": {
+          "name": "project_delivery_notes_project_date_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "note_date",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_delivery_notes_project_id_projects_id_fk": {
+          "name": "project_delivery_notes_project_id_projects_id_fk",
+          "tableFrom": "project_delivery_notes",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_delivery_notes_author_staff_id_staff_id_fk": {
+          "name": "project_delivery_notes_author_staff_id_staff_id_fk",
+          "tableFrom": "project_delivery_notes",
+          "tableTo": "staff",
+          "columnsFrom": [
+            "author_staff_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_delivery_notes_health_range": {
+          "name": "project_delivery_notes_health_range",
+          "value": "\"project_delivery_notes\".\"project_health\" between 1 and 10"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.project_roles": {
