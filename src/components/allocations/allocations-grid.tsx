@@ -2,11 +2,13 @@
 
 import { IconUserPlus } from "@tabler/icons-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { AllocationNoteCell } from "@/components/allocations/allocation-note-cell";
 import { IconButton } from "@/components/icon-button";
 import {
+  PLANNER_COLUMN_WIDTH,
   PLANNER_LABEL_COL,
-  PLANNER_WEEK_COL,
+  PLANNER_UNIT_NOUN,
 } from "@/components/planner/planner-columns";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -40,24 +42,14 @@ import {
 } from "@/lib/staff/staff-enums";
 import { isWeekend } from "@/lib/timesheets/timesheet-week";
 
-/** The noun a cell's percentage is "% of", by granularity. */
-const UNIT_NOUN: Record<Granularity, string> = {
-  day: "day",
-  week: "week",
-  month: "month",
-};
-
 /**
- * Column width per granularity — days pack tighter, months breathe. Fixed
- * (w/min-w/max-w) so `table-fixed` widths stay authoritative; the week bucket
- * reuses the shared PLANNER_WEEK_COL so allocations line up with the other
- * planner grids.
+ * The fill for a role block by planning status. Exported so the by-project grid
+ * and both legends read from one definition — confirmed is a solid indigo tint,
+ * tentative a dashed indigo outline.
  */
-const COLUMN_WIDTH: Record<Granularity, string> = {
-  day: "w-24 min-w-24 max-w-24",
-  week: PLANNER_WEEK_COL,
-  month: "w-32 min-w-32 max-w-32",
-};
+export const CONFIRMED_BLOCK = "border border-primary/40 bg-primary/10";
+export const TENTATIVE_BLOCK =
+  "border border-dashed border-primary/50 bg-primary/[0.04]";
 
 /**
  * The allocations planner grid: a sticky staff column and one column per bucket
@@ -89,8 +81,8 @@ export function AllocationsGrid({
   /** Open the allocate dialog for a staff row. */
   onAllocate: (row: AllocationRow) => void;
 }) {
-  const unit = UNIT_NOUN[granularity];
-  const width = COLUMN_WIDTH[granularity];
+  const unit = PLANNER_UNIT_NOUN[granularity];
+  const width = PLANNER_COLUMN_WIDTH[granularity];
   const dimmed = (col: string) => granularity === "day" && isWeekend(col);
 
   return (
@@ -232,9 +224,7 @@ function AllocationBlock({
           <div
             className={cn(
               "relative flex items-baseline justify-between gap-1.5 rounded-sm px-2 py-1.5 text-xs leading-tight text-foreground",
-              confirmed
-                ? "border border-primary/40 bg-primary/10"
-                : "border border-dashed border-primary/50 bg-primary/[0.04]",
+              confirmed ? CONFIRMED_BLOCK : TENTATIVE_BLOCK,
             )}
           >
             {allocation.isStart ? (
@@ -320,29 +310,57 @@ function TimeOffBlock({ cell, unit }: { cell: TimeOffCell; unit: string }) {
   );
 }
 
+/**
+ * A legend row. Wraps {@link LegendItem} children; both allocations views build
+ * their legend from these so a swatch always means the same thing.
+ */
+export function LegendRow({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+      {children}
+    </div>
+  );
+}
+
+/** One legend entry: a swatch (`className` styles it) and its label. */
+export function LegendItem({
+  className,
+  children,
+}: {
+  className: string;
+  children: ReactNode;
+}) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className={cn("size-3 rounded-sm", className)} />
+      {children}
+    </span>
+  );
+}
+
+/** The start/end edge marker, drawn on a miniature block. */
+export function LegendEdgeItem() {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className="relative inline-block h-3 w-5 rounded-sm border border-primary/40 bg-primary/10">
+        <span className="absolute inset-y-0 left-0 w-0.5 rounded-l-sm bg-primary" />
+        <span className="absolute inset-y-0 right-0 w-0.5 rounded-r-sm bg-primary" />
+      </span>
+      Role starts / ends
+    </span>
+  );
+}
+
 /** Legend for the confirmed / tentative / time-off styles and the start/end mark. */
 export function AllocationsLegend() {
   return (
-    <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-      <span className="flex items-center gap-1.5">
-        <span className="size-3 rounded-sm border border-primary/40 bg-primary/10" />
-        Confirmed
-      </span>
-      <span className="flex items-center gap-1.5">
-        <span className="size-3 rounded-sm border border-dashed border-primary/50 bg-primary/[0.04]" />
-        Tentative
-      </span>
-      <span className="flex items-center gap-1.5">
-        <span className="size-3 rounded-sm border border-amber-300 bg-amber-100" />
+    <LegendRow>
+      <LegendItem className={CONFIRMED_BLOCK}>Confirmed</LegendItem>
+      <LegendItem className={TENTATIVE_BLOCK}>Tentative</LegendItem>
+      <LegendItem className="border border-amber-300 bg-amber-100">
         Time off
-      </span>
-      <span className="flex items-center gap-1.5">
-        <span className="relative inline-block h-3 w-5 rounded-sm border border-primary/40 bg-primary/10">
-          <span className="absolute inset-y-0 left-0 w-0.5 rounded-l-sm bg-primary" />
-          <span className="absolute inset-y-0 right-0 w-0.5 rounded-r-sm bg-primary" />
-        </span>
-        Role starts / ends
-      </span>
-    </div>
+      </LegendItem>
+      <LegendEdgeItem />
+    </LegendRow>
   );
 }
