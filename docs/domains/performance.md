@@ -237,14 +237,20 @@ recipient projection.
   with the Date column (`createdAt` is a timezone-less timestamp); the two endpoints
   can't cross (setting one past the other clears the other).
 
-## The three analytics dashboards + the two section redirects
+## The analytics dashboards + the two section redirects
 
 The analytics live on **sibling routes with different gates** — this is the security
 boundary, encoded in the route structure ([ADR 0044](../decisions/0044-performance-dashboards-split-by-permission.md),
-[ADR 0055](../decisions/0055-nav-dashboards-vs-people-management.md)):
+[ADR 0055](../decisions/0055-nav-dashboards-vs-people-management.md)). The three
+performance-owned dashboards below have since been joined by a **fourth, ungated** one that
+belongs to no domain here — **Utilization** (`/dashboards/utilization`, plan vs. actuals; see
+[utilization.md](./utilization.md) and
+[ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md)) —
+which is why the section itself is no longer gated:
 
 | Route | Title on page | Gate | Read | Component |
 |---|---|---|---|---|
+| `/dashboards/utilization` | "Utilization" | **none** (signed-in only; cross-person *confirmed* hours withheld inside the read without `timesheets.edit`) | `getUtilizationReport(range)` | `UtilizationReport` (`components/utilization/`) — **not a performance-domain screen** |
 | `/dashboards/compensation` | "Compensation dashboard" | `staff.viewCompensation` (finance/manager/admin) | `getCompensationSummaryData` + `getExchangeRates`, **plus `getRatingsSummaryData` iff `ratings.view`** | `CompensationDashboard` (`compensation-dashboard.tsx`) |
 | `/dashboards/bonuses` | "Bonus dashboard" | `staff.viewCompensation` (as `BONUS_PAYMENT_READ_ACCESS`) | `getBonusSummaryData(year)` + `getExchangeRates` | `BonusDashboard` (`bonus-dashboard.tsx`) → `BonusBreakdown` → `BonusTypeMatrix` |
 | `/dashboards/levels` | "Levels dashboard" | `ratings.view` (**manager/admin only**, not finance) | `getRatingsSummaryData` **only** (no FX — no money on this page) | `LevelsDashboard` (`levels-dashboard.tsx`) |
@@ -259,8 +265,11 @@ boundary, encoded in the route structure ([ADR 0044](../decisions/0044-performan
 **Neither section index is a page.** `/dashboards`
 (`src/app/(app)/dashboards/page.tsx`): `staff.viewCompensation` →
 `/dashboards/compensation`, else `ratings.view` → `/dashboards/levels`, else
-`notFound()`. The order matters — finance holds only the comp capability and must
-never land on levels. `/people` (`src/app/(app)/people/page.tsx`): `ratings.edit` →
+**`/dashboards/utilization`** (it no longer `notFound()`s — the fallback is the one
+dashboard open to everyone). The order matters — finance holds only the comp capability and
+must never land on levels; and **Compensation stays the landing page for anyone who can see
+it**, so the section doesn't change under the people who use it most, which is why utilization
+is the fallback rather than the default. `/people` (`src/app/(app)/people/page.tsx`): `ratings.edit` →
 `/people/levels`, else `COMPENSATION_PLAN_ACCESS` → `/people/compensation-plans`,
 else `BONUS_PAYMENT_WRITE_ACCESS` → `/people/bonus-payments`, else
 `PROFILE_COMPLETENESS_ACCESS` → `/people/profile-completeness`, else `notFound()`.
@@ -304,14 +313,15 @@ range }` — whole dollars, em dash for the `null` an empty group yields. Used b
 Compensation dashboard, the bonus dashboard (which passes its `money` down into the
 type matrix), the plan editor and the projects budget/planner panels.
 
-**Nav** (`src/components/app-shell/nav.ts`): the **Dashboards** parent keeps
-`permission: { staff: ["viewCompensation"] }` — deliberately the section's
-**loosest** gate, valid only because every role granting `ratings.view` also grants
-`staff.viewCompensation`. **If that matrix relationship changes, change this parent
-gate too**, or the parent would hide Levels from someone entitled to it. Children:
-Compensation (no extra gate), Bonuses (no extra gate), Levels (`ratings.view`).
-Consequence: finance sees **two** visible children (Compensation + Bonuses) and no
-Levels entry.
+**Nav** (`src/components/app-shell/nav.ts`): the **Dashboards** parent is now **ungated**,
+and each child carries its own gate — Utilization (none), Compensation
+(`staff.viewCompensation`), Bonuses (`staff.viewCompensation`), Levels (`ratings.view`).
+It used to carry `permission: { staff: ["viewCompensation"] }` as the section's *loosest*
+gate; adding an open child made that gate the section's **tightest**, hiding a page everyone
+may read. **The rule to follow: a parent is as loose as its loosest child**, and a child that
+needs a capability declares it itself rather than inheriting one. Consequence: finance sees
+**three** visible children (Utilization + Compensation + Bonuses) and no Levels entry; a plain
+`user` sees one.
 
 The **People management** parent gates on `{ ratings: ["edit"] }`. That is not
 merely the loosest child gate — every child there resolves to exactly
@@ -406,8 +416,11 @@ is unchanged.** Defense in depth: the page `notFound()`s unauthorized users
 The nav entries are **hidden** from users who lack the capability via the
 permission-aware sidebar mechanism (`NavItem.permission` → `visibleNavHrefs`; see
 [ui.md](../ui.md) → *App shell & sidebar* and [architecture.md](../architecture.md)).
-A user with **neither** capability can't even reach the section: `/dashboards`
-`notFound()`s them rather than redirecting.
+A user with **neither** capability can't reach either of these pages — but they *can*
+reach the section: since the ungated Utilization dashboard landed, `/dashboards`
+**redirects them to `/dashboards/utilization`** instead of `notFound()`ing, and the parent
+nav entry is visible to everyone. The comp pages themselves are unchanged and still
+`notFound()`.
 
 ### Data read — anonymized rows
 

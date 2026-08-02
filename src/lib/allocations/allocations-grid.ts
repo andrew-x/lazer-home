@@ -54,8 +54,12 @@ const HOURS_PER_FULL_WEEK = 40;
 /** Weekdays in a standard working week — the basis for hrs/week and the 100% mark. */
 export const WORKING_DAYS_PER_WEEK = 5;
 
-/** A full working day — the 100% baseline for a single day / the nominal rate. */
-const HOURS_PER_DAY = HOURS_PER_FULL_WEEK / WORKING_DAYS_PER_WEEK;
+/**
+ * A full working day — the 100% baseline for a single day / the nominal rate.
+ * Exported so the utilization report's available-hours denominator is the same
+ * 8h day this grid calls 100%, rather than a second copy of the constant.
+ */
+export const HOURS_PER_DAY = HOURS_PER_FULL_WEEK / WORKING_DAYS_PER_WEEK;
 
 /** The width of a planner column: a single day, an ISO week, or a calendar month. */
 export type Granularity = "day" | "week" | "month";
