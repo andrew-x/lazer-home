@@ -117,7 +117,8 @@ derived from individual compensation.
   [projects domain](projects.md) and
   [ADR 0053](../decisions/0053-project-budgets-and-margin.md).
 
-A capability gates editing **other people's / locked** timesheets:
+A capability gates editing **other people's / locked** timesheets — **and, since the
+utilization report, *reading* other people's logged hours**:
 
 - **`timesheets.edit`** — edit *any* timesheet, bypassing both the owner check and
   the ±1-week edit window. A normal user may always edit their *own* timesheet while
@@ -126,6 +127,21 @@ A capability gates editing **other people's / locked** timesheets:
   (manager/admin). Enforced by the `authorizeTimesheetEdit` hook (input-dependent, so
   it can't be a static permission alone). See the
   [timesheets domain](timesheets.md).
+
+  **It is also a read gate.** The **Utilization report** (`/dashboards/utilization`) is the
+  first surface where one person could see another's logged hours, and it **reuses this
+  capability rather than adding one** — the set who may already edit anyone's timesheet is
+  exactly the set who may already read anyone's hours. The page itself is **ungated** (its
+  *planned* series only re-aggregates what `getAllocationsGrid` discloses to everyone, and PTO
+  *type* is never selected), but inside `getUtilizationReport` a viewer without
+  `timesheets.edit` gets: both timesheet queries **scoped by a SQL predicate** to their own
+  staff record (never a post-filter, never a UI hide), and every cohort-level confirmed figure
+  returned as **`null`, not `0`** — a partial sum shown as a total would be a lie. The single
+  signal is `confirmedStaffIds` (`null` = all). **No matrix row changed.** If the audience ever
+  needs to widen (actuals without edit rights), the named path is a new **`timesheets.view`**
+  capability added in lockstep across `permissions.ts`, `permissions.test.ts` and this doc —
+  **not** loosening the scope in that read. See [utilization.md](./utilization.md) and
+  [ADR 0060](../decisions/0060-utilization-report-two-series-and-timesheet-disclosure.md).
 
 Another capability gates a **read** rather than a write (as `projects.viewMargin`
 above does):
@@ -170,8 +186,11 @@ feedback, a staffer never sees their *own* rating:
   subrating averages — **no compensation rendered there at all**) and the edit page's
   current levels. Manager/admin only; there is no self-view path. Its siblings
   `/dashboards/compensation` and `/dashboards/bonuses` are gated on
-  `staff.viewCompensation` instead, and **`/dashboards` is a redirect** to whichever
-  of the three the viewer may see.
+  `staff.viewCompensation` instead, while the fourth — **`/dashboards/utilization` — is
+  ungated**, and **`/dashboards` is a redirect** (comp → levels → **utilization** as the
+  fallback, so the section no longer `notFound()`s for anyone). The **Dashboards nav parent
+  is consequently ungated too**: `staff.viewCompensation` moved down onto the Compensation and
+  Bonuses children, so a section is now as loose as its loosest child.
   The one **overlap** sits on the *comp* page: its **compensation-by-level** table
   needs **both** capabilities — `staff.viewCompensation` gates the page, and the
   levels input is fetched only for `ratings.view` holders (the optional

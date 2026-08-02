@@ -187,9 +187,34 @@ the inline **Notes** column (shown and editable to `staff.edit` holders — mana
   (`src/components/app-shell/nav.ts`), ungated.
 
 > **This is a *view*, not the missing capacity model.** It reads one project's-worth
-> of roles per person per column but does **not** sum a person's load across projects,
-> flag over-allocation, or reconcile against timesheet actuals — those remain the
-> open questions below.
+> of roles per person per column and still does **not** sum a person's load across
+> projects or flag over-allocation *in the grid* — a cell is a nominal *rate*, not a
+> quantity ([ADR 0040](../decisions/0040-allocations-planner-granularity.md)).
+> **What has changed:** the **Utilization report** (`/dashboards/utilization`) now sums
+> that load and reconciles it against timesheet actuals, read-only — see
+> [utilization.md](./utilization.md) and
+> [ADR 0060](../decisions/0060-utilization-report-two-series-and-timesheet-disclosure.md).
+> A capacity *model* (writes, conflict resolution, staffing suggestions) is still open.
+
+## Utilization: the plan read against the actuals
+
+`/dashboards/utilization` is the read-only reporting counterpart to this planner, and the
+first surface anywhere that puts `project_roles` (the plan) and `time_entries` (the actuals)
+side by side. It matters to this domain in four ways, all detailed in
+[utilization.md](./utilization.md):
+
+- **It shares this domain's arithmetic.** `HOURS_PER_DAY` is now **exported** from
+  `src/lib/allocations/allocations-grid.ts` (it was private) so the report's available-hours
+  denominator is the same 8 h day this grid calls 100% — don't re-declare it a third time.
+  `EndpointPicker` was extracted from `planner-range.tsx` to
+  `src/components/form/endpoint-picker.tsx` and is now shared by both range controls.
+- **It sums a person's load across projects, and does not clamp it.** Two overlapping
+  full-time roles read as 200% there. That is deliberate: this grid can't show it, and hiding
+  it in the report would defeat the point.
+- **It inherits this planner's PTO posture exactly** — approved leave dates in, leave **type**
+  never selected ([ADR 0038](../decisions/0038-allocations-planner-pto-disclosure.md)).
+- **It reads `tentative` roles behind a forecast toggle** (full weight; there is no
+  win-probability field to weight by) and `confirmed` roles always.
 
 ## Purpose
 
@@ -201,8 +226,11 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
   - **First cut realized as `project_roles`** (`src/lib/db/projects-schema.ts`): a
     staffing line = a `staff` member (or a **placeholder / open position** when `staffId`
     is null) of a given `roleType` (discipline) for a `startDate`/`endDate` range at
-    `hoursPerDay` (default 8). Line of business lives on the **parent project**, not the
-    role ([ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
+    `hoursPerDay` (default 8). **Line of business lives on the *role*** (NOT NULL
+    `project_roles.lineOfBusiness`) — a project's LoBs are *derived* from its roles, so one
+    project can span practices ([ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md),
+    reversing [ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)'s
+    project-level placement; `projects.lineOfBusiness` no longer exists).
     It's a **data-carrying row**,
     not a pure junction. Placeholders let a Project define needed roles before anyone is
     chosen (e.g. during an opportunity's Allocating stage). Today these are **simple
@@ -231,8 +259,8 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
 ## Connects to
 
 - **Staff profiles** — skills + availability drive who can be allocated.
-- **Timesheets** — actuals (`time_entries`) are logged against the same Person↔Project pairing (now **built**; logging isn't restricted to allocated projects). Reconciling actuals against the `project_roles` plan is still unbuilt. See [domains/timesheets.md](./timesheets.md).
-- **Performance** — utilization (from allocations vs. availability) is a performance input.
+- **Timesheets** — actuals (`time_entries`) are logged against the same Person↔Project pairing (now **built**; logging isn't restricted to allocated projects). **Reconciling actuals against the `project_roles` plan is now built, read-only**, as the Utilization report's two series — see [domains/utilization.md](./utilization.md) and [domains/timesheets.md](./timesheets.md).
+- **Performance** — utilization (from allocations vs. availability) is a performance input. The measurement now exists at `/dashboards/utilization`; nothing feeds it into a review yet.
 
 ## Open questions
 
@@ -240,9 +268,18 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
 - ~~Soft (tentative) vs. hard (confirmed) allocations?~~ **Resolved** — a role's `status`
   (`tentative` → `confirmed`, auto-confirmed on the opportunity's win) models exactly this.
   See [ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md).
-- How are conflicts/over-allocation surfaced and resolved? (The `/allocations` planner view
-  lists each project a person is on per column with its own %, and the **opportunity planner** now
-  greys a staffed person's **other-project commitments** into the grid — a first visibility cut —
-  but nothing yet **sums** those into a total weekly load or flags >100% over-allocation.)
-- How are the planner-view percentages (the *plan*) reconciled against timesheet
-  actuals? Still unbuilt.
+- ~~How is over-allocation *surfaced*?~~ **Partly resolved (surfaced, not resolved).** The
+  **Utilization report** sums each person's planned hours across projects and deliberately does
+  **not** clamp them, so a >100% row is visible at `/dashboards/utilization`
+  ([ADR 0060](../decisions/0060-utilization-report-two-series-and-timesheet-disclosure.md) §6).
+  The planner grid still shows per-project rates only, and **nothing resolves a conflict**: there
+  is no warning at the point of allocating, no block, and no suggested fix.
+- ~~How are the planner-view percentages (the *plan*) reconciled against timesheet actuals?~~
+  **Resolved for reporting** — the Utilization report's planned/confirmed pair, with a variance
+  and submitted-week coverage ([utilization.md](./utilization.md)). Still unbuilt: reconciliation
+  as a *workflow* (re-forecasting, flagging a role whose actuals have diverged, anything that
+  writes back).
+- **Planned figures for a past range aren't historically faithful** — `project_roles` is mutable
+  with no history ([ADR 0017](../decisions/0017-project-roles-as-first-allocation-cut.md)), so
+  last quarter's report reflects the plan as it stands *now*. This is the strongest argument yet
+  for history-as-rows here.

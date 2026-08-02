@@ -227,20 +227,37 @@ week it's already showing, so it never nags about the sheet on screen.
   row. `canEditTimesheet` also drives the page as a UI affordance (render inputs only
   when true); the hook is the real boundary. See [permissions](permissions.md).
 
+> **`timesheets.edit` is now a *read* gate too.** The **Utilization report**
+> (`/dashboards/utilization`) is the first surface where one person can see another's logged
+> hours, and it reuses this capability rather than adding one: without it, `getUtilizationReport`
+> scopes both the `time_entries` and the submitted-week queries **by SQL predicate** to the
+> viewer's own staff record, and every cohort-level confirmed figure comes back `null` — never
+> `0`. This matches the fail-closed posture of `getTimesheetList`/`getTimesheet` above. Anyone
+> auditing `timesheets.edit` must count that report. Widening the audience (actuals without edit
+> rights) means adding a **`timesheets.view`** capability in lockstep across `permissions.ts`,
+> `permissions.test.ts` and [permissions.md](./permissions.md) — not loosening that read. See
+> [utilization.md](./utilization.md) and
+> [ADR 0060](../decisions/0060-utilization-report-two-series-and-timesheet-disclosure.md).
+
 ## Connects to
 
 - **Projects / CRM** — every billable row targets a `project` (which belongs to a
   CRM `company`); logging is allowed against **any** project, not only allocated ones.
   Entries will eventually roll up to the project (and its company) for billing.
 - **Allocations** — `time_entries` are the **actuals** that reconcile against the
-  **plan** (`project_roles`). No reconciliation is built yet; the only link today is the
-  **one-way "Fill in allocations" prefill**, which reads `project_roles` to seed suggested
-  hours (see [Adding rows & prefill](#adding-rows--prefill)).
+  **plan** (`project_roles`). **Reconciliation now exists as a report** — the two series on
+  `/dashboards/utilization` ([utilization.md](./utilization.md)), which reads **submitted**
+  timesheets only and pairs every figure with submitted-week coverage, since a lazily-created
+  timesheet row means "not started" rather than zero. There is still no reconciliation
+  *workflow* (nothing writes back, nothing re-forecasts). The other link is the **one-way
+  "Fill in allocations" prefill**, which reads `project_roles` to seed suggested hours (see
+  [Adding rows & prefill](#adding-rows--prefill)).
 - **Staff** — a timesheet belongs to a `staff` record (via `staffId`); the current
   user resolves to it via `staff.userId`. `staff_employment.employmentType` (as of the
   week) decides whether the 40h submission floor applies, read through the shared
   `src/actions/staff/getEmploymentTypeAsOf.ts`.
-- **Performance** — billable vs. available hours = utilization (future).
+- **Performance / reporting** — billable vs. available hours = utilization, **now built** as
+  a read-only report ([utilization.md](./utilization.md)). Nothing feeds it into a review yet.
 
 ## Open questions
 
@@ -267,8 +284,14 @@ Still genuinely open:
   [projects.md](./projects.md#budget--margin)). Nothing in this domain reads them yet.
 - **Approval workflow** — if/when a manager sign-off step is added (approve/reject,
   audit trail, per-scope granularity).
-- **Allocation reconciliation** — surfacing actuals vs. the `project_roles` plan.
-- **Utilization reporting** — billable ÷ available hours over a period.
+- ~~**Allocation reconciliation** — surfacing actuals vs. the `project_roles` plan.~~
+  **Built for reporting** — the Utilization report's planned/confirmed pair
+  ([utilization.md](./utilization.md)). Still open as a *workflow*: nothing re-forecasts, flags a
+  diverged role, or writes anything back.
+- ~~**Utilization reporting** — billable ÷ available hours over a period.~~ **Built** at
+  `/dashboards/utilization` ([ADR 0060](../decisions/0060-utilization-report-two-series-and-timesheet-disclosure.md)).
+  Its confirmed side counts **submitted** weeks only, so its accuracy is bounded by submission
+  discipline — which is itself now visible on the page as coverage.
 - **PTO ↔ `staff_pto` sync** — the timesheet PTO bucket is independent today; whether
   logged PTO should reconcile with imported Rippling leave is unresolved.
 </content>

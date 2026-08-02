@@ -61,17 +61,28 @@ export const NAV_ITEMS: NavItem[] = [
     title: "Dashboards",
     href: "/dashboards",
     icon: IconChartBar,
-    // The section's loosest gate: every role granting `ratings.view` also grants
-    // `staff.viewCompensation` (see permissions.ts), so this never hides Levels
-    // from someone entitled to it. The parent href redirects to the first
-    // dashboard the viewer may see.
-    permission: { staff: ["viewCompensation"] },
+    // Ungated, because Utilization is: it re-aggregates the allocation and leave
+    // data the planner already shows everyone. The money-bearing children carry
+    // their own `staff.viewCompensation` gate, so the section stays as loose as
+    // its loosest child rather than hiding an open page behind a comp capability.
+    // The parent href redirects to the first dashboard the viewer may see.
     children: [
-      // Headcount & compensation analytics — same gate as the parent.
-      { title: "Compensation", href: "/dashboards/compensation" },
+      // Capacity, staffing and logged time — open to every signed-in user; the
+      // one sensitive series (other people's timesheets) is withheld in the read.
+      { title: "Utilization", href: "/dashboards/utilization" },
+      // Headcount & compensation analytics.
+      {
+        title: "Compensation",
+        href: "/dashboards/compensation",
+        permission: { staff: ["viewCompensation"] },
+      },
       // Bonus payments paid out, by year — reading a bonus is reading
       // compensation, so the same gate again.
-      { title: "Bonuses", href: "/dashboards/bonuses" },
+      {
+        title: "Bonuses",
+        href: "/dashboards/bonuses",
+        permission: { staff: ["viewCompensation"] },
+      },
       // Levels are stricter than comp: manager/admin only, not finance.
       {
         title: "Levels",
