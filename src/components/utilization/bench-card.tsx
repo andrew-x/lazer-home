@@ -6,7 +6,7 @@ import {
   IconUserQuestion,
   IconWaveSine,
 } from "@tabler/icons-react";
-import { StatCard } from "@/components/performance/stat-card";
+import { StatCard } from "@/components/stat-card";
 import { ReportSection } from "@/components/utilization/report-primitives";
 import {
   formatCount,

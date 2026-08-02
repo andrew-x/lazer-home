@@ -1,5 +1,5 @@
 import { IconArrowRight, IconUserPlus, IconUsers } from "@tabler/icons-react";
-import { StatCard } from "@/components/performance/stat-card";
+import { StatCard } from "@/components/stat-card";
 import {
   Table,
   TableBody,
