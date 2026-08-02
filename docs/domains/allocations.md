@@ -8,8 +8,10 @@ Allocation entity **already exists** as `project_roles` in the Projects domain (
 for most viewers, but two manager-gated actions write from it: `projects.edit` holders
 (delivery-manager/manager/admin) can **allocate staff to open roles** directly from a
 staff row, and `staff.edit` holders get an inline **Notes** column (see *The planner view*
-below). The rest of the domain (a dedicated capacity model, forecast vs. actuals,
-conflict handling) is still proposed.
+below). Each cell also carries a **remaining-capacity meter** — the first cross-project
+load summing and over-allocation flagging in the app
+([ADR 0060](../decisions/0060-allocations-capacity-meter.md)) — but a dedicated capacity
+*model*, forecast vs. actuals, and conflict resolution are still proposed.
 
 ## The planner view (realized) — mostly a read over `project_roles`
 
@@ -57,6 +59,20 @@ the inline **Notes** column (shown and editable to `staff.edit` holders — mana
   100% when covered, a week divides by 5 (unchanged), a month by its working-day count.
   It renders as a neutral **"Away"** strip (availability only), whose tooltip shows the
   away period's start/end dates and "% of {day|week|month}" (reason gated — see below).
+- **Every weekday cell closes with a remaining-capacity meter.** A thin fill bar plus the
+  **capacity *left*** as a percentage (`CapacityMeter`, fed by `BucketCell.capacity`).
+  Read it as: capacity = **`100 − away`**, load = confirmed + tentative, free =
+  `100 − away − load`; over-allocated when that goes negative (the bar turns
+  `destructive`, the number reads `-N%`). **PTO nets out of capacity rather than sitting
+  beside the blocks** — 40% away + 50% booked = 10% free, and someone fully away who is
+  also booked reads over-allocated. **Tentative counts** (you don't double-sell a
+  pencilled-in person); paused/cancelled don't, and aren't fetched. `capacity` is **null
+  on a zero-working-day bucket** (a weekend day column), so no meter renders there — but
+  every weekday cell has one, including empty ones ("100%"). ⚠️ **The meter does NOT sum
+  the percentages on the blocks above it** — it runs on `bucketLoadPercent`, a separate
+  prorated/uncapped figure; at month granularity two blocks reading "100%" can legitimately
+  sit above "0% free". See *Two load figures* below and
+  [ADR 0060](../decisions/0060-allocations-capacity-meter.md).
 - **Column headers are granularity-aware** (`columnLabel`): a day is `Mon, Jul 6`, a
   week is a compact Mon–Fri range `Jul 6–10` / `Jun 29–Jul 3` (`weekColumnLabel`), a
   month is `Jul 2026`. **Confirmed** roles render as a solid block, **tentative** as a
@@ -119,6 +135,42 @@ the inline **Notes** column (shown and editable to `staff.edit` holders — mana
   `SelectFilter`: **there is no `ALL` sentinel — the selection *is* the accepted set**, so
   clearing it matches no one and the "No staff match these filters" empty state shows.
 
+### Two load figures — `bucketPercent` vs `bucketLoadPercent`
+
+`src/lib/allocations/allocations-grid.ts` exports **two** per-role percentage functions.
+They are not interchangeable and the difference is the single most misleading thing in
+this domain:
+
+| | `bucketPercent` (what a **block** shows) | `bucketLoadPercent` (what the **meter** sums) |
+|---|---|---|
+| Meaning | a display **rate** — "this project wants them at 50%" | the role's **real share of the bucket's working capacity** |
+| Cap | capped at 100 | **uncapped** (a 12h/day role is 150%) |
+| Month | **flat** nominal rate, not prorated ([ADR 0040](../decisions/0040-allocations-planner-granularity.md)) | **prorated** by active weekdays / working days in the month |
+| Week | prorated (`weekPercent`) | prorated — same answer |
+| Day | flat nominal rate on an in-range weekday | same answer |
+| Returns | a rounded whole percent | a **raw float** — the caller rounds once, after summing |
+
+- **The month is the only divergence, and it's the reason the second function exists.**
+  Two back-to-back half-month roles each display their nominal 100%; summing those would
+  say 200% for a person who is exactly full. Prorated, they contribute 50% each and the
+  meter reads 0% free. The tooltip's month-only line *"Averaged across the month's working
+  days"* is the user-facing explanation.
+- **`bucketPercent`/`weekPercent` were deliberately left alone.** `weekPercent` is imported
+  by `src/lib/projects/project-planner-grid.ts` (the opportunity planner), so the new
+  behaviour was **added** rather than folded in — ADR 0040's "keep both call sites in step"
+  rule is preserved, and the opportunity planner is unaffected.
+- **Round once, from the raw sum**, never sum rounded parts: `buildAllocationRows`
+  accumulates unrounded confirmed/tentative load plus the raw away share (*not*
+  `timeOff.percent`, which is already rounded), and rounds when it builds the
+  `CapacityCell`. Three 33.3% roles therefore read "0% free", not "1% over".
+- **The baseline is a flat 8h/day, 40h/week for everyone.**
+  `staff_employment.utilizationTarget` is deliberately **not** used — non-billable roles
+  carry target 0 by invariant (`src/lib/staff/employment.ts`), so a target-relative meter
+  would mark every overhead person permanently over-allocated.
+- **Not honoured:** `staff.joinDate`/`terminationDate` (someone leaving mid-window still
+  shows capacity across it), holiday calendars, and part-time contracts. Each makes a cell
+  read *more* free than the person is.
+
 ### Code map
 
 - **Read:** `src/actions/allocations/getAllocationsGrid.ts` (server-only; also
@@ -161,7 +213,9 @@ the inline **Notes** column (shown and editable to `staff.edit` holders — mana
   for weeks (the prorated `hoursPerDay × active weekdays / 40`), the flat `nominalRatePercent`
   (`hoursPerDay / 8h`, capped at 100) for an in-range day or month. Exports the
   `Granularity` type + `GRANULARITIES` / `GRANULARITY_LABELS` / `DEFAULT_WINDOW` /
-  `defaultWindow` / `buildColumns` / `columnLabel` / `bucketPercent`, and still
+  `defaultWindow` / `buildColumns` / `columnLabel` / `bucketPercent` /
+  **`bucketLoadPercent`** (the capacity figure — see *Two load figures* above) and the
+  **`CapacityCell`** type, and still
   **`weekPercent`** + `WORKING_DAYS_PER_WEEK`. Client-importable (no `db`/drizzle),
   reusing the timesheet date helpers. **Types were renamed for the multi-granularity
   move:** `WeekCell` → **`BucketCell`**, and `AllocationRow.weeks` → **`AllocationRow.cells`**;
@@ -179,22 +233,26 @@ the inline **Notes** column (shown and editable to `staff.edit` holders — mana
   state + "View by" toggle + window), `planner-range.tsx` (granularity-aware prev/next
   stepping + aria-labels), `allocations-grid.tsx` (render-only grid + legend, taking
   `columns`/`granularity` props, dimming weekend day-columns, granularity-aware labels
-  and tooltip copy; renders the manager-only Notes column when `canEditNotes` and the
+  and tooltip copy; holds the internal **`CapacityMeter`** rendered last in each cell's
+  stack, plus the legend's "Capacity left" / "Over-allocated" entries; renders the
+  manager-only Notes column when `canEditNotes` and the
   per-row Allocate button when `canAllocate`, calling an `onAllocate(row)` callback),
   `allocation-note-cell.tsx` (the debounced-autosave note editor), `allocate-dialog.tsx`
   (the role-search + date/hours dialog; the planner holds its open-state and renders it for
   the targeted staff row), page `src/app/(app)/allocations/page.tsx`. Nav entry added to `NAV_ITEMS`
   (`src/components/app-shell/nav.ts`), ungated.
 
-> **This is a *view*, not the missing capacity model.** It reads one project's-worth
-> of roles per person per column and still does **not** sum a person's load across
-> projects or flag over-allocation *in the grid* — a cell is a nominal *rate*, not a
-> quantity ([ADR 0040](../decisions/0040-allocations-planner-granularity.md)).
-> **What has changed:** the **Utilization report** (`/dashboards/utilization`) now sums
-> that load and reconciles it against timesheet actuals, read-only — see
-> [utilization.md](./utilization.md) and
-> [ADR 0060](../decisions/0060-utilization-report-two-series-and-timesheet-disclosure.md).
-> A capacity *model* (writes, conflict resolution, staffing suggestions) is still open.
+> **This is a *view* with a capacity indicator on it — still not the capacity model.**
+> It now **does** sum a person's load across projects per cell, net PTO out of it, and
+> flag over-allocation ([ADR 0060](../decisions/0060-allocations-capacity-meter.md)).
+> **Separately**, the **Utilization report** (`/dashboards/utilization`) sums that same
+> load again over a reporting window and reconciles it against submitted-timesheet
+> actuals, read-only — see [utilization.md](./utilization.md) and
+> [ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md).
+> What neither does: model a person's real capacity (the baseline is a flat 40h week for
+> everyone — no `utilizationTarget`, no part-time, no joiners/leavers, no holidays), roll a
+> window up into a per-person verdict, sort or filter by free capacity, or resolve a
+> conflict once flagged. Those remain the open questions below.
 
 ## Utilization: the plan read against the actuals
 
@@ -208,9 +266,10 @@ side by side. It matters to this domain in four ways, all detailed in
   denominator is the same 8 h day this grid calls 100% — don't re-declare it a third time.
   `EndpointPicker` was extracted from `planner-range.tsx` to
   `src/components/form/endpoint-picker.tsx` and is now shared by both range controls.
-- **It sums a person's load across projects, and does not clamp it.** Two overlapping
-  full-time roles read as 200% there. That is deliberate: this grid can't show it, and hiding
-  it in the report would defeat the point.
+- **It sums a person's load across projects over the reporting window, and does not clamp
+  it.** Two overlapping full-time roles read as 200% there. The grid's own capacity meter
+  (above) does the equivalent sum per cell; the report repeats it over an arbitrary date
+  range and pairs it against actuals, which the grid still can't do.
 - **It inherits this planner's PTO posture exactly** — approved leave dates in, leave **type**
   never selected ([ADR 0038](../decisions/0038-allocations-planner-pto-disclosure.md)).
 - **It reads `tentative` roles behind a forecast toggle** (full weight; there is no
@@ -253,7 +312,7 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
 ## Key flows
 
 - **Staffing** — given a Project's needs, find People with the right StaffProfile skills and spare capacity, then allocate them for a date range. **First realized cut:** the allocations planner's per-row **Allocate** action assigns a person to an open `project_roles` placeholder over an adjustable date range + hours/day (`allocateStaffToRole`); the opportunity planner also assigns inline. Skill/capacity matching is not yet part of the flow.
-- **Capacity planning** — sum each Person's allocations across Projects vs. their availability to spot over/under-allocation.
+- **Capacity planning** — sum each Person's allocations across Projects vs. their availability to spot over/under-allocation. **First realized cut:** the planner's per-cell capacity meter does exactly this sum, against a flat 40h week minus PTO, and flags anyone over ([ADR 0060](../decisions/0060-allocations-capacity-meter.md)). It is a *display*, not a model — see the open questions.
 - **Forecast vs. actuals** — Allocations are the *plan*; TimeEntries are the *actuals*. Comparison drives re-forecasting.
 
 ## Connects to
@@ -268,17 +327,28 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
 - ~~Soft (tentative) vs. hard (confirmed) allocations?~~ **Resolved** — a role's `status`
   (`tentative` → `confirmed`, auto-confirmed on the opportunity's win) models exactly this.
   See [ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md).
-- ~~How is over-allocation *surfaced*?~~ **Partly resolved (surfaced, not resolved).** The
-  **Utilization report** sums each person's planned hours across projects and deliberately does
-  **not** clamp them, so a >100% row is visible at `/dashboards/utilization`
-  ([ADR 0060](../decisions/0060-utilization-report-two-series-and-timesheet-disclosure.md) §6).
-  The planner grid still shows per-project rates only, and **nothing resolves a conflict**: there
-  is no warning at the point of allocating, no block, and no suggested fix.
+- ~~How is over-allocation *surfaced*?~~ **Partly resolved, at two levels.** The planner's
+  per-cell **capacity meter** sums confirmed + tentative load across projects, subtracts
+  PTO, and flags anyone past 100% ([ADR 0060](../decisions/0060-allocations-capacity-meter.md));
+  the **Utilization report** sums that same load again over a reporting window and likewise
+  does not clamp it ([ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md) §6).
+  Neither **resolves** anything: there is no warning at the point of allocating, no block, and
+  no suggested fix, and the same visibility is missing from the **opportunity planner**, which
+  only greys a staffed person's other-project commitments in without totalling them.
 - ~~How are the planner-view percentages (the *plan*) reconciled against timesheet actuals?~~
   **Resolved for reporting** — the Utilization report's planned/confirmed pair, with a variance
   and submitted-week coverage ([utilization.md](./utilization.md)). Still unbuilt: reconciliation
   as a *workflow* (re-forecasting, flagging a role whose actuals have diverged, anything that
-  writes back).
+  writes back) — the planner grid itself still measures only against itself.
+- **A real per-person capacity model is still missing.** The meter's denominator is a flat
+  8h/day, 40h/week for everyone: `staff_employment.utilizationTarget` is unusable as-is
+  (non-billable ⇒ 0), and part-time contracts, `staff.joinDate`/`terminationDate` and
+  holiday calendars are all unmodelled. Every one of those makes the meter read
+  optimistically.
+- **No rollup, no sort, no filter on capacity.** Over-allocation is visible per cell only;
+  nothing answers "who is free in September" or "who is oversold this quarter" without
+  reading the grid. The row sort still keys off `latestConfirmedEnd` (soonest-to-free),
+  not the meter.
 - **Planned figures for a past range aren't historically faithful** — `project_roles` is mutable
   with no history ([ADR 0017](../decisions/0017-project-roles-as-first-allocation-cut.md)), so
   last quarter's report reflects the plan as it stands *now*. This is the strongest argument yet

@@ -5,7 +5,7 @@
 It is the first surface in the app that puts the **allocation plan** (`project_roles`)
 and the **timesheet actuals** (`time_entries`) side by side, which both
 [allocations.md](./allocations.md) and [timesheets.md](./timesheets.md) previously listed
-as unbuilt. See [ADR 0060](../decisions/0060-utilization-report-two-series-and-timesheet-disclosure.md)
+as unbuilt. See [ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md)
 for the *why* behind every rule below.
 
 > **The module docstring in `src/lib/utilization/utilization-report.ts` is the

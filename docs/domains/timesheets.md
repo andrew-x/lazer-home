@@ -237,7 +237,7 @@ week it's already showing, so it never nags about the sheet on screen.
 > rights) means adding a **`timesheets.view`** capability in lockstep across `permissions.ts`,
 > `permissions.test.ts` and [permissions.md](./permissions.md) — not loosening that read. See
 > [utilization.md](./utilization.md) and
-> [ADR 0060](../decisions/0060-utilization-report-two-series-and-timesheet-disclosure.md).
+> [ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md).
 
 ## Connects to
 
@@ -289,7 +289,7 @@ Still genuinely open:
   ([utilization.md](./utilization.md)). Still open as a *workflow*: nothing re-forecasts, flags a
   diverged role, or writes anything back.
 - ~~**Utilization reporting** — billable ÷ available hours over a period.~~ **Built** at
-  `/dashboards/utilization` ([ADR 0060](../decisions/0060-utilization-report-two-series-and-timesheet-disclosure.md)).
+  `/dashboards/utilization` ([ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md)).
   Its confirmed side counts **submitted** weeks only, so its accuracy is bounded by submission
   discipline — which is itself now visible on the page as coverage.
 - **PTO ↔ `staff_pto` sync** — the timesheet PTO bucket is independent today; whether

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
+import { cache } from "react";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { userHasPermission } from "@/lib/auth/permissions";
 import { firstPerKey } from "@/lib/core/collections";
@@ -36,6 +37,14 @@ export type AllocationStaffRow = {
   lineOfBusiness: StaffEmployment["lineOfBusiness"] | null;
   role: StaffEmployment["role"] | null;
   employmentType: StaffEmployment["employmentType"] | null;
+  /**
+   * Whether the person's current employment is billable at all. The employment
+   * *fact* — not `isBillableRole(role)`, which is only the CSV importer's
+   * derivation and is overridable in-app. Surfaces that measure or staff
+   * capacity (utilization, the bench, availability) exclude non-billable staff,
+   * whose `utilizationTarget` is structurally 0.
+   */
+  isBillable: boolean | null;
   skills: StaffSkill[];
   /**
    * Manager/admin-only staffing note. Null for viewers without `staff.edit`
@@ -89,125 +98,135 @@ export type AllocationsGridData = {
  *
  * No metadata gate: the `(app)` layout guarantees the viewer is signed in, and
  * project-role reads are open by design — this page is visible to everyone.
+ *
+ * Request-cached: the allocations planner and the home dashboard both read it,
+ * and it takes no arguments, so one render should cost one set of queries.
  */
-export async function getAllocationsGrid(): Promise<AllocationsGridData> {
-  const staffRows = await db
-    .select({
-      id: staff.id,
-      name: staff.name,
-      skills: staff.skills,
-      allocationNotes: staff.allocationNotes,
-    })
-    .from(staff)
-    .where(eq(staff.isActive, true))
-    .orderBy(asc(staff.name));
+export const getAllocationsGrid = cache(
+  async (): Promise<AllocationsGridData> => {
+    const [staffRows, employmentRows, roleRows, ptoRows] = await Promise.all([
+      db
+        .select({
+          id: staff.id,
+          name: staff.name,
+          skills: staff.skills,
+          allocationNotes: staff.allocationNotes,
+        })
+        .from(staff)
+        .where(eq(staff.isActive, true))
+        .orderBy(asc(staff.name)),
 
-  // Latest employment fact per person (effective-dating tiebreak, ADR 0007) —
-  // two queries, no N+1, mirroring `getStaffDirectory`.
-  const employmentRows = await db
-    .select({
-      staffId: staffEmployment.staffId,
-      lineOfBusiness: staffEmployment.lineOfBusiness,
-      role: staffEmployment.role,
-      employmentType: staffEmployment.employmentType,
-    })
-    .from(staffEmployment)
-    .orderBy(...latestEmploymentFirst);
-  const latestByStaff = firstPerKey(employmentRows, (row) => row.staffId);
+      // Latest employment fact per person (effective-dating tiebreak, ADR 0007) —
+      // a second query rather than an N+1, mirroring `getStaffDirectory`.
+      db
+        .select({
+          staffId: staffEmployment.staffId,
+          lineOfBusiness: staffEmployment.lineOfBusiness,
+          role: staffEmployment.role,
+          employmentType: staffEmployment.employmentType,
+          isBillable: staffEmployment.isBillable,
+        })
+        .from(staffEmployment)
+        .orderBy(...latestEmploymentFirst),
 
-  // Staffed roles only (a placeholder/open position has no person to row), and
-  // only the two live planning states — a paused/cancelled role isn't an active
-  // allocation.
-  const roleRows = await db
-    .select({
-      id: projectRoles.id,
-      staffId: projectRoles.staffId,
-      projectId: projectRoles.projectId,
-      projectName: projects.name,
-      roleType: projectRoles.roleType,
-      status: projectRoles.status,
-      lineOfBusiness: projectRoles.lineOfBusiness,
-      description: projectRoles.description,
-      startDate: projectRoles.startDate,
-      endDate: projectRoles.endDate,
-      hoursPerDay: projectRoles.hoursPerDay,
-    })
-    .from(projectRoles)
-    .innerJoin(projects, eq(projectRoles.projectId, projects.id))
-    .where(
-      and(
-        isNotNull(projectRoles.staffId),
-        inArray(projectRoles.status, ["tentative", "confirmed"]),
-      ),
-    );
+      // Staffed roles only (a placeholder/open position has no person to row), and
+      // only the two live planning states — a paused/cancelled role isn't an active
+      // allocation.
+      db
+        .select({
+          id: projectRoles.id,
+          staffId: projectRoles.staffId,
+          projectId: projectRoles.projectId,
+          projectName: projects.name,
+          roleType: projectRoles.roleType,
+          status: projectRoles.status,
+          lineOfBusiness: projectRoles.lineOfBusiness,
+          description: projectRoles.description,
+          startDate: projectRoles.startDate,
+          endDate: projectRoles.endDate,
+          hoursPerDay: projectRoles.hoursPerDay,
+        })
+        .from(projectRoles)
+        .innerJoin(projects, eq(projectRoles.projectId, projects.id))
+        .where(
+          and(
+            isNotNull(projectRoles.staffId),
+            inArray(projectRoles.status, ["tentative", "confirmed"]),
+          ),
+        ),
 
-  // PTO disclosure: viewing another person's leave *reason* is a manager/admin
-  // capability (`pto:[review]`). This page is public, so we surface only
-  // availability ("Away") to every viewer and reveal the leave type solely to
-  // those who hold `pto:[review]`. A deliberate, minimal disclosure — NOT a
-  // loosening of the PTO gate. Only approved (non-pending) leave is shown.
-  const currentUser = await getCurrentUser();
-  const canSeePtoType = currentUser
-    ? userHasPermission(currentUser, { pto: ["review"] })
-    : false;
-  // Allocation notes are manager/admin-only staffing metadata. Gate both the
-  // read here (never ship the value to an unprivileged client) and the write
-  // (`updateStaffAllocationNotes`) on `staff.edit`.
-  const canEditNotes = currentUser
-    ? userHasPermission(currentUser, { staff: ["edit"] })
-    : false;
-  // Allocating a person to an open role writes a project role, so gate the
-  // per-row "Allocate" button (and its actions) on `projects.edit` — the same
-  // capability the opportunity planner's staffing uses.
-  const canAllocate = currentUser
-    ? userHasPermission(currentUser, { projects: ["edit"] })
-    : false;
+      db
+        .select({
+          staffId: staffPto.staffId,
+          startDate: staffPto.startDate,
+          endDate: staffPto.endDate,
+          type: staffPto.type,
+        })
+        .from(staffPto)
+        .where(eq(staffPto.isPending, false)),
+    ]);
 
-  const ptoRows = await db
-    .select({
-      staffId: staffPto.staffId,
-      startDate: staffPto.startDate,
-      endDate: staffPto.endDate,
-      type: staffPto.type,
-    })
-    .from(staffPto)
-    .where(eq(staffPto.isPending, false));
+    const latestByStaff = firstPerKey(employmentRows, (row) => row.staffId);
 
-  const staffList: AllocationStaffRow[] = staffRows.map((s) => {
-    const employment = latestByStaff.get(s.id);
-    return {
-      id: s.id,
-      name: s.name,
-      skills: s.skills,
-      lineOfBusiness: employment?.lineOfBusiness ?? null,
-      role: employment?.role ?? null,
-      employmentType: employment?.employmentType ?? null,
-      allocationNotes: canEditNotes ? s.allocationNotes : null,
-    };
-  });
+    // PTO disclosure: viewing another person's leave *reason* is a manager/admin
+    // capability (`pto:[review]`). This page is public, so we surface only
+    // availability ("Away") to every viewer and reveal the leave type solely to
+    // those who hold `pto:[review]`. A deliberate, minimal disclosure — NOT a
+    // loosening of the PTO gate. Only approved (non-pending) leave is shown.
+    const currentUser = await getCurrentUser();
+    const canSeePtoType = currentUser
+      ? userHasPermission(currentUser, { pto: ["review"] })
+      : false;
+    // Allocation notes are manager/admin-only staffing metadata. Gate both the
+    // read here (never ship the value to an unprivileged client) and the write
+    // (`updateStaffAllocationNotes`) on `staff.edit`.
+    const canEditNotes = currentUser
+      ? userHasPermission(currentUser, { staff: ["edit"] })
+      : false;
+    // Allocating a person to an open role writes a project role, so gate the
+    // per-row "Allocate" button (and its actions) on `projects.edit` — the same
+    // capability the opportunity planner's staffing uses.
+    const canAllocate = currentUser
+      ? userHasPermission(currentUser, { projects: ["edit"] })
+      : false;
 
-  const roles: AllocationRoleRow[] = roleRows
-    .filter((r): r is typeof r & { staffId: string } => r.staffId !== null)
-    .map((r) => ({
-      id: r.id,
-      staffId: r.staffId,
-      projectId: r.projectId,
-      projectName: r.projectName,
-      roleType: r.roleType,
-      status: r.status,
-      lineOfBusiness: r.lineOfBusiness,
-      description: r.description,
-      startDate: r.startDate,
-      endDate: r.endDate,
-      hoursPerDay: r.hoursPerDay,
+    const staffList: AllocationStaffRow[] = staffRows.map((s) => {
+      const employment = latestByStaff.get(s.id);
+      return {
+        id: s.id,
+        name: s.name,
+        skills: s.skills,
+        lineOfBusiness: employment?.lineOfBusiness ?? null,
+        role: employment?.role ?? null,
+        employmentType: employment?.employmentType ?? null,
+        isBillable: employment?.isBillable ?? null,
+        allocationNotes: canEditNotes ? s.allocationNotes : null,
+      };
+    });
+
+    const roles: AllocationRoleRow[] = roleRows
+      .filter((r): r is typeof r & { staffId: string } => r.staffId !== null)
+      .map((r) => ({
+        id: r.id,
+        staffId: r.staffId,
+        projectId: r.projectId,
+        projectName: r.projectName,
+        roleType: r.roleType,
+        status: r.status,
+        lineOfBusiness: r.lineOfBusiness,
+        description: r.description,
+        startDate: r.startDate,
+        endDate: r.endDate,
+        hoursPerDay: r.hoursPerDay,
+      }));
+
+    const timeOff: AllocationTimeOff[] = ptoRows.map((p) => ({
+      staffId: p.staffId,
+      startDate: p.startDate,
+      endDate: p.endDate,
+      type: canSeePtoType ? p.type : null,
     }));
 
-  const timeOff: AllocationTimeOff[] = ptoRows.map((p) => ({
-    staffId: p.staffId,
-    startDate: p.startDate,
-    endDate: p.endDate,
-    type: canSeePtoType ? p.type : null,
-  }));
-
-  return { staff: staffList, roles, timeOff, canEditNotes, canAllocate };
-}
+    return { staff: staffList, roles, timeOff, canEditNotes, canAllocate };
+  },
+);

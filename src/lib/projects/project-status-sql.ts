@@ -12,7 +12,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { db } from "@/lib/db/db";
-import { projectRoles, projects } from "@/lib/db/schema";
+import { projectDeliveryNotes, projectRoles, projects } from "@/lib/db/schema";
 import {
   PROJECT_STATUS_BUCKETS,
   type ProjectStatusBucket,
@@ -92,6 +92,21 @@ const cancelledCondition = required(
  * reads as tentative). Also the projects list's `endDate` sort key.
  */
 export const latestRoleEndDate = sql`(select max(${projectRoles.endDate}) from ${projectRoles} where ${projectRoles.projectId} = ${projects.id})`;
+
+/**
+ * The health rating on the project's most recent delivery note, as a correlated
+ * scalar subquery — the projects list's `health` sort key. Null when the project
+ * has no notes, which reads as "Not rated" and sorts last in both directions.
+ *
+ * LOCKSTEP: the `order by` here MUST match `latestDeliveryNoteFirst`
+ * (`src/actions/projects/getProjectDeliveryNotes.ts`) — the same "author-chosen
+ * date, then `createdAt` breaking a same-day tie" rule that the detail log and
+ * `assembleRows`' `distinct on` both use. It is spelled out rather than imported
+ * because that constant lives in the actions layer and this is `lib`; if the rule
+ * ever changes, change it in all three places or the list will sort by one note
+ * and display another. The table's index is declared in exactly this direction.
+ */
+export const latestHealthRating = sql`(select ${projectDeliveryNotes.projectHealth} from ${projectDeliveryNotes} where ${projectDeliveryNotes.projectId} = ${projects.id} order by ${projectDeliveryNotes.noteDate} desc, ${projectDeliveryNotes.createdAt} desc limit 1)`;
 
 // The engagement finished before `today`. A project ending today still counts as
 // running, matching `projectHasEnded`.

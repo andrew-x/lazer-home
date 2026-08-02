@@ -11,6 +11,10 @@
  * whatever the granularity; the granularity only changes how wide a column is and
  * how the start/end edges land. Weeks additionally prorate their partial start/end
  * columns (the historical behavior); days are atomic and months show the flat rate.
+ *
+ * A cell also reports what's **left** ({@link CapacityCell}). That is a different
+ * number from the per-role rates above and computed differently — see
+ * {@link bucketLoadPercent}.
  */
 
 import type {
@@ -18,6 +22,12 @@ import type {
   AllocationStaffRow,
   AllocationTimeOff,
 } from "@/actions/allocations/getAllocationsGrid";
+import {
+  activeWeekdays,
+  awayWeekdays,
+  latestConfirmedEnd,
+  totalWeekdays,
+} from "@/lib/allocations/weekdays";
 import type { LineOfBusiness } from "@/lib/crm/line-of-business";
 import { parseIsoDate } from "@/lib/format/format";
 import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
@@ -36,7 +46,6 @@ import {
   getMonthStart,
   getWeekDays,
   getWeekStart,
-  isWeekend,
 } from "@/lib/timesheets/timesheet-week";
 
 /** A full week of billable capacity — the 100% baseline (8h/day × 5 weekdays). */
@@ -116,10 +125,45 @@ export type TimeOffCell = {
   endDate: string;
 };
 
-/** One (person, column) cell: any allocations that column, plus any time off. */
+/**
+ * How much of a column's working capacity is spoken for, and how much is left.
+ *
+ * Unlike the per-role percentages above — which are display *rates*, capped at
+ * 100 and (at month granularity) not prorated — these are shares of the bucket's
+ * real working days, summed across every project the person is on. Time off
+ * *reduces* capacity rather than sitting beside it: capacity is `100 − away`, so
+ * someone 40% away and 40% booked has 20% left, and someone fully away who is
+ * also booked reads as over-allocated. Confirmed and tentative both consume
+ * capacity — you don't double-sell a person who is pencilled in.
+ *
+ * Every figure is rounded from the raw sum, never summed from rounded parts, so
+ * three 33.3% roles read "0% free" rather than "1% over".
+ */
+export type CapacityCell = {
+  /** Share of the bucket taken by confirmed roles. */
+  confirmedPercent: number;
+  /** Share of the bucket taken by tentative roles. */
+  tentativePercent: number;
+  /** Share of the bucket's working days the person is away. */
+  awayPercent: number;
+  /** Confirmed + tentative — everything committed, soft or hard. */
+  loadPercent: number;
+  /** Capacity left: `100 − away − load`. Zero when over-allocated. */
+  freePercent: number;
+  /** How far past capacity the person is. Zero when within it. */
+  overPercent: number;
+};
+
+/**
+ * One (person, column) cell: any allocations that column, any time off, and how
+ * much capacity is left. `capacity` is null when the bucket has no working days
+ * at all (a weekend column in the daily view) — there is no capacity to report,
+ * and "100% free on Saturday" would be noise.
+ */
 export type BucketCell = {
   allocations: AllocationCell[];
   timeOff: TimeOffCell | null;
+  capacity: CapacityCell | null;
 };
 
 /** A planner row: one person and their column-aligned cells. */
@@ -187,8 +231,12 @@ function bucketEnd(granularity: Granularity, colStart: string): string {
   }
 }
 
-/** The start of the bucket `date` belongs to, for the given granularity. */
-function getBucketStart(granularity: Granularity, date: string): string {
+/**
+ * The start of the bucket `date` belongs to, for the given granularity. Shared
+ * with the by-project grid (`./project-allocations-grid`) so both views mark a
+ * role's start/end column by the same rule.
+ */
+export function getBucketStart(granularity: Granularity, date: string): string {
   switch (granularity) {
     case "day":
       return date;
@@ -242,46 +290,6 @@ export function columnLabel(
     case "month":
       return monthColumnLabel(colStart);
   }
-}
-
-/** Count of Mon–Fri days in `[from, to]` that also fall within `[spanStart, spanEnd]`. */
-function activeWeekdays(
-  from: string,
-  to: string,
-  spanStart: string,
-  spanEnd: string,
-): number {
-  let count = 0;
-  for (let day = from; day <= to; day = addDays(day, 1)) {
-    if (isWeekend(day)) continue;
-    if (day >= spanStart && day <= spanEnd) count += 1;
-  }
-  return count;
-}
-
-/** Count of Mon–Fri days in `[from, to]` — the bucket's full working capacity. */
-function totalWeekdays(from: string, to: string): number {
-  let count = 0;
-  for (let day = from; day <= to; day = addDays(day, 1)) {
-    if (!isWeekend(day)) count += 1;
-  }
-  return count;
-}
-
-/** Mon–Fri days in `[from, to]` covered by any of the time-off `spans` (deduped). */
-function awayWeekdays(
-  from: string,
-  to: string,
-  spans: readonly AllocationTimeOff[],
-): number {
-  let count = 0;
-  for (let day = from; day <= to; day = addDays(day, 1)) {
-    if (isWeekend(day)) continue;
-    if (spans.some((span) => day >= span.startDate && day <= span.endDate)) {
-      count += 1;
-    }
-  }
-  return count;
 }
 
 /** The leave type of the first time-off span overlapping the bucket (null if hidden). */
@@ -360,6 +368,32 @@ export function bucketPercent(
   return nominalRatePercent(role.hoursPerDay);
 }
 
+/**
+ * A role's real share of a column's working capacity — the figure the capacity
+ * meter sums. Unlike {@link bucketPercent} it is **uncapped** and **prorated at
+ * every granularity**, because these get added together across projects.
+ *
+ * At day and week that's arithmetically the same thing {@link bucketPercent}
+ * shows (minus the cap). Only **month** diverges, and it has to: a role covering
+ * half of March displays its nominal 100% rate (ADR 0040), so two back-to-back
+ * half-month roles would naively sum to 200% for a person who is exactly full.
+ * Here each contributes 50% and the person reads 0% free.
+ *
+ * Returns a raw float — callers round once, at the end, after summing.
+ */
+export function bucketLoadPercent(
+  role: Pick<AllocationRoleRow, "startDate" | "endDate" | "hoursPerDay">,
+  granularity: Granularity,
+  colStart: string,
+): number {
+  const colEnd = bucketEnd(granularity, colStart);
+  const total = totalWeekdays(colStart, colEnd);
+  if (total === 0) return 0;
+  const active = activeWeekdays(colStart, colEnd, role.startDate, role.endDate);
+  if (active === 0) return 0;
+  return ((role.hoursPerDay * active) / (HOURS_PER_DAY * total)) * 100;
+}
+
 /** Group rows into a Map keyed by `getKey`, preserving input order per key. */
 function groupBy<T, K>(rows: readonly T[], getKey: (row: T) => K): Map<K, T[]> {
   const byKey = new Map<K, T[]>();
@@ -370,22 +404,6 @@ function groupBy<T, K>(rows: readonly T[], getKey: (row: T) => K): Map<K, T[]> {
     else byKey.set(key, [row]);
   }
   return byKey;
-}
-
-/**
- * The latest end date across a person's **confirmed** roles, or null when they
- * have none. This is "when they next free up" — the key the default sort uses
- * to surface available people first (see {@link buildAllocationRows}).
- */
-function latestConfirmedEnd(
-  personRoles: readonly AllocationRoleRow[],
-): string | null {
-  let latest: string | null = null;
-  for (const role of personRoles) {
-    if (role.status !== "confirmed") continue;
-    if (latest === null || role.endDate > latest) latest = role.endDate;
-  }
-  return latest;
 }
 
 /**
@@ -415,7 +433,17 @@ export function buildAllocationRows(
     const cells: BucketCell[] = columns.map((colStart) => {
       const colEnd = bucketEnd(granularity, colStart);
       const allocations: AllocationCell[] = [];
+      // Raw, uncapped, unrounded load — summed here and rounded once below.
+      let confirmedLoad = 0;
+      let tentativeLoad = 0;
       for (const role of personRoles) {
+        // Only live work consumes capacity. The read already filters to
+        // tentative + confirmed; naming both explicitly keeps a widened read
+        // from quietly booking paused or cancelled roles against a person.
+        const load = bucketLoadPercent(role, granularity, colStart);
+        if (role.status === "confirmed") confirmedLoad += load;
+        else if (role.status === "tentative") tentativeLoad += load;
+
         const percent = bucketPercent(role, granularity, colStart);
         if (percent === 0) continue;
         allocations.push({
@@ -448,7 +476,23 @@ export function buildAllocationRows(
               endDate: awayRange.endDate,
             }
           : null;
-      return { allocations, timeOff };
+
+      // Raw away share, not `timeOff.percent` — that one is already rounded.
+      const awayLoad = workingDays > 0 ? (awayDays / workingDays) * 100 : 0;
+      const remaining = 100 - awayLoad - confirmedLoad - tentativeLoad;
+      const capacity: CapacityCell | null =
+        workingDays > 0
+          ? {
+              confirmedPercent: Math.round(confirmedLoad),
+              tentativePercent: Math.round(tentativeLoad),
+              awayPercent: Math.round(awayLoad),
+              loadPercent: Math.round(confirmedLoad + tentativeLoad),
+              freePercent: Math.max(0, Math.round(remaining)),
+              overPercent: Math.max(0, Math.round(-remaining)),
+            }
+          : null;
+
+      return { allocations, timeOff, capacity };
     });
 
     const row: AllocationRow = {

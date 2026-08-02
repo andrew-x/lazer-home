@@ -245,7 +245,7 @@ boundary, encoded in the route structure ([ADR 0044](../decisions/0044-performan
 performance-owned dashboards below have since been joined by a **fourth, ungated** one that
 belongs to no domain here — **Utilization** (`/dashboards/utilization`, plan vs. actuals; see
 [utilization.md](./utilization.md) and
-[ADR 0060](../decisions/0060-utilization-report-two-series-and-timesheet-disclosure.md)) —
+[ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md)) —
 which is why the section itself is no longer gated:
 
 | Route | Title on page | Gate | Read | Component |

@@ -21,6 +21,7 @@ import {
   LINE_OF_BUSINESS,
   LINE_OF_BUSINESS_LABELS,
 } from "@/lib/crm/line-of-business";
+import { PROJECTS_PAGE_KEY } from "@/lib/projects/projects-list-sort";
 
 /**
  * The projects list filter bar: name/company search (debounced) and a
@@ -48,7 +49,7 @@ export function ProjectsListFilters({
 
   const { search, setSearch, currentQuery } = useUrlSearchFilter({
     basePath: "/projects",
-    pageKey: "projectsPage",
+    pageKey: PROJECTS_PAGE_KEY,
     params,
   });
 
@@ -72,7 +73,7 @@ export function ProjectsListFilters({
         labels={LINE_OF_BUSINESS_LABELS}
         onChange={(value) =>
           router.replace(
-            buildListHref("/projects", "projectsPage", params, {
+            buildListHref("/projects", PROJECTS_PAGE_KEY, params, {
               lob: value === ALL ? null : value,
             }),
           )
@@ -87,7 +88,7 @@ export function ProjectsListFilters({
           placeholder="All"
           onChange={(id) =>
             router.replace(
-              buildListHref("/projects", "projectsPage", params, { dm: id }),
+              buildListHref("/projects", PROJECTS_PAGE_KEY, params, { dm: id }),
             )
           }
         />
@@ -97,7 +98,18 @@ export function ProjectsListFilters({
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => router.replace("/projects")}
+          // Clears the *filters*, not the view: the status tab and the sort order
+          // survive, because "clear filters" is a narrower promise than "go back to
+          // /projects" and the tab you're on isn't something you filtered by.
+          onClick={() =>
+            router.replace(
+              buildListHref("/projects", PROJECTS_PAGE_KEY, params, {
+                q: null,
+                lob: null,
+                dm: null,
+              }),
+            )
+          }
         >
           Clear filters
         </Button>

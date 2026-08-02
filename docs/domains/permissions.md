@@ -107,13 +107,21 @@ derived from individual compensation.
   Masking lives **inside the reads** — `getProjectCostBasis` decides once and both plan
   readers omit `costBasis` entirely for a viewer without it, so no compensation-derived value
   is ever sent to a client that merely hides it. The **list** goes through the same door
-  (`getProjectsMarginContext` → `getProjectCostBasis`): a null cost basis means every card's
+  (`getProjectsMarginContext` → `getProjectCostBasis`): a null cost basis means every row's
   `margin` is null, no currency toggle renders, and **no margin-based flag can fire**, so a
   non-holder sees only the two **ungated** tags — "Ending soon" and "Low health" (health is a human
   delivery judgement, not compensation-derived —
   [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)). The list also sends **no
-  per-role cost at all** — only two whole-project figures per card
-  ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)). See the
+  per-role cost at all** — only two whole-project figures per row
+  ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)).
+  **!! It also gates *ordering*, not just figures**
+  ([ADR 0061](../decisions/0061-projects-list-as-a-sortable-table.md) §5): a margin-ranked list
+  discloses which engagements are most and least profitable, and that ranking is compensation-derived
+  just as the numbers are. So the same `costBasis !== null` boolean that omits the Margin column
+  (header included, not blanked) also makes `?sort=margin` fall back to the default order — a
+  hand-typed URL is inert. Nothing is re-derived: the gate is read once, at the page. **If you ever
+  find that sort being "repaired" by costing roles purely to order them, that is the vulnerability
+  — flag it.** See the
   [projects domain](projects.md) and
   [ADR 0053](../decisions/0053-project-budgets-and-margin.md).
 
@@ -141,7 +149,7 @@ utilization report, *reading* other people's logged hours**:
   needs to widen (actuals without edit rights), the named path is a new **`timesheets.view`**
   capability added in lockstep across `permissions.ts`, `permissions.test.ts` and this doc —
   **not** loosening the scope in that read. See [utilization.md](./utilization.md) and
-  [ADR 0060](../decisions/0060-utilization-report-two-series-and-timesheet-disclosure.md).
+  [ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md).
 
 Another capability gates a **read** rather than a write (as `projects.viewMargin`
 above does):

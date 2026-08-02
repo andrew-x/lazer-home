@@ -1,4 +1,4 @@
-# 0060 — Utilization report: two never-summed series, cross-person actuals gated on `timesheets.edit`, a billable-only cohort
+# 0062 — Utilization report: two never-summed series, cross-person actuals gated on `timesheets.edit`, a billable-only cohort
 
 **Status:** accepted · 2026-08-02 · **no schema change, no migration, no matrix change** ·
 first surface to reconcile the `project_roles` plan against `time_entries` actuals, closing
