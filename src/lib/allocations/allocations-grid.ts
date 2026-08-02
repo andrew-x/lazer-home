@@ -222,8 +222,12 @@ function bucketEnd(granularity: Granularity, colStart: string): string {
   }
 }
 
-/** The start of the bucket `date` belongs to, for the given granularity. */
-function getBucketStart(granularity: Granularity, date: string): string {
+/**
+ * The start of the bucket `date` belongs to, for the given granularity. Shared
+ * with the by-project grid (`./project-allocations-grid`) so both views mark a
+ * role's start/end column by the same rule.
+ */
+export function getBucketStart(granularity: Granularity, date: string): string {
   switch (granularity) {
     case "day":
       return date;
