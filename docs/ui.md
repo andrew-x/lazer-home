@@ -127,6 +127,12 @@ level-distribution **bar chart** (`level-distribution-bar-chart.tsx`, on
 `/dashboards/levels`). **Follow the same approach for future charts** rather than
 reaching for a library.
 
+**It has held for meters too.** The allocations planner's per-cell **capacity meter** (the
+first progress/meter bar in the app) is **two divs and a width** — no progress-bar
+component, no charting dependency. See
+[`/allocations` → the capacity meter](#allocations--staffing-planner-grid) and
+[ADR 0060](./decisions/0060-allocations-capacity-meter.md).
+
 **The rule has held for structural diagrams too, and not by drawing SVG.** The
 `/staff` **org chart** renders the reporting tree as an **indented DOM tree with CSS
 pseudo-element connectors** — no SVG, no `@xyflow/react`/`dagre` (considered and
@@ -428,6 +434,11 @@ Project-plan tab) — [ADR 0053](./decisions/0053-project-budgets-and-margin.md)
 - **Granularity — day / week / month.** `GRANULARITIES` / `GRANULARITY_LABELS` (from the pure `src/lib/allocations/allocations-grid.ts`) drive a `ToggleGroup`; `buildColumns` / `buildAllocationRows` / `defaultWindow` compute the columns and rows for the chosen window. Grid math stays in that pure lib, mirroring the projects planner's `project-planner-grid.ts` split.
 - **Filtering reuses the shared `src/components/form/filters.tsx` controls** (`SelectFilter`, `MultiSelectFilter`, `SegmentedFilter`) plus the `SkillsFilter` and a name search — the Role `MultiSelectFilter` defaults to the billable disciplines via `isBillableRole` (it has no `ALL` sentinel, so an empty selection matches nothing; see the admin/filters note above).
 - **Manager-only allocation notes.** Per-cell allocation notes are gated so only managers can read/write them (the gate is enforced server-side in the allocations actions; the note cell is the write affordance). See [domains/allocations.md](./domains/allocations.md).
+- **The capacity meter — the app's first meter/progress bar.** `CapacityMeter` (internal to `allocations-grid.tsx`) closes every weekday cell: a `h-1 bg-muted` track (square corners, `overflow-hidden`) with a percentage beside it. It is **hand-rolled divs — no charting or progress-bar dependency**, consistent with the hand-rolled-SVG rule above; copy this before reaching for a library.
+  - **Segments, in order:** confirmed `bg-primary`, tentative `bg-primary/40`, away `bg-amber-300` (matching the existing "Away" strip), then bare track — the bare part *is* the headroom. `overflow-hidden` is load-bearing: rounding that nudges the segments past 100% clips instead of widening the bar.
+  - **Colour is spent only on over-allocation.** In that one state the whole bar goes `bg-destructive` and the number reads `-N%` in `text-destructive`. No green/amber/red banding for healthy levels — the design language reserves colour for genuine problems (the same rule `InlineNotice`'s `tone` follows), and a three-colour ramp on every cell of a dense grid destroys the grid.
+  - **The number is capacity *left*, i.e. the inverse of the load percentages on the blocks directly above it.** That inversion is deliberate (the planner's job is finding room) and is why the tooltip spells out the whole breakdown — free/over, booked with the confirmed–tentative split, away, plus a month-only line "Averaged across the month's working days". Two legend entries pair with it: **Capacity left** and **Over-allocated**.
+  - **Gotcha:** the meter does **not** sum the percentages rendered above it — it runs on a separate prorated, uncapped figure, so at month zoom two blocks reading "100%" can sit above "0% free". See [domains/allocations.md](./domains/allocations.md) → *Two load figures* and [ADR 0060](./decisions/0060-allocations-capacity-meter.md).
 
 ## App shell & sidebar
 
