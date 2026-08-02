@@ -15,6 +15,7 @@ import {
 import { latestDeliveryNoteFirst } from "@/actions/projects/getProjectDeliveryNotes";
 import { getProjectsMarginContext } from "@/actions/projects/getProjectsMarginContext";
 import { CRM_PAGE_SIZE, clampPage, type Page } from "@/lib/core/pagination";
+import { compareSortValues, type SortDirection } from "@/lib/core/sort";
 import type { LineOfBusiness } from "@/lib/crm/line-of-business";
 import { db } from "@/lib/db/db";
 import {
@@ -34,6 +35,7 @@ import type { BillingType } from "@/lib/projects/project-billing";
 import {
   deriveProjectLinesOfBusiness,
   deriveProjectStatus,
+  PROJECT_STATUS_BUCKETS,
   type ProjectStatusBucket,
 } from "@/lib/projects/project-derived";
 import {
@@ -48,8 +50,14 @@ import {
 import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
 import {
   derivedStatusCondition,
+  latestHealthRating,
   latestRoleEndDate,
 } from "@/lib/projects/project-status-sql";
+import {
+  DEFAULT_PROJECT_SORT,
+  DEFAULT_SORT_DIRECTION,
+  type ProjectSortKey,
+} from "@/lib/projects/projects-list-sort";
 import { currentDay } from "@/lib/timesheets/timesheet-week";
 
 /** A project's plan margin, in one display currency. */
@@ -69,6 +77,13 @@ export type ProjectListItem = {
   companyName: string;
   deliveryManagerNames: string[];
   roleCount: number;
+  /**
+   * How many of those roles are **open positions** (`staffId === null`) — the
+   * staffing gap. Counted from the role rows `assembleRows` already fetches, so
+   * it costs no extra query. Includes cancelled roles, exactly as `roleCount`
+   * does, so the two figures always describe the same set.
+   */
+  openRoleCount: number;
   /** Earliest role start date ("YYYY-MM-DD"); null when the project has no roles. */
   startDate: string | null;
   /** Latest role end date ("YYYY-MM-DD"); null when the project has no roles. */
@@ -119,20 +134,56 @@ export type ProjectsListFilters = {
 /** A delivery-manager option for the list filter: a staff id + display name. */
 export type DeliveryManagerOption = { id: string; name: string };
 
-/** How the paginated list is ordered. */
-export type ProjectsListOrder = "name" | "endDate";
+/** How the paginated list is ordered: a sortable column plus a direction. */
+export type ProjectsListOrder = {
+  key: ProjectSortKey;
+  dir: SortDirection;
+};
+
+/** The order the list takes when the URL asks for nothing. */
+export const DEFAULT_PROJECTS_ORDER: ProjectsListOrder = {
+  key: DEFAULT_PROJECT_SORT,
+  dir: DEFAULT_SORT_DIRECTION[DEFAULT_PROJECT_SORT],
+};
 
 /**
- * Order clauses for the row query. `endDate` sorts by the project's latest role
- * end date (`latestRoleEndDate` — a correlated `max`, since the date range is
- * derived, not a column) newest first, projects without roles last; `name` is the
- * alphabetical default. Name always breaks ties so paging stays stable.
+ * `<expr> asc|desc [nulls last]`, built by branching rather than interpolating the
+ * direction, so no part of an `order by` is ever assembled from a string.
+ *
+ * **Nulls last in BOTH directions** for the derived expressions — Postgres defaults
+ * to nulls-first under `desc`, which would open a descending health sort with every
+ * unrated project. "Not rated" is unknown, not worst; the in-memory margin sort says
+ * the same thing through `compareSortValues`.
  */
-function orderClauses(order: ProjectsListOrder): SQL[] {
-  if (order === "endDate") {
-    return [sql`${latestRoleEndDate} desc nulls last`, asc(projects.name)];
+function ordered(expr: SQL, dir: SortDirection, nullable: boolean): SQL {
+  if (dir === "asc") {
+    return nullable ? sql`${expr} asc nulls last` : sql`${expr} asc`;
   }
-  return [asc(projects.name)];
+  return nullable ? sql`${expr} desc nulls last` : sql`${expr} desc`;
+}
+
+/**
+ * Order clauses for the row query. `endDate` and `health` sort by correlated
+ * subqueries (`latestRoleEndDate`, `latestHealthRating`) because neither is a
+ * column on `projects` — the date range and the health rating are both derived.
+ * Name always breaks ties so paging stays stable across equal values.
+ *
+ * `margin` is absent by design: it is computed in `assembleRows` from roles and the
+ * cost basis, so it has no SQL expression at all and takes the separate in-memory
+ * path in `getProjectsPage`.
+ */
+function orderClauses({ key, dir }: ProjectsListOrder): SQL[] {
+  const tiebreak = asc(projects.name);
+  switch (key) {
+    case "client":
+      return [ordered(sql`${companies.name}`, dir, false), tiebreak];
+    case "endDate":
+      return [ordered(latestRoleEndDate, dir, true), tiebreak];
+    case "health":
+      return [ordered(latestHealthRating, dir, true), tiebreak];
+    default:
+      return [ordered(sql`${projects.name}`, dir, false)];
+  }
 }
 
 /**
@@ -251,6 +302,7 @@ async function assembleRows(
 
   const managersByProject = new Map<string, string[]>();
   const roleStatusesByProject = new Map<string, ProjectRoleStatus[]>();
+  const openRolesByProject = new Map<string, number>();
   const roleLobsByProject = new Map<string, LineOfBusiness[]>();
   const marginRolesByProject = new Map<string, MarginRoleInput[]>();
   const startDateByProject = new Map<string, string>();
@@ -326,6 +378,15 @@ async function assembleRows(
     lobs.push(row.lineOfBusiness);
     roleLobsByProject.set(row.projectId, lobs);
 
+    // A role with no assignee is an open position — the staffing gap the list
+    // shows beside the role count.
+    if (row.staffId === null) {
+      openRolesByProject.set(
+        row.projectId,
+        (openRolesByProject.get(row.projectId) ?? 0) + 1,
+      );
+    }
+
     if (costBasis) {
       const marginRoles = marginRolesByProject.get(row.projectId) ?? [];
       marginRoles.push({
@@ -382,6 +443,7 @@ async function assembleRows(
       ),
       deliveryManagerNames: managersByProject.get(row.id) ?? [],
       roleCount: statuses.length,
+      openRoleCount: openRolesByProject.get(row.id) ?? 0,
       startDate: startDateByProject.get(row.id) ?? null,
       endDate,
       latestHealth: latestNote?.projectHealth ?? null,
@@ -458,40 +520,117 @@ function listMargin({
 }
 
 /**
- * Every project in the given status buckets (no pagination), ordered by name.
- * Used for the Tentative, Paused and Active sections, which show in full.
+ * How many projects sit in each status bucket **under the active filters** — the
+ * counts on the list's status tabs.
+ *
+ * Filter-aware on purpose. The tabs replaced a flat cross-status search view, so a
+ * match in a bucket you aren't looking at has to stay discoverable: searching
+ * "Acme" from the Active tab shows "Cancelled (1)" rather than silently hiding it.
+ *
+ * Five `count()` queries rather than one grouped scan: the bucket predicates are
+ * correlated-`EXISTS` expressions over `project_roles` (`derivedStatusCondition`),
+ * not a column that could be grouped by, and a `CASE` over all five would evaluate
+ * every predicate for every row anyway. They run concurrently.
  */
-export async function getProjectsInBuckets(
-  buckets: ProjectStatusBucket[],
+export async function getProjectBucketCounts(
   filters: ProjectsListFilters = {},
-): Promise<ProjectListItem[]> {
+): Promise<Record<ProjectStatusBucket, number>> {
+  const entries = await Promise.all(
+    PROJECT_STATUS_BUCKETS.map(async (bucket) => {
+      const [{ total }] = await db
+        .select({ total: count() })
+        .from(projects)
+        .innerJoin(companies, eq(projects.companyId, companies.id))
+        .where(projectsWhere([bucket], filters));
+      return [bucket, total] as const;
+    }),
+  );
+
+  return Object.fromEntries(entries) as Record<ProjectStatusBucket, number>;
+}
+
+/**
+ * One page of projects sorted by plan margin — the path SQL can't take.
+ *
+ * Margin is computed in `assembleRows` from each role's hours and the viewer's cost
+ * basis, so there is no expression to `order by`: the whole filtered bucket has to be
+ * assembled, sorted, and only then sliced. Paginating first and sorting the page
+ * would produce a list that restarts its ordering every 20 rows.
+ *
+ * Sorted on `MARGIN_FLAG_CURRENCY`, matching the currency the risk flags are already
+ * evaluated in. The display currency is client state (ADR 0057 §8) and never reaches
+ * the server, and both figures come from the same native amounts through one rate
+ * set, so the ranking holds whichever way the toggle is set.
+ *
+ * **A viewer without `projects.viewMargin` never gets here** — the page drops
+ * `sort=margin` when the read produced no cost basis. Were one to arrive anyway,
+ * every `margin` is null, `compareSortValues` treats the set as all-unknown, and the
+ * name order the base query applied survives. Do not "repair" that by costing roles
+ * purely to order them: the ranking itself is compensation-derived.
+ */
+async function getProjectsPageByMargin(
+  page: number,
+  buckets: ProjectStatusBucket[],
+  filters: ProjectsListFilters,
+  dir: SortDirection,
+  pageSize: number,
+): Promise<Page<ProjectListItem>> {
   const baseRows = await db
     .select(baseColumns)
     .from(projects)
     .innerJoin(companies, eq(projects.companyId, companies.id))
     .where(projectsWhere(buckets, filters))
+    // Name order underneath, so equal margins (and the whole all-null case) stay
+    // alphabetical instead of falling back to whatever the planner returned.
     .orderBy(asc(projects.name));
 
-  return assembleRows(baseRows);
+  const rows = await assembleRows(baseRows);
+  const sorted = [...rows].sort((a, b) =>
+    compareSortValues(
+      a.margin?.[MARGIN_FLAG_CURRENCY].margin ?? null,
+      b.margin?.[MARGIN_FLAG_CURRENCY].margin ?? null,
+      dir,
+    ),
+  );
+
+  const total = sorted.length;
+  const { pageCount, safePage } = clampPage(total, page, pageSize);
+  const offset = (safePage - 1) * pageSize;
+
+  return {
+    rows: sorted.slice(offset, offset + pageSize),
+    total,
+    page: safePage,
+    pageSize,
+    pageCount,
+  };
 }
 
 /**
  * One page of projects in the given status buckets, with the optional
- * name/company + line-of-business + delivery-manager filters. Ordered by `order`
- * (`name` by default; `endDate` for the Past and search/filter views —
- * latest-ending first). Server-side paginated (offset/limit + a count) — used for
- * the Past and Cancelled sections and the flat filtered view, whose result sets
- * grow unbounded. The
- * filter `where` is applied to both the count and the row query so the page count
- * reflects the filtered set. `page` is clamped into range.
+ * name/company + line-of-business + delivery-manager filters, ordered by `order`.
+ * The single read behind the list — every status tab takes this same path.
+ *
+ * Server-side paginated (offset/limit + a count), with the filter `where` applied to
+ * both the count and the row query so the page count reflects the filtered set.
+ * `page` is clamped into range.
+ *
+ * **Except for `margin`**, which has no SQL expression and delegates to
+ * `getProjectsPageByMargin` — that one assembles the whole bucket before slicing.
+ * It is opt-in by a header click, and it is the only order that costs more than a
+ * page's worth of work.
  */
 export async function getProjectsPage(
   page: number,
   buckets: ProjectStatusBucket[],
   filters: ProjectsListFilters = {},
-  order: ProjectsListOrder = "name",
+  order: ProjectsListOrder = DEFAULT_PROJECTS_ORDER,
   pageSize = CRM_PAGE_SIZE,
 ): Promise<Page<ProjectListItem>> {
+  if (order.key === "margin") {
+    return getProjectsPageByMargin(page, buckets, filters, order.dir, pageSize);
+  }
+
   const where = projectsWhere(buckets, filters);
 
   const [{ total }] = await db

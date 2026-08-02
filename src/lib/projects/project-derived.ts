@@ -61,8 +61,7 @@ export function deriveProjectLinesOfBusiness(
  * Four of the five are a relabelling of the derived status, but the confirmed
  * status splits in two on the calendar: a delivered engagement is still
  * "confirmed", so `active` vs `past` is decided by whether the project's latest
- * role end date has passed. The list page shows Tentative, Paused and Active in
- * full and paginates Past and Cancelled.
+ * role end date has passed. The list page renders one bucket at a time, as tabs.
  */
 export type ProjectStatusBucket =
   | "tentative"
@@ -71,7 +70,11 @@ export type ProjectStatusBucket =
   | "past"
   | "cancelled";
 
-/** Every bucket, in the order the list page renders its sections. */
+/**
+ * Every bucket, in derived-status order (the calendar split last). This is the
+ * canonical *set* — the order the list's tabs appear in is a separate, UI-facing
+ * concern that leads with the default tab (see `PROJECT_STATUS_TABS`).
+ */
 export const PROJECT_STATUS_BUCKETS: ProjectStatusBucket[] = [
   "tentative",
   "paused",
@@ -79,6 +82,16 @@ export const PROJECT_STATUS_BUCKETS: ProjectStatusBucket[] = [
   "past",
   "cancelled",
 ];
+
+/** Display labels for the buckets — the list's tab names. */
+export const PROJECT_STATUS_BUCKET_LABELS: Record<ProjectStatusBucket, string> =
+  {
+    tentative: "Tentative",
+    paused: "Paused",
+    active: "Active",
+    past: "Past",
+    cancelled: "Cancelled",
+  };
 
 /**
  * Has the engagement finished — is its latest role end date before `today`? A

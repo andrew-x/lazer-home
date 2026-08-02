@@ -6,7 +6,11 @@ and [ADR 0034](./0034-company-status-derived-tags.md) · reuses
 [ADR 0058](./0058-self-evaluations-dated-records-with-snapshotted-answers.md) §3's
 typed-column reasoning for the rating while **deliberately inverting** its §5 author-only
 write rule · extends [ADR 0057](./0057-projects-list-margin-and-derived-flags.md)'s flag
-machinery with a **fourth** tag and its first **ungated** input · **no matrix change**
+machinery with a **fourth** tag and its first **ungated** input · **no matrix change** ·
+**still current under [ADR 0061](./0061-projects-list-as-a-sortable-table.md)**, which moved the
+list from cards to a table: the "Low health" tag stays deliberately **monochrome**, which is why
+0061's ten-segment health bar is uncoloured too — read "the card's Health field" below as "the
+table's Health column"
 
 ## Context
 
@@ -171,11 +175,15 @@ bullet instead.
   recency cutoff on `lowHealth` is the obvious next threshold decision and is **deliberately not
   built**: it needs a policy answer ("how old is too old"), not code. See
   [projects.md](../domains/projects.md#open-questions--not-yet-built).
-- **Health can't be sorted or filtered on**, like the flags themselves (ADR 0057). Both would
-  need the latest-note lookup inside the *base* query — a lateral join — rather than in
-  `assembleRows`.
-- **`assembleRows` runs once per section**, so the grouped view fires this new query **five**
-  times per render. That multiplier is inherited by anything else added there.
+- ~~**Health can't be sorted**~~ — **superseded by
+  [ADR 0061](./0061-projects-list-as-a-sortable-table.md) §3–4**, which put the latest-note lookup
+  in the base query as the correlated scalar subquery `latestHealthRating` (whose `order by` must
+  stay in lockstep with `latestDeliveryNoteFirst` below). **Filtering** on health or the flags is
+  still unbuilt.
+- ~~**`assembleRows` runs once per section**, so the grouped view fires this new query **five**
+  times per render.~~ — **superseded by ADR 0061 §2**: the sections became tabs, so it runs
+  **once** per render, over one page — *except* under `sort=margin`, which assembles the whole
+  bucket. That is the multiplier anything added there now inherits.
 - **The detail page gains a fourth tab and a fifth read.** `getProjectDeliveryNotes(id)` is a
   **sibling** read in the page's `Promise.all`, deliberately *not* folded into
   `ProjectDetailPlan`: `generateMetadata` calls the plan read too (so anything inside it is
