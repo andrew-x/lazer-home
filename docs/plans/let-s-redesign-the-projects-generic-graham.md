@@ -32,7 +32,7 @@ deleted the old `projects-table.tsx` and moved status/LoB from badges into card 
 its alternatives list records that a sortable margin column was **"not built"** because
 "sorting by a figure half the roles can't be costed from would need a story for the nulls
 first." That null story is settled here (§ Sorting). This change therefore needs a **new ADR
-(0060)** that supersedes 0057 §7 and updates the `/projects` section of `docs/ui.md`.
+(0061)** that supersedes 0057 §7 and updates the `/projects` section of `docs/ui.md`.
 
 What ADR 0057 got right and this plan **keeps**: the badge row means "look at this one" —
 only derived risk flags get badges. Status becomes the tab, not a badge; line of business
@@ -182,7 +182,7 @@ the same mechanism — the Risk column inherits that unchanged.
   SVG — this is that case. `aria-hidden`, with the accessible value carried by the adjacent
   number.
 - `src/components/projects/projects-status-tabs.tsx` — the link-based tab strip + counts.
-- `docs/decisions/0060-projects-list-as-a-sortable-table.md` — supersedes ADR 0057 §7.
+- `docs/decisions/0061-projects-list-as-a-sortable-table.md` — supersedes ADR 0057 §7.
 
 **Modified**
 
@@ -230,7 +230,7 @@ the same mechanism — the Risk column inherits that unchanged.
 4. Narrow the window to phone width: the table scrolls horizontally, the page body does not.
 5. Run `/code-review` and `/security-review` on the diff before merging.
 6. Dispatch the **`librarian`** subagent to reconcile `docs/ui.md` (`/projects` section),
-   `docs/domains/projects.md` (UI + "Margin & flags on the list") and the new ADR 0060.
+   `docs/domains/projects.md` (UI + "Margin & flags on the list") and the new ADR 0061.
 
 ---
 

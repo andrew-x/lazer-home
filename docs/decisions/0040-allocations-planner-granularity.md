@@ -1,6 +1,9 @@
 # 0040 — Allocations planner: selectable day/week/month granularity
 
-**Status:** accepted · 2026-07-24
+**Status:** accepted · 2026-07-24 · **extended (not superseded) by
+[ADR 0060](./0060-allocations-capacity-meter.md)** — the rules below still govern the
+per-role *blocks*; a second, prorated/uncapped figure (`bucketLoadPercent`) was **added
+alongside** `bucketPercent` to drive a per-cell capacity meter
 
 ## Context
 
@@ -33,7 +36,9 @@ Month — over the same read.** No schema change; still a pure view over `projec
 - **Time off *is* prorated over the bucket's working days at every granularity** (away
   weekdays / total weekdays in the column) — a day is 100% when covered, a week /5, a
   month /working-days-in-month. Availability is a real fraction; a role's plan is a
-  rate.
+  rate. (**Still true of the blocks.** The two units are reconciled — capacity =
+  `100 − away` — only in the capacity meter [ADR 0060](./0060-allocations-capacity-meter.md)
+  added below them.)
 - **Default windows re-seed on granularity change.** 14 days / 12 weeks / 6 months
   (`DEFAULT_WINDOW`), anchored at today; switching granularity resets the range to that
   window (a leftover week range is meaningless as days). Prev/next shift the window by
@@ -53,14 +58,20 @@ Month — over the same read.** No schema change; still a pure view over `projec
   nor "their hours." Weeks stay prorated because that's the near-term planning zoom
   where partial-week edges matter. If this ever confuses users, month proration is the
   knob to revisit.
-- **`weekPercent` remains the single source for a week's load**, still imported by the
-  opportunity planner (`project-planner-grid.ts`, weekly-only). Keep both call sites in
-  step if the weekly formula changes.
+- **`weekPercent` remains the single source for a week's *displayed* week load**, still
+  imported by the opportunity planner (`project-planner-grid.ts`, weekly-only). Keep both
+  call sites in step if the weekly formula changes. This rule is exactly why
+  [ADR 0060](./0060-allocations-capacity-meter.md) **added** `bucketLoadPercent` rather
+  than uncapping/prorating this one.
 - The multi-granularity move **renamed the grid types**: `WeekCell` → `BucketCell`,
   `AllocationRow.weeks` → `AllocationRow.cells`; `buildAllocationRows` gained `columns`
   + `granularity` params. Purely internal to the allocations lib + its components.
-- Still a *view*, not the capacity model — it doesn't sum a person's cross-project load
-  or flag over-allocation at any granularity (see the open questions in
+- ~~Still a *view*, not the capacity model — it doesn't sum a person's cross-project load
+  or flag over-allocation at any granularity.~~ **No longer true as of
+  [ADR 0060](./0060-allocations-capacity-meter.md):** each cell now sums the person's load
+  across projects, nets PTO out of it, and flags over-allocation. It is still not a
+  capacity *model* — no per-person capacity beyond the flat 40h week, no window rollup, no
+  reconciliation against timesheet actuals (see the open questions in
   [domains/allocations.md](../domains/allocations.md)).
 
 ## Alternatives considered

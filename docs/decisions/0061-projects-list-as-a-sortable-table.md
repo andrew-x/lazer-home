@@ -1,4 +1,4 @@
-# 0060 — The projects list as a sortable table with status tabs; nulls sort last; margin *order* is gated like margin *figures*
+# 0061 — The projects list as a sortable table with status tabs; nulls sort last; margin *order* is gated like margin *figures*
 
 **Status:** accepted · 2026-08-02 · **supersedes
 [ADR 0057](./0057-projects-list-margin-and-derived-flags.md) §7** (the card layout) and

@@ -390,7 +390,7 @@ delivery, allocations, timesheets, and billing.
     and unlike `margin` it is **not capability-gated**; the date ships because a bare "3/10" reads
     as *now* — see
     [Margin & flags on the list](#margin--flags-on-the-list), **plus `openRoleCount`**
-    ([ADR 0060](../decisions/0060-projects-list-as-a-sortable-table.md)): how many of `roleCount`
+    ([ADR 0061](../decisions/0061-projects-list-as-a-sortable-table.md)): how many of `roleCount`
     have a null `staffId`, tallied from role rows `assembleRows` already fetches so it costs no
     query — and it counts cancelled roles exactly as `roleCount` does, so the Roles cell's two
     numbers always describe the same set),
@@ -399,7 +399,7 @@ delivery, allocations, timesheets, and billing.
     and a single delivery manager: a `staff.id` matched via a **correlated `EXISTS` on
     `project_delivery_managers`**), and three functions over a shared `assembleRows` helper
     (`getProjectsInBuckets`, the old unpaginated full-section read, was **deleted** by
-    [ADR 0060](../decisions/0060-projects-list-as-a-sortable-table.md) — every tab now takes the
+    [ADR 0061](../decisions/0061-projects-list-as-a-sortable-table.md) — every tab now takes the
     same paginated path, so the Tentative/Paused/Active buckets are paginated for the first time):
     - **`getProjectsPage(page, buckets, filters?, order?, pageSize?)`** — **the single read behind
       the list**: one page (offset/limit + a `count`, `page` clamped, the `Page<T>` envelope from
@@ -802,7 +802,7 @@ delivery, allocations, timesheets, and billing.
     and [crm.md](./crm.md).
 - **UI** — `/projects` (`src/app/(app)/projects/page.tsx`) + `src/components/projects/**` —
   see [../ui.md](../ui.md). The list is a **sortable, paginated table under a status tab strip**
-  ([ADR 0060](../decisions/0060-projects-list-as-a-sortable-table.md); `project-card.tsx` and
+  ([ADR 0061](../decisions/0061-projects-list-as-a-sortable-table.md); `project-card.tsx` and
   `projects-grid.tsx` — and, long before them, a first `projects-table.tsx`/`ProjectRow` — are all
   **deleted**). **`projects-table.tsx` (`ProjectsTable`)** renders nine columns — **Project · Client
   · Risk · Line of business · Delivery · Roles · Dates · Health · Margin** — identity left, the one
@@ -1061,7 +1061,7 @@ that for the *why* behind each rule below. Math lives in the pure
 
 The third margin surface, added by
 [ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md) — read it for the *why*,
-then [ADR 0060](../decisions/0060-projects-list-as-a-sortable-table.md) for the table it now
+then [ADR 0061](../decisions/0061-projects-list-as-a-sortable-table.md) for the table it now
 renders in and the margin **sort**. The rules above still hold (same `computeProjectMargin`, same
 gate); what differs is **how the list converts**, **what it does with the number**, and **that the
 number can now order the list**.
@@ -1114,7 +1114,7 @@ number can now order the list**.
   order**, which makes a hand-typed URL inert. The architecture is safe underneath — with no cost
   basis `assembleRows` builds no `MarginRoleInput`s, every `margin` is `null`, and there is nothing
   to sort by. **Standing instruction: do not "repair" that dead sort by costing roles purely to
-  order them.** See [ADR 0060 §5](../decisions/0060-projects-list-as-a-sortable-table.md).
+  order them.** See [ADR 0061 §5](../decisions/0061-projects-list-as-a-sortable-table.md).
 - **The Health column renders a figure + a `HealthBar`, not stars, with the note's date beneath.**
   Ten star icons per row would swamp a column of twenty, and the bar exists so the *column* reads
   as a shape you can sweep (ten discrete monochrome segments — the scale is a ten-point integer,
@@ -1581,7 +1581,7 @@ so a `projects.deliveryNotes` row would be a second way to spell `projects.edit`
   ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)). Revising a threshold
   re-tags every project retroactively and silently — `PROJECT_FLAGS_REVIEWED_ON` is the only signal
   of when the policy last moved. ~~**and no margin sort**~~ **resolved** by
-  [ADR 0060](../decisions/0060-projects-list-as-a-sortable-table.md), which answered the nulls
+  [ADR 0061](../decisions/0061-projects-list-as-a-sortable-table.md), which answered the nulls
   question it was blocked on (**nulls last in both directions**) and gated the *ordering* on
   `projects.viewMargin` alongside the figures. Still missing: **no "flagged only" filter** — a
   `SelectFilter` over flags would have to be evaluated in SQL rather than in `assembleRows`, and
@@ -1598,7 +1598,7 @@ so a `projects.deliveryNotes` row would be a second way to spell `projects.edit`
   `lowHealth`** — deliberately not built, because it needs a policy answer ("how old is too old"),
   which is a threshold decision to make on purpose rather than guess. No schema change either way.
 - ~~**Health can't be sorted**~~ **resolved** by
-  [ADR 0060](../decisions/0060-projects-list-as-a-sortable-table.md): the latest-note lookup moved
+  [ADR 0061](../decisions/0061-projects-list-as-a-sortable-table.md): the latest-note lookup moved
   into the base query as the correlated scalar subquery `latestHealthRating`, so the column sorts
   (unrated last, both directions). **Filtering** on health — a "Not rated" or flagged-only
   filter — is still unbuilt. Additive, no schema.

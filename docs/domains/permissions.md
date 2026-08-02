@@ -115,7 +115,7 @@ derived from individual compensation.
   per-role cost at all** — only two whole-project figures per row
   ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)).
   **!! It also gates *ordering*, not just figures**
-  ([ADR 0060](../decisions/0060-projects-list-as-a-sortable-table.md) §5): a margin-ranked list
+  ([ADR 0061](../decisions/0061-projects-list-as-a-sortable-table.md) §5): a margin-ranked list
   discloses which engagements are most and least profitable, and that ranking is compensation-derived
   just as the numbers are. So the same `costBasis !== null` boolean that omits the Margin column
   (header included, not blanked) also makes `?sort=margin` fall back to the default order — a

@@ -7,9 +7,9 @@ and [ADR 0034](./0034-company-status-derived-tags.md) · reuses
 typed-column reasoning for the rating while **deliberately inverting** its §5 author-only
 write rule · extends [ADR 0057](./0057-projects-list-margin-and-derived-flags.md)'s flag
 machinery with a **fourth** tag and its first **ungated** input · **no matrix change** ·
-**still current under [ADR 0060](./0060-projects-list-as-a-sortable-table.md)**, which moved the
+**still current under [ADR 0061](./0061-projects-list-as-a-sortable-table.md)**, which moved the
 list from cards to a table: the "Low health" tag stays deliberately **monochrome**, which is why
-0060's ten-segment health bar is uncoloured too — read "the card's Health field" below as "the
+0061's ten-segment health bar is uncoloured too — read "the card's Health field" below as "the
 table's Health column"
 
 ## Context
@@ -176,12 +176,12 @@ bullet instead.
   built**: it needs a policy answer ("how old is too old"), not code. See
   [projects.md](../domains/projects.md#open-questions--not-yet-built).
 - ~~**Health can't be sorted**~~ — **superseded by
-  [ADR 0060](./0060-projects-list-as-a-sortable-table.md) §3–4**, which put the latest-note lookup
+  [ADR 0061](./0061-projects-list-as-a-sortable-table.md) §3–4**, which put the latest-note lookup
   in the base query as the correlated scalar subquery `latestHealthRating` (whose `order by` must
   stay in lockstep with `latestDeliveryNoteFirst` below). **Filtering** on health or the flags is
   still unbuilt.
 - ~~**`assembleRows` runs once per section**, so the grouped view fires this new query **five**
-  times per render.~~ — **superseded by ADR 0060 §2**: the sections became tabs, so it runs
+  times per render.~~ — **superseded by ADR 0061 §2**: the sections became tabs, so it runs
   **once** per render, over one page — *except* under `sort=margin`, which assembles the whole
   bucket. That is the multiplier anything added there now inherits.
 - **The detail page gains a fourth tab and a fifth read.** `getProjectDeliveryNotes(id)` is a

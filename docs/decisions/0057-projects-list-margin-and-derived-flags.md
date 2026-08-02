@@ -1,7 +1,7 @@
 # 0057 — Projects list: derived risk flags with code-owned thresholds, and margin precomputed server-side in both display currencies
 
 **Status:** accepted · 2026-07-30 · **§7 superseded by
-[ADR 0060](./0060-projects-list-as-a-sortable-table.md)** (2026-08-02), which replaced the card
+[ADR 0061](./0061-projects-list-as-a-sortable-table.md)** (2026-08-02), which replaced the card
 grid with a sortable table + status tabs and built the margin sort this ADR's alternatives list
 left unbuilt. **§7's *principle* survives the layout change** — the badge column still carries
 only derived warnings, status and LoB are still plain facts — but every mention of a *card*, a
@@ -117,7 +117,7 @@ page says the same thing in words ("nothing to cost against the budget").
 `{ rates, costBasis, nativeCurrencies }` wrapped in React `cache()`.
 
 The grouped view fires **five** list reads in parallel (Tentative / Paused / Active / Past /
-Cancelled) — *[ADR 0060](./0060-projects-list-as-a-sortable-table.md) replaced that with one row
+Cancelled) — *[ADR 0061](./0061-projects-list-as-a-sortable-table.md) replaced that with one row
 read plus five bucket `count()`s; the sharing argument is unchanged]* — and
 `getRoleTypeAverageCostsUsd` inside the cost basis scans all of
 `staff_employment`. `cache()` memoizes the *promise*, so those five concurrent callers plus the
@@ -234,6 +234,6 @@ context (`ProjectsCurrencyProvider` / `useProjectsCurrency`), with the `ToggleGr
   qualify one footnote.
 - ~~**A margin *column* / sortable margin.** Not built. The grid is a card layout, and sorting by a
   figure half the roles can't be costed from would need a story for the nulls first.~~ — **built by
-  [ADR 0060](./0060-projects-list-as-a-sortable-table.md)**, which answered the nulls question
+  [ADR 0061](./0061-projects-list-as-a-sortable-table.md)**, which answered the nulls question
   (**nulls last in both directions**) and gated the *ordering* on `projects.viewMargin` just like
   the figures.
