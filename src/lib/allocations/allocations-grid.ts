@@ -22,6 +22,12 @@ import type {
   AllocationStaffRow,
   AllocationTimeOff,
 } from "@/actions/allocations/getAllocationsGrid";
+import {
+  activeWeekdays,
+  awayWeekdays,
+  latestConfirmedEnd,
+  totalWeekdays,
+} from "@/lib/allocations/weekdays";
 import type { LineOfBusiness } from "@/lib/crm/line-of-business";
 import { parseIsoDate } from "@/lib/format/format";
 import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
@@ -40,7 +46,6 @@ import {
   getMonthStart,
   getWeekDays,
   getWeekStart,
-  isWeekend,
 } from "@/lib/timesheets/timesheet-week";
 
 /** A full week of billable capacity — the 100% baseline (8h/day × 5 weekdays). */
@@ -283,46 +288,6 @@ export function columnLabel(
   }
 }
 
-/** Count of Mon–Fri days in `[from, to]` that also fall within `[spanStart, spanEnd]`. */
-function activeWeekdays(
-  from: string,
-  to: string,
-  spanStart: string,
-  spanEnd: string,
-): number {
-  let count = 0;
-  for (let day = from; day <= to; day = addDays(day, 1)) {
-    if (isWeekend(day)) continue;
-    if (day >= spanStart && day <= spanEnd) count += 1;
-  }
-  return count;
-}
-
-/** Count of Mon–Fri days in `[from, to]` — the bucket's full working capacity. */
-function totalWeekdays(from: string, to: string): number {
-  let count = 0;
-  for (let day = from; day <= to; day = addDays(day, 1)) {
-    if (!isWeekend(day)) count += 1;
-  }
-  return count;
-}
-
-/** Mon–Fri days in `[from, to]` covered by any of the time-off `spans` (deduped). */
-function awayWeekdays(
-  from: string,
-  to: string,
-  spans: readonly AllocationTimeOff[],
-): number {
-  let count = 0;
-  for (let day = from; day <= to; day = addDays(day, 1)) {
-    if (isWeekend(day)) continue;
-    if (spans.some((span) => day >= span.startDate && day <= span.endDate)) {
-      count += 1;
-    }
-  }
-  return count;
-}
-
 /** The leave type of the first time-off span overlapping the bucket (null if hidden). */
 function firstAwayType(
   from: string,
@@ -435,22 +400,6 @@ function groupBy<T, K>(rows: readonly T[], getKey: (row: T) => K): Map<K, T[]> {
     else byKey.set(key, [row]);
   }
   return byKey;
-}
-
-/**
- * The latest end date across a person's **confirmed** roles, or null when they
- * have none. This is "when they next free up" — the key the default sort uses
- * to surface available people first (see {@link buildAllocationRows}).
- */
-function latestConfirmedEnd(
-  personRoles: readonly AllocationRoleRow[],
-): string | null {
-  let latest: string | null = null;
-  for (const role of personRoles) {
-    if (role.status !== "confirmed") continue;
-    if (latest === null || role.endDate > latest) latest = role.endDate;
-  }
-  return latest;
 }
 
 /**

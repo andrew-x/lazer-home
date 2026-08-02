@@ -129,6 +129,7 @@ describe("buildAllocationRows", () => {
     lineOfBusiness: null,
     role: null,
     employmentType: "HOURLY",
+    isBillable: true,
     skills: [],
     allocationNotes: null,
   };

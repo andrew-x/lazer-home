@@ -16,7 +16,7 @@ import {
   type FilterOptions,
   matchesFilters,
 } from "@/components/performance/dashboard-filters";
-import { StatCard } from "@/components/performance/stat-card";
+import { StatCard } from "@/components/stat-card";
 import {
   Table,
   TableBody,

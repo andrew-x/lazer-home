@@ -7,9 +7,13 @@ import {
 } from "@/components/ui/card";
 
 /**
- * A single KPI tile: an uppercase label, an optional icon, a large numeric value,
- * and an optional hint line. Extracted from the Home dashboard's inline pattern so
- * the performance dashboard (and future dashboards) share one stat tile.
+ * The app's KPI tile: an uppercase label, an optional icon, a large numeric value,
+ * and an optional hint line. One tile shared by every surface that shows headline
+ * numbers — the home dashboard, the three performance dashboards, and the
+ * project/opportunity plan summaries.
+ *
+ * `value` is pre-formatted by the caller (use `formatPercent` / the currency
+ * formatters), so an unknown figure reads as "—" rather than a hand-rolled dash.
  */
 export function StatCard({
   label,

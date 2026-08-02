@@ -10,7 +10,7 @@ import {
 } from "@tabler/icons-react";
 import { useMemo } from "react";
 import type { PlanRole } from "@/actions/projects/getOpportunityPlan";
-import { StatCard } from "@/components/performance/stat-card";
+import { StatCard } from "@/components/stat-card";
 import { formatShortDate, parseIsoDate } from "@/lib/format/format";
 import {
   type DateRange,
