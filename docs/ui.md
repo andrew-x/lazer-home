@@ -109,7 +109,43 @@ A deliberate, editorial look that **avoids the generic AI-app aesthetic** (round
 - **Flat surfaces.** No elevation shadows — a utility-layer rule in `globals.css` neutralizes every `shadow-*` to `box-shadow: none`. Hairline `border`s define edges; use `border` for separation, never a shadow.
 - **Indigo, sparingly.** The UI is mostly **monochrome neutral grays**. The `--accent`/`--accent-foreground` and `--sidebar-accent`/`--sidebar-accent-foreground` tokens are neutral (not indigo). Indigo lives only in `--primary` and `--ring`, so it surfaces only on primary buttons, focus rings, links, and the active nav item's icon (`app-sidebar.tsx` adds `text-primary` to the active icon). Don't tint hovers/cards/backgrounds indigo — the accent reads as intentional precisely because it's rare.
 - **Global `cursor-pointer`.** A rule in `globals.css`'s **`@layer utilities`** (deliberately **not** base — moved there by commit #51) gives `button`s and ARIA-interactive roles (`menuitem`, `option`, `switch`, `tab`, `checkbox`, `radio`, …) a pointer cursor — Base UI / shadcn omit it by default. The layer choice is load-bearing: a base-layer rule would lose to the `cursor-default` the vendored Base UI / shadcn primitives hardcode on their option/menu-item classNames (a utility beats a base rule regardless of specificity). Don't add `cursor-pointer` per component.
-- **Minimal auth surfaces.** `(auth)/login/page.tsx` is a single centered column — logo mark + product name + one Google button + "Lazer staff only" — no card, no gradient. Keep auth/marketing screens uncluttered.
+- **The login page is the one deliberate exception.** `(auth)/login/page.tsx` is the only surface that isn't product chrome, so it's the only place the language above relaxes — see *Login page* below. Everywhere else in the app the rules hold without exception.
+
+### Login page (the "marked-up mockup")
+
+`(auth)/login/page.tsx` is a quiet dot-grid sheet with **exactly one** hand-drawn
+annotation on it: a graphite arrow that strokes itself in toward the Google
+button, captioned "sign in here" in a handwriting face. The concept is two
+voices in tension — machine-precise product type against a single pencil mark,
+like a design-review printout someone scribbled on. **Spend the boldness once:
+don't add a second flourish** (no loose circle round the mark, no squiggle
+underline, no scattered doodles) — the restraint is what keeps it premium rather
+than cute.
+
+What it contains, and nothing else: the logo mark (56px), `APP_NAME` at
+`text-4xl`, the Google button, and a bottom-centre "Any problems? Contact
+Andrew." The old "Lazer staff only" line is **gone** — Google gates access and
+`/profile-setup` catches anyone without a staff record, so it was redundant.
+
+Mechanics worth knowing before you touch it:
+
+- **`--ink`** (`oklch(0.45 0 0)`, `globals.css`) is the pencil colour, surfaced
+  as `text-ink` / `stroke-ink`. It's graphite on purpose: the logo gradient stays
+  the **only** colour on the page. `--ink` is login-only — don't reach for it in
+  product chrome.
+- **The dot grid** is a `radial-gradient` of `--border` at a 24px pitch, vignetted
+  with a `mask-image` ellipse. No new colour, and it's the one gradient in `src/`
+  outside the brand SVGs.
+- **No entrance animation.** The page renders all at once — an earlier staggered
+  reveal (including a self-drawing arrow) was built and then **deliberately
+  removed**; don't reintroduce it. The only motion is a hover micro-interaction
+  that nudges the ink toward the button, guarded by `motion-reduce:transition-none`.
+  The app still has no animation library and no orchestrated page motion anywhere.
+- **The ink layer is `aria-hidden`**: "sign in here" only restates the button's own
+  label, and a dangling phrase read aloud is noise.
+
+Sibling auth-ish screens (`onboarding-notice.tsx`, `not-found.tsx`) still use the
+older plain centred column and have **not** been brought in line.
 
 ### Brand (intentionally off-accent)
 
