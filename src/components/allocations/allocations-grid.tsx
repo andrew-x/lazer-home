@@ -19,6 +19,7 @@ import {
 import {
   type AllocationCell,
   type AllocationRow,
+  type CapacityCell,
   columnLabel,
   type Granularity,
   type TimeOffCell,
@@ -56,8 +57,10 @@ export const TENTATIVE_BLOCK =
  * (day, week, or month). A filled cell shows each project the person is allocated
  * to that column, with its share of the column; a tooltip carries the project,
  * role, duration, and status. Confirmed roles read as a solid block, tentative as
- * a dashed outline. A neutral "Away" strip marks time off. In the daily view,
- * weekend columns are dimmed — the allocation model only counts weekdays.
+ * a dashed outline. A neutral "Away" strip marks time off. A thin meter closes
+ * each cell with how much capacity is left (see {@link CapacityMeter}). In the
+ * daily view, weekend columns are dimmed and carry no meter — the allocation
+ * model only counts weekdays.
  *
  * A deliberately hand-rolled `<table>` (like the opportunity `PlannerGrid`) —
  * NOT `@/components/ui/table`: the sticky first column and per-cell stacked
@@ -183,6 +186,13 @@ export function AllocationsGrid({
                         unit={unit}
                       />
                     ))}
+                    {cell.capacity ? (
+                      <CapacityMeter
+                        capacity={cell.capacity}
+                        unit={unit}
+                        granularity={granularity}
+                      />
+                    ) : null}
                   </div>
                 </td>
               ))}
@@ -311,6 +321,90 @@ function TimeOffBlock({ cell, unit }: { cell: TimeOffCell; unit: string }) {
 }
 
 /**
+ * How much of the column the person has left, as a thin fill bar plus the
+ * remaining percentage. The bar reads left to right: confirmed work, then
+ * tentative, then time off, then bare track — the bare part is the headroom.
+ *
+ * Over-allocated is the one case that earns colour: the whole bar goes
+ * destructive and the number goes negative, because being oversold is a problem
+ * rather than a fact to note. Note the number is *remaining* capacity, not load
+ * — the opposite direction from the percentages on the blocks above it, which
+ * is why the tooltip spells the whole breakdown out.
+ */
+function CapacityMeter({
+  capacity,
+  unit,
+  granularity,
+}: {
+  capacity: CapacityCell;
+  unit: string;
+  granularity: Granularity;
+}) {
+  const over = capacity.overPercent > 0;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <div className="flex items-center gap-1.5">
+            {/* overflow-hidden so rounding that nudges the segments past 100% clips
+                instead of widening the track. */}
+            <div className="h-1 min-w-0 flex-1 overflow-hidden bg-muted">
+              {over ? (
+                <div className="h-full w-full bg-destructive" />
+              ) : (
+                <div className="flex h-full">
+                  <div
+                    className="h-full bg-primary"
+                    style={{ width: `${capacity.confirmedPercent}%` }}
+                  />
+                  <div
+                    className="h-full bg-primary/40"
+                    style={{ width: `${capacity.tentativePercent}%` }}
+                  />
+                  <div
+                    className="h-full bg-amber-300"
+                    style={{ width: `${capacity.awayPercent}%` }}
+                  />
+                </div>
+              )}
+            </div>
+            <span
+              className={cn(
+                "shrink-0 text-[10px] tabular-nums",
+                over ? "text-destructive" : "text-muted-foreground",
+              )}
+            >
+              {over ? `-${capacity.overPercent}` : capacity.freePercent}%
+            </span>
+          </div>
+        }
+      />
+      <TooltipContent className="flex-col items-start gap-0.5">
+        <span className="font-medium">
+          {over
+            ? `${capacity.overPercent}% over capacity`
+            : `${capacity.freePercent}% of ${unit} free`}
+        </span>
+        <span>
+          {capacity.loadPercent}% booked
+          {capacity.confirmedPercent > 0 && capacity.tentativePercent > 0
+            ? ` · ${capacity.confirmedPercent}% confirmed, ${capacity.tentativePercent}% tentative`
+            : ""}
+        </span>
+        {capacity.awayPercent > 0 ? (
+          <span>{capacity.awayPercent}% away</span>
+        ) : null}
+        {granularity === "month" ? (
+          <span className="text-background/70">
+            Averaged across the month's working days
+          </span>
+        ) : null}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
  * A legend row. Wraps {@link LegendItem} children; both allocations views build
  * their legend from these so a swatch always means the same thing.
  */
@@ -351,6 +445,28 @@ export function LegendEdgeItem() {
   );
 }
 
+/** The capacity-meter swatch: a partially filled bar, for "Capacity left". */
+export function LegendCapacityItem() {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className="inline-flex h-1 w-5 overflow-hidden bg-muted">
+        <span className="h-full w-3/5 bg-primary" />
+      </span>
+      Capacity left
+    </span>
+  );
+}
+
+/** The over-allocated swatch: a solid destructive bar. */
+export function LegendOverAllocatedItem() {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className="inline-block h-1 w-5 bg-destructive" />
+      Over-allocated
+    </span>
+  );
+}
+
 /** Legend for the confirmed / tentative / time-off styles and the start/end mark. */
 export function AllocationsLegend() {
   return (
@@ -361,6 +477,8 @@ export function AllocationsLegend() {
         Time off
       </LegendItem>
       <LegendEdgeItem />
+      <LegendCapacityItem />
+      <LegendOverAllocatedItem />
     </LegendRow>
   );
 }
