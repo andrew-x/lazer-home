@@ -10,7 +10,7 @@ import {
   useDashboardFilters,
 } from "@/components/performance/dashboard-filters";
 import { LevelDistributionBarChart } from "@/components/performance/level-distribution-bar-chart";
-import { StatCard } from "@/components/performance/stat-card";
+import { StatCard } from "@/components/stat-card";
 import {
   Table,
   TableBody,
