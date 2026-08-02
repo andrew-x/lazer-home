@@ -263,8 +263,9 @@ delivery, allocations, timesheets, and billing.
 - **Derived-status-in-SQL** — `src/lib/projects/project-status-sql.ts` (server-only) exports
   **`derivedStatusCondition(buckets, today)`**: correlated `EXISTS`/`NOT EXISTS` predicates that
   select projects by *derived-status bucket in the database*, so `getProjectsList` can paginate each
-  section server-side instead of fetching every project and deriving in JS. Returns `undefined`
-  for all five buckets (no filter — the flat filtered view) and a `false` guard for an empty
+  bucket server-side instead of fetching every project and deriving in JS. Returns `undefined`
+  for all five buckets (no filter — nothing calls it that way since the list became tabs, one
+  bucket per read) and a `false` guard for an empty
   selection; the `cancelled` bucket is defined as the **complement of the other three statuses**
   (`tentativeCondition`/`pausedCondition`/`confirmedCondition`) so the buckets always
   **partition** the set. `confirmedCondition` then splits on **`latestRoleEndDate`** — an exported
@@ -332,7 +333,8 @@ delivery, allocations, timesheets, and billing.
   (**1–10**), the `ProjectHealth` type, ten **distinct** labels (Critical · Failing · At risk ·
   Struggling · Mixed · Fair · Steady · Healthy · Strong · Exemplary), `projectHealthLabel(value)`
   and **`PROJECT_HEALTH_UNRATED_LABEL`** (`"Not rated"`). One source for the check constraint's
-  bounds, the zod schema, the `StarRating` input, the list card and the detail tile.
+  bounds, the zod schema, the `StarRating` input, the list's Health column (`PROJECT_HEALTH_MAX` is
+  also the `HealthBar`'s segment count) and the detail tile.
   **Ten points, not five:** delivery leads already say "a seven", and a five-point scale collapses
   the interesting middle. **It deliberately does *not* own the low-health threshold** — that is
   policy, and lives in `project-flags.ts`; this module answers "what does a 4 *mean*".
@@ -355,7 +357,7 @@ delivery, allocations, timesheets, and billing.
   shape, and `projectFlags(input)` — a filter over the tuple against a
   `Record<ProjectFlag, predicate>` table. **Exactly the shape of `src/lib/crm/company-status.ts`**
   ([ADR 0034](../decisions/0034-company-status-derived-tags.md)) and `project-derived.ts`, so the
-  read that evaluates the flags and the card that renders the badges share one definition. Config
+  read that evaluates the flags and the Risk column that renders them share one definition. Config
   constants: `ENDING_SOON_DAYS = 14`, `NEGATIVE_MARGIN_AT_OR_BELOW = 0`,
   `LOW_MARGIN_PERCENT = 0.25`, `LOW_MARGIN_AMOUNT = 10_000`, `MARGIN_FLAG_CURRENCY = "CAD"`,
   **`LOW_PROJECT_HEALTH_AT_OR_BELOW = 4`** (inclusive — the *policy* half of the health scale,
@@ -387,27 +389,48 @@ delivery, allocations, timesheets, and billing.
     ([ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)) — null ⇒ "Not rated",
     and unlike `margin` it is **not capability-gated**; the date ships because a bare "3/10" reads
     as *now* — see
-    [Margin & flags on the list](#margin--flags-on-the-list)),
+    [Margin & flags on the list](#margin--flags-on-the-list), **plus `openRoleCount`**
+    ([ADR 0060](../decisions/0060-projects-list-as-a-sortable-table.md)): how many of `roleCount`
+    have a null `staffId`, tallied from role rows `assembleRows` already fetches so it costs no
+    query — and it counts cancelled roles exactly as `roleCount` does, so the Roles cell's two
+    numbers always describe the same set),
     **`ProjectsListFilters`** (`{ query?, lineOfBusiness?, deliveryManagerId? }` — a
     case-insensitive substring match on project **or** company name, a single line of business,
     and a single delivery manager: a `staff.id` matched via a **correlated `EXISTS` on
-    `project_delivery_managers`**), and two functions over a shared `assembleRows` helper:
-    - **`getProjectsInBuckets(buckets, filters?)`** — every project in the given derived-status
-      buckets (via `derivedStatusCondition`), ordered by name, **non-paginated** — backs the full
-      Tentative, Paused and Active sections.
-    - **`getProjectsPage(page, buckets, filters?, pageSize?, order?)`** — one page (offset/limit
-      + a `count`, `page` clamped, the `Page<T>` envelope from `pagination.ts`), the filter
-      `where` applied to **both** the count and the row query so the page count reflects the
-      filtered set. **`order: ProjectsListOrder`** (`"name"` | `"endDate"`, default `"name"`)
-      sets the sort: `endDate` orders by a **correlated `max(project_roles.end_date)`
-      descending, `nulls last`** (latest-ending project first, role-less projects last — the date
-      range is derived, not a column, and the expression is the shared `latestRoleEndDate`), with
-      `name` as the stable tiebreaker. Backs the name-ordered Cancelled section, the
-      `endDate`-ordered Past section (most recently finished first) **and** the flat filtered view,
-      which the page also requests with `"endDate"`.
-      The `where` also decides the active/past split from **`currentDay()`**, read once per call —
-      the one clock read in the loader.
-    Both **inner**-join companies for `companyName` (required, via the shared `baseColumns`, which
+    `project_delivery_managers`**), and three functions over a shared `assembleRows` helper
+    (`getProjectsInBuckets`, the old unpaginated full-section read, was **deleted** by
+    [ADR 0060](../decisions/0060-projects-list-as-a-sortable-table.md) — every tab now takes the
+    same paginated path, so the Tentative/Paused/Active buckets are paginated for the first time):
+    - **`getProjectsPage(page, buckets, filters?, order?, pageSize?)`** — **the single read behind
+      the list**: one page (offset/limit + a `count`, `page` clamped, the `Page<T>` envelope from
+      `pagination.ts`), the filter `where` applied to **both** the count and the row query so the
+      page count reflects the filtered set. **`order: ProjectsListOrder`** is now
+      `{ key, dir }` over the sortable columns (`name` | `client` | `endDate` | `health` |
+      `margin`; default `DEFAULT_PROJECTS_ORDER` = name ascending). `endDate` and `health` order by
+      **correlated scalar subqueries** — `latestRoleEndDate` (a `max` over role end dates) and the
+      new **`latestHealthRating`** — because neither is a column on `projects`; `name` breaks every
+      tie so paging stays stable. **Nulls are spelled `nulls last` in *both* directions** (the
+      `ordered()` helper branches rather than interpolating the direction, so no part of an
+      `order by` is built from a string): Postgres defaults to nulls-*first* under `desc`, which
+      would open a descending health sort with every unrated project — and "Not rated" is
+      *unknown*, not worst. The `where` also decides the active/past split from **`currentDay()`**,
+      read once per call — the one clock read in the loader.
+    - **`getProjectsPageByMargin(...)`** (private; `getProjectsPage` delegates when
+      `order.key === "margin"`) — **the second execution path.** Margin is computed in
+      `assembleRows` from each role's hours and the viewer's cost basis, so it has **no SQL
+      expression to order by**: this assembles the whole filtered bucket in name order, sorts it in
+      memory with the shared `compareSortValues` (nulls last, same rule), and only *then* slices.
+      Paginating first would give a list whose ordering restarts every 20 rows. It sorts on
+      **`MARGIN_FLAG_CURRENCY` (CAD)** — the currency the flags are already judged in; the display
+      currency is client state that never reaches the server, and one rate set keeps the ranking
+      stable either way. **Accepted cost:** the one order that costs more than a page of work,
+      opt-in by a header click; revisit past ~500 projects in a bucket.
+    - **`getProjectBucketCounts(filters?)`** — the tab counts: `Record<ProjectStatusBucket, number>`
+      from **five concurrent `count()`s**, one per bucket, rather than one grouped scan (the bucket
+      predicates are correlated-`EXISTS` expressions, not a column to group by). **Filter-aware on
+      purpose:** searching "Acme" from the Active tab shows "Cancelled 1" instead of hiding the
+      match — that is what stands in for the cross-status flat view the tabs replaced.
+    All three **inner**-join companies for `companyName` (required, via the shared `baseColumns`, which
     now also selects the three budget columns); `assembleRows` then resolves
     delivery managers, role statuses/LoBs, role count, the min-start/max-end date range, **the plan
     margin, the latest delivery-note health and the risk flags** in **three grouped follow-up
@@ -418,13 +441,18 @@ delivery, allocations, timesheets, and billing.
     `latestDeliveryNoteFirst`** clause exported by `getProjectDeliveryNotes` — one ordering rule for
     both readers, so the list and the detail log can't disagree about which note is current;
     `distinct on` rather than reducing every note in JS because a weekly note over a two-year
-    engagement is ~100 rows and the Active section is unpaginated.
-    **`assembleRows` is called once per section**, so the grouped view runs each of those three
-    queries **five** times per render — that's the multiplier anything added there inherits.
+    engagement is ~100 rows. **A third reader of that same ordering rule now exists** — the
+    `latestHealthRating` subquery the `health` sort orders by (in `project-status-sql.ts`, where it
+    is **spelled out rather than imported**, because `latestDeliveryNoteFirst` lives in the actions
+    layer and that module is `lib`). **Keep the three in lockstep**: if they drift, the list sorts
+    by one note and displays another.
+    **`assembleRows` runs once per render now** (it used to run five times, once per section) —
+    **except under `sort=margin`**, which assembles the *whole* bucket rather than a page, so it is
+    the multiplier anything added there inherits.
     `status` +
     `linesOfBusiness` are derived in JS via `deriveProjectStatus`/`deriveProjectLinesOfBusiness`;
     the date range exploits `"YYYY-MM-DD"` being zero-padded (lexicographic min/max ==
-    chronological). **`currentDay()` is read once for the whole page**, so two cards can't disagree
+    chronological). **`currentDay()` is read once for the whole page**, so two rows can't disagree
     about what "soon" means. Its local `listMargin()` helper runs `computeProjectMargin` **once per
     display currency** and keeps only the whole-project totals. Also exports
     **`getDeliveryManagerOptions()`** →
@@ -432,12 +460,16 @@ delivery, allocations, timesheets, and billing.
     delivery manager on ≥1 project, the option set for the list's delivery-manager filter.
   - `getProjectsMarginContext.ts` — **server-only, React `cache()`-wrapped, request-scoped**: the
     shared cost/FX inputs for margin on the *list*, as `{ rates, costBasis, nativeCurrencies }`.
-    Deliberately request-scoped rather than per-call: the grouped view fires **five** list reads in
-    parallel and `getRoleTypeAverageCostsUsd` scans all of `staff_employment`, so `cache()`
-    memoizes the *promise* and those five callers (plus the page itself, which needs `costBasis` to
-    decide whether to render the currency toggle) share one fetch. That scope is also why the cost
+    Deliberately request-scoped rather than per-call: `getRoleTypeAverageCostsUsd` scans all of
+    `staff_employment`, so `cache()` memoizes the *promise* and every caller in the request — the
+    row read, the five bucket counts, and the page itself — shares one fetch. (It was written for
+    the old grouped view, which fired five list reads in parallel; the sharing still earns its keep
+    now that the page reads `costBasis` directly.) That scope is also why the cost
     basis covers **every** staff member on any project role rather than the current page's rows — a
-    page-scoped id list would be a different cache key per section and defeat the sharing.
+    page-scoped id list would be a different cache key per render and defeat the sharing.
+    **The page now reads `costBasis !== null` as its one gate for two things** — whether the Margin
+    column exists *and* whether `?sort=margin` is honoured. See
+    [Margin & flags on the list](#margin--flags-on-the-list).
     **Cost still comes only from `getProjectCostBasis`**, so the `projects.viewMargin` enforcement
     is unchanged and still lives in exactly one place. `nativeCurrencies` is the **list-scoped**
     input to the FX note (see [Margin & flags on the list](#margin--flags-on-the-list)):
@@ -769,32 +801,43 @@ delivery, allocations, timesheets, and billing.
     inside their transactions. See [ADR 0031](../decisions/0031-opportunity-project-planner-and-role-status.md)
     and [crm.md](./crm.md).
 - **UI** — `/projects` (`src/app/(app)/projects/page.tsx`) + `src/components/projects/**` —
-  see [../ui.md](../ui.md). The list is now a **responsive grid of project cards, not a table**
-  (the old `projects-table.tsx`/`ProjectRow` were **deleted**). `project-card.tsx` (`ProjectCard`)
-  is a clickable `Card` linking to `/projects/[id]`, and is now a **client component** (it reads the
-  list's currency context). Its **badge row carries only the derived risk flags**
-  (`PROJECT_FLAG_LABELS`/`_VARIANTS`), and is omitted entirely when there are none: **status and
-  line of business moved into the card's definition list as plain fields** — Status (the
-  `PROJECT_ROLE_STATUS_LABELS` text, **not** a `ProjectStatusBadge`) · Line of business (comma-joined
-  labels, "None" when role-less) · Delivery ("Unassigned") · Dates (`formatDateRange`, "No dates") ·
-  **Margin**. Status and LoB are *facts*; the flags are *warnings*, and a badge on every card
-  distinguishes nothing — see [ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)
-  §7 for why the detail page still badges status and the companies table's badges are still facts.
-  The **Margin field renders only when the server sent figures** (so a viewer without
-  `projects.viewMargin` sees no row at all, not a blank one), leads with the money and trails the
-  percentage (ADR 0053 §5), and says **"No budget" / "No roles" in words** rather than a bare dash.
+  see [../ui.md](../ui.md). The list is a **sortable, paginated table under a status tab strip**
+  ([ADR 0060](../decisions/0060-projects-list-as-a-sortable-table.md); `project-card.tsx` and
+  `projects-grid.tsx` — and, long before them, a first `projects-table.tsx`/`ProjectRow` — are all
+  **deleted**). **`projects-table.tsx` (`ProjectsTable`)** renders nine columns — **Project · Client
+  · Risk · Line of business · Delivery · Roles · Dates · Health · Margin** — identity left, the one
+  warning column next, the two figures right-aligned and `tabular-nums` at the edge so they stack
+  into something comparable. It is a **client component** (the Margin figure follows the currency
+  context; the sortable headers `router.replace`). The page is **`max-w-7xl`, not the `max-w-5xl`
+  every other list uses** — an accepted cost, because nine columns don't fit the standard shell and
+  the whole point is that the figures line up rather than wrap.
+  **What ADR 0057 §7 got right survived the layout change:** the **Risk column carries only the
+  derived risk flags** (`PROJECT_FLAG_LABELS`/`_VARIANTS`) and is **empty for an unflagged
+  project** — status is the tab now and line of business is plain text, because a badge on every
+  row distinguishes nothing and reserving the column for exceptions is what keeps a red "Negative
+  margin" visible down a page of twenty. Flags are worst-first, so the cell shows `flags[0]` plus a
+  muted `+N` (full list in the `title`) to hold rows to a uniform height. **Empty values stay
+  words, never a bare em dash** — "No budget" / "No live roles" / "No roles" / "Not rated" /
+  "Unassigned" / "No dates". The **Margin column is omitted entirely — header included — without
+  `projects.viewMargin`**, leads with the money and trails the percentage (ADR 0053 §5), and keys
+  its no-figure wording off the server's own `null` rather than `roleCount`, which is what closed
+  the one residual dash ADR 0057 left behind. **Health gained a bar**
+  (`health-bar.tsx`): ten **monochrome** segments beside the figure, with the note's date beneath —
+  the point is the *column* you can sweep, and it stays uncoloured because
+  [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md) deliberately kept "Low
+  health" a neutral badge; losses in Margin remain the only colour on the page.
   `ProjectStatusBadge` (`project-status-badge.tsx`) survives — just not here: it's still on the
-  project detail page and the staff profile's Projects section. `projects-grid.tsx` exports
-  `ProjectsGrid` (the grid) + `ProjectsSection` (a titled section with a count, optionally a
-  **closed-by-default disclosure**). The page **groups projects by derived-status bucket into five
-  sections in `PROJECT_STATUS_BUCKETS` order — Tentative → Paused → Active → Past → Cancelled**:
-  **only Active is open and un-collapsed**, so the page lands on the work in flight; Tentative,
-  Paused, Past and Cancelled are collapsed disclosures that keep their counts visible. Tentative,
-  Paused and Active render in full (`getProjectsInBuckets`), while **Past and Cancelled are
-  server-paginated** (`getProjectsPage`) since they grow without bound — each on **its own page
-  param** (`pastPage` / `cancelledPage`, preserved independently by `buildListHref`) so they page
-  separately, and each **re-opens when its own param is past page 1**, since following a page link
-  is a fresh server render that would otherwise snap the section shut. `projects-list-filters.tsx`
+  project detail page and the staff profile's Projects section.
+  **`projects-status-tabs.tsx`** replaces the five stacked sections (Active by default, then
+  Tentative · Paused · Past · Cancelled, in `PROJECT_STATUS_TABS` order — its own order, leading
+  with the default, deliberately not the canonical `PROJECT_STATUS_BUCKETS`). They are **links in a
+  `<nav>`, not a `Tabs` primitive**, because the bucket decides the server query: every tab is a
+  real, shareable URL, and the default tab is a bare `/projects`. **Counts are filter-aware** and
+  every bucket always renders, empty ones included. This collapsed the page's biggest source of
+  complexity — the `filtering ? FilteredView : GroupedView` branch, the collapsed-disclosure
+  sections and **three page params (`projectsPage`/`pastPage`/`cancelledPage`) down to one
+  `page`** — at the cost of **losing the flat cross-status search view**, which the tab counts
+  stand in for. `projects-list-filters.tsx`
   (`ProjectsListFilters`) is a **URL-backed** filter bar — a debounced project-OR-company search
   (`q`) + a line-of-business `SelectFilter` (`lob`) + a **delivery-manager
   `SearchableSelectFilter` (`dm`, fed `getDeliveryManagerOptions`, validated against the known
@@ -803,20 +846,26 @@ delivery, allocations, timesheets, and billing.
   `buildListHref`/`PaginationControls` pattern as the
   opportunities/companies/contacts lists, with the search box + its debounce-to-URL effect coming
   from the shared `useUrlSearchFilter`/`SearchFilter` (`src/components/form/search-filter.tsx`; see
-  [../ui.md](../ui.md#list-filter-bars)). **The list's CAD/USD display currency is *not* a URL
+  [../ui.md](../ui.md#list-filter-bars)). **"Clear filters" clears the filters only** — it nulls
+  `q`/`lob`/`dm` and **keeps the tab and the sort**, because the tab you are on is not something you
+  filtered by. **The list's CAD/USD display currency is *not* a URL
   filter** — `projects-currency.tsx` holds it in React context (`ProjectsCurrencyProvider` wrapping
-  the filter bar **and** every section, `useProjectsCurrency()` read by the cards) with the
+  the filter bar **and** the table, `useProjectsCurrency()` read by the Margin cell) with the
   `ToggleGroup` + `FxRateNote` pushed right in the filter row (`ProjectsCurrencyToggle`). Context
-  because the control and the cards it governs sit in five independently server-rendered sections;
+  because the control and the figures it governs are separately rendered;
   client state because currency is a *display* preference, not a filter — putting it in the URL
   would conflate the two and make flipping it a navigation, when both currencies are already in the
-  payload. It **defaults to CAD** (a list is for comparing; cards in five denominations can't be),
-  deliberately unlike the detail page's per-project `resolveDisplayCurrency`, and the toggle
+  payload. It **defaults to CAD** (a list is for comparing; a column in five denominations can't
+  be), deliberately unlike the detail page's per-project `resolveDisplayCurrency`, and the toggle
   **renders only when a cost basis came back** — cosmetic only, since the read is what withholds the
-  figures ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md) §8). **When any of the three filters is active the sections collapse
-  into a single flat, paginated grid across all statuses, ordered by end date descending**
-  (latest-ending first, role-less projects last — via `getProjectsPage`'s `"endDate"` order),
-  rather than the name-ordered sections; clearing filters restores the sections. `add-project-dialog.tsx` (a **deliberately minimal**
+  figures ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md) §8).
+  **Sorting is server-side and URL-backed** (`sort` + `dir`, vocabulary in
+  `src/lib/projects/projects-list-sort.ts`): the list is paginated, so a client-side sort would
+  reorder twenty rows while claiming to have ordered the list — which is why the headers are
+  `SortHeaderButton`s that navigate rather than `DataTable`/TanStack. **Nulls sort last in both
+  directions**, and each column has its own **first-click direction** (names A–Z, dates
+  latest-first, **health and margin worst-first** — sorting by those *is* triage).
+  `add-project-dialog.tsx` (a **deliberately minimal**
   standalone create form collecting **name + company + budget** — no LoB/status picker, no
   delivery-manager field, no roles repeater. Delivery managers/roles default to none
   server-side; status/LoB are derived once roles exist).
@@ -1011,28 +1060,33 @@ that for the *why* behind each rule below. Math lives in the pure
 ### Margin & flags on the list
 
 The third margin surface, added by
-[ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md) — read it for the *why*.
-The rules above still hold (same `computeProjectMargin`, same gate); what differs is **how the
-list converts** and **what it does with the number**.
+[ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md) — read it for the *why*,
+then [ADR 0060](../decisions/0060-projects-list-as-a-sortable-table.md) for the table it now
+renders in and the margin **sort**. The rules above still hold (same `computeProjectMargin`, same
+gate); what differs is **how the list converts**, **what it does with the number**, and **that the
+number can now order the list**.
 
 - **The list precomputes margin server-side in BOTH display currencies** —
   `ProjectListItem.margin` is a `Record<DisplayCurrency, { margin, marginPercent }> | null` — where
   the *detail* page ships native amounts + the rate table and converts on the client
   ([ADR 0029](../decisions/0029-external-fx-rates-and-currency-normalization.md)). **Two surfaces,
-  two strategies, on purpose:** there are only two display currencies, so two figures per card is
+  two strategies, on purpose:** there are only two display currencies, so two figures per row is
   far less payload than every role's hours/type/assignee — and, load-bearing, **no individual's
   compensation-derived hourly cost is ever sent to the browser for the list**, which has no
   per-role table to justify it. `null` still means exactly "this viewer lacks
   `projects.viewMargin`". Don't unify the two paths without re-reading both rationales.
 - **A plan with no counted roles reports a null margin**, even with a budget set. Its cost total is
   a true zero only because nobody is staffed, so an unstaffed fixed fee would read as a 100% margin
-  and an unstaffed T&M project as exactly 0 — which the flags would then call a **loss**. The card
-  says "No roles" in words; the detail page says the same thing in a notice.
+  and an unstaffed T&M project as exactly 0 — which the flags would then call a **loss**. The table
+  says "No roles" (or "No live roles") in words; the detail page says the same thing in a notice.
 - **Flags are evaluated server-side, always in `MARGIN_FLAG_CURRENCY` (CAD)**, never recomputed on
   the client. The CAD/USD control is a *display* choice; applying the amount floor to the displayed
   figure would make a project gain and lose "Low margin" as the reader toggled — the tag would
-  describe the rendering, not the engagement. **Consequence to expect:** in USD a card can read
-  "$7,400" and still carry "Low margin" because it is CA$10,100.
+  describe the rendering, not the engagement. **Consequence to expect:** in USD a row can read
+  "$7,400" and still carry "Low margin" because it is CA$10,100. **The margin *sort* runs in the
+  same currency, for the same reason** — the display currency is client state that never reaches
+  the server, and both figures come from the same native amounts through one rate set, so the
+  ranking holds whichever way the toggle is set.
 - **The rules** (`project-flags.ts`, worst first): `negativeMargin` at margin **≤ 0** (zero counts —
   breaking even earns nothing) and it **suppresses** `lowMargin`; **`lowHealth` when the latest
   delivery note's health is ≤ 4** (inclusive — see [Delivery notes](#delivery-notes));
@@ -1048,28 +1102,45 @@ list converts** and **what it does with the number**.
   appear; such a viewer sees only **Ending soon** and **Low health**. **Health is deliberately
   ungated** (nothing about it derives from anyone's compensation —
   [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md) §4), so it is the first
-  flag a `sales` or `user` reader gets beyond the dates. Still: don't read a bare card as "this
+  flag a `sales` or `user` reader gets beyond the dates. Still: don't read an unflagged row as "this
   project is fine".
-- **The card's `Health` field renders as text (`7/10` + the note's date), not stars.** The whole
-  card is wrapped in a `<Link>`, and `StarRating`'s interactive mode is a fieldset of buttons that
-  must not nest inside one — while its read-only mode would put ten icons on every card in the
-  grid. The **date is shown beside the figure** on purpose: nothing expires a rating, so a bare
+- **!! The margin *ordering* is gated exactly like the margin *figures*.** A margin-ranked list
+  discloses which engagements are most and least profitable, and that ranking is derived from
+  individual compensation just as the numbers are — so honouring `?sort=margin` while hiding the
+  column would leak precisely what `projects.viewMargin` withholds. The page reads the gate **once**,
+  as `marginContext.costBasis !== null` (the `null` `getProjectCostBasis` returns for a viewer
+  without the capability, ADR 0053 §7 — one decision, one place), and that single boolean **omits
+  the column and its `<th>`, hides the currency toggle, and drops `sort=margin` back to the default
+  order**, which makes a hand-typed URL inert. The architecture is safe underneath — with no cost
+  basis `assembleRows` builds no `MarginRoleInput`s, every `margin` is `null`, and there is nothing
+  to sort by. **Standing instruction: do not "repair" that dead sort by costing roles purely to
+  order them.** See [ADR 0060 §5](../decisions/0060-projects-list-as-a-sortable-table.md).
+- **The Health column renders a figure + a `HealthBar`, not stars, with the note's date beneath.**
+  Ten star icons per row would swamp a column of twenty, and the bar exists so the *column* reads
+  as a shape you can sweep (ten discrete monochrome segments — the scale is a ten-point integer,
+  not a percentage, and colouring it would reverse ADR 0059's deliberately neutral "Low health"
+  tag). The **date is shown beside the figure** on purpose: nothing expires a rating, so a bare
   "3/10" would read as *now* (see [Open questions](#open-questions--not-yet-built) on stale health).
-  Unrated projects read **"Not rated"**, not a dash.
+  Unrated projects read **"Not rated"**, not a dash — and sort **last in both directions**, because
+  "nobody has assessed this" is unknown, not worst.
 - **The list's FX note is list-scoped, not per-project provenance.** `ProjectMargin.convertedFrom`
   (what a budget panel states) records the currencies *one project* converted from; the list ships
   `nativeCurrencies` — everything a rate could apply to anywhere in the list — because its control
-  converts every card at once. Threading a per-project, per-currency `convertedFrom` up through
-  five independently paginated sections would put per-role provenance in the payload to qualify one
+  converts every row at once. Threading a per-project, per-currency `convertedFrom` through the
+  table would put per-role provenance in the payload to qualify one
   footnote. **Accepted cost:** a filtered view showing one CAD project can still quote a rate for a
   currency only some *other* project is priced in.
-- **Gotcha — one residual em dash.** The card's "No roles" branch tests `roleCount` (**all** roles,
-  cancelled included) while the null margin comes from `countedRoleCount` (which excludes
-  cancelled). A budgeted project whose roles are *all* cancelled therefore renders "—" for Margin.
-  It sits in the Cancelled section and carries no flags; it's the only path left to a bare dash.
+- **The last residual em dash is closed.** The card's "No roles" branch used to test `roleCount`
+  (**all** roles, cancelled included) while the null margin came from `countedRoleCount` (which
+  excludes cancelled), so a budgeted project whose roles were *all* cancelled rendered "—". The
+  table's `MarginCell` instead **keys off the server's own `null`** and distinguishes "No roles"
+  from **"No live roles"**. Keep it that way: reading the null directly closes any future cause of
+  the same gap, and "there is no column here" and "this project has no margin" must stay different
+  facts.
 - **Perf note:** `roleBillableHours`' working-day count runs **twice per role** (once per
-  currency). First thing to look at if the unpaginated Active section ever gets long — caching
-  hours per role would break the currency symmetry for no gain at today's scale.
+  currency). Every bucket is paginated now, so the exposure is one page — **except under
+  `sort=margin`, which assembles the whole bucket**; that is the first thing to look at if a bucket
+  gets long. Caching hours per role would break the currency symmetry for no gain at today's scale.
 
 ## Delivery notes
 
@@ -1101,8 +1172,10 @@ stored `health` column; writes not author-only).
   author-only.** See [Authorization](#authorization). The consequence to hold onto:
   **`authorStaffId` is attribution only and is never an authorization input.**
 - **Where it shows.** The detail page's **Delivery notes** tab (the log + inline composer/editor)
-  and its **Health** summary tile, and on `/projects` the card's `Health` field + the **Low health**
-  badge (see [Margin & flags on the list](#margin--flags-on-the-list)). The tab uses
+  and its **Health** summary tile, and on `/projects` the table's **Health column** (figure +
+  `HealthBar` + the note's date, and **a sortable one** — `latestHealthRating`) plus the **Low
+  health** badge in the Risk column (see
+  [Margin & flags on the list](#margin--flags-on-the-list)). The tab uses
   `StarRating max={10}` with a hover-preview label — a 10-point scale is hard to read without one —
   which is safe there because nothing wraps it in a link.
 - **Seed fixtures pin the list's rules** (`seedProjectDeliveryNotes`): a project with **no** notes, one
@@ -1155,9 +1228,10 @@ has no notes to show.
 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md)). `canEdit` drives the
 **affordances only**; every mutation carries its own `projects.edit` gate in the action metadata.
 **Cross-links into this route are wired
-across the app**: the `/projects` list **cards** (`project-card.tsx`, a plain `next/link`
-wrapping the whole card — the one project cross-link that isn't `InternalLink`), and — all via
-the canonical `InternalLink` (`src/components/internal-link.tsx`) — the staff/own-profile
+across the app**, all via the canonical `InternalLink` (`src/components/internal-link.tsx`) — the
+`/projects` table's Project cell (its Client cell links to `/companies/[id]`; the old card wrapped
+a whole `next/link` around itself, and that was the one project cross-link that *wasn't*
+`InternalLink` — no longer), the staff/own-profile
 Projects section (`StaffProjectsSection`), the CRM company detail Projects & Referred-projects lists
 (`company-detail-view.tsx`) and contact detail Referred-projects list (`contact-detail-view.tsx`),
 the opportunity Project-plan tab heading (`opportunity-project-plan.tsx`), and the allocations grid
@@ -1503,22 +1577,29 @@ so a `projects.deliveryNotes` row would be a second way to spell `projects.edit`
   `BILL_RATES` are a **placeholder**; **no per-project pricing** (rejected on purpose — see the ADR
   before proposing it again); and margin per *person* (as opposed to per role and
   per project) doesn't exist.
-- **The list's risk flags have no history and can't be sorted or filtered on**
+- **The list's risk flags have no history and still can't be filtered on**
   ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)). Revising a threshold
   re-tags every project retroactively and silently — `PROJECT_FLAGS_REVIEWED_ON` is the only signal
-  of when the policy last moved. There is **no "flagged only" filter and no margin sort**: a margin
-  column would need a story for the nulls (no budget, no roles, no `viewMargin`) first, and a
-  `SelectFilter` over flags would have to be evaluated in SQL rather than in `assembleRows`. Both
-  are additive, no schema.
+  of when the policy last moved. ~~**and no margin sort**~~ **resolved** by
+  [ADR 0060](../decisions/0060-projects-list-as-a-sortable-table.md), which answered the nulls
+  question it was blocked on (**nulls last in both directions**) and gated the *ordering* on
+  `projects.viewMargin` alongside the figures. Still missing: **no "flagged only" filter** — a
+  `SelectFilter` over flags would have to be evaluated in SQL rather than in `assembleRows`, and
+  sorting health or margin worst-first already answers most of what it would. Additive, no schema.
+- **Nine columns is a lot, and margin's sort doesn't paginate in SQL.** If the table reads cramped
+  with real data, Line of business and Roles are the first two to fold into the Project cell as a
+  muted second line. And `sort=margin` assembles the whole filtered bucket before slicing (it has no
+  SQL expression) — bounded by consultancy scale today; revisit past ~500 projects in a bucket.
 - **Health can go stale, and nothing says so** ([ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)).
   No rating expires, so a **Low health** badge can be driven by a note from a year ago — and, worse,
   a project that was healthy last winter still *reads* healthy today. That's why
-  **`latestHealthDate` ships to the card** and both the card and the detail tile print the date
-  beside the figure. The obvious next step is a **`staleHealth` flag or a recency cutoff on
+  **`latestHealthDate` ships to the list** and both the Health column and the detail tile print the
+  date beside the figure. The obvious next step is a **`staleHealth` flag or a recency cutoff on
   `lowHealth`** — deliberately not built, because it needs a policy answer ("how old is too old"),
   which is a threshold decision to make on purpose rather than guess. No schema change either way.
-- **Health can't be sorted or filtered on**, for the same reason as the flags: the figure is derived
-  in `assembleRows`, not in the base query, so a `health` sort or a "Not rated" filter would need the
-  latest-note lookup pushed into that query — a **lateral join** — before the ordering could touch
-  it. Additive, no schema.
+- ~~**Health can't be sorted**~~ **resolved** by
+  [ADR 0060](../decisions/0060-projects-list-as-a-sortable-table.md): the latest-note lookup moved
+  into the base query as the correlated scalar subquery `latestHealthRating`, so the column sorts
+  (unrated last, both directions). **Filtering** on health — a "Not rated" or flagged-only
+  filter — is still unbuilt. Additive, no schema.
 - **No richer lifecycle/stage model** beyond the derived status.

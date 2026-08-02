@@ -2,34 +2,39 @@ import type { Metadata } from "next";
 import {
   type DeliveryManagerOption,
   getDeliveryManagerOptions,
-  getProjectsInBuckets,
+  getProjectBucketCounts,
   getProjectsPage,
 } from "@/actions/projects/getProjectsList";
 import { getProjectsMarginContext } from "@/actions/projects/getProjectsMarginContext";
+import { EmptyState } from "@/components/empty-state";
 import { PaginationControls } from "@/components/pagination-controls";
 import { AddProjectDialog } from "@/components/projects/add-project-dialog";
 import {
   ProjectsCurrencyProvider,
   ProjectsCurrencyToggle,
 } from "@/components/projects/projects-currency";
-import {
-  ProjectsGrid,
-  ProjectsSection,
-} from "@/components/projects/projects-grid";
 import { ProjectsListFilters } from "@/components/projects/projects-list-filters";
+import { ProjectsStatusTabs } from "@/components/projects/projects-status-tabs";
+import { ProjectsTable } from "@/components/projects/projects-table";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { userHasPermission } from "@/lib/auth/permissions";
-import { firstParam } from "@/lib/core/list-href";
+import { firstParam, type SearchParams } from "@/lib/core/list-href";
 import { parsePage } from "@/lib/core/pagination";
 import {
   LINE_OF_BUSINESS,
   type LineOfBusiness,
 } from "@/lib/crm/line-of-business";
-import { PROJECT_STATUS_BUCKETS } from "@/lib/projects/project-derived";
+import {
+  DEFAULT_PROJECT_SORT,
+  DEFAULT_SORT_DIRECTION,
+  PROJECTS_PAGE_KEY,
+  PROJECTS_STATUS_KEY,
+  parseProjectSort,
+  parseProjectStatus,
+  parseSortDirection,
+} from "@/lib/projects/projects-list-sort";
 
 export const metadata: Metadata = { title: "Projects" };
-
-type SearchParams = Record<string, string | string[] | undefined>;
 
 /** Validate a raw `lob` param against the line-of-business enum (else no filter). */
 function parseLineOfBusiness(value: string | string[] | undefined) {
@@ -47,6 +52,17 @@ function parseDeliveryManager(
   return options.some((option) => option.id === id) ? id : undefined;
 }
 
+/**
+ * The projects list: a status tab strip over one sortable, paginated table.
+ *
+ * Every tab takes the same read — there is no longer a grouped-vs-filtered branch,
+ * and no longer three page params. See
+ * [ADR 0060](../../../../docs/decisions/0060-projects-list-as-a-sortable-table.md).
+ *
+ * Wider than the other list pages (`max-w-7xl`, not `max-w-5xl`): nine columns do not
+ * fit the standard shell, and the table's whole value is that its figures line up
+ * into comparable columns rather than wrapping.
+ */
 export default async function ProjectsPage({
   searchParams,
 }: {
@@ -57,25 +73,57 @@ export default async function ProjectsPage({
   const [user, deliveryManagers, marginContext] = await Promise.all([
     getCurrentUser(),
     getDeliveryManagerOptions(),
-    // Request-cached, so the section reads below share this one fetch.
+    // Request-cached, so the reads below share this one fetch.
     getProjectsMarginContext(),
   ]);
 
   const query = firstParam(params.q).trim();
   const lineOfBusiness = parseLineOfBusiness(params.lob);
   const deliveryManagerId = parseDeliveryManager(params.dm, deliveryManagers);
-  const page = parsePage(params.projectsPage);
-  const filtering =
-    query !== "" ||
-    lineOfBusiness !== undefined ||
-    deliveryManagerId !== undefined;
+  const filters = { query, lineOfBusiness, deliveryManagerId };
+
+  const status = parseProjectStatus(firstParam(params[PROJECTS_STATUS_KEY]));
+  const page = parsePage(params[PROJECTS_PAGE_KEY]);
+
+  /**
+   * PERMISSIONS: `projects.viewMargin` decides both whether the Margin column exists
+   * and whether the list may be *ordered* by margin. The second is not cosmetic — a
+   * margin-ranked list discloses which engagements are most and least profitable,
+   * and that ranking is derived from individual compensation just as the figures are.
+   *
+   * The gate is `costBasis`, which `getProjectCostBasis` returns as `null` for a
+   * viewer without the capability (ADR 0053 §7) — one decision, read here rather than
+   * re-derived. Dropping `sort=margin` to the default is what makes a hand-typed URL
+   * inert; do not "fix" it downstream by costing roles purely to order them.
+   */
+  const canViewMargin = marginContext.costBasis !== null;
+  const requestedSort = parseProjectSort(firstParam(params.sort));
+  const sortKey =
+    requestedSort !== undefined && (requestedSort !== "margin" || canViewMargin)
+      ? requestedSort
+      : DEFAULT_PROJECT_SORT;
+  const sort = {
+    key: sortKey,
+    // A rejected sort key takes its own default direction: the `dir` in the URL
+    // belonged to the request we just dropped, so honouring it would leave
+    // `?sort=typo&dir=desc` rendering names Z→A while claiming to be unsorted.
+    dir:
+      sortKey === requestedSort
+        ? parseSortDirection(firstParam(params.dir), sortKey)
+        : DEFAULT_SORT_DIRECTION[sortKey],
+  };
+
+  const [result, counts] = await Promise.all([
+    getProjectsPage(page, [status], filters, sort),
+    getProjectBucketCounts(filters),
+  ]);
 
   const canEdit = user
     ? userHasPermission(user, { projects: ["edit"] })
     : false;
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-10">
+    <div className="mx-auto flex max-w-7xl flex-col gap-10">
       <header className="flex items-start justify-between gap-4">
         <div>
           <h2 className="font-heading text-xl font-semibold tracking-tight">
@@ -88,10 +136,12 @@ export default async function ProjectsPage({
         {canEdit ? <AddProjectDialog /> : null}
       </header>
 
-      {/* The provider wraps the filter bar AND every section, so the toggle up here
-          governs cards rendered further down. */}
+      {/* The provider wraps the filter bar AND the table, so the toggle up here
+          governs the Margin figures rendered below. */}
       <ProjectsCurrencyProvider>
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-6">
+          <ProjectsStatusTabs params={params} active={status} counts={counts} />
+
           <div className="flex flex-wrap items-end gap-3">
             <ProjectsListFilters
               params={params}
@@ -99,7 +149,7 @@ export default async function ProjectsPage({
             />
             {/* Cosmetic only — a viewer without `viewMargin` has no figures to
                 convert because the read withheld them, not because this is hidden. */}
-            {marginContext.costBasis ? (
+            {canViewMargin ? (
               <div className="ml-auto">
                 <ProjectsCurrencyToggle
                   rates={marginContext.rates}
@@ -108,148 +158,28 @@ export default async function ProjectsPage({
               </div>
             ) : null}
           </div>
-          {filtering ? (
-            <FilteredView
-              params={params}
-              page={page}
-              query={query}
-              lineOfBusiness={lineOfBusiness}
-              deliveryManagerId={deliveryManagerId}
-            />
+
+          {result.total === 0 ? (
+            <EmptyState bordered>No projects match these filters.</EmptyState>
           ) : (
-            <GroupedView params={params} />
+            <div className="flex flex-col gap-3">
+              <ProjectsTable
+                projects={result.rows}
+                params={params}
+                sort={sort}
+                showMargin={canViewMargin}
+              />
+              <PaginationControls
+                basePath="/projects"
+                params={params}
+                paramKey={PROJECTS_PAGE_KEY}
+                page={result.page}
+                pageCount={result.pageCount}
+              />
+            </div>
           )}
         </div>
       </ProjectsCurrencyProvider>
-    </div>
-  );
-}
-
-/**
- * The status sections: Active in full, and Tentative / Paused / Past / Cancelled
- * as closed disclosures so the page opens on the work in flight. Past and
- * Cancelled grow without bound, so they page independently (`pastPage` /
- * `cancelledPage`) — and re-open when their own page param says the reader was
- * paging through them, since following a page link is a fresh server render.
- */
-async function GroupedView({ params }: { params: SearchParams }) {
-  const pastPage = parsePage(params.pastPage);
-  const cancelledPage = parsePage(params.cancelledPage);
-
-  const [tentative, paused, active, past, cancelled] = await Promise.all([
-    getProjectsInBuckets(["tentative"]),
-    getProjectsInBuckets(["paused"]),
-    getProjectsInBuckets(["active"]),
-    // Most recently finished first — the ones you're most likely to look up.
-    getProjectsPage(pastPage, ["past"], {}, "endDate"),
-    getProjectsPage(cancelledPage, ["cancelled"]),
-  ]);
-
-  const isEmpty =
-    tentative.length === 0 &&
-    paused.length === 0 &&
-    active.length === 0 &&
-    past.total === 0 &&
-    cancelled.total === 0;
-
-  return (
-    <div className="flex flex-col gap-10">
-      {/* Collapsed, these are just heading rows, so each cluster of them sits
-          closer together than the full sections do. */}
-      <div className="flex flex-col gap-6 empty:hidden">
-        {tentative.length > 0 ? (
-          <ProjectsSection title="Tentative" projects={tentative} collapsible />
-        ) : null}
-        {paused.length > 0 ? (
-          <ProjectsSection title="Paused" projects={paused} collapsible />
-        ) : null}
-      </div>
-      {active.length > 0 ? (
-        <ProjectsSection title="Active" projects={active} />
-      ) : null}
-      <div className="flex flex-col gap-6 empty:hidden">
-        {past.total > 0 ? (
-          <ProjectsSection
-            title="Past"
-            projects={past.rows}
-            count={past.total}
-            collapsible
-            defaultOpen={past.page > 1}
-          >
-            <PaginationControls
-              basePath="/projects"
-              params={params}
-              paramKey="pastPage"
-              page={past.page}
-              pageCount={past.pageCount}
-            />
-          </ProjectsSection>
-        ) : null}
-        {cancelled.total > 0 ? (
-          <ProjectsSection
-            title="Cancelled"
-            projects={cancelled.rows}
-            count={cancelled.total}
-            collapsible
-            defaultOpen={cancelled.page > 1}
-          >
-            <PaginationControls
-              basePath="/projects"
-              params={params}
-              paramKey="cancelledPage"
-              page={cancelled.page}
-              pageCount={cancelled.pageCount}
-            />
-          </ProjectsSection>
-        ) : null}
-      </div>
-      {isEmpty ? (
-        <p className="text-sm text-muted-foreground">No projects yet.</p>
-      ) : null}
-    </div>
-  );
-}
-
-/** A single flat, paginated grid across all statuses matching the active filters. */
-async function FilteredView({
-  params,
-  page,
-  query,
-  lineOfBusiness,
-  deliveryManagerId,
-}: {
-  params: SearchParams;
-  page: number;
-  query: string;
-  lineOfBusiness: LineOfBusiness | undefined;
-  deliveryManagerId: string | undefined;
-}) {
-  const result = await getProjectsPage(
-    page,
-    [...PROJECT_STATUS_BUCKETS],
-    { query, lineOfBusiness, deliveryManagerId },
-    // Search/filter results read best newest-ending first, not alphabetically.
-    "endDate",
-  );
-
-  if (result.total === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        No projects match these filters.
-      </p>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      <ProjectsGrid projects={result.rows} />
-      <PaginationControls
-        basePath="/projects"
-        params={params}
-        paramKey="projectsPage"
-        page={result.page}
-        pageCount={result.pageCount}
-      />
     </div>
   );
 }
