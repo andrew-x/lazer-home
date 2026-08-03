@@ -1,13 +1,17 @@
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
+import { ScrollList } from "@/components/home/scroll-list";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
 import type { OrgUpcomingRole, ProjectRoleGroup } from "@/lib/home/org-status";
 import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
-
-/** Projects shown before the card defers to a summary line. */
-const GROUP_LIMIT = 4;
 
 /**
  * Roles starting or ending soon, **grouped by project**.
@@ -23,6 +27,11 @@ const GROUP_LIMIT = 4;
  * project in the same week is *one* thing to plan for, and a flat list interleaves
  * unrelated projects so that shape is invisible. The project is the heading; the
  * people (or unfilled seats) sit under it.
+ *
+ * The list scrolls rather than truncating (see {@link ScrollList}) — with a taller
+ * cap than the flat person lists, since a group is several rows tall and cutting one
+ * mid-project would hide seats under a heading you can already see. The header keeps
+ * the project and role totals the old "N more" line carried.
  */
 export function ProjectRolesPanel({
   title,
@@ -36,35 +45,30 @@ export function ProjectRolesPanel({
   /** Verb for the empty state, e.g. "starts" / "ends". */
   emptyLabel: string;
 }) {
-  const shown = groups.slice(0, GROUP_LIMIT);
-  const remaining = groups.length - shown.length;
-  const hiddenRoles = groups
-    .slice(GROUP_LIMIT)
-    .reduce((sum, group) => sum + group.roles.length, 0);
+  const roles = groups.reduce((sum, group) => sum + group.roles.length, 0);
 
   return (
     <Card>
       <CardHeader className="border-b">
         <CardTitle>{title}</CardTitle>
+        {groups.length > 0 ? (
+          <CardAction className="text-xs text-muted-foreground">
+            {groups.length} {groups.length === 1 ? "project" : "projects"} ·{" "}
+            {roles} {roles === 1 ? "role" : "roles"}
+          </CardAction>
+        ) : null}
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {shown.length === 0 ? (
+      <CardContent>
+        {groups.length === 0 ? (
           <EmptyState>
             Nothing {emptyLabel} in the next {horizonDays} days.
           </EmptyState>
         ) : (
-          <>
-            {shown.map((group) => (
+          <ScrollList className="max-h-80 gap-4">
+            {groups.map((group) => (
               <ProjectGroup key={group.projectId} group={group} />
             ))}
-            {remaining > 0 ? (
-              <p className="text-xs text-muted-foreground">
-                {remaining} more {remaining === 1 ? "project" : "projects"} (
-                {hiddenRoles} {hiddenRoles === 1 ? "role" : "roles"}) in the
-                next {horizonDays} days
-              </p>
-            ) : null}
-          </>
+          </ScrollList>
         )}
       </CardContent>
     </Card>

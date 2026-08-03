@@ -2,13 +2,17 @@ import { IconArrowRight } from "@tabler/icons-react";
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PersonRow } from "@/components/home/person-row";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollList } from "@/components/home/scroll-list";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
 import { formatShortDate, parseIsoDate } from "@/lib/format/format";
 import type { OrgBorrowed } from "@/lib/home/org-status";
-
-/** Rows shown before the list defers to a summary line. */
-const ROW_LIMIT = 5;
 
 /**
  * Who is working outside their own line of business right now.
@@ -28,51 +32,57 @@ const ROW_LIMIT = 5;
  * Related: `/analytics/utilization` measures the same drift as a day-weighted
  * aggregate over a range (`buildLobAlignment`). This is the named-people view of
  * today. Keep both — "how much drift" and "who, right now" are different questions.
+ *
+ * The list scrolls rather than truncating (see {@link ScrollList}). The header
+ * counts **people**, not rows: someone lent to two projects holds two rows, and
+ * "how many of us are working elsewhere" is the headline the old "N more" line was
+ * standing in for.
  */
 export function BorrowedStaffPanel({ rows }: { rows: OrgBorrowed[] }) {
-  const shown = rows.slice(0, ROW_LIMIT);
-  const remaining = rows.length - shown.length;
+  const people = new Set(rows.map((row) => row.staffId)).size;
 
   return (
     <Card>
       <CardHeader className="border-b">
         <CardTitle>Borrowed staff</CardTitle>
+        {people > 0 ? (
+          <CardAction className="text-xs text-muted-foreground">
+            {people} {people === 1 ? "person" : "people"} lent out
+          </CardAction>
+        ) : null}
       </CardHeader>
-      <CardContent className="flex flex-col gap-1">
-        {shown.length === 0 ? (
+      <CardContent>
+        {rows.length === 0 ? (
           <EmptyState>
             Everyone is working inside their own line of business.
           </EmptyState>
         ) : (
-          shown.map((row) => (
-            <PersonRow
-              key={`${row.staffId}-${row.projectId}`}
-              staffId={row.staffId}
-              name={row.name}
-              staffRole={null}
-              lineOfBusiness={null}
-              subtitle={
-                <span className="flex items-center gap-1">
-                  {LINE_OF_BUSINESS_LABELS[row.homeLineOfBusiness]}
-                  <IconArrowRight className="size-3 shrink-0" />
-                  <Link
-                    href={`/projects/${row.projectId}`}
-                    className="truncate hover:underline"
-                  >
-                    {row.projectName} ·{" "}
-                    {LINE_OF_BUSINESS_LABELS[row.roleLineOfBusiness]}
-                  </Link>
-                </span>
-              }
-              trailing={`to ${formatShortDate(parseIsoDate(row.endDate))}`}
-            />
-          ))
+          <ScrollList>
+            {rows.map((row) => (
+              <PersonRow
+                key={`${row.staffId}-${row.projectId}`}
+                staffId={row.staffId}
+                name={row.name}
+                staffRole={null}
+                lineOfBusiness={null}
+                subtitle={
+                  <span className="flex items-center gap-1">
+                    {LINE_OF_BUSINESS_LABELS[row.homeLineOfBusiness]}
+                    <IconArrowRight className="size-3 shrink-0" />
+                    <Link
+                      href={`/projects/${row.projectId}`}
+                      className="truncate hover:underline"
+                    >
+                      {row.projectName} ·{" "}
+                      {LINE_OF_BUSINESS_LABELS[row.roleLineOfBusiness]}
+                    </Link>
+                  </span>
+                }
+                trailing={`to ${formatShortDate(parseIsoDate(row.endDate))}`}
+              />
+            ))}
+          </ScrollList>
         )}
-        {remaining > 0 ? (
-          <p className="pt-1 text-xs text-muted-foreground">
-            {remaining} more working outside their line of business
-          </p>
-        ) : null}
       </CardContent>
     </Card>
   );

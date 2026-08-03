@@ -1,16 +1,20 @@
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PersonRow } from "@/components/home/person-row";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollList } from "@/components/home/scroll-list";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import type {
   LeaveProject,
   UpcomingLeave,
 } from "@/lib/allocations/availability";
 import { formatDateRange } from "@/lib/format/format";
 import { PTO_TYPE_LABELS } from "@/lib/staff/staff-enums";
-
-/** Rows shown before the list defers to a summary line. */
-const ROW_LIMIT = 5;
 
 /**
  * Approved leave running or starting soon, and what each absence leaves short.
@@ -26,6 +30,10 @@ const ROW_LIMIT = 5;
  * the label only when `type` is present; never re-derive it here, and never
  * widen the read to fetch it. Project names carry no such gate — they're already
  * public via `/allocations`.
+ *
+ * The list scrolls rather than truncating (see {@link ScrollList}), so the header
+ * carries the count the old "N more" line used to — how much leave is coming is
+ * worth knowing before you start scrolling.
  */
 export function UpcomingTimeOffPanel({
   rows,
@@ -34,46 +42,47 @@ export function UpcomingTimeOffPanel({
   rows: UpcomingLeave[];
   horizonDays: number;
 }) {
-  const shown = rows.slice(0, ROW_LIMIT);
-  const remaining = rows.length - shown.length;
-
   return (
     <Card>
       <CardHeader className="border-b">
         <CardTitle>Upcoming time off</CardTitle>
+        {rows.length > 0 ? (
+          <CardAction className="text-xs text-muted-foreground">
+            {rows.length} in the next {horizonDays} days
+          </CardAction>
+        ) : null}
       </CardHeader>
-      <CardContent className="flex flex-col gap-1">
-        {shown.length === 0 ? (
+      <CardContent>
+        {rows.length === 0 ? (
           <EmptyState>
             No time off booked in the next {horizonDays} days.
           </EmptyState>
         ) : (
-          shown.map((leave) => (
-            <PersonRow
-              key={`${leave.staffId}-${leave.startDate}`}
-              staffId={leave.staffId}
-              name={leave.name}
-              staffRole={null}
-              lineOfBusiness={null}
-              subtitle={<LeaveProjects projects={leave.projects} />}
-              trailing={
-                <span className="flex flex-col items-end">
-                  <span>{formatDateRange(leave.startDate, leave.endDate)}</span>
-                  <span>
-                    {leave.workingDays}d
-                    {leave.type ? ` · ${PTO_TYPE_LABELS[leave.type]}` : ""}
-                    {leave.ongoing ? " · away now" : ""}
+          <ScrollList>
+            {rows.map((leave) => (
+              <PersonRow
+                key={`${leave.staffId}-${leave.startDate}`}
+                staffId={leave.staffId}
+                name={leave.name}
+                staffRole={null}
+                lineOfBusiness={null}
+                subtitle={<LeaveProjects projects={leave.projects} />}
+                trailing={
+                  <span className="flex flex-col items-end">
+                    <span>
+                      {formatDateRange(leave.startDate, leave.endDate)}
+                    </span>
+                    <span>
+                      {leave.workingDays}d
+                      {leave.type ? ` · ${PTO_TYPE_LABELS[leave.type]}` : ""}
+                      {leave.ongoing ? " · away now" : ""}
+                    </span>
                   </span>
-                </span>
-              }
-            />
-          ))
+                }
+              />
+            ))}
+          </ScrollList>
         )}
-        {remaining > 0 ? (
-          <p className="pt-1 text-xs text-muted-foreground">
-            {remaining} more in the next {horizonDays} days
-          </p>
-        ) : null}
       </CardContent>
     </Card>
   );
