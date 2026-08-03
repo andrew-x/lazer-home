@@ -375,9 +375,14 @@ to Compensation and `ratings.view` holders to Levels, then falls through to
   variance columns went, so nothing formats an absolute hours delta any more.
 - **UI:** `src/app/(app)/dashboards/utilization/page.tsx` (server; `max-w-7xl`, matching the
   projects list, because the breakdown table is wide) → `src/components/utilization/`
-  — `utilization-report.tsx` (the client shell owning basis + line of business) + seven cards +
+  — `utilization-report.tsx` (the client shell; it owns basis + line of business and fixes the
+  render order — `utilization` → `headcount` → `roles` → `bench` → `pto` → `staff-breakdown` →
+  `lob-alignment`) + seven cards +
   `report-primitives.tsx` (`ReportSection`, `BasisNote`, `DeviationFlag`, `DeviationNotice`) +
   `utilization-filters.tsx` + `staff-table-filters.tsx`.
+  **Surface names ≠ code names in one place:** the section titled *Staff utilization breakdown*
+  is `staff-breakdown-card.tsx` / `StaffBreakdownCard` / `buildStaffBreakdown` /
+  `StaffBreakdownRow` / `report.staffBreakdown` — deliberately, see card 6 above.
 - **Shared tile:** `src/components/stat-card.tsx` — `StatCard` gained an optional
   **`marker?: ReactNode`** rendered beside the value, for this report's `DeviationFlag`. It is a
   shared component (home dashboard, the performance dashboards, the plan summaries), so keep the
