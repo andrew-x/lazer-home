@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { ALL, SegmentedFilter } from "@/components/form/filters";
 import { PersonRow } from "@/components/home/person-row";
+import { ScrollList } from "@/components/home/scroll-list";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -20,9 +20,6 @@ import {
   EMPLOYMENT_TYPE_LABELS,
   EMPLOYMENT_TYPES,
 } from "@/lib/staff/staff-enums";
-
-/** Names shown per week before the list defers to the planner. */
-const NAME_LIMIT = 8;
 
 /**
  * Who has capacity: the bench now, then who frees up in each of the next four weeks.
@@ -65,8 +62,6 @@ export function AvailabilityPanel({
   const selected = tabs[weekIndex];
 
   const listed = selected?.people ?? [];
-  const shown = listed.slice(0, NAME_LIMIT);
-  const remaining = listed.length - shown.length;
   const onBench = weekIndex === 0;
 
   return (
@@ -139,8 +134,8 @@ export function AvailabilityPanel({
 
             <Separator />
 
-            <div className="flex flex-col gap-1">
-              {shown.length === 0 ? (
+            <ScrollList>
+              {listed.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   {filtered.length === 0
                     ? "Nobody matches this filter."
@@ -149,7 +144,7 @@ export function AvailabilityPanel({
                       : "Nobody new frees up this week."}
                 </p>
               ) : (
-                shown.map((person) => (
+                listed.map((person) => (
                   <PersonRow
                     key={person.staffId}
                     staffId={person.staffId}
@@ -169,18 +164,7 @@ export function AvailabilityPanel({
                   />
                 ))
               )}
-              {remaining > 0 ? (
-                <p className="pt-1 text-xs text-muted-foreground">
-                  {remaining} more ·{" "}
-                  <Link
-                    href="/allocations"
-                    className="text-primary hover:underline"
-                  >
-                    open the planner
-                  </Link>
-                </p>
-              ) : null}
-            </div>
+            </ScrollList>
           </>
         )}
       </CardContent>
