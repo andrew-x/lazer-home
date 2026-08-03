@@ -95,7 +95,7 @@ export const BONUS_PAYMENT_READ_ACCESS: PermissionCheck = {
 };
 
 /**
- * The URL search param both bonus surfaces — the dashboard (`/dashboards/bonuses`)
+ * The URL search param both bonus surfaces — the dashboard (`/analytics/bonuses`)
  * and the entry screen (`/people/bonus-payments`) — carry their selected calendar
  * year in. One key, because each owns its whole page; it was two while the
  * dashboard was a section sharing a URL with the rest of compensation.

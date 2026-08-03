@@ -8,7 +8,6 @@ import {
   IconClock,
   IconHome,
   IconMessageHeart,
-  IconSettings,
   IconTargetArrow,
   IconUser,
   IconUserStar,
@@ -49,6 +48,7 @@ export const NAV_ITEMS: NavItem[] = [
   { title: "Home", href: "/", icon: IconHome },
   { title: "My profile", href: "/profile", icon: IconUser },
   { title: "Staff", href: "/staff", icon: IconUsers },
+  { title: "Peer Feedback", href: "/feedback", icon: IconMessageHeart },
   { title: "Companies", href: "/companies", icon: IconBuildingSkyscraper },
   { title: "Contacts", href: "/contacts", icon: IconAddressBook },
   { title: "Opportunities", href: "/opportunities", icon: IconTargetArrow },
@@ -58,8 +58,8 @@ export const NAV_ITEMS: NavItem[] = [
   // Read-only analytics over the workforce. Everything here is aggregate and
   // anonymized; the named, per-person surfaces live under People management.
   {
-    title: "Dashboards",
-    href: "/dashboards",
+    title: "Analytics",
+    href: "/analytics",
     icon: IconChartBar,
     // Ungated, because Utilization is: it re-aggregates the allocation and leave
     // data the planner already shows everyone. The money-bearing children carry
@@ -69,24 +69,24 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       // Capacity, staffing and logged time — open to every signed-in user; the
       // one sensitive series (other people's timesheets) is withheld in the read.
-      { title: "Utilization", href: "/dashboards/utilization" },
+      { title: "Utilization", href: "/analytics/utilization" },
       // Headcount & compensation analytics.
       {
         title: "Compensation",
-        href: "/dashboards/compensation",
+        href: "/analytics/compensation",
         permission: { staff: ["viewCompensation"] },
       },
       // Bonus payments paid out, by year — reading a bonus is reading
       // compensation, so the same gate again.
       {
         title: "Bonuses",
-        href: "/dashboards/bonuses",
+        href: "/analytics/bonuses",
         permission: { staff: ["viewCompensation"] },
       },
       // Levels are stricter than comp: manager/admin only, not finance.
       {
         title: "Levels",
-        href: "/dashboards/levels",
+        href: "/analytics/levels",
         permission: { ratings: ["view"] },
       },
     ],
@@ -133,8 +133,6 @@ export const NAV_ITEMS: NavItem[] = [
       },
     ],
   },
-  { title: "Peer Feedback", href: "/feedback", icon: IconMessageHeart },
-  { title: "Settings", href: "/settings", icon: IconSettings },
 ];
 
 export function isActivePath(href: string, pathname: string): boolean {

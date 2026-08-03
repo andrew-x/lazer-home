@@ -18,7 +18,7 @@ import {
 } from "@/lib/utilization/utilization-report";
 
 /**
- * The **Utilization report** (`/dashboards/utilization`): the utilization split
+ * The **Utilization report** (`/analytics/utilization`): the utilization split
  * first as the headline, then headcount, roles, bench and PTO behind it, then the
  * per-person breakdown and line-of-business alignment, over a chosen period.
  *

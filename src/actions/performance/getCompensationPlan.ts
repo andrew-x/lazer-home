@@ -113,7 +113,7 @@ const EMPTY_SNAPSHOT: CompSnapshot = {
  * is how each person's previous compensation change is derived. Bounded by the
  * plan's membership, so "every row" is tens, not thousands.
  *
- * Rows here are identity-bearing, unlike the aggregate `/dashboards` reads. That
+ * Rows here are identity-bearing, unlike the aggregate `/analytics` reads. That
  * is inherent to the feature and the reason for the stricter combined gate.
  */
 export async function getCompensationPlan(

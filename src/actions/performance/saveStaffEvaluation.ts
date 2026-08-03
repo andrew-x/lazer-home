@@ -161,7 +161,7 @@ export const saveStaffEvaluation = secureActionClient
       await db.insert(staffRating).values(rows);
 
       // The Performance dashboard reads levels; its editor lists them.
-      revalidatePath("/dashboards/levels");
+      revalidatePath("/analytics/levels");
       revalidatePath("/people/levels");
 
       return { staffAffected: effective.length };

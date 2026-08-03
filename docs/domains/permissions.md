@@ -43,9 +43,9 @@ so the admin role retains its built-in capabilities) with two business resources
   their profile and in the history feed, **and their bonus payments** — the drawer's
   Bonuses tab and the feed's `BONUS` entries, since the fact a bonus was paid is itself
   comp information), **and** every bulk/aggregate comp surface: the Compensation
-  dashboard (`/dashboards/compensation`), including its comp-by-level table (which
+  dashboard (`/analytics/compensation`), including its comp-by-level table (which
   additionally needs `ratings.view`), and the Bonus dashboard
-  (`/dashboards/bonuses`, as `BONUS_PAYMENT_READ_ACCESS`). (Your own
+  (`/analytics/bonuses`, as `BONUS_PAYMENT_READ_ACCESS`). (Your own
   compensation — and your own bonuses — are always visible.)
 - **`pto.review`** — view the aggregated PTO summary of *other* staff. (Your own
   PTO is always visible.)
@@ -136,7 +136,7 @@ utilization report, *reading* other people's logged hours**:
   it can't be a static permission alone). See the
   [timesheets domain](timesheets.md).
 
-  **It is also a read gate.** The **Utilization report** (`/dashboards/utilization`) is the
+  **It is also a read gate.** The **Utilization report** (`/analytics/utilization`) is the
   only surface where one person could see another's logged hours, and it **reuses this
   capability rather than adding one** — the set who may already edit anyone's timesheet is
   exactly the set who may already read anyone's hours. The page itself is **ungated** (its
@@ -206,13 +206,13 @@ sensitive read/write with **no ownership dimension** — unlike compensation or
 feedback, a staffer never sees their *own* rating:
 
 - **`ratings.view`** — view staff overall levels: the **Levels dashboard** at
-  `/dashboards/levels` (distribution, average level, average-by-role, per-role
+  `/analytics/levels` (distribution, average level, average-by-role, per-role
   subrating averages — **no compensation rendered there at all**) and the edit page's
   current levels. Manager/admin only; there is no self-view path. Its siblings
-  `/dashboards/compensation` and `/dashboards/bonuses` are gated on
-  `staff.viewCompensation` instead, while the fourth — **`/dashboards/utilization` — is
-  ungated**, and **`/dashboards` is a redirect** (comp → levels → **utilization** as the
-  fallback, so the section no longer `notFound()`s for anyone). The **Dashboards nav parent
+  `/analytics/compensation` and `/analytics/bonuses` are gated on
+  `staff.viewCompensation` instead, while the fourth — **`/analytics/utilization` — is
+  ungated**, and **`/analytics` is a redirect** (comp → levels → **utilization** as the
+  fallback, so the section no longer `notFound()`s for anyone). The **Analytics nav parent
   is consequently ungated too**: `staff.viewCompensation` moved down onto the Compensation and
   Bonuses children, so a section is now as loose as its loosest child.
   The one **overlap** sits on the *comp* page: its **compensation-by-level** table
@@ -227,7 +227,7 @@ feedback, a staffer never sees their *own* rating:
   `ratings.view` alone, yet its rows carry comp **amounts**
   (`RatingRecord.employment` is the full `CompensationDimensions`) — so granting
   `ratings.view` to a role *without* `staff.viewCompensation` would make that read
-  (and `/dashboards/levels`, which fetches it) a bulk-comp leak, even though the
+  (and `/analytics/levels`, which fetches it) a bulk-comp leak, even though the
   page renders no money. See [performance.md](performance.md) → *Compensation by
   level*.
 - **`ratings.edit`** — assign / change levels and save an evaluation (a new dated

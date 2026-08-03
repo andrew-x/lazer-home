@@ -3,9 +3,9 @@ import { getCurrentUser } from "@/lib/auth/auth";
 import { userHasPermission } from "@/lib/auth/permissions";
 
 /**
- * `/dashboards` is a section index, not a page: the dashboards themselves live at
- * `/dashboards/utilization`, `/dashboards/compensation`, `/dashboards/bonuses` and
- * `/dashboards/levels`. The sidebar's parent nav entry points here, so send each
+ * `/analytics` is a section index, not a page: the dashboards themselves live at
+ * `/analytics/utilization`, `/analytics/compensation`, `/analytics/bonuses` and
+ * `/analytics/levels`. The sidebar's parent nav entry points here, so send each
  * viewer to the first dashboard they may see — finance holds only
  * `staff.viewCompensation`, so it must not land on levels.
  *
@@ -13,15 +13,15 @@ import { userHasPermission } from "@/lib/auth/permissions";
  * doesn't change under the people who use it most. Utilization is the fallback
  * rather than the default because it is the one dashboard open to everyone.
  */
-export default async function DashboardsPage() {
+export default async function AnalyticsPage() {
   const user = await getCurrentUser();
   if (!user) notFound();
 
   if (userHasPermission(user, { staff: ["viewCompensation"] })) {
-    redirect("/dashboards/compensation");
+    redirect("/analytics/compensation");
   }
   if (userHasPermission(user, { ratings: ["view"] })) {
-    redirect("/dashboards/levels");
+    redirect("/analytics/levels");
   }
-  redirect("/dashboards/utilization");
+  redirect("/analytics/utilization");
 }

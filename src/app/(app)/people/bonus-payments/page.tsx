@@ -47,7 +47,7 @@ export default async function BonusPaymentsPage({
         <Button
           variant="outline"
           size="sm"
-          render={<Link href="/dashboards/bonuses" />}
+          render={<Link href="/analytics/bonuses" />}
         >
           Back to dashboard
         </Button>

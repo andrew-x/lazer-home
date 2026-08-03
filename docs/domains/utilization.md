@@ -1,6 +1,6 @@
 # Domain: Utilization (reporting)
 
-**Status: built (v2).** A read-only report at **`/dashboards/utilization`**. It is
+**Status: built (v2).** A read-only report at **`/analytics/utilization`**. It is
 **not a new domain in the data-model sense** — no table, no migration, no capability.
 It is the only surface that reconciles the **allocation plan** (`project_roles`) against
 the **timesheet actuals** (`time_entries`), which both
@@ -348,11 +348,11 @@ capability to `src/lib/auth/permissions.ts`, `src/lib/auth/permissions.test.ts` 
 [permissions.md](./permissions.md) **in lockstep** ([ADR 0014](../decisions/0014-rbac-better-auth-access-control.md))
 — not loosening the scope in this read.
 
-**Nav.** The **Dashboards** parent nav entry carries no gate; `staff.viewCompensation` sits on the
+**Nav.** The **Analytics** parent nav entry carries no gate; `staff.viewCompensation` sits on the
 Compensation and Bonuses children, and Utilization is an **ungated** child. A section is as loose
-as its loosest child. `/dashboards` (a redirect, not a page) sends `staff.viewCompensation` holders
+as its loosest child. `/analytics` (a redirect, not a page) sends `staff.viewCompensation` holders
 to Compensation and `ratings.view` holders to Levels, then falls through to
-**`/dashboards/utilization`** instead of `notFound()`.
+**`/analytics/utilization`** instead of `notFound()`.
 
 ## Code map
 
@@ -378,7 +378,7 @@ to Compensation and `ratings.view` holders to Levels, then falls through to
 - **Format:** `src/lib/utilization/utilization-format.ts` (pure; the `null` → "—" convention).
   `formatPercentDelta` renders the gap from plan; `formatHoursDelta` was **deleted** when the
   variance columns went, so nothing formats an absolute hours delta any more.
-- **UI:** `src/app/(app)/dashboards/utilization/page.tsx` (server; `max-w-7xl`, matching the
+- **UI:** `src/app/(app)/analytics/utilization/page.tsx` (server; `max-w-7xl`, matching the
   projects list, because the breakdown table is wide) → `src/components/utilization/`
   — `utilization-report.tsx` (the client shell; it owns basis + line of business and fixes the
   render order — `utilization` → `headcount` → `roles` → `bench` → `pto` → `staff-breakdown` →
@@ -436,5 +436,5 @@ to Compensation and `ratings.view` holders to Levels, then falls through to
   and join/termination dates all come from `staff` + the latest `staff_employment`; `staff_pto`
   supplies leave. **`utilizationTarget` is deliberately not read** — the report measures actual
   capacity use, not attainment against a target. No compensation column is read at all.
-- **[Performance](./performance.md)** — it sits in the Dashboards section beside the three gated
+- **[Performance](./performance.md)** — it sits in the Analytics section beside the three gated
   analytics pages, and is the only one open to everyone.
