@@ -17,7 +17,7 @@
  * inconsistency to reconcile: a person's own utilization is a cumulative fact
  * about their year, while the organization's is an instantaneous fact about today.
  * Every surface built on either **must** name its window — the word "utilization"
- * alone is ambiguous on this page. `/analytics/utilization` is a third thing
+ * alone is ambiguous on this page. `/reporting/utilization` is a third thing
  * again: plan *reconciled against* actuals over a chosen range (ADR 0062).
  *
  * ## The payload is a disclosure boundary
@@ -382,7 +382,7 @@ function buildUpcomingRoles(
  * A person lent to two foreign projects yields two rows; each is a separate
  * arrangement with its own end date.
  *
- * Related: `/analytics/utilization`'s `buildLobAlignment`
+ * Related: `/reporting/utilization`'s `buildLobAlignment`
  * (`@/lib/utilization/utilization-report`) measures the same idea as a day-weighted
  * *aggregate* over a range. This is the point-in-time, named-people view. Keep both
  * — they answer "how much drift is there" and "who, specifically, today".
@@ -533,7 +533,7 @@ function summarizeCohort(people: readonly OrgPerson[]): StaffingSummary {
  * How much of the bench is working, as of now — split by employment type.
  *
  * Counts **people**, not hours — "how many of us are on something" is the question,
- * and an hours-weighted version of it is what `/analytics/utilization` is for.
+ * and an hours-weighted version of it is what `/reporting/utilization` is for.
  *
  * The two cohorts partition the population: `employmentType` is `notNull` on
  * `staff_employment`, and this population is `isBillable === true`, which is only

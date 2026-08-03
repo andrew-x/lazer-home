@@ -24,7 +24,7 @@ export const CURRENCY_LABELS: Record<Currency, string> = {
 /**
  * The currencies a figure may be *displayed* in. Narrower than {@link CURRENCY}
  * on purpose: amounts are stored in whatever currency they were agreed in, but
- * the analytics surfaces (the compensation dashboards, a project's budget summary)
+ * the reporting surfaces (the compensation dashboards, a project's budget summary)
  * normalize everything to one of the two we report in, so a two-way toggle stays
  * a toggle rather than a five-way select.
  */

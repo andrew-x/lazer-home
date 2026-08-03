@@ -99,7 +99,7 @@ either band inherits this rule.
   exactly the same people as Overall**. A breakdown that silently drops someone is worse
   than an odd row.
 - **It counts people, not hours.** The hours-weighted version of this question is
-  `/analytics/utilization`; duplicating it here would be a fourth number to reconcile.
+  `/reporting/utilization`; duplicating it here would be a fourth number to reconcile.
 - **No target column.** A target belongs beside a cumulative figure you could still act to
   hit, not beside a snapshot of today. (`utilizationTarget` is unusable anyway — see
   [ADR 0060](./0060-allocations-capacity-meter.md).)
@@ -143,7 +143,7 @@ This is the **first client JS on `/`**, which previously shipped none. The trade
 for three controls — line of business (whole band), availability week, employment type —
 each of which re-slices data **already fetched**. Putting them in the URL would cost a
 server round trip to answer "who's free in three weeks", a question people ask by clicking
-through all five weeks in a row. This follows the split `/analytics/utilization` already
+through all five weeks in a row. This follows the split `/reporting/utilization` already
 established: **the range lives in the URL because it bounds a query; filters are client
 state because they don't** (0062, *Filters and the window*).
 
@@ -200,9 +200,9 @@ trip**.
   |---|---|---|---|
   | Home → Your Status | year to date | submitted timesheets (own) | hours ratio |
   | Home → Lazer Status | **today** | `project_roles` plan | **people** |
-  | `/analytics/utilization` | a chosen range | plan **and** actuals, two series | hours |
+  | `/reporting/utilization` | a chosen range | plan **and** actuals, two series | hours |
 
-- **`buildBorrowed` duplicates a question `/analytics/utilization` also asks**, on purpose:
+- **`buildBorrowed` duplicates a question `/reporting/utilization` also asks**, on purpose:
   `buildLobAlignment` measures cross-LoB drift as a day-weighted aggregate over a range;
   this names the specific people, today. "How much drift" and "who, right now" are different
   needs — keep both.

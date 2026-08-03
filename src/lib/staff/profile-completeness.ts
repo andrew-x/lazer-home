@@ -9,7 +9,7 @@ import {
 } from "@/lib/staff/ways-of-working";
 
 /**
- * Shared constants for the profile-completeness table (`/people/profile-completeness`).
+ * Shared constants for the profile-completeness table (`/reporting/profile-completeness`).
  *
  * A pure, client-importable module (no `db`/drizzle, no `server-only`): the read
  * is server-only but the table is a client component, so the denominators it

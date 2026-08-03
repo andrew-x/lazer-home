@@ -228,7 +228,7 @@ week it's already showing, so it never nags about the sheet on screen.
   when true); the hook is the real boundary. See [permissions](permissions.md).
 
 > **`timesheets.edit` is a *read* gate too.** The **Utilization report**
-> (`/analytics/utilization`) is the only surface where one person can see another's logged
+> (`/reporting/utilization`) is the only surface where one person can see another's logged
 > hours, and it reuses this capability rather than adding one. **Without it, the report's entire
 > "Logged" basis is unavailable:** `getUtilizationReport` **skips both timesheet queries
 > outright** — not even the viewer's own rows are fetched — the toggle is disabled, and every
@@ -251,7 +251,7 @@ week it's already showing, so it never nags about the sheet on screen.
   Entries will eventually roll up to the project (and its company) for billing.
 - **Allocations** — `time_entries` are the **actuals** that reconcile against the
   **plan** (`project_roles`). **Reconciliation now exists as a report** —
-  `/analytics/utilization` ([utilization.md](./utilization.md)), whose **Logged** basis reads
+  `/reporting/utilization` ([utilization.md](./utilization.md)), whose **Logged** basis reads
   **submitted** timesheets only and pairs every figure with submitted-week coverage, since a
   lazily-created timesheet row means "not started" rather than zero. The plan and the actuals are
   never shown side by side there: a basis toggle picks one, and a logged figure ≥20% *and* ≥8 h
@@ -314,7 +314,7 @@ Still genuinely open:
   ([utilization.md](./utilization.md)). Still open as a *workflow*: nothing re-forecasts, flags a
   diverged role at the role level, or writes anything back.
 - ~~**Utilization reporting** — billable ÷ available hours over a period.~~ **Built** at
-  `/analytics/utilization` ([ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md),
+  `/reporting/utilization` ([ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md),
   reshaped by [ADR 0064](../decisions/0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md)).
   Its Logged basis counts **submitted** weeks only, so its accuracy is bounded by submission
   discipline — which is itself visible on the page as coverage. **The seed carries only ~4 weeks of

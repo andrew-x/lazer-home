@@ -56,7 +56,7 @@ import {
 /**
  * The **bonus payments** entry screen (`/people/bonus-payments`): record, correct
  * and remove the one-off bonuses that feed the Bonuses dashboard's breakdown at
- * `/analytics/bonuses`.
+ * `/reporting/bonuses`.
  *
  * This is a stopgap by design. Bonuses will arrive from Rippling like comp and
  * PTO do, keyed on `staffBonusPayment.ripplingId`; until that importer exists

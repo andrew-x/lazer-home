@@ -35,7 +35,7 @@ import {
  * them into the URL would mean a server
  * round trip and a full re-render to answer "who's free in three weeks" — a
  * question people ask by clicking through all five weeks in a row. This follows the
- * split `/analytics/utilization` already established: the range lives in the URL
+ * split `/reporting/utilization` already established: the range lives in the URL
  * because it bounds the query; the filters are client state because they don't.
  *
  * ## Disclosure
