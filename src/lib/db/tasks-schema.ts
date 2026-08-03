@@ -62,6 +62,17 @@ export const tasks = pgTable(
     index("tasks_contact_done_idx").on(t.contactId, t.done),
     index("tasks_opportunity_done_idx").on(t.opportunityId, t.done),
     index("tasks_company_done_idx").on(t.companyId, t.done),
+    // The home dashboard's personal todo list reads the other way round: one
+    // *owner's* open tasks, newest-assigned first. The three parent indexes above
+    // can't serve it — none of them leads with the owner. The companion read (that
+    // owner's completed history) orders by `completedAt`, which this index can't
+    // sort; it's left to sort the matched rows, since one person's closed tasks are
+    // a small set and the read caps them anyway.
+    index("tasks_owner_done_idx").on(
+      t.ownerStaffId,
+      t.done,
+      t.createdAt.desc(),
+    ),
   ],
 );
 

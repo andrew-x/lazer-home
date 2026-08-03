@@ -7,12 +7,14 @@ import {
 import type { Metadata } from "next";
 import { getAllocationsGrid } from "@/actions/allocations/getAllocationsGrid";
 import { getMyAllocations } from "@/actions/allocations/getMyAllocations";
+import { getMyTasks } from "@/actions/crm/getMyTasks";
 import { getCurrentStaffIdentity } from "@/actions/staff/getCurrentStaffIdentity";
 import { getStaffPto } from "@/actions/staff/getStaffPto";
 import { getStaffUtilization } from "@/actions/timesheets/getStaffUtilization";
 import { HomeSection } from "@/components/home/home-section";
 import { LazerStatusSection } from "@/components/home/lazer-status-section";
 import { MyAllocationsTable } from "@/components/home/my-allocations-table";
+import { MyTasksPanel } from "@/components/home/my-tasks-panel";
 import { InlineNotice } from "@/components/inline-notice";
 import { StatCard } from "@/components/stat-card";
 import { formatPercent } from "@/lib/format/format";
@@ -30,7 +32,11 @@ export const metadata: Metadata = { title: "Home" };
  *
  * - **Your Status — year to date.** Your own utilization is a cumulative fact about
  *   your year, from submitted timesheets, 1 January through today. A point-in-time
- *   personal figure would be noise: it would swing on a single day's logging.
+ *   personal figure would be noise: it would swing on a single day's logging. The
+ *   band also carries your **tasks**, which are point-in-time and come from the CRM
+ *   rather than timesheets — so its description no longer names one window, and each
+ *   block inside it names its own instead (the stat hints, the Tasks caption). The
+ *   rule below is unchanged; only where it's satisfied moved.
  * - **Lazer Status — point in time.** The organization's question is *right now, how
  *   much of the bench is working?*, answered from the **staffing plan** as of today.
  *   A year-to-date org figure buries exactly what a staffing lead needs, and would
@@ -91,9 +97,10 @@ async function YourStatusSection() {
     );
   }
 
-  const [pto, utilization] = await Promise.all([
+  const [pto, utilization, tasks] = await Promise.all([
     getStaffPto(staffId),
     getStaffUtilization(staffId, yearStart, today),
+    getMyTasks(),
   ]);
 
   const load = currentLoadPercent(roles, today);
@@ -109,7 +116,7 @@ async function YourStatusSection() {
   return (
     <HomeSection
       title="Your Status"
-      description="Your work this year — 1 January to today, from your timesheets."
+      description="Your year so far, and what's on your plate. Each figure below names its own window."
     >
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
@@ -136,8 +143,11 @@ async function YourStatusSection() {
           label="Planned"
           value={formatPercent(rates.planned.rate)}
           hint={
+            // Both branches name the value's window (YTD) — the over-allocation
+            // note adds a *second*, point-in-time figure, so leaving "today" as the
+            // only date here would misattribute the headline number. See ADR 0063.
             load > 100
-              ? `Over-allocated — ${load}% committed today`
+              ? `Confirmed work against capacity · YTD — over-allocated today (${load}%)`
               : `Confirmed work against capacity · YTD`
           }
           icon={IconChartBar}
@@ -149,6 +159,10 @@ async function YourStatusSection() {
         managedProjects={managedProjects}
         today={today}
       />
+
+      {/* `nowMs` is stamped here rather than read on the client, so the
+          stale-task threshold resolves identically across hydration. */}
+      <MyTasksPanel tasks={tasks} nowMs={Date.now()} />
     </HomeSection>
   );
 }
