@@ -11,6 +11,20 @@
 # enforced by Codex's sandbox (sandbox_mode) plus the "Stay inside the project root"
 # rule in AGENTS.md, not by these prefix rules.
 
+# --- Never run the app (AGENTS.md -> "Never run the app") ---
+# The human runs the dev server; a second one fights over the port, .next/ and the
+# shared dev DB. "forbidden" beats the broad ["bun","run"] allow below by precedence.
+prefix_rule(pattern=["bun", "run", "dev"], decision="forbidden")
+prefix_rule(pattern=["bun", "run", "start"], decision="forbidden")
+prefix_rule(pattern=["bun", "dev"], decision="forbidden")
+prefix_rule(pattern=["bun", "start"], decision="forbidden")
+prefix_rule(pattern=["bunx", "next"], decision="forbidden")
+prefix_rule(pattern=["bunx", "--bun", "next"], decision="forbidden")
+prefix_rule(pattern=["next", "dev"], decision="forbidden")
+prefix_rule(pattern=["next", "start"], decision="forbidden")
+prefix_rule(pattern=["npm", "run", "dev"], decision="forbidden")
+prefix_rule(pattern=["npm", "start"], decision="forbidden")
+
 # --- Bun / toolchain (Bun + Biome, per AGENTS.md) ---
 prefix_rule(pattern=["bun", "run"], decision="allow")
 prefix_rule(pattern=["bun", "test"], decision="allow")

@@ -36,7 +36,22 @@
       "ls /*": "ask",
       "ls ~/*": "ask",
       "find /*": "ask",
-      "find ~/*": "ask"
+      "find ~/*": "ask",
+
+      // Never run the app (AGENTS.md -> "Never run the app"). The human owns the
+      // dev server; a second one fights over the port, .next/ and the shared dev DB.
+      // opencode resolves by LAST matching rule, not specificity — these must stay
+      // below "bun run *": "allow" or they won't take effect.
+      "bun run dev*": "deny",
+      "bun run start*": "deny",
+      "bun dev*": "deny",
+      "bun start*": "deny",
+      "bunx next *": "deny",
+      "bunx --bun next *": "deny",
+      "next dev*": "deny",
+      "next start*": "deny",
+      "npm run dev*": "deny",
+      "npm start*": "deny"
     },
     "external_directory": {
       "*": "ask"

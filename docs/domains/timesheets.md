@@ -228,7 +228,7 @@ week it's already showing, so it never nags about the sheet on screen.
   when true); the hook is the real boundary. See [permissions](permissions.md).
 
 > **`timesheets.edit` is now a *read* gate too.** The **Utilization report**
-> (`/dashboards/utilization`) is the first surface where one person can see another's logged
+> (`/analytics/utilization`) is the first surface where one person can see another's logged
 > hours, and it reuses this capability rather than adding one: without it, `getUtilizationReport`
 > scopes both the `time_entries` and the submitted-week queries **by SQL predicate** to the
 > viewer's own staff record, and every cohort-level confirmed figure comes back `null` — never
@@ -246,7 +246,7 @@ week it's already showing, so it never nags about the sheet on screen.
   Entries will eventually roll up to the project (and its company) for billing.
 - **Allocations** — `time_entries` are the **actuals** that reconcile against the
   **plan** (`project_roles`). **Reconciliation now exists as a report** — the two series on
-  `/dashboards/utilization` ([utilization.md](./utilization.md)), which reads **submitted**
+  `/analytics/utilization` ([utilization.md](./utilization.md)), which reads **submitted**
   timesheets only and pairs every figure with submitted-week coverage, since a lazily-created
   timesheet row means "not started" rather than zero. There is still no reconciliation
   *workflow* (nothing writes back, nothing re-forecasts). The other link is the **one-way
@@ -307,7 +307,7 @@ Still genuinely open:
   ([utilization.md](./utilization.md)). Still open as a *workflow*: nothing re-forecasts, flags a
   diverged role, or writes anything back.
 - ~~**Utilization reporting** — billable ÷ available hours over a period.~~ **Built** at
-  `/dashboards/utilization` ([ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md)).
+  `/analytics/utilization` ([ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md)).
   Its confirmed side counts **submitted** weeks only, so its accuracy is bounded by submission
   discipline — which is itself now visible on the page as coverage.
 - **PTO ↔ `staff_pto` sync** — the timesheet PTO bucket is independent today; whether

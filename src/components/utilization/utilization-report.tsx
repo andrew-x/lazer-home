@@ -15,7 +15,7 @@ import { UtilizationFilters } from "@/components/utilization/utilization-filters
 import { buildUtilizationReport } from "@/lib/utilization/utilization-report";
 
 /**
- * The **Utilization report** (`/dashboards/utilization`): headcount, roles, bench,
+ * The **Utilization report** (`/analytics/utilization`): headcount, roles, bench,
  * PTO, utilization, a per-person breakdown, and line-of-business alignment over a
  * chosen period.
  *

@@ -19,6 +19,18 @@
       "Bash(rg:*)",
       "Bash(cat:*)"
     ],
+    "deny": [
+      "Bash(bun run dev:*)",
+      "Bash(bun run start:*)",
+      "Bash(bun dev:*)",
+      "Bash(bun start:*)",
+      "Bash(next dev:*)",
+      "Bash(next start:*)",
+      "Bash(bunx next:*)",
+      "Bash(bunx --bun next:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm start:*)"
+    ],
     "ask": [
       "Bash(cat:/*)",
       "Bash(cat:~/*)",
