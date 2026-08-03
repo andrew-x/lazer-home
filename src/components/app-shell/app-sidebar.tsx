@@ -57,10 +57,15 @@ export function AppSidebar({
           {/* Sizes come from the Image width/height props (not CSS) so Next's
               aspect-ratio check stays happy; the box also can't flash at the
               SVG's intrinsic size during the display swap mid-collapse. */}
+          {/* Both are `priority`: this is chrome on every authenticated page, so
+              whichever one the sidebar state shows is a candidate for the LCP. */}
           <span className="hidden shrink-0 group-data-[collapsible=icon]:block">
-            <LogoMark size={20} />
+            <LogoMark size={20} priority />
           </span>
-          <LogoWordmark className="shrink-0 group-data-[collapsible=icon]:hidden" />
+          <LogoWordmark
+            className="shrink-0 group-data-[collapsible=icon]:hidden"
+            priority
+          />
         </Link>
       </SidebarHeader>
 
