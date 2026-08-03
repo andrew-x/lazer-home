@@ -254,26 +254,44 @@ export function ProfileView({
       <Card>
         <CardContent>
           <Tabs defaultValue="overview">
-            <TabsList variant="line" className="mb-4">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="manual-of-me">Manual of Me</TabsTrigger>
-              <TabsTrigger value="ways-of-working">Ways of Working</TabsTrigger>
-              <TabsTrigger value="resume">Resume</TabsTrigger>
-              {/* All three gated tabs are viewer-dependent: rendered only when their
-                  read returned something this viewer may see. */}
-              {feedback ? (
-                <TabsTrigger value="peer-feedback">Peer feedback</TabsTrigger>
-              ) : null}
-              {reviewNotes ? (
-                <TabsTrigger value="review-notes">Review notes</TabsTrigger>
-              ) : null}
-              {selfEvaluations ? (
-                <TabsTrigger value="self-evaluations">
-                  Self-evaluations
+            {/* Four to eight tabs (three are viewer-dependent) outrun a narrow
+                card, so the strip scrolls sideways instead of overflowing it.
+                `min-w-max` keeps the triggers at their label width, and `pb-1`
+                leaves room for the active underline — it sits 5px below the
+                trigger, outside the list box, so the clip below would cut it.
+                Deliberately a *one-axis* scroller: `overflow-x-auto` alone would
+                compute `overflow-y: auto`, making this a live y-scrollport with
+                zero scroll range, so the vertical component of a trackpad flick
+                fights a no-op axis instead of moving the page. `clip` creates no
+                scroll container, which avoids that. `overscroll-x-contain` keeps
+                a sideways flick from triggering the browser's back-swipe, and
+                the trigger override drops `transition-all` to colors-only so
+                tabs sliding under the cursor don't transition every animatable
+                property on each hover crossing mid-scroll. */}
+            <div className="mb-3 max-w-full overflow-x-auto overflow-y-clip overscroll-x-contain pb-1 [&_[data-slot=tabs-trigger]]:transition-colors">
+              <TabsList variant="line" className="min-w-max">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="manual-of-me">Manual of Me</TabsTrigger>
+                <TabsTrigger value="ways-of-working">
+                  Ways of Working
                 </TabsTrigger>
-              ) : null}
-              <TabsTrigger value="history">History</TabsTrigger>
-            </TabsList>
+                <TabsTrigger value="resume">Resume</TabsTrigger>
+                {/* All three gated tabs are viewer-dependent: rendered only when their
+                    read returned something this viewer may see. */}
+                {feedback ? (
+                  <TabsTrigger value="peer-feedback">Peer feedback</TabsTrigger>
+                ) : null}
+                {reviewNotes ? (
+                  <TabsTrigger value="review-notes">Review notes</TabsTrigger>
+                ) : null}
+                {selfEvaluations ? (
+                  <TabsTrigger value="self-evaluations">
+                    Self-evaluations
+                  </TabsTrigger>
+                ) : null}
+                <TabsTrigger value="history">History</TabsTrigger>
+              </TabsList>
+            </div>
 
             <TabsContent
               value="overview"
