@@ -38,7 +38,7 @@ client-reachable.
   keep drizzle-zod, so the table stays the source of truth for its columns.
 
 The rule is documented in `.claude/rules/server-actions.md` and mirrored in
-`src/actions/AGENTS.md` (the Codex runtime); see the runtime-parity note in
+`src/actions/AGENTS.md` (the Codex and opencode runtimes); see the runtime-parity note in
 `AGENTS.md`. Several CRM / staff / admin schemas that back forms were migrated to
 hand-written `z.object` accordingly. Server-only writes whose schema no client
 imports (e.g. `updateStaffSkills`, imported only by its action file) legitimately

@@ -24,7 +24,7 @@ Knowledge lives outside this file so it loads only when a task needs it. Don't p
 - **`docs/decisions/`** — ADRs: _why_ things are the way they are, plus the non-obvious nuances.
 - **`docs/ui.md`** — frontend: shadcn/Base UI, theming & design language, the app shell.
 
-`/docs` is this project's durable memory. Trust it, and keep it true (see _Keeping docs alive_). Path-scoped working rules also live in `.claude/rules/` (server-actions, database, forms, ui, nextjs). In **Claude Code** they auto-load when you touch matching files; in **Codex** the same rules are duplicated as nested `AGENTS.md` files (`src/AGENTS.md` for Next.js/UI/forms, `src/actions/AGENTS.md`, `src/lib/db/AGENTS.md`) that load by working directory — read the one for the area you're editing. See _Agent runtimes_ below.
+`/docs` is this project's durable memory. Trust it, and keep it true (see _Keeping docs alive_). Path-scoped working rules also live in `.claude/rules/` (server-actions, database, forms, ui, nextjs). In **Claude Code** they auto-load when you touch matching files; in **Codex** and **opencode** the same rules are duplicated as nested `AGENTS.md` files (`src/AGENTS.md` for Next.js/UI/forms, `src/actions/AGENTS.md`, `src/lib/db/AGENTS.md`) — Codex loads them by working directory, opencode eager-loads all three. Read the one for the area you're editing. See _Agent runtimes_ below.
 
 ## How we work together
 
@@ -43,20 +43,32 @@ When the work reveals something reusable, propose capturing it instead of re-exp
 - A repeatable procedure → a **command** (`.claude/commands/`) or **skill**.
 - A delegable, self-contained job → a **subagent** (`.claude/agents/`).
 
-## Agent runtimes (Claude Code + Codex)
+## Agent runtimes (Claude Code + Codex + opencode)
 
-This repo is wired for **two** coding-agent runtimes, kept in deliberate parity — **full duplication, not symlinks or references.** `AGENTS.md` (this file, plus the nested ones) is the shared brain both read; everything else is mirrored per runtime:
+This repo is wired for **three** coding-agent runtimes, kept in deliberate parity — **full duplication, not symlinks or references.** `AGENTS.md` (this file, plus the nested ones) is the shared brain all three read; everything else is mirrored per runtime:
 
-| Concern | Claude Code | Codex |
-|---|---|---|
-| Project instructions | `CLAUDE.md` → `@AGENTS.md` | `AGENTS.md` (native) |
-| Path-scoped coding rules | `.claude/rules/*.md` (path-glob auto-load) | nested `src/**/AGENTS.md` (cwd-load) + permissions inlined below |
-| Docs-keeper subagent | `.claude/agents/librarian.md` | `.codex/agents/librarian.toml` |
-| Commands / skills | `.claude/commands/*.md` | `.agents/skills/*/SKILL.md` |
-| Command permissions | `.claude/settings.json` → `permissions` | `.codex/rules/default.rules` (Starlark `prefix_rule`) |
-| Lifecycle hooks | `.claude/settings.json` → `hooks` | `.codex/hooks.json` + `.codex/hooks/*.sh` |
+| Concern | Claude Code | Codex | opencode |
+|---|---|---|---|
+| Project instructions | `CLAUDE.md` → `@AGENTS.md` | `AGENTS.md` (native) | `AGENTS.md` (native; prefers it over `CLAUDE.md`) |
+| Path-scoped coding rules | `.claude/rules/*.md` (path-glob auto-load) | nested `src/**/AGENTS.md` (cwd-load) + permissions inlined below | nested `src/**/AGENTS.md`, eager-loaded via `instructions` + permissions inlined below |
+| Runtime config | `.claude/settings.json` | `.codex/config.toml` | `.opencode/opencode.jsonc` |
+| Docs-keeper subagent | `.claude/agents/librarian.md` | `.codex/agents/librarian.toml` | `.opencode/agent/librarian.md` |
+| Commands / skills | `.claude/commands/*.md` | `.agents/skills/*/SKILL.md` | `.agents/skills/*/SKILL.md` (**shared with Codex** — discovered natively) + thin `.opencode/command/*.md` entry points |
+| Command permissions | `.claude/settings.json` → `permissions` | `.codex/rules/default.rules` (Starlark `prefix_rule`) | `.opencode/opencode.jsonc` → `permission` |
+| Lifecycle hooks | `.claude/settings.json` → `hooks` | `.codex/hooks.json` + `.codex/hooks/*.sh` | `.opencode/plugin/psa-hooks.js` (plugin, not a hooks file) |
 
-Codex builds its `AGENTS.md` chain **once at startup, walking repo-root → cwd**, and cannot lazily load a rule when it touches a matching file. So the security-critical **permissions** rule is inlined in full below (always in context), and the other rules live at the common-ancestor directory of their scope. **Keep the two runtimes in sync:** when you change one side (a rule, command, subagent, hook, or permission), mirror it on the other. Run **`/audit-agents`** (Claude Code) or the **audit-agents** skill (Codex) to check parity and surface drift or improvements.
+Neither Codex nor opencode can lazily load a rule when it touches a matching file, so in both the security-critical **permissions** rule is inlined in full below (always in context).
+
+- **Codex** builds its `AGENTS.md` chain **once at startup, walking repo-root → cwd**, so the other rules live at the common-ancestor directory of their scope and load by working directory.
+- **opencode** reads the root `AGENTS.md` natively but won't reliably pick up the nested ones (it's normally launched from the repo root), and has no path-glob equivalent. So the three nested rule files are **eager-loaded** via `instructions` in `.opencode/opencode.jsonc` — always in context, at a cost of ~19KB. Deliberate: a silently-missed convention is worse than the tokens.
+
+**Skills are the one deliberate exception to full duplication:** opencode scans `.agents/skills/` natively, so it and Codex share one copy of each skill body. The per-runtime part is only the entry point (`.claude/commands/*.md`, `.opencode/command/*.md`), kept to a one-line delegation so there's no procedure text to drift.
+
+This exception is forced by opencode, not a style choice — **don't "fix" it by duplicating skills into `.opencode/skill/`.** Skill names must be unique across locations: with the same name in both `.agents/skills/` and `.opencode/skill/`, opencode silently keeps the `.agents/skills/` copy and **discards** the other with no warning. A duplicate there is a dead file that drifts forever and is never read. (Verified against opencode 1.15.0 with `opencode debug skill`.)
+
+**Keep the three runtimes in sync:** when you change one side (a rule, command, subagent, hook, or permission), mirror it on the others. Run **`/audit-agents`** (Claude Code or opencode) or the **audit-agents** skill (Codex) to check parity and surface drift or improvements.
+
+Two opencode-specific gotchas worth knowing before you edit its config: it **validates config strictly and refuses to start** on an invalid field (so `color: blue`, valid in Claude Code, is rejected — it wants a hex or a semantic token), and config is **not hot-reloaded**, so restart it after a change.
 
 ## Context discipline — main context is gold
 
@@ -68,13 +80,13 @@ The main session's context window is the scarcest resource. Protect it.
 
 ## Keeping docs alive (the librarian)
 
-After any **major change** — a new feature, a schema/data-model change, a significant refactor, or an architectural decision — **dispatch the `librarian` subagent** to reconcile `/docs` (via the Agent tool in Claude Code; the `librarian` agent in `.codex/agents/librarian.toml` under Codex). Do this **automatically, without being asked.** Hand it a short summary of what changed; it owns the docs. Don't hand-write `/docs` from the main session — delegating keeps your context clean and the docs in one consistent voice.
+After any **major change** — a new feature, a schema/data-model change, a significant refactor, or an architectural decision — **dispatch the `librarian` subagent** to reconcile `/docs` (via the Agent tool in Claude Code; the `librarian` agent in `.codex/agents/librarian.toml` under Codex; the `librarian` subagent from `.opencode/agent/librarian.md` under opencode). Do this **automatically, without being asked.** Hand it a short summary of what changed; it owns the docs. Don't hand-write `/docs` from the main session — delegating keeps your context clean and the docs in one consistent voice.
 
 ## Permissions (RBAC) — never break them
 
 Access control is non-negotiable. `src/lib/auth/permissions.ts` is the single source of truth (roles, the permission matrix, and the `requirePermission`/`userHasPermission` helpers); the model is documented in `docs/domains/permissions.md`. **If you ever find a way to bypass a permission check, read/mutate another user's data, or escalate a role, STOP and flag it as a vulnerability immediately — don't work around it.**
 
-In **Claude Code** the full rule loads from `.claude/rules/permissions.md` when you touch auth/action/actions files. Because **Codex** can't auto-load it, the non-negotiables are inlined here so both runtimes always have them:
+In **Claude Code** the full rule loads from `.claude/rules/permissions.md` when you touch auth/action/actions files. Because neither **Codex** nor **opencode** can auto-load it, the non-negotiables are inlined here so all three runtimes always have them:
 
 - **Never weaken, bypass, or work around a permission check.** If you discover a missing gate, an action that skips ownership, a read that leaks another user's data, an escalation path, or a role that grants more than its matrix row — **STOP and flag it loudly as a vulnerability.** Don't silently route around it, "temporarily" loosen it, or leave a TODO.
 - **Every mutating/sensitive action declares its gate in metadata** — `metadata.role`, `metadata.permission`, and/or a row-level `metadata.authorize` (an `ActionAuthorize` hook reading `clientInput`), all enforced by `secureActionClient` *before* the body — or carries an explicit, justified comment for why it is intentionally public. No silent ungated mutations; authorization is never hand-written in action bodies.
@@ -83,7 +95,7 @@ In **Claude Code** the full rule loads from `.claude/rules/permissions.md` when 
 - **Keep the matrix in lockstep** across `permissions.ts`, `src/lib/permissions.test.ts`, and `docs/domains/permissions.md` — changing one requires changing all three.
 - **`user.role` must validate against `roleSchema`**, and unknown/null roles **default to deny** (least privilege).
 
-Run **`/audit-rbac`** (Claude Code) or the **audit-rbac** skill (Codex) to audit the whole system; `bun run check` runs the matrix test.
+Run **`/audit-rbac`** (Claude Code or opencode) or the **audit-rbac** skill (Codex) to audit the whole system; `bun run check` runs the matrix test.
 
 ## Reviewing changes
 
@@ -98,7 +110,7 @@ Runtime and package manager are **Bun**. Linter/formatter is **Biome** (not ESLi
 - After schema changes: `bun run db:generate` → `bun run db:migrate` (`db:push`/`db:studio` for dev; `auth:generate` for Better Auth tables). **Then update `scripts/seed/` to match** — the synthetic-data seed (`bun run db:seed`, reads `DATABASE_URL`, wipes & reseeds every domain) imports the real Drizzle tables and enum sources, so a stale seed shows up as a `bun run check` failure. Keep it green when you touch the data model.
 - **Before claiming done:** run `bun run check`, plus `bun run build` for anything non-trivial.
 
-Area-specific conventions live in `.claude/rules/` (Claude Code) and the nested `src/**/AGENTS.md` files (Codex) — see _Agent runtimes_.
+Area-specific conventions live in `.claude/rules/` (Claude Code) and the nested `src/**/AGENTS.md` files (Codex, opencode) — see _Agent runtimes_.
 
 ## Plans and specs
 
