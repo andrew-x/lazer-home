@@ -210,11 +210,11 @@ export const commitCompensationPlan = secureActionClient
       });
 
       // New levels change the levels dashboard's distribution, the edit-levels
-      // grid, and the Compensation dashboard's comp-by-level table. (`/dashboards`
+      // grid, and the Compensation dashboard's comp-by-level table. (`/analytics`
       // itself is only a redirect — ADR 0044 — so there is nothing to revalidate.)
-      revalidatePath("/dashboards/levels");
+      revalidatePath("/analytics/levels");
       revalidatePath("/people/levels");
-      revalidatePath("/dashboards/compensation");
+      revalidatePath("/analytics/compensation");
       for (const path of planPaths(planId)) revalidatePath(path);
 
       return {
