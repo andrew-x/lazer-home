@@ -215,10 +215,12 @@ the original three-days-back regression.
 
 ### 8. Section order, and client-side search/filter/pagination on both tables
 
-**Order:** Headcount → Roles → Bench → PTO → **Utilization** → Staff breakdown → Line of business
-alignment. Utilization used to be first; it now sits *after* the roster and leave context that
-explains it, because "47%" means nothing until you know who is in the denominator and how much of
-the period was leave.
+**Order:** **Utilization** → Headcount → Roles → Bench → PTO → Staff utilization breakdown → Line
+of business alignment — the split leads as the headline, with the roster, staffing and leave context
+that qualifies it behind. Burying it under that context was tried during this work and reverted: a
+reader arriving at a report called "Utilization" should not have to scroll past four cards to reach
+the number, and the caveats that make "47%" mean something are already carried by each section's own
+caption and by `BasisNote` above the first card, not by reading order.
 
 **Both per-person tables** got name search, a Type segmented filter, a Role select and pagination
 (`staff-table-filters.tsx`: `useStaffTableFilters()`, `StaffTableFilters`, `paginate()`,
@@ -236,11 +238,17 @@ used by the CRM/projects lists) and a new **`ClientPaginationControls`** (`onPag
 
 ### 9. Column and read cleanups
 
-- **Staff breakdown** is now Name (→ `/staff/{id}`) · Line of business · Type · Role · Available ·
+- **The staff breakdown's columns** are now Name (→ `/staff/{id}`) · Line of business · Type · Role · Available ·
   Project · Project % · PTO · PTO % · Bench · Bench %. The *Weeks* column and the
   Planned/Confirmed/Variance/Planned %/Confirmed % set are gone — the basis picks one figure per
   column, and per-person coverage was a column nobody read.
-- **"Discipline" → "Role"** in the Staff breakdown and the Headcount table, matching the field's
+- **The section is titled "Staff utilization breakdown"** (its description is unchanged), but
+  **every code identifier deliberately still says *staff breakdown*** — `staff-breakdown-card.tsx`,
+  `StaffBreakdownCard`, `buildStaffBreakdown`, `StaffBreakdownRow`, `report.staffBreakdown`. A
+  display string clarifying what the table measures isn't worth renaming six symbols across the math
+  module, the read, the card and its tests, and the shorthand is still accurate inside a module that
+  is entirely about utilization. **The mismatch is intentional; don't "fix" it.**
+- **"Discipline" → "Role"** in the staff breakdown and the Headcount table, matching the field's
   actual name everywhere else in the app.
 - The **`projects` join and the unused `projectName`** field are gone from `UtilizationRole` and
   the projection.
