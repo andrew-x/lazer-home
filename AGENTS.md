@@ -105,12 +105,23 @@ Use the built-in review skills (`/code-review`, `/review`, `/security-review`) b
 
 Runtime and package manager are **Bun**. Linter/formatter is **Biome** (not ESLint/Prettier).
 
-- `bun run dev` — dev server · `bun run build` — production build (also type-checks)
+- `bun run dev` — dev server (**you never run this — see _Never run the app_**) · `bun run build` — production build (also type-checks)
 - `bun run check` — Biome lint + `tsc --noEmit` + `bun test` (pre-flight) · `bun run format` — Biome auto-fix
 - After schema changes: `bun run db:generate` → `bun run db:migrate` (`db:push`/`db:studio` for dev; `auth:generate` for Better Auth tables). **Then update `scripts/seed/` to match** — the synthetic-data seed (`bun run db:seed`, reads `DATABASE_URL`, wipes & reseeds every domain) imports the real Drizzle tables and enum sources, so a stale seed shows up as a `bun run check` failure. Keep it green when you touch the data model.
 - **Before claiming done:** run `bun run check`, plus `bun run build` for anything non-trivial.
 
 Area-specific conventions live in `.claude/rules/` (Claude Code) and the nested `src/**/AGENTS.md` files (Codex, opencode) — see _Agent runtimes_.
+
+## Never run the app
+
+**Running the app is mine, not yours.** I keep a dev server going myself; a second one fights over the port, over `.next/`, and over the shared dev database, and a server you start in the background outlives the turn and silently rots.
+
+- **Never** start, restart, or drive the app: no `bun run dev`, `bun run start`, `next dev`, `next start`, no `bunx next …` equivalents, no wrapping them in another command, and no launching them in the background or through a hook or script that ends up doing the same thing.
+- Don't invoke the `/run` skill on this project, and don't browser-drive or screenshot a running instance. If you genuinely need runtime evidence, **say what you want checked and ask me to run it** — I'll run it and paste the result.
+- **Verify without running:** `bun run check` (Biome + `tsc --noEmit` + `bun test`) and `bun run build` are your evidence, and both are expected before you claim done. `bun run build` is a compile, not a server — it's fine.
+- Applies to subagents too: don't delegate "just start the dev server and look" to one.
+
+This is a hard rule, not a preference, so all three runtimes also **deny** the dev-server commands at the permission layer (`.claude/settings.json`, `.codex/rules/default.rules`, `.opencode/opencode.jsonc`). If you hit that denial, that's this rule firing — ask me instead of hunting for a way around it.
 
 ## Plans and specs
 
