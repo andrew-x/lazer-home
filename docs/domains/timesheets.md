@@ -234,7 +234,7 @@ week it's already showing, so it never nags about the sheet on screen.
 > outright** — not even the viewer's own rows are fetched — the toggle is disabled, and every
 > logged figure is `null`, never `0`. (Earlier it scoped those queries to the viewer's own staff
 > record and populated their one row; that own-row path was removed by
-> [ADR 0063](../decisions/0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §6,
+> [ADR 0064](../decisions/0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §6,
 > which only tightens disclosure — a person's own logged hours are still on `/timesheets`.) This
 > matches the fail-closed posture of `getTimesheetList`/`getTimesheet` above. Anyone auditing
 > `timesheets.edit` must count that report. Widening the audience (actuals without edit rights)
@@ -242,7 +242,7 @@ week it's already showing, so it never nags about the sheet on screen.
 > `permissions.test.ts` and [permissions.md](./permissions.md) — not loosening that read. See
 > [utilization.md](./utilization.md),
 > [ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md) and
-> [ADR 0063](../decisions/0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md).
+> [ADR 0064](../decisions/0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md).
 
 ## Connects to
 
@@ -265,6 +265,24 @@ week it's already showing, so it never nags about the sheet on screen.
   `src/actions/staff/getEmploymentTypeAsOf.ts`.
 - **Performance / reporting** — billable vs. available hours = utilization, **now built** as
   a read-only report ([utilization.md](./utilization.md)). Nothing feeds it into a review yet.
+- **Home dashboard (own data only)** — a second, much smaller consumer of submitted hours:
+  `src/actions/timesheets/getStaffUtilization.ts` + the pure
+  `src/lib/timesheets/utilization.ts` back the **"Your Status"** tiles at `/` — utilization
+  **year to date**, 1 January through today. Two rates with **deliberately different
+  denominators**: *actual* = `projectHours / (totalHours − ptoHours)` (divided by hours
+  **recorded**, so a partly-logged year reads as low *coverage*, never low utilization) and
+  *planned* = `allocatedHours / (nominalHours − ptoHours)` from **confirmed** roles only
+  (divided by **calendar capacity** net of approved leave, and **not clamped**). The mismatch
+  is intentional: `staff_pto` (HR) and `time_entries.category = 'PTO'` (self-reported) are not
+  synced, so a blended denominator would reconcile with neither. Surfaces must label both and
+  footnote the difference. Aggregation is **sum-then-divide** throughout — a mean of per-person
+  ratios is the tempting bug, which is why `computeUtilization` takes arrays.
+  ⚠️ **This module is per-person and cumulative only.** Its org-wide cohort table
+  (`splitByEmploymentType`, `weightedTargetOf`, `MIN_COHORT_SIZE`) and the
+  `getOrgUtilization` read were **deleted** — the org half of the home page is now a
+  point-in-time, plan-based staffing figure that reads no timesheets at all
+  ([ADR 0063](../decisions/0063-home-dashboard-two-time-bases-and-point-in-time-staffing.md),
+  [allocations.md](./allocations.md)). Don't grow a third org aggregator here.
 
 ## Open questions
 
@@ -297,11 +315,9 @@ Still genuinely open:
   diverged role at the role level, or writes anything back.
 - ~~**Utilization reporting** — billable ÷ available hours over a period.~~ **Built** at
   `/dashboards/utilization` ([ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md),
-  reshaped by [ADR 0063](../decisions/0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md)).
+  reshaped by [ADR 0064](../decisions/0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md)).
   Its Logged basis counts **submitted** weeks only, so its accuracy is bounded by submission
   discipline — which is itself visible on the page as coverage. **The seed carries only ~4 weeks of
   timesheets**, so that basis looks near-empty locally over a long window.
 - **PTO ↔ `staff_pto` sync** — the timesheet PTO bucket is independent today; whether
   logged PTO should reconcile with imported Rippling leave is unresolved.
-</content>
-</invoke>

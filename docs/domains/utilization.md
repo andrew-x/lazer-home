@@ -11,26 +11,31 @@ Two ADRs, read in this order:
 [ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md)
 established the report (billable-only cohort, employment-window membership, PTO-beats-a-role,
 over-allocation unclamped, the `timesheets.edit` gate), and
-**[ADR 0063](../decisions/0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md)
+**[ADR 0064](../decisions/0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md)
 supersedes its §1, §3, §7, §8 and §9** — the two-series-everywhere layout, the own-row
 disclosure path, LoB attribution, the tentative-role toggle, the window default and the ◀ ▶
 stepping all changed, and the Utilization section became six stat tiles instead of a table.
-Where the two disagree, **0063 wins**.
+Where the two disagree, **0064 wins**.
 
 > **The module docstring in `src/lib/utilization/utilization-report.ts` is the
 > authoritative statement of every definition.** This doc summarises it and records the
 > reasoning; if the two disagree, the code wins.
 
-> **Careful — this is not the app's only utilization number.** The **home dashboard** computes its
-> own **year-to-date** utilization in `src/lib/timesheets/utilization.ts` (fed by
-> `getOrgUtilization` / `getStaffUtilization`), with **different denominators on purpose**: its
-> *actual* rate divides by hours **recorded** (so thin timesheet adoption reads as low coverage, not
-> low utilization) and its *planned* rate by calendar capacity net of leave, both stopping at today,
-> aggregated **sum-then-divide**, and its org section is deliberately **identity-free** with a
-> `MIN_COHORT_SIZE` floor. This report instead measures an **arbitrary window** on **one basis at a
-> time** against a full-time 8 h × Mon–Fri denominator. Two definitions, two questions — **don't
-> "unify" them without a decision to record**, and check which module you are editing when a task
-> says "utilization". (The home dashboard's own widgets are otherwise undocumented.)
+## Three surfaces say "utilization" — three different questions
+
+Don't unify them, and don't reuse one's number on another's surface
+([ADR 0063](../decisions/0063-home-dashboard-two-time-bases-and-point-in-time-staffing.md)):
+
+| Surface | Window | Source | Unit | Gate |
+|---|---|---|---|---|
+| Home → **Your Status** | **year to date** (1 Jan → today) | your own submitted timesheets (`getStaffUtilization` + `src/lib/timesheets/utilization.ts`) | hours ratio | own data only |
+| Home → **Lazer Status** | **today** | the `project_roles` plan (`src/lib/home/org-status.ts`) — no timesheets at all | **people** (staffed ÷ headcount) | open |
+| **This report** | a chosen range | plan **and** actuals, computed as two never-summed series but rendered **one basis at a time** | hours | open page; the whole *Logged* basis on `timesheets.edit`, cohort-wide |
+
+`src/lib/timesheets/utilization.ts` is **per-person and cumulative only** — its org-wide
+cohort table and suppression machinery were deleted when Lazer Status landed. Anything
+measuring the *organization* belongs in `org-status.ts` (point in time) or here (a range);
+don't grow a third aggregator in the timesheets module.
 
 ## One basis at a time
 
@@ -46,7 +51,7 @@ of the page picks which one the whole report renders**. Planned is the default.
 They are never added together. Showing both at once doubled every column and made the page
 unreadable; the *comparison* was what mattered, not the simultaneous display — so the
 off-screen series is spent on **deviation flags** instead
-([ADR 0063](../decisions/0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §1).
+([ADR 0064](../decisions/0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §1).
 
 Planned hours use the same basis as `roleBillableHours` in `src/lib/projects/project-margin.ts`
 (real Mon–Fri weekdays × `hoursPerDay`), so margin and utilization can't disagree about how
@@ -139,7 +144,7 @@ basis**:
   `includeTentative` input and the "Forecast" switch were all deleted. A tentative role is a
   *forecast*, not an allocation, and with no win-probability field in the schema to weight it by,
   counting it at full weight only made every figure softer than it looked
-  ([ADR 0063](../decisions/0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §2).
+  ([ADR 0064](../decisions/0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §2).
   `UtilizationRole` no longer carries `status`.
 - **Internal admin is excluded.** The fourth bucket is gone — the ledger and `LoggedTotals` carry
   exactly **project / PTO / bench** — and `INTERNAL_ADMIN` entries are dropped when folding logged
@@ -421,6 +426,10 @@ to Compensation and `ratings.view` holders to Levels, then falls through to
 - **[Allocations](./allocations.md)** — the Planned basis *is* `project_roles`; the report answers
   that domain's open "how do we reconcile plan against actuals?" and "who is over-allocated?"
   questions in read-only form. It shares `HOURS_PER_DAY` and `EndpointPicker` with the planner.
+  Its **line-of-business alignment card has a point-in-time twin**:
+  the home dashboard's Borrowed-staff panel names the specific people working outside their home
+  LoB *today*, where `buildLobAlignment` gives the day-weighted aggregate over a range. Keep
+  both — "how much drift" and "who, right now" are different needs.
 - **[Timesheets](./timesheets.md)** — the Logged basis is submitted `time_entries`, and
   `timesheets.edit` is a **read** gate as well as a write gate.
 - **[Staff profiles](./staff-profiles.md)** — cohort, billability, employment type, line of business

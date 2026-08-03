@@ -19,8 +19,10 @@
  *   widget becomes decoration; most staffing asks are "half a body or a whole one".
  * - **Counts include a person in every week they're free** — "who's free in three
  *   weeks" is a question people ask directly, and a soonest-bucket-only model
- *   can't answer it. `freeFrom` carries the *first* free week so name lists can key
- *   each person to one row without losing the other cells.
+ *   can't answer it. The home panel accordingly selects a week and lists whoever is
+ *   free *in that week*. `freeFrom` (the first week someone clears the threshold) is
+ *   retained because it gives {@link buildAvailability} a stable soonest-to-free
+ *   sort; it is no longer how any name list is keyed.
  * - **Non-billable staff are excluded** (the employment fact, not `isBillableRole`),
  *   or ops and leadership occupy the bench forever and it stops being read.
  *
@@ -43,7 +45,7 @@ import {
   getWeekDays,
 } from "@/lib/timesheets/timesheet-week";
 
-/** Columns in the forecast strip: the current week plus the next four. */
+/** Columns in the forecast: the current week plus the next four. */
 export const AVAILABILITY_WEEKS = 5;
 
 /**
@@ -82,7 +84,7 @@ export type AvailabilityPerson = {
   tentativeOnly: boolean;
 };
 
-/** One column of the forecast strip. */
+/** One week of the forecast — one column, or one tab. */
 export type AvailabilityWeek = {
   weekStart: string;
   /** People clearing {@link AVAILABLE_THRESHOLD_PERCENT} this week. */
@@ -95,6 +97,12 @@ export type AvailabilityWeek = {
    * fully-free people are very different weeks, and a headcount hides that.
    */
   freeFte: number;
+};
+
+/** A project someone is allocated to across a leave span. */
+export type LeaveProject = {
+  projectId: string;
+  projectName: string;
 };
 
 /** One approved leave span in the upcoming list. */
@@ -111,7 +119,29 @@ export type UpcomingLeave = {
   startsInDays: number;
   /** The person is away right now. */
   ongoing: boolean;
+  /**
+   * The projects losing this person while they're away, heaviest commitment
+   * first. Empty when they hold no role over the span — which is a real and
+   * unremarkable state (someone on the bench taking leave), not missing data.
+   */
+  projects: LeaveProject[];
 };
+
+/**
+ * The forecast's column dates: {@link AVAILABILITY_WEEKS} ISO Mondays from
+ * `fromWeek`.
+ *
+ * Exported because the columns are a function of the *calendar*, not of the
+ * population — so a caller must never infer them from a person's `weeks` array.
+ * Doing that yields an empty column list whenever nobody is billable, which is a
+ * legitimate state (a brand-new tenant) that would silently produce a header with
+ * no columns.
+ */
+export function availabilityWeekStarts(fromWeek: string): string[] {
+  return Array.from({ length: AVAILABILITY_WEEKS }, (_, i) =>
+    addWeeks(fromWeek, i),
+  );
+}
 
 /** Whole days between two ISO dates, computed in UTC to sidestep DST. */
 function daysBetween(from: string, to: string): number {
@@ -159,10 +189,52 @@ function loadFor(
 }
 
 /**
+ * Roll a population's per-person week loads up into one column summary per week.
+ *
+ * Extracted from {@link buildAvailability} so the *same* arithmetic runs on the
+ * server over everyone and on the client over a filtered subset — the home
+ * dashboard's `buildAvailabilityTabs` calls it for each tab's spare-capacity figure
+ * after the line-of-business and employment filters have been applied. Reusing the
+ * server's unfiltered numbers there would report the whole company's availability
+ * above a filtered list of names.
+ *
+ * Note the counts here are **cumulative** — everyone free in the week — which is the
+ * right basis for `freeFte`. The home dashboard's *name lists* are deltas instead
+ * (who newly frees up); don't conflate the two.
+ *
+ * `weekStarts` must be positionally aligned with each person's `weeks` array —
+ * index `i` of both is the same week — which is what `buildAvailability`
+ * guarantees by construction.
+ */
+export function summarizeWeeks(
+  people: readonly Pick<AvailabilityPerson, "weeks">[],
+  weekStarts: readonly string[],
+): AvailabilityWeek[] {
+  return weekStarts.map((weekStart, index) => {
+    const loads = people
+      .map((person) => person.weeks[index])
+      .filter((load): load is WeekLoad => load !== undefined);
+    const available = loads.filter(
+      (load) => load.freePercent >= AVAILABLE_THRESHOLD_PERCENT,
+    );
+    return {
+      weekStart,
+      availableCount: available.length,
+      tentativeCount: available.filter((load) => load.tentativePercent > 0)
+        .length,
+      freeFte: loads.reduce((sum, load) => sum + load.freePercent, 0) / 100,
+    };
+  });
+}
+
+/**
  * Fold staff + roles + approved leave into a {@link AVAILABILITY_WEEKS}-column
- * forecast starting at `fromWeek` (an ISO Monday). People are returned sorted by
- * how soon they free up — never-free last — then by name, so the caller can slice
- * name lists off the front without re-sorting.
+ * forecast starting at `fromWeek` (an ISO Monday).
+ *
+ * People come back sorted soonest-to-free — never-free last, then by name — so the
+ * order is deterministic and reads sensibly unsorted. Callers presenting a single
+ * week are expected to re-sort by that week's free percent; don't treat this order
+ * as the presentation order.
  */
 export function buildAvailability(
   staff: readonly AllocationStaffRow[],
@@ -170,9 +242,7 @@ export function buildAvailability(
   timeOff: readonly AllocationTimeOff[],
   fromWeek: string,
 ): { weeks: AvailabilityWeek[]; people: AvailabilityPerson[] } {
-  const weekStarts = Array.from({ length: AVAILABILITY_WEEKS }, (_, i) =>
-    addWeeks(fromWeek, i),
-  );
+  const weekStarts = availabilityWeekStarts(fromWeek);
   const rolesByStaff = groupPerKey(roles, (role) => role.staffId);
   const timeOffByStaff = groupPerKey(timeOff, (span) => span.staffId);
   const windowEnd = getWeekDays(weekStarts[weekStarts.length - 1])[6];
@@ -206,19 +276,7 @@ export function buildAvailability(
     };
   });
 
-  const weeks: AvailabilityWeek[] = weekStarts.map((weekStart, index) => {
-    const loads = people.map((person) => person.weeks[index]);
-    const available = loads.filter(
-      (load) => load.freePercent >= AVAILABLE_THRESHOLD_PERCENT,
-    );
-    return {
-      weekStart,
-      availableCount: available.length,
-      tentativeCount: available.filter((load) => load.tentativePercent > 0)
-        .length,
-      freeFte: loads.reduce((sum, load) => sum + load.freePercent, 0) / 100,
-    };
-  });
+  const weeks = summarizeWeeks(people, weekStarts);
 
   people.sort((a, b) => {
     if (a.freeFrom !== b.freeFrom) {
@@ -233,18 +291,52 @@ export function buildAvailability(
 }
 
 /**
+ * The distinct projects `personRoles` puts someone on during `[from, to]`, ordered
+ * by how much of them they are: confirmed roles ahead of tentative ones, then by
+ * hours a day. A person holding two roles on one project yields one entry — the
+ * question is "which engagement loses them", not "how many rows exist".
+ */
+function projectsOverlapping(
+  personRoles: readonly AllocationRoleRow[],
+  from: string,
+  to: string,
+): LeaveProject[] {
+  const ranked = personRoles
+    .filter((role) => role.startDate <= to && role.endDate >= from)
+    .sort((a, b) => {
+      if (a.status !== b.status) return a.status === "confirmed" ? -1 : 1;
+      return b.hoursPerDay - a.hoursPerDay;
+    });
+
+  const seen = new Set<string>();
+  const projects: LeaveProject[] = [];
+  for (const role of ranked) {
+    if (seen.has(role.projectId)) continue;
+    seen.add(role.projectId);
+    projects.push({ projectId: role.projectId, projectName: role.projectName });
+  }
+  return projects;
+}
+
+/**
  * Approved leave running or starting within `horizonDays` of `today`, soonest
  * first. Only people still on staff appear (the read already filters to active
  * staff). `type` is passed straight through from the read, which has already
  * decided whether the viewer may see the leave reason — never re-derive it here.
+ *
+ * `roles` is used only to name the projects each absence affects, so the list can
+ * answer "who's away, and what does that leave short" in one row. It carries no
+ * disclosure of its own: project names are already public via `/allocations`.
  */
 export function buildUpcomingTimeOff(
   staff: readonly AllocationStaffRow[],
+  roles: readonly AllocationRoleRow[],
   timeOff: readonly AllocationTimeOff[],
   today: string,
   horizonDays: number = UPCOMING_TIME_OFF_HORIZON_DAYS,
 ): UpcomingLeave[] {
   const nameById = new Map(staff.map((person) => [person.id, person.name]));
+  const rolesByStaff = groupPerKey(roles, (role) => role.staffId);
   const horizonEnd = addDays(today, horizonDays);
 
   return timeOff
@@ -265,6 +357,11 @@ export function buildUpcomingTimeOff(
         type: span.type,
         startsInDays: Math.max(0, startsInDays),
         ongoing: startsInDays <= 0,
+        projects: projectsOverlapping(
+          rolesByStaff.get(span.staffId) ?? [],
+          span.startDate,
+          span.endDate,
+        ),
       };
     })
     .sort((a, b) =>

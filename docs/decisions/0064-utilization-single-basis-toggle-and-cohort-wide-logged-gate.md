@@ -1,4 +1,4 @@
-# 0063 — Utilization report v2: one basis at a time with deviation flags, no tentative roles, per-person hours-based LoB attribution, and a cohort-wide logged gate
+# 0064 — Utilization report v2: one basis at a time with deviation flags, no tentative roles, per-person hours-based LoB attribution, and a cohort-wide logged gate
 
 **Status:** accepted · 2026-08-03 · **no schema change, no migration, no matrix change** ·
 **supersedes [ADR 0062](./0062-utilization-report-two-series-and-timesheet-disclosure.md)

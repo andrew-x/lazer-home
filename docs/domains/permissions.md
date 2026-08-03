@@ -158,14 +158,14 @@ utilization report, *reading* other people's logged hours**:
   **There is deliberately no own-row path.** Earlier the read scoped the queries to the viewer and
   populated their single row; a single-basis report showing one row and "restricted" everywhere
   else is worse than not offering the basis, and their own hours are already on `/timesheets`. The
-  change **only tightens** disclosure ([ADR 0063](../decisions/0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §6).
+  change **only tightens** disclosure ([ADR 0064](../decisions/0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §6).
 
   **No matrix row changed** by either ADR. If the audience ever needs to widen (actuals without
   edit rights), the named path is a new **`timesheets.view`** capability added in lockstep across
   `permissions.ts`, `permissions.test.ts` and this doc — **not** loosening the scope in that read.
   See [utilization.md](./utilization.md),
   [ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md) and
-  [ADR 0063](../decisions/0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md).
+  [ADR 0064](../decisions/0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md).
 
 Another capability gates a **read** rather than a write (as `projects.viewMargin`
 above does):

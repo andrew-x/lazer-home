@@ -1,7 +1,7 @@
 # 0062 — Utilization report: two never-summed series, cross-person actuals gated on `timesheets.edit`, a billable-only cohort
 
 **Status:** accepted, **§1, §3, §7, §8 and §9 superseded by
-[ADR 0063](./0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md)** (2026-08-03 —
+[ADR 0064](./0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md)** (2026-08-03 —
 one basis at a time with deviation flags, tentative roles dropped, per-person hours-based LoB
 attribution, a cohort-wide logged gate with no own-row path, and period-to-date presets).
 **§2, §4, §5 and §6 stand unchanged.** · 2026-08-02 · **no schema change, no migration, no matrix change** ·
@@ -34,7 +34,7 @@ documented in [domains/utilization.md](../domains/utilization.md); this ADR reco
 
 ### 1. Two series everywhere, and they are never added
 
-> **Superseded by [ADR 0063](./0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §1.**
+> **Superseded by [ADR 0064](./0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §1.**
 > Both series are still computed and still never summed, but a **basis toggle** picks which one the
 > page renders; the comparison is surfaced as a **deviation flag** instead of a second column.
 > Everything below about the *planned* basis and `HOURS_PER_DAY` still holds.
@@ -66,7 +66,7 @@ wrong.
 
 ### 3. The page is open; the **confirmed series** is gated on `timesheets.edit`
 
-> **Narrowed by [ADR 0063](./0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §6.**
+> **Narrowed by [ADR 0064](./0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §6.**
 > The gate is the same capability, but it is now **cohort-wide with no own-row path**: without
 > `timesheets.edit` the read **skips both timesheet queries entirely** and `canViewLogged: boolean`
 > replaced `confirmedStaffIds`. The open page, the PTO-*type* posture and the `null`-never-`0`
@@ -142,7 +142,7 @@ is the whole reason to look.
 
 ### 7. Line-of-business attribution: days for the plan, hours for the actuals
 
-> **Superseded in full by [ADR 0063](./0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §3.**
+> **Superseded in full by [ADR 0064](./0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §3.**
 > Both sides now count **hours**, the card is **one row per person**, and **leave taken while
 > staffed on a project books against that project's practice** rather than the person's home one.
 > Only the "`projects` has no line of business, so unstaffed hours fall back home" point survives.
@@ -164,7 +164,7 @@ is the whole reason to look.
 
 ### 8. The forecast toggle includes tentative roles at **full** weight — tiers deferred, not forgotten
 
-> **Superseded by [ADR 0063](./0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §2.**
+> **Superseded by [ADR 0064](./0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §2.**
 > Tentative roles are **gone entirely** — the read takes `confirmed` only, and `TENTATIVE_WEIGHT`,
 > the `includeTentative` input and the Forecast switch are deleted. The reasoning below (no
 > win-probability field exists) is exactly why: full weight was the only option, and it made every
@@ -182,7 +182,7 @@ answer "how full are we going to be"); headcount, roles, bench, PTO and LoB alig
 
 ### 9. The window lives in the URL, capped at 366 days
 
-> **Amended by [ADR 0063](./0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §7–§8.**
+> **Amended by [ADR 0064](./0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §7–§8.**
 > The URL contract, the degrade-don't-error parsing, the 366-day cap and window-length stepping all
 > stand — but the default is now the current month **to date** (four period-to-date presets;
 > `currentMonthRange()` deleted), and the in-memory state is **basis + line of business** with the

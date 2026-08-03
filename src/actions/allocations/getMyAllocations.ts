@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, gte, inArray, lte, max, min } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, max, min } from "drizzle-orm";
 import { getCurrentStaffId } from "@/actions/staff/getCurrentStaffId";
 import { db } from "@/lib/db/db";
 import {
@@ -9,17 +9,26 @@ import {
   projectRoles,
   projects,
 } from "@/lib/db/schema";
-import type { TimelineRoleInput } from "@/lib/home/allocation-timeline";
-import { timelineWindow } from "@/lib/home/allocation-timeline";
+import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
+import type { ProjectRoleType } from "@/lib/projects/project-role-type";
 import { currentDay } from "@/lib/timesheets/timesheet-week";
 
 /**
- * One of the signed-in person's project roles. Structurally a
- * {@link TimelineRoleInput} so the timeline's pure layout math takes it directly,
- * plus the client name the home card shows next to the project.
+ * One of the signed-in person's project roles, with the client name the home
+ * table shows next to the project.
  */
-export type MyAllocationRole = TimelineRoleInput & {
+export type MyAllocationRole = {
+  roleId: string;
+  projectId: string;
+  projectName: string;
   companyName: string;
+  roleType: ProjectRoleType;
+  status: ProjectRoleStatus;
+  description: string | null;
+  startDate: string;
+  endDate: string;
+  /** Nominal hours a day; percent of a full day is `hoursPerDay / 8`. */
+  hoursPerDay: number;
 };
 
 /**
@@ -49,22 +58,24 @@ export type MyAllocationsView = {
 const LIVE_STATUSES = ["tentative", "confirmed"] as const;
 
 /**
- * The signed-in person's own allocations, for the home dashboard's "active
- * projects" tile and allocation timeline.
+ * The signed-in person's own allocations, for the home dashboard's "Your Status"
+ * table — what they're on, from when to when, at how many hours a day.
  *
  * **Takes no `staffId`.** It is own-data-only by construction, so there is no
  * cross-user id to authorize and no gate to get wrong; the `(app)` layout has
  * already established that the viewer is signed in with an active staff record.
  * An unlinked account gets empty lists rather than an error.
  *
- * Roles are bounded to the timeline's display window (`@/lib/home/allocation-timeline`)
- * so the SQL and the rendering can't disagree about what "recent" means.
+ * Roles are **live or upcoming** — anything whose `endDate` is today or later, with
+ * no forward bound. An earlier version clipped them to a gantt's −1/+2-month display
+ * window; that gantt is gone, and clipping would have hidden a role starting next
+ * quarter from a table whose whole job is showing what's next.
  */
 export async function getMyAllocations(): Promise<MyAllocationsView> {
   const staffId = await getCurrentStaffId();
   if (!staffId) return { staffId: null, roles: [], managedProjects: [] };
 
-  const window = timelineWindow(currentDay());
+  const today = currentDay();
 
   const [roleRows, managedRows] = await Promise.all([
     db
@@ -87,9 +98,10 @@ export async function getMyAllocations(): Promise<MyAllocationsView> {
         and(
           eq(projectRoles.staffId, staffId),
           inArray(projectRoles.status, [...LIVE_STATUSES]),
-          // Overlaps the window: starts before it ends, ends after it starts.
-          lte(projectRoles.startDate, window.end),
-          gte(projectRoles.endDate, window.start),
+          // Live or upcoming, with no upper bound: the home table answers "what am
+          // I on, and what's next", so a role starting six months out belongs in it.
+          // Roles that have already ended are the only ones excluded.
+          gte(projectRoles.endDate, today),
         ),
       )
       .orderBy(asc(projectRoles.startDate)),

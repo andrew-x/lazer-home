@@ -190,8 +190,12 @@ export async function seedStaff(db: SeedDb): Promise<Staff[]> {
       ),
     );
     // A slice of the delivery bench is hourly — the schema's stand-in for
-    // part-time. Without any, the utilization report's part-time figures, its
-    // "n/a" capacity cells and its type filter all read as empty.
+    // part-time; management stays salaried. Without any, two surfaces go
+    // undemonstrable in dev: the utilization report's part-time figures, "n/a"
+    // capacity cells and type filter all read as empty, and on the home
+    // dashboard the Hourly availability filter is always empty while the
+    // *normalized* staffing rate — whose denominator is full-time headcount —
+    // prints the same number as the plain rate, so the distinction looks broken.
     employmentRows.push(
       makeEmployment(
         id,
