@@ -121,7 +121,7 @@ export function DashboardFilterBar({
           onChange={filters.setLineOfBusiness}
         />
         <SegmentedFilter
-          label="Employment type"
+          label="Type"
           value={filters.employmentType}
           options={options.employmentType}
           labels={EMPLOYMENT_TYPE_LABELS}

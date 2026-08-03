@@ -80,7 +80,7 @@ export function AvailabilityPanel({
         ) : (
           <>
             <SegmentedFilter
-              label="Employment"
+              label="Type"
               value={employmentType ?? ALL}
               options={EMPLOYMENT_TYPES}
               labels={EMPLOYMENT_TYPE_LABELS}
