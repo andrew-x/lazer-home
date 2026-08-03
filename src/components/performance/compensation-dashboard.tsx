@@ -36,15 +36,15 @@ import { formatLevel, RATING_LEVELS } from "@/lib/staff/staff-rating";
 const LEVEL_ORDER = RATING_LEVELS.map((level) => formatLevel(level));
 
 /**
- * The **Compensation dashboard** (`/analytics/compensation`): workforce headcount
+ * The **Compensation dashboard** (`/reporting/compensation`): workforce headcount
  * + compensation, overall and broken down **by role** and **by staff level**, over
  * anonymized latest-employment rows. Gated by `staff.viewCompensation` at the page.
  *
  * Two sibling dashboards own the neighbouring cuts of the same workforce, and the
  * split is deliberate — each answers one question rather than this page answering
  * three: level *analytics* (distribution, average level, subratings) live at
- * `/analytics/levels` (`levels-dashboard.tsx`), and one-off **bonus payments** at
- * `/analytics/bonuses` (`bonus-dashboard.tsx`). Bonuses in particular don't
+ * `/reporting/levels` (`levels-dashboard.tsx`), and one-off **bonus payments** at
+ * `/reporting/bonuses` (`bonus-dashboard.tsx`). Bonuses in particular don't
  * reconcile per-head with anything here — they include people who have since left
  * — which is why they no longer sit under these tables.
  */

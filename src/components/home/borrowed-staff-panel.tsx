@@ -29,7 +29,7 @@ import type { OrgBorrowed } from "@/lib/home/org-status";
  * Confirmed roles only, and only spans covering today, consistently with the
  * staffing panel: a tentative cross-line booking hasn't lent anyone anywhere yet.
  *
- * Related: `/analytics/utilization` measures the same drift as a day-weighted
+ * Related: `/reporting/utilization` measures the same drift as a day-weighted
  * aggregate over a range (`buildLobAlignment`). This is the named-people view of
  * today. Keep both — "how much drift" and "who, right now" are different questions.
  *

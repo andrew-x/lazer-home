@@ -1,5 +1,5 @@
 /**
- * Foreign-exchange conversion for compensation analytics. Pure and
+ * Foreign-exchange conversion for compensation reporting. Pure and
  * client-importable (no `db`/drizzle) so the server read, the dashboard, and its
  * tests all share one conversion helper.
  *

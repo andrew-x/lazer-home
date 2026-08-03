@@ -27,7 +27,7 @@ another person's logged hours, and the existing timesheet reads fail *closed* on
 
 ## Decision
 
-Ship a read-only report at **`/analytics/utilization`**, computed by a pure module
+Ship a read-only report at **`/reporting/utilization`**, computed by a pure module
 (`src/lib/utilization/utilization-report.ts`) whose **module docstring is the authoritative
 statement of every definition** — the read is a projection, not a calculator. The surface is
 documented in [domains/utilization.md](../domains/utilization.md); this ADR records the *why*.
@@ -217,7 +217,8 @@ month lands on the month before and an arbitrary 10-day window steps 10 days.
   `allocations/planner-range.tsx`. The planner keeps the granularity-aware chevrons around a pair of
   them; this report wraps the same pair in window-length chevrons. Any future bounded date-range control
   should reuse it rather than re-open-code a calendar popover.
-- **The Dashboards nav parent is no longer gated**, and `/analytics` no longer `notFound()`s.
+- **The Dashboards nav parent is no longer gated** (that section is called **Reporting** as of
+  2026-08-03 — [ADR 0055](./0055-nav-dashboards-vs-people-management.md)), and `/reporting` no longer `notFound()`s.
   `staff.viewCompensation` moved down onto the Compensation and Bonuses children; Utilization is an
   ungated child, and the section index falls through to it. A section is now **as loose as its loosest
   child** — the inverse of the note ADR 0055 left there, and the rule to follow when adding a dashboard.

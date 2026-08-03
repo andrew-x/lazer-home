@@ -393,7 +393,7 @@ function levelTargetGapPercent({
  * formatter, so a converted figure never appears unlabelled.
  *
  * Typed as {@link DisplayCurrency}, not `Currency`: this is a reporting currency,
- * so it belongs to the narrow set the analytics surfaces normalize to.
+ * so it belongs to the narrow set the reporting surfaces normalize to.
  */
 export const PLAN_SUMMARY_CURRENCY: DisplayCurrency = "CAD";
 

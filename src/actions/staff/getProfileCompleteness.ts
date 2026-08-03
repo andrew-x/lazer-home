@@ -73,7 +73,7 @@ function filled(column: AnyPgColumn) {
 
 /**
  * Profile completeness across every staff member, for the People-management
- * table at `/people/profile-completeness`.
+ * table at `/reporting/profile-completeness`.
  *
  * Gated on `staff.edit` (manager/admin) in its own right, not just by the route:
  * an action has no layout above it, and this is a cross-person management view.

@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { BONUS_TYPE_LABELS, BONUS_TYPES } from "@/lib/staff/staff-bonus";
 
 /**
- * The **Bonuses dashboard** (`/analytics/bonuses`): what we paid out in one
+ * The **Bonuses dashboard** (`/reporting/bonuses`): what we paid out in one
  * calendar year, broken down by line of business, role and bonus type. Gated by
  * `staff.viewCompensation` (`BONUS_PAYMENT_READ_ACCESS`) at the page.
  *

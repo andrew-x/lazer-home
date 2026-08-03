@@ -3,7 +3,7 @@ import { revalidateStaffProfile } from "@/actions/staff/staffProfileMutation";
 import { UserSafeActionError } from "@/lib/core/errors";
 
 /** The dashboard and the entry screen both read every payment. */
-const BONUS_READER_PATHS = ["/analytics/bonuses", "/people/bonus-payments"];
+const BONUS_READER_PATHS = ["/reporting/bonuses", "/people/bonus-payments"];
 
 /**
  * Revalidate everything that renders bonus payments after a mutation: the bonus

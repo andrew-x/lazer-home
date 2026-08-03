@@ -101,7 +101,7 @@ async function main() {
       staff,
     );
     // Both profile surveys (Manual of Me + Ways of Working), unevenly filled in
-    // so `/people/profile-completeness` has a real spread to sort.
+    // so `/reporting/profile-completeness` has a real spread to sort.
     const responseCount = await seedResponses(db, staff);
     const taskCount = await seedTasks(
       db,

@@ -34,7 +34,7 @@ so the admin role retains its built-in capabilities) with two business resources
     (managers/admins only), *not* the owner-or-`staff.edit` hook the profile fields
     use — [ADR 0041](../decisions/0041-allocation-notes-on-staff.md),
     [allocations.md](./allocations.md);
-  - the **profile-completeness table** (`/people/profile-completeness`, exported as
+  - the **profile-completeness table** (`/reporting/profile-completeness`, exported as
     `PROFILE_COMPLETENESS_ACCESS`) — a cross-person *read* of who has and hasn't
     filled their profile in. See *Reusing a capability for a new surface* below.
 
@@ -43,9 +43,9 @@ so the admin role retains its built-in capabilities) with two business resources
   their profile and in the history feed, **and their bonus payments** — the drawer's
   Bonuses tab and the feed's `BONUS` entries, since the fact a bonus was paid is itself
   comp information), **and** every bulk/aggregate comp surface: the Compensation
-  dashboard (`/analytics/compensation`), including its comp-by-level table (which
+  dashboard (`/reporting/compensation`), including its comp-by-level table (which
   additionally needs `ratings.view`), and the Bonus dashboard
-  (`/analytics/bonuses`, as `BONUS_PAYMENT_READ_ACCESS`). (Your own
+  (`/reporting/bonuses`, as `BONUS_PAYMENT_READ_ACCESS`). (Your own
   compensation — and your own bonuses — are always visible.)
 - **`pto.review`** — view the aggregated PTO summary of *other* staff. (Your own
   PTO is always visible.)
@@ -136,7 +136,7 @@ utilization report, *reading* other people's logged hours**:
   it can't be a static permission alone). See the
   [timesheets domain](timesheets.md).
 
-  **It is also a read gate.** The **Utilization report** (`/analytics/utilization`) is the
+  **It is also a read gate.** The **Utilization report** (`/reporting/utilization`) is the
   only surface where one person could see another's logged hours, and it **reuses this
   capability rather than adding one** — the set who may already edit anyone's timesheet is
   exactly the set who may already read anyone's hours. The page itself is **ungated** (its
@@ -206,13 +206,15 @@ sensitive read/write with **no ownership dimension** — unlike compensation or
 feedback, a staffer never sees their *own* rating:
 
 - **`ratings.view`** — view staff overall levels: the **Levels dashboard** at
-  `/analytics/levels` (distribution, average level, average-by-role, per-role
+  `/reporting/levels` (distribution, average level, average-by-role, per-role
   subrating averages — **no compensation rendered there at all**) and the edit page's
   current levels. Manager/admin only; there is no self-view path. Its siblings
-  `/analytics/compensation` and `/analytics/bonuses` are gated on
-  `staff.viewCompensation` instead, while the fourth — **`/analytics/utilization` — is
-  ungated**, and **`/analytics` is a redirect** (comp → levels → **utilization** as the
-  fallback, so the section no longer `notFound()`s for anyone). The **Analytics nav parent
+  `/reporting/compensation` and `/reporting/bonuses` are gated on
+  `staff.viewCompensation` instead, while the fourth — **`/reporting/utilization` — is
+  ungated**, and **`/reporting` is a redirect** (comp → levels → **utilization** as the
+  fallback, so the section no longer `notFound()`s for anyone; the fifth child,
+  `/reporting/profile-completeness`, needs no redirect branch because the ladder can't
+  fall through past an ungated destination). The **Reporting nav parent
   is consequently ungated too**: `staff.viewCompensation` moved down onto the Compensation and
   Bonuses children, so a section is now as loose as its loosest child.
   The one **overlap** sits on the *comp* page: its **compensation-by-level** table
@@ -220,14 +222,16 @@ feedback, a staffer never sees their *own* rating:
   levels input is fetched only for `ratings.view` holders (the optional
   `ratingRecords` prop), so finance sees that dashboard minus that one table. See
   [ADR 0044](../decisions/0044-performance-dashboards-split-by-permission.md).
-  The Performance **nav parent** is gated on the looser `staff.viewCompensation`,
-  which is only sound because every `ratings.view` role also holds it (row 5–6
-  below) — **if that ever changes, change the parent gate in `nav.ts`.**
+  (The Reporting **nav parent** used to be gated on the looser
+  `staff.viewCompensation`, sound only because every `ratings.view` role also holds it
+  (row 5–6 below). It is **ungated** now, so that coupling is gone — but the rule it
+  came from still binds: **a parent must be as loose as its loosest child**, so check
+  `nav.ts` whenever a child's gate loosens.)
   **That coupling load-bears one more place:** `getRatingsSummaryData` is gated on
   `ratings.view` alone, yet its rows carry comp **amounts**
   (`RatingRecord.employment` is the full `CompensationDimensions`) — so granting
   `ratings.view` to a role *without* `staff.viewCompensation` would make that read
-  (and `/analytics/levels`, which fetches it) a bulk-comp leak, even though the
+  (and `/reporting/levels`, which fetches it) a bulk-comp leak, even though the
   page renders no money. See [performance.md](performance.md) → *Compensation by
   level*.
 - **`ratings.edit`** — assign / change levels and save an evaluation (a new dated
@@ -271,15 +275,20 @@ The composite gates above are two of these; the single-capability ones are:
 
 - **`PROFILE_COMPLETENESS_ACCESS = { staff: ["edit"] }`**
   (`src/lib/staff/profile-completeness.ts`) — the profile-completeness table
-  (`/people/profile-completeness`, see
-  [staff-profiles.md](./staff-profiles.md#profile-completeness-peopleprofile-completeness)).
+  (`/reporting/profile-completeness`, see
+  [staff-profiles.md](./staff-profiles.md#profile-completeness-reportingprofile-completeness)).
   **Chasing profile completion belongs to whoever may edit those profiles**, so it
   reuses `staff.edit` ({manager, admin}); null/unknown roles deny as always.
   Two things make that sound rather than merely convenient: the surface is
   **named per-person but discloses only whether a field is populated** — the read
   computes presence/counts in SQL and ships **no profile content** — and the gate is
   enforced **at the read** (`requirePermission`) as well as at the route, since an
-  action has no layout above it.
+  action has no layout above it. **Nav nuance (2026-08-03):** the entry moved from the
+  `ratings.edit`-gated People-management parent to the **ungated Reporting** parent, so the
+  sidebar finally matches this gate — before, a hypothetical `staff.edit`-only holder was
+  hidden from a page they were allowed to open. No capability, matrix row or page check
+  changed; `ratings.edit` and `staff.edit` have identical role rows today, so nobody's
+  effective access moved ([ADR 0055](../decisions/0055-nav-dashboards-vs-people-management.md)).
 - **`BONUS_PAYMENT_READ_ACCESS = { staff: ["viewCompensation"] }`** — the bonus
   dashboard, the read half of the bonus pair (its write half is the composite
   `BONUS_PAYMENT_WRITE_ACCESS`; see [performance.md](./performance.md)).

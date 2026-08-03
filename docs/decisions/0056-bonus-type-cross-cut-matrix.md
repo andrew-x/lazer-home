@@ -2,7 +2,7 @@
 
 **Status:** accepted · 2026-07-30 · builds on
 [ADR 0055](./0055-nav-dashboards-vs-people-management.md) (which made
-`/analytics/bonuses` a page of its own)
+`/reporting/bonuses` a page of its own)
 
 **TL;DR:** the bonus dashboard gains (a) a **type × line-of-business / role matrix**
 whose cells show **money only** — per-cell recipient counts would look like an
@@ -78,7 +78,7 @@ dimension row. `bonus-dashboard.tsx` owns the `bonusType` state (a `SegmentedFil
 over `BONUS_TYPES`) and passes the control in.
 
 **Bonus type must stay out of `useDashboardFilters` and `matchesFilters`.** Those are
-shared by `/analytics/compensation` and `/analytics/levels`, where no row has a
+shared by `/reporting/compensation` and `/reporting/levels`, where no row has a
 bonus type: putting it in the hook would either render a dead control on two other
 dashboards or need a per-dashboard visibility flag threaded through the shared module.
 The slot is the documented escape hatch for **a dimension exactly one dashboard has** —

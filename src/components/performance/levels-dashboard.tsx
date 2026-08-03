@@ -31,7 +31,7 @@ import { ROLE_LABELS } from "@/lib/staff/staff-enums";
 import { formatAverageLevel } from "@/lib/staff/staff-rating";
 
 /**
- * The **Levels dashboard** (`/analytics/levels`): staff level (L0–L4)
+ * The **Levels dashboard** (`/reporting/levels`): staff level (L0–L4)
  * analytics — distribution, average level overall and per role, and per-role
  * subrating averages. Gated by `ratings.view` (manager/admin) at the page, which
  * is stricter than the sibling Compensation dashboard's `staff.viewCompensation`

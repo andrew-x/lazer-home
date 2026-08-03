@@ -112,7 +112,7 @@ const AXES: readonly {
 ];
 
 /**
- * The body of the **Bonuses dashboard** (`/analytics/bonuses`): what we paid out
+ * The body of the **Bonuses dashboard** (`/reporting/bonuses`): what we paid out
  * in one calendar year, broken down by line of business, role and bonus type, then
  * with type crossed against the other two ({@link BonusTypeMatrix}).
  *

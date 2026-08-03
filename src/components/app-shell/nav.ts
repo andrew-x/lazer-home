@@ -55,39 +55,49 @@ export const NAV_ITEMS: NavItem[] = [
   { title: "Projects", href: "/projects", icon: IconBriefcase },
   { title: "Allocations", href: "/allocations", icon: IconCalendarStats },
   { title: "Timesheets", href: "/timesheets", icon: IconClock },
-  // Read-only analytics over the workforce. Everything here is aggregate and
-  // anonymized; the named, per-person surfaces live under People management.
+  // Read-only reporting over the workforce. The dividing line against People
+  // management is read vs. write, not aggregate vs. per-person: most of what's
+  // here is aggregate, but Profile completeness is a named per-person read and
+  // still belongs on this side, because nothing in it writes.
   {
-    title: "Analytics",
-    href: "/analytics",
+    title: "Reporting",
+    href: "/reporting",
     icon: IconChartBar,
     // Ungated, because Utilization is: it re-aggregates the allocation and leave
-    // data the planner already shows everyone. The money-bearing children carry
-    // their own `staff.viewCompensation` gate, so the section stays as loose as
-    // its loosest child rather than hiding an open page behind a comp capability.
-    // The parent href redirects to the first dashboard the viewer may see.
+    // data the planner already shows everyone. Every other child carries its own
+    // gate, so the section stays as loose as its loosest child rather than hiding
+    // an open page behind a capability. The parent href redirects to the first
+    // report the viewer may see.
     children: [
       // Capacity, staffing and logged time — open to every signed-in user; the
       // one sensitive series (other people's timesheets) is withheld in the read.
-      { title: "Utilization", href: "/analytics/utilization" },
-      // Headcount & compensation analytics.
+      { title: "Utilization", href: "/reporting/utilization" },
+      // Headcount & compensation reporting.
       {
         title: "Compensation",
-        href: "/analytics/compensation",
+        href: "/reporting/compensation",
         permission: { staff: ["viewCompensation"] },
       },
       // Bonus payments paid out, by year — reading a bonus is reading
       // compensation, so the same gate again.
       {
         title: "Bonuses",
-        href: "/analytics/bonuses",
+        href: "/reporting/bonuses",
         permission: { staff: ["viewCompensation"] },
       },
       // Levels are stricter than comp: manager/admin only, not finance.
       {
         title: "Levels",
-        href: "/analytics/levels",
+        href: "/reporting/levels",
         permission: { ratings: ["view"] },
+      },
+      // Who has and hasn't filled out their profile. Named per-person, but the
+      // only thing disclosed is whether a field is populated — so it takes the
+      // plain `staff.edit` gate held by whoever would chase them.
+      {
+        title: "Profile completeness",
+        href: "/reporting/profile-completeness",
+        permission: PROFILE_COMPLETENESS_ACCESS,
       },
     ],
   },
@@ -101,7 +111,6 @@ export const NAV_ITEMS: NavItem[] = [
     // {manager, admin} (`ratings.edit` and `staff.edit` have identical role rows,
     // and the two conjunctions add `viewCompensation`, which both already hold).
     // So this gate equals the union of the children rather than over-admitting.
-    // Profile completeness is the plain `staff.edit` case of that same set.
     permission: { ratings: ["edit"] },
     children: [
       // Assigning levels is more sensitive than viewing them → its own gate.
@@ -122,14 +131,6 @@ export const NAV_ITEMS: NavItem[] = [
         title: "Bonus payments",
         href: "/people/bonus-payments",
         permission: BONUS_PAYMENT_WRITE_ACCESS,
-      },
-      // Who has and hasn't filled out their profile. Named per-person, but the
-      // only thing disclosed is whether a field is populated — so it takes the
-      // plain `staff.edit` gate held by whoever would chase them.
-      {
-        title: "Profile completeness",
-        href: "/people/profile-completeness",
-        permission: PROFILE_COMPLETENESS_ACCESS,
       },
     ],
   },

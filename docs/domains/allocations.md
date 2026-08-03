@@ -18,7 +18,7 @@ dashboard's "Lazer Status" band** — a *point-in-time* staffing snapshot of the
 (who is on a confirmed role today, who is free which week, what starts/ends in 28 days,
 who is lent across lines of business), see *The home dashboard's "Lazer Status"* below and
 [ADR 0063](../decisions/0063-home-dashboard-two-time-bases-and-point-in-time-staffing.md) —
-and the **Utilization report** (`/analytics/utilization`), which reconciles the same plan
+and the **Utilization report** (`/reporting/utilization`), which reconciles the same plan
 against timesheet actuals over a chosen range.
 
 ## The planner view (realized) — mostly a read over `project_roles`
@@ -266,7 +266,7 @@ this domain:
 > **This is a *view* with a capacity indicator on it — still not the capacity model.**
 > It now **does** sum a person's load across projects per cell, net PTO out of it, and
 > flag over-allocation ([ADR 0060](../decisions/0060-allocations-capacity-meter.md)).
-> **Separately**, the **Utilization report** (`/analytics/utilization`) sums that same
+> **Separately**, the **Utilization report** (`/reporting/utilization`) sums that same
 > load again over a reporting window and reconciles it against submitted-timesheet
 > actuals, read-only — see [utilization.md](./utilization.md),
 > [ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md) and
@@ -383,7 +383,7 @@ before changing anything here — the time bases are load-bearing.
 
 ## Utilization: the plan read against the actuals
 
-`/analytics/utilization` is the read-only reporting counterpart to this planner, and the
+`/reporting/utilization` is the read-only reporting counterpart to this planner, and the
 only surface that reconciles `project_roles` (the plan) against `time_entries` (the actuals).
 It never shows them side by side: a **`Planned | Logged` basis toggle** picks one, and the other
 is spent on **deviation flags**. It matters to this domain in four ways, all detailed in
@@ -450,7 +450,7 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
 
 - **Staff profiles** — skills + availability drive who can be allocated.
 - **Timesheets** — actuals (`time_entries`) are logged against the same Person↔Project pairing (now **built**; logging isn't restricted to allocated projects). **Reconciling actuals against the `project_roles` plan is now built, read-only**, as the Utilization report's Planned/Logged bases plus its deviation flags — see [domains/utilization.md](./utilization.md) and [domains/timesheets.md](./timesheets.md).
-- **Performance** — utilization (from allocations vs. availability) is a performance input. The measurement now exists at `/analytics/utilization`; nothing feeds it into a review yet.
+- **Performance** — utilization (from allocations vs. availability) is a performance input. The measurement now exists at `/reporting/utilization`; nothing feeds it into a review yet.
 
 ## Open questions
 

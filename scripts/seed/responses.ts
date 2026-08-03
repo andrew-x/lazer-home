@@ -123,7 +123,7 @@ function waysOfWorkingFor(staffId: string, answerRate: number) {
  * Ways of Working.
  *
  * Nothing seeded these before, so both survey columns on
- * `/people/profile-completeness` read 0 for everyone on a fresh database and the
+ * `/reporting/profile-completeness` read 0 for everyone on a fresh database and the
  * feature couldn't be eyeballed. Coverage is deliberately uneven: some people
  * have neither survey, some have one, some are part-way through.
  */

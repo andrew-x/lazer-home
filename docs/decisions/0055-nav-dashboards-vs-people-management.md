@@ -6,12 +6,17 @@ merged `/performance` page into gated sibling routes; that decision stands — t
 regroups the result and moves the routes)
 
 **TL;DR:** `Dashboards` = the three aggregate, anonymized, read-only analytics pages
-(`/analytics/{compensation,bonuses,levels}`). `People management` = the three
+(`/reporting/{compensation,bonuses,levels}`). `People management` = the three
 identity-bearing write screens (`/people/{levels,compensation-plans,bonus-payments}`).
 Both section indexes are permission-aware redirects. Bonuses stop being a section of
 the Compensation dashboard and become a page. **No gate, read or schema changed.**
 
-> **Amended, 2026-07-30 (same day).** `People management` gained a **fourth** child,
+**Read this ADR through its amendments below.** As of 2026-08-03 the section is named
+**`Reporting`** and lives at **`/reporting/*`**, and the axis is **read vs. write** — the
+"aggregate and anonymized" framing (and the 2026-07-30 amendment built on it) is retired.
+
+> **Amended, 2026-07-30 (same day) — ⚠️ SUPERSEDED by the 2026-08-03 amendment below;
+> kept for the record, don't reason from it.** `People management` gained a **fourth** child,
 > `/people/profile-completeness` — which is **read-only, and owned by the staff
 > domain, not performance**. The dividing line the ADR actually draws is
 > **aggregate-and-anonymized vs. about-named-individuals**, not read vs. write, so a
@@ -19,15 +24,64 @@ the Compensation dashboard and become a page. **No gate, read or schema changed.
 > as "aggregate analytics" and "per-person management screens". The redirect ladder
 > takes the new branch **last** (all four gates are {manager, admin} today, so nobody's
 > landing page moved). See
-> [domains/staff-profiles.md](../domains/staff-profiles.md#profile-completeness-peopleprofile-completeness).
+> [domains/staff-profiles.md](../domains/staff-profiles.md#profile-completeness-reportingprofile-completeness).
 
-> **Renamed, 2026-08-03.** The section is now labelled **`Analytics`** and lives at
+> **Renamed, 2026-08-03 (superseded hours later by the amendment below — the section is
+> `Reporting` now, not `Analytics`).** The section was relabelled **`Analytics`** and moved to
 > **`/analytics/*`** (`/dashboards/*` is gone, not redirected — nothing linked to it
 > from outside the app). The route paths below have been updated in place; the word
 > `Dashboards` is left as this ADR wrote it, so read it as `Analytics`. The split this
 > ADR decided is unchanged; only the label and the URL segment moved. The same round
 > **deleted `/settings`** (account info + sign out, both already elsewhere) and moved
 > **Peer Feedback** above Companies in `NAV_ITEMS`; neither touches a gate.
+
+> **Renamed again + axis changed, 2026-08-03.** Two related moves, both deliberate calls
+> by the repo owner:
+>
+> 1. **The section is now labelled `Reporting` and lives at `/reporting/*`.** The route
+>    directory moved (`git mv`, history preserved); `/analytics/*` is gone and **not
+>    redirected**, the same precedent as `/dashboards/*` above — internal app, no external
+>    links worth a rewrite layer. Every route in the tables below reads `/reporting/*` now,
+>    and the label words `Dashboards`/`Analytics` are left as this ADR wrote them: read
+>    `Dashboards` → `Analytics` → **`Reporting`**. `revalidatePath` literals moved with the
+>    routes (`BONUS_READER_PATHS`, `commitCompensationPlan`, `saveStaffEvaluation`) — the
+>    standing tax noted under *Consequences*, now paid a third time.
+> 2. **The organizing axis is `read` vs. `write`** — which is what this ADR's title and
+>    original *Decision* said, and what the 2026-07-30 amendment above talked itself out of.
+>    **Reporting = every read-only workforce surface. People management = the write
+>    surfaces** (assigning levels, proposing comp, recording payments). **Aggregate-vs-
+>    per-person is no longer the line.** Most of Reporting *is* aggregate, but
+>    **`/reporting/profile-completeness` is a named per-person read and sits there anyway,
+>    because nothing in it writes.** It is Reporting's **fifth and last** child (after
+>    Levels); People management drops to **three**.
+>
+> **The counter-argument this overturns** (so a future reader sees the trade, not just the
+> outcome): profile completeness is owned by the **staff** domain, not performance, and its
+> rows are about **named individuals** — under the 2026-07-30 framing that put it squarely
+> with the per-person management screens. Overturned because the axis it appealed to had to
+> be invented *for it*: "aggregate and anonymized" was already false of the section the
+> moment that page joined, so the section name stopped predicting anything. Read-vs-write is
+> checkable from the code (does this surface mutate?) and needs no exception. Cost accepted:
+> Reporting is no longer safe to describe as anonymized, and a reader can no longer assume a
+> Reporting page discloses no identities — **that claim is retired**, and any doc or comment
+> leaning on it was updated in this round.
+>
+> **Permissions: nothing changed.** `PROFILE_COMPLETENESS_ACCESS` is still
+> `{ staff: ["edit"] }`, still checked in the page (`notFound()`) *and* in
+> `getProfileCompleteness` (`requirePermission`). No matrix row, capability, gate or read
+> moved. **The one behavioural nuance:** the nav entry used to sit under the
+> `{ ratings: ["edit"] }`-gated People-management parent, so a hypothetical `staff.edit`-only
+> holder couldn't reach from the sidebar a page they were allowed to open; under the
+> **ungated** Reporting parent the nav finally matches the page's own gate. `ratings.edit`
+> and `staff.edit` have identical role rows ({manager, admin}) today, so **no one's actual
+> access changed** — but the nav is now right for the reason, not by coincidence.
+>
+> **Two structural notes.** The Reporting parent stays **ungated**, still correct under
+> *a parent is as loose as its loosest child* (Utilization is open to everyone) — so the
+> parent-gate row in the table below reads `staff.viewCompensation` only as history; ADR 0062
+> retired it. And the `/reporting` redirect ladder gets **no profile-completeness branch**:
+> utilization is ungated, so the ladder can never fall through past it. The `/people` ladder
+> lost its `PROFILE_COMPLETENESS_ACCESS` branch and is down to three.
 
 ## Context
 
@@ -66,10 +120,10 @@ people, and give bonuses their own dashboard.**
 
 | Section | Route | Gate |
 |---|---|---|
-| **Dashboards** (`IconChartBar`) | `/analytics` → redirect | `staff.viewCompensation` |
-| | `/analytics/compensation` | (parent's) |
-| | `/analytics/bonuses` | `BONUS_PAYMENT_READ_ACCESS` = `staff.viewCompensation` |
-| | `/analytics/levels` | `ratings.view` |
+| **Dashboards** (`IconChartBar`) | `/reporting` → redirect | `staff.viewCompensation` |
+| | `/reporting/compensation` | (parent's) |
+| | `/reporting/bonuses` | `BONUS_PAYMENT_READ_ACCESS` = `staff.viewCompensation` |
+| | `/reporting/levels` | `ratings.view` |
 | **People management** (`IconUserStar`) | `/people` → redirect | `ratings.edit` |
 | | `/people/levels` | `ratings.edit` |
 | | `/people/compensation-plans` (+ `[planId]`, `[planId]/staff`) | `COMPENSATION_PLAN_ACCESS` |
@@ -91,7 +145,7 @@ gate later can't silently drop a viewer onto a 404.
 
 ### The bonus dashboard
 
-`/analytics/bonuses` is a page of its own with the same `staff.viewCompensation`
+`/reporting/bonuses` is a page of its own with the same `staff.viewCompensation`
 gate, now expressed through the **existing** `BONUS_PAYMENT_READ_ACCESS` constant
 rather than a hand-written literal. `BonusDashboard` (`bonus-dashboard.tsx`) is a thin
 shell: it owns `useDashboardFilters()`, renders `DashboardFilterBar` (with `rates` —

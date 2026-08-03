@@ -24,7 +24,7 @@ export default async function EditLevelsPage() {
         {/* `ratings.edit` implies `ratings.view` (identical role rows), so this
             link across to the read-only dashboard can never 404. */}
         <Link
-          href="/analytics/levels"
+          href="/reporting/levels"
           className="flex w-fit items-center gap-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
           <IconArrowLeft className="size-4" />
