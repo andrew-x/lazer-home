@@ -31,9 +31,12 @@ export function LogoMark({
 export function LogoWordmark({
   className,
   height = 24,
+  priority = false,
 }: {
   className?: string;
   height?: number;
+  /** Set on above-the-fold instances (e.g. the shell sidebar) so it isn't lazy-loaded as the LCP. */
+  priority?: boolean;
 }) {
   // logo.svg is 1895×750; preserve that aspect ratio off the requested height.
   return (
@@ -43,6 +46,7 @@ export function LogoWordmark({
       width={Math.round(height * (1895 / 750))}
       height={height}
       unoptimized
+      priority={priority}
       className={cn("select-none", className)}
     />
   );
