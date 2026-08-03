@@ -158,18 +158,39 @@ export type StaffingRate = {
  */
 export type RoleStaffing = StaffingRate & { role: Role | "OTHER" };
 
-/** The staffing panel's whole model. */
-export type StaffingSummary = StaffingRate & {
-  /** People on `FULL_TIME` employment — the normalized denominator. */
-  fullTimeCount: number;
+/** One employment cohort's staffing figures, with its discipline breakdown. */
+export type StaffingSummary = StaffingRate & { byRole: RoleStaffing[] };
+
+/**
+ * The staffing panel's whole model: the population split by employment type, plus
+ * the one figure that spans both.
+ *
+ * The split is the panel's axis rather than a filter, because the two cohorts answer
+ * different questions and their rates aren't comparable: a salaried person off a
+ * project is idle cost, while an hourly person off a project mostly isn't. There is
+ * deliberately no combined view — a blended rate is the number that means least.
+ */
+export type StaffingModel = {
+  fullTime: StaffingSummary;
+  hourly: StaffingSummary;
   /**
-   * `staffed / fullTimeCount`. **Deliberately uncapped:** staffed hourly people
-   * measured against a full-time denominator can exceed 100%, and that excess is
-   * the signal — it means the org is delivering more than its salaried base could.
-   * Null when nobody is full time, never 0.
+   * **All** staffed people — both cohorts — over full-time headcount.
+   * **Deliberately uncapped:** staffed hourly people measured against a full-time
+   * denominator can exceed 100%, and that excess is the signal — it means the org is
+   * delivering more than its salaried base could. Null when nobody is full time,
+   * never 0.
+   *
+   * It lives here rather than on `fullTime` because it is the one figure that
+   * crosses the split: its numerator is the whole population. That is also why the
+   * panel shows it on the full-time tab only — the denominator is full-time
+   * headcount, so it is not a fact about hourly staff.
    */
   normalizedRate: number | null;
-  byRole: RoleStaffing[];
+  /**
+   * The whole population, both cohorts. Only for distinguishing "there is nobody at
+   * all" from "there is nobody in *this* cohort" — never divided by.
+   */
+  headcount: number;
 };
 
 /** Whole days between two ISO dates, computed in UTC to sidestep DST. */
@@ -458,10 +479,20 @@ const ROLE_ORDER: readonly RoleStaffing["role"][] = [
 ];
 
 /**
- * How much of the bench is working, as of now.
- *
- * Counts **people**, not hours — "how many of us are on something" is the question,
- * and an hours-weighted version of it is what `/dashboards/utilization` is for.
+ * Anyone in the billable population whose discipline isn't a delivery one — an
+ * overhead role carrying `isBillable: true` (the employment fact and the role are
+ * independent), or no recorded role at all. They get an `OTHER` row rather than being
+ * dropped, so the discipline rows always account for the same people as Overall; a
+ * breakdown that silently omits someone is worse than an odd row.
+ */
+function bucketOf(person: OrgPerson): RoleStaffing["role"] {
+  return person.role && DELIVERY_ROLES.includes(person.role)
+    ? person.role
+    : "OTHER";
+}
+
+/**
+ * One cohort's figures, overall and per discipline.
  *
  * There is deliberately **no small-cohort suppression** here — a one-person
  * discipline row reports its rate like any other. Suppression is for figures that
@@ -471,25 +502,10 @@ const ROLE_ORDER: readonly RoleStaffing["role"][] = [
  * `getOrgUtilization`). These are headcounts over allocations `/allocations` already
  * publishes by name, so a small row reveals nothing new. Don't add one.
  *
- * Empty-cohort rows are still returned so the table can render "—" rather than a
+ * Empty-discipline rows are still returned so the table can render "—" rather than a
  * fabricated 0%.
  */
-export function summarizeStaffing(
-  people: readonly OrgPerson[],
-): StaffingSummary {
-  const staffed = people.filter((person) => person.staffedToday).length;
-  const fullTimeCount = people.filter(
-    (person) => person.employmentType === "FULL_TIME",
-  ).length;
-
-  // Anyone in the billable population whose discipline isn't a delivery one — an
-  // overhead role carrying `isBillable: true` (the employment fact and the role are
-  // independent), or no recorded role at all. They get an `OTHER` row rather than
-  // being dropped, so the discipline rows always account for the same people as
-  // Overall; a breakdown that silently omits someone is worse than an odd row.
-  const bucketOf = (person: OrgPerson): RoleStaffing["role"] =>
-    person.role && DELIVERY_ROLES.includes(person.role) ? person.role : "OTHER";
-
+function summarizeCohort(people: readonly OrgPerson[]): StaffingSummary {
   const byRole = ROLE_ORDER.map((role) => {
     const cohort = people.filter((person) => bucketOf(person) === role);
     return {
@@ -505,10 +521,42 @@ export function summarizeStaffing(
     .filter((row) => row.role !== "OTHER" || row.headcount > 0);
 
   return {
-    ...rateOf(staffed, people.length),
-    fullTimeCount,
-    normalizedRate: fullTimeCount > 0 ? staffed / fullTimeCount : null,
+    ...rateOf(
+      people.filter((person) => person.staffedToday).length,
+      people.length,
+    ),
     byRole,
+  };
+}
+
+/**
+ * How much of the bench is working, as of now — split by employment type.
+ *
+ * Counts **people**, not hours — "how many of us are on something" is the question,
+ * and an hours-weighted version of it is what `/dashboards/utilization` is for.
+ *
+ * The two cohorts partition the population: `employmentType` is `notNull` on
+ * `staff_employment`, and this population is `isBillable === true`, which is only
+ * true when a person *has* an employment row — so `OrgPerson.employmentType`'s
+ * `| null` (an artifact of the outer join upstream) is unreachable here and nobody
+ * falls between the tabs. Should that ever change, an unrecorded type counts toward
+ * neither cohort nor the normalized denominator, which is the safe direction: it
+ * understates rather than inventing salaried capacity.
+ */
+export function summarizeStaffing(people: readonly OrgPerson[]): StaffingModel {
+  const fullTimePeople = people.filter(
+    (person) => person.employmentType === "FULL_TIME",
+  );
+  const staffed = people.filter((person) => person.staffedToday).length;
+
+  return {
+    fullTime: summarizeCohort(fullTimePeople),
+    hourly: summarizeCohort(
+      people.filter((person) => person.employmentType === "HOURLY"),
+    ),
+    normalizedRate:
+      fullTimePeople.length > 0 ? staffed / fullTimePeople.length : null,
+    headcount: people.length,
   };
 }
 

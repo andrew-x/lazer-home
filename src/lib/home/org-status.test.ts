@@ -184,97 +184,149 @@ describe("buildOrgStatus — staffedToday", () => {
   });
 });
 
+/** An hourly person, since half these cases are about the second cohort. */
+function hourly(overrides: Partial<OrgPerson> = {}): OrgPerson {
+  return orgPerson({ employmentType: "HOURLY", ...overrides });
+}
+
 describe("summarizeStaffing", () => {
-  test("rate is staffed over headcount", () => {
-    const summary = summarizeStaffing([
+  test("rate is staffed over headcount, within the cohort", () => {
+    const model = summarizeStaffing([
       orgPerson({ staffedToday: true }),
       orgPerson({ staffId: "staff-2", staffedToday: true }),
       orgPerson({ staffId: "staff-3", staffedToday: false }),
       orgPerson({ staffId: "staff-4", staffedToday: false }),
     ]);
-    expect(summary.staffed).toBe(2);
-    expect(summary.headcount).toBe(4);
-    expect(summary.rate).toBe(0.5);
+    expect(model.fullTime).toMatchObject({
+      staffed: 2,
+      headcount: 4,
+      rate: 0.5,
+    });
+    expect(model.headcount).toBe(4);
+  });
+
+  test("the two cohorts partition the population and are measured apart", () => {
+    const model = summarizeStaffing([
+      orgPerson({ staffedToday: true }),
+      orgPerson({ staffId: "s2", staffedToday: false }),
+      hourly({ staffId: "s3", staffedToday: true }),
+      hourly({ staffId: "s4", staffedToday: true }),
+      hourly({ staffId: "s5", staffedToday: false }),
+    ]);
+    expect(model.fullTime).toMatchObject({
+      staffed: 1,
+      headcount: 2,
+      rate: 0.5,
+    });
+    expect(model.hourly).toMatchObject({
+      staffed: 2,
+      headcount: 3,
+    });
+    expect(model.hourly.rate).toBeCloseTo(2 / 3);
+    // Nobody is counted twice, and nobody is dropped.
+    expect(model.fullTime.headcount + model.hourly.headcount).toBe(
+      model.headcount,
+    );
   });
 
   test("an empty population yields null rates, never 0%", () => {
-    const summary = summarizeStaffing([]);
-    expect(summary.rate).toBeNull();
-    expect(summary.normalizedRate).toBeNull();
-    expect(summary.headcount).toBe(0);
+    const model = summarizeStaffing([]);
+    expect(model.fullTime.rate).toBeNull();
+    expect(model.hourly.rate).toBeNull();
+    expect(model.normalizedRate).toBeNull();
+    expect(model.headcount).toBe(0);
   });
 
-  // The normalized rate's whole point is that its denominator differs from the
-  // plain rate's. These cases pin that down, including the two shapes real data
-  // rarely produces: nobody full time, and a rate above 100%.
-  test("normalized rate divides by full-time headcount, not total headcount", () => {
-    const summary = summarizeStaffing([
+  test("an empty cohort is distinguishable from an empty population", () => {
+    const model = summarizeStaffing([hourly({ staffedToday: true })]);
+    // The panel needs this pair to say "no full-time staff" rather than
+    // "no staff at all".
+    expect(model.fullTime.headcount).toBe(0);
+    expect(model.headcount).toBe(1);
+  });
+
+  // The normalized rate's whole point is that its numerator and denominator come
+  // from different populations. These cases pin that down, including the two shapes
+  // real data rarely produces: nobody full time, and a rate above 100%.
+  test("normalized rate counts all staffed over full-time headcount", () => {
+    const model = summarizeStaffing([
       orgPerson({ staffedToday: true }),
-      orgPerson({
-        staffId: "staff-2",
-        employmentType: "HOURLY",
-        staffedToday: true,
-      }),
-      orgPerson({
-        staffId: "staff-3",
-        employmentType: "HOURLY",
-        staffedToday: false,
-      }),
+      hourly({ staffId: "staff-2", staffedToday: true }),
+      hourly({ staffId: "staff-3", staffedToday: false }),
     ]);
-    expect(summary.fullTimeCount).toBe(1);
-    expect(summary.rate).toBeCloseTo(2 / 3);
-    expect(summary.normalizedRate).toBe(2);
+    // Two staffed people over one full-timer — not the full-time cohort's own rate,
+    // which is a flat 100%.
+    expect(model.normalizedRate).toBe(2);
+    expect(model.fullTime.rate).toBe(1);
   });
 
   test("normalized rate is deliberately uncapped above 100%", () => {
-    const summary = summarizeStaffing([
+    const model = summarizeStaffing([
       orgPerson({ staffedToday: true }),
-      orgPerson({
-        staffId: "staff-2",
-        employmentType: "HOURLY",
-        staffedToday: true,
-      }),
+      hourly({ staffId: "staff-2", staffedToday: true }),
     ]);
-    expect(summary.normalizedRate).toBeGreaterThan(1);
+    expect(model.normalizedRate).toBeGreaterThan(1);
   });
 
   test("nobody full time gives null, not a divide-by-zero or a 0", () => {
-    const summary = summarizeStaffing([
-      orgPerson({ employmentType: "HOURLY", staffedToday: true }),
-    ]);
-    expect(summary.fullTimeCount).toBe(0);
-    expect(summary.normalizedRate).toBeNull();
-    // The plain rate is still perfectly well defined.
-    expect(summary.rate).toBe(1);
+    const model = summarizeStaffing([hourly({ staffedToday: true })]);
+    expect(model.normalizedRate).toBeNull();
+    // The hourly cohort's own rate is still perfectly well defined.
+    expect(model.hourly.rate).toBe(1);
   });
 
-  test("an unrecorded employment type is never counted as full time", () => {
-    const summary = summarizeStaffing([
+  test("an unrecorded employment type joins neither cohort nor the denominator", () => {
+    const model = summarizeStaffing([
       orgPerson({ employmentType: null, staffedToday: true }),
     ]);
-    expect(summary.fullTimeCount).toBe(0);
+    expect(model.fullTime.headcount).toBe(0);
+    expect(model.hourly.headcount).toBe(0);
+    // Unreachable for the real population (isBillable implies an employment row,
+    // whose employmentType is NOT NULL), but it must understate rather than invent
+    // salaried capacity if it ever happens.
+    expect(model.normalizedRate).toBeNull();
   });
 
   test("the by-role breakdown divides within each discipline", () => {
-    const summary = summarizeStaffing([
+    const { fullTime } = summarizeStaffing([
       orgPerson({ role: "ENGINEER", staffedToday: true }),
       orgPerson({ staffId: "s2", role: "ENGINEER", staffedToday: false }),
       orgPerson({ staffId: "s3", role: "DESIGNER", staffedToday: true }),
     ]);
-    const engineer = summary.byRole.find((r) => r.role === "ENGINEER");
-    const designer = summary.byRole.find((r) => r.role === "DESIGNER");
+    const engineer = fullTime.byRole.find((r) => r.role === "ENGINEER");
+    const designer = fullTime.byRole.find((r) => r.role === "DESIGNER");
     expect(engineer).toMatchObject({ staffed: 1, headcount: 2, rate: 0.5 });
     expect(designer).toMatchObject({ staffed: 1, headcount: 1, rate: 1 });
   });
 
+  test("each cohort's breakdown counts only its own people", () => {
+    const model = summarizeStaffing([
+      orgPerson({ role: "ENGINEER", staffedToday: true }),
+      hourly({ staffId: "s2", role: "ENGINEER", staffedToday: false }),
+      hourly({ staffId: "s3", role: "ENGINEER", staffedToday: false }),
+    ]);
+    expect(
+      model.fullTime.byRole.find((r) => r.role === "ENGINEER"),
+    ).toMatchObject({ staffed: 1, headcount: 1, rate: 1 });
+    expect(
+      model.hourly.byRole.find((r) => r.role === "ENGINEER"),
+    ).toMatchObject({
+      staffed: 0,
+      headcount: 2,
+      rate: 0,
+    });
+  });
+
   test("empty discipline rows survive so the table can render an em dash", () => {
-    const summary = summarizeStaffing([orgPerson({ role: "ENGINEER" })]);
-    const qa = summary.byRole.find((r) => r.role === "QA");
+    const { fullTime } = summarizeStaffing([orgPerson({ role: "ENGINEER" })]);
+    const qa = fullTime.byRole.find((r) => r.role === "QA");
     expect(qa).toMatchObject({ headcount: 0, rate: null });
   });
 
   test("rows are the delivery disciplines only — no overhead rows", () => {
-    const roles = summarizeStaffing([orgPerson()]).byRole.map((r) => r.role);
+    const roles = summarizeStaffing([orgPerson()]).fullTime.byRole.map(
+      (r) => r.role,
+    );
     expect(roles).toEqual([
       "ENGINEER",
       "DESIGNER",
@@ -293,26 +345,28 @@ describe("summarizeStaffing", () => {
 
   test("OTHER appears only when someone falls outside the delivery disciplines", () => {
     expect(
-      summarizeStaffing([orgPerson()]).byRole.some((r) => r.role === "OTHER"),
+      summarizeStaffing([orgPerson()]).fullTime.byRole.some(
+        (r) => r.role === "OTHER",
+      ),
     ).toBe(false);
     // An overhead discipline carrying billable employment, and no role at all, both
     // land in OTHER rather than vanishing from the breakdown.
     for (const role of ["SALES", null] as const) {
-      const summary = summarizeStaffing([orgPerson({ role })]);
-      expect(summary.byRole.find((r) => r.role === "OTHER")).toMatchObject({
+      const { fullTime } = summarizeStaffing([orgPerson({ role })]);
+      expect(fullTime.byRole.find((r) => r.role === "OTHER")).toMatchObject({
         headcount: 1,
       });
-      // The rows must still account for exactly the overall population.
-      const rowTotal = summary.byRole.reduce((n, r) => n + r.headcount, 0);
-      expect(rowTotal).toBe(summary.headcount);
+      // The rows must still account for exactly the cohort the Overall row reports.
+      const rowTotal = fullTime.byRole.reduce((n, r) => n + r.headcount, 0);
+      expect(rowTotal).toBe(fullTime.headcount);
     }
   });
 
   test("no small-cohort suppression — a one-person discipline still reports", () => {
-    const summary = summarizeStaffing([
+    const { fullTime } = summarizeStaffing([
       orgPerson({ role: "QA", staffedToday: true }),
     ]);
-    expect(summary.byRole.find((r) => r.role === "QA")?.rate).toBe(1);
+    expect(fullTime.byRole.find((r) => r.role === "QA")?.rate).toBe(1);
   });
 });
 

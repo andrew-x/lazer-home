@@ -29,9 +29,10 @@ import {
  * ## Why this is a Client Component
  *
  * It is the first one on this route, which previously shipped zero client JS by
- * design. The trade was made deliberately: the section now has three controls (line
- * of business, availability week, employment type), and every one of them re-slices
- * data that is *already fetched*. Pushing them into the URL would mean a server
+ * design. The trade was made deliberately: the section now has four controls (line
+ * of business, availability week, and an employment type on each of Availability and
+ * Staffing), and every one of them re-slices data that is *already fetched*. Pushing
+ * them into the URL would mean a server
  * round trip and a full re-render to answer "who's free in three weeks" — a
  * question people ask by clicking through all five weeks in a row. This follows the
  * split `/dashboards/utilization` already established: the range lives in the URL
@@ -52,6 +53,15 @@ import {
  * they've been lent out (which is exactly what Borrowed staff is for). Filtering by
  * the *work's* line of business instead would make availability incoherent: a free
  * person is on no project and so has no work to match.
+ *
+ * The **employment-type controls are the deliberate exception**, and there are two of
+ * them: Availability's is an optional All/Full time/Hourly narrowing of who is free,
+ * while Staffing's is a required two-way split of a figure that must not be blended
+ * (see `StaffingPanel`). Don't hoist them into one section-level control — it would
+ * either strip Availability's "All" or hand Staffing back the combined rate it exists
+ * to avoid. Each sits inside the card it governs. Availability's state is lifted here
+ * only because it shares a controlled shape with the week tabs beside it; Staffing's
+ * lives in the panel, since nothing outside that card reads it.
  */
 export function LazerStatusSection({ status }: { status: OrgStatus }) {
   const [lineOfBusiness, setLineOfBusiness] = useState<LineOfBusiness | null>(
@@ -85,7 +95,7 @@ export function LazerStatusSection({ status }: { status: OrgStatus }) {
         />
       }
     >
-      <StaffingPanel summary={staffing} today={status.today} />
+      <StaffingPanel model={staffing} today={status.today} />
 
       <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
         <AvailabilityPanel

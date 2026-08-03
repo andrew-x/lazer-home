@@ -16,12 +16,13 @@ import {
   buildAvailabilityTabs,
   filterByEmploymentType,
 } from "@/lib/home/org-status";
-import { EMPLOYMENT_TYPE_LABELS } from "@/lib/staff/staff-enums";
+import {
+  EMPLOYMENT_TYPE_LABELS,
+  EMPLOYMENT_TYPES,
+} from "@/lib/staff/staff-enums";
 
 /** Names shown per week before the list defers to the planner. */
 const NAME_LIMIT = 8;
-
-const EMPLOYMENT_OPTIONS = ["FULL_TIME", "HOURLY"] as const;
 
 /**
  * Who has capacity: the bench now, then who frees up in each of the next four weeks.
@@ -81,7 +82,7 @@ export function AvailabilityPanel({
             <SegmentedFilter
               label="Employment"
               value={employmentType ?? ALL}
-              options={EMPLOYMENT_OPTIONS}
+              options={EMPLOYMENT_TYPES}
               labels={EMPLOYMENT_TYPE_LABELS}
               onChange={(value) =>
                 onEmploymentTypeChange(
