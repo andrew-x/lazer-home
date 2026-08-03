@@ -1,5 +1,19 @@
+import { IconAlertTriangle } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import type { CoverageSummary } from "@/lib/utilization/utilization-report";
+import { InlineNotice } from "@/components/inline-notice";
+import {
+  formatHours,
+  formatPercentDelta,
+} from "@/lib/utilization/utilization-format";
+import {
+  type CoverageSummary,
+  DEVIATION_FLOOR_HOURS,
+  DEVIATION_THRESHOLD,
+  deviates,
+  type HoursSeries,
+  hoursDeviation,
+  type ReportBasis,
+} from "@/lib/utilization/utilization-report";
 
 /**
  * One titled block of the utilization report. Every card on the page is wrapped
@@ -35,34 +49,114 @@ export function ReportSection({
 }
 
 /**
- * The standing caveat on every confirmed number: how much of the period is
- * actually backed by a submitted timesheet, and — for viewers without
- * `timesheets.edit` — that the cohort-wide confirmed figures are withheld rather
- * than zero. A low confirmed number and an unsubmitted one look identical without
- * this line, so it renders whenever the report does.
+ * What the reader is currently looking at, and the caveat that comes with it.
+ *
+ * On the **logged** basis that caveat is coverage: a timesheet row is created
+ * lazily, so a missing week means "not started", and without this line a low
+ * logged figure is indistinguishable from an unsubmitted one. On the **planned**
+ * basis it is simply which series is on screen — and, for a viewer who may not
+ * read other people's timesheets, why the other one isn't available.
  */
-export function CoverageNote({ coverage }: { coverage: CoverageSummary }) {
-  const { weeksSubmitted, weeksTotal, hasFullAccess } = coverage;
+export function BasisNote({
+  basis,
+  coverage,
+}: {
+  basis: ReportBasis;
+  coverage: CoverageSummary;
+}) {
+  const { weeksSubmitted, weeksTotal, canViewLogged } = coverage;
   const percent =
     weeksTotal === 0 ? 0 : Math.round((weeksSubmitted / weeksTotal) * 100);
 
-  return (
-    <div className="rounded border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-      {hasFullAccess ? (
+  if (basis === "logged") {
+    return (
+      <InlineNotice>
         <p>
+          Showing <span className="font-medium text-foreground">logged</span>{" "}
+          hours from submitted timesheets.{" "}
           <span className="font-medium text-foreground">
             {weeksSubmitted} of {weeksTotal}
           </span>{" "}
-          person-weeks in this period have a submitted timesheet ({percent}%).
-          Confirmed hours count submitted timesheets only — draft and unstarted
-          weeks read as zero, not as time that wasn&apos;t worked.
+          person-weeks in this period have been submitted ({percent}%) — draft
+          and unstarted weeks read as zero, not as time that wasn&apos;t worked,
+          so some of any shortfall against plan is missing paperwork. Figures
+          more than {Math.round(DEVIATION_THRESHOLD * 100)}% <em>and</em>{" "}
+          {DEVIATION_FLOOR_HOURS} hours away from plan are flagged.
         </p>
-      ) : (
-        <p>
-          Confirmed hours require timesheet access, so cohort totals are hidden
-          and only your own row is shown. Planned figures are unaffected.
-        </p>
-      )}
-    </div>
+      </InlineNotice>
+    );
+  }
+
+  return (
+    <InlineNotice>
+      <p>
+        Showing <span className="font-medium text-foreground">planned</span>{" "}
+        hours from the allocations plan — confirmed roles only, since a
+        tentative role is a forecast rather than an allocation.{" "}
+        {canViewLogged
+          ? "Switch the basis to Logged to compare against submitted timesheets."
+          : "Logged hours require timesheet access, so the Logged basis is unavailable to you."}
+      </p>
+    </InlineNotice>
+  );
+}
+
+/**
+ * The message behind a deviation: what was logged, what was planned, and the gap.
+ * Shared by the flag and the section-level notice so they can never disagree.
+ */
+function deviationMessage(value: HoursSeries): string {
+  return `${formatHours(value.confirmed)} logged against ${formatHours(value.planned)} planned (${formatPercentDelta(hoursDeviation(value))})`;
+}
+
+/**
+ * An inline marker on a logged figure that sits far enough from plan to be worth
+ * a second look — see `deviates` for the two thresholds it has to clear. Renders
+ * nothing on the planned basis, and nothing when the gap is unremarkable, so a
+ * clean table stays clean.
+ */
+export function DeviationFlag({
+  series,
+  basis,
+}: {
+  series: HoursSeries;
+  basis: ReportBasis;
+}) {
+  if (basis !== "logged" || !deviates(series)) return null;
+  const message = deviationMessage(series);
+  return (
+    <span className="text-destructive" title={message}>
+      <IconAlertTriangle
+        aria-hidden
+        className="ml-1 inline size-3.5 align-text-bottom"
+      />
+      <span className="sr-only">Deviates from plan: {message}</span>
+    </span>
+  );
+}
+
+/**
+ * The section-level counterpart to {@link DeviationFlag}: a banner for a cohort
+ * figure that has drifted from plan, phrased so the reader knows to check
+ * coverage before treating it as a delivery problem.
+ */
+export function DeviationNotice({
+  series,
+  basis,
+  label,
+}: {
+  series: HoursSeries;
+  basis: ReportBasis;
+  /** What deviated, e.g. "Full-time project hours". */
+  label: string;
+}) {
+  if (basis !== "logged" || !deviates(series)) return null;
+  return (
+    <InlineNotice tone="destructive" icon={IconAlertTriangle}>
+      <p>
+        {label}: {deviationMessage(series)}. Check submitted-week coverage above
+        before reading the whole gap as time that wasn&apos;t worked.
+      </p>
+    </InlineNotice>
   );
 }

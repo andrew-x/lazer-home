@@ -227,17 +227,22 @@ week it's already showing, so it never nags about the sheet on screen.
   row. `canEditTimesheet` also drives the page as a UI affordance (render inputs only
   when true); the hook is the real boundary. See [permissions](permissions.md).
 
-> **`timesheets.edit` is now a *read* gate too.** The **Utilization report**
-> (`/dashboards/utilization`) is the first surface where one person can see another's logged
-> hours, and it reuses this capability rather than adding one: without it, `getUtilizationReport`
-> scopes both the `time_entries` and the submitted-week queries **by SQL predicate** to the
-> viewer's own staff record, and every cohort-level confirmed figure comes back `null` — never
-> `0`. This matches the fail-closed posture of `getTimesheetList`/`getTimesheet` above. Anyone
-> auditing `timesheets.edit` must count that report. Widening the audience (actuals without edit
-> rights) means adding a **`timesheets.view`** capability in lockstep across `permissions.ts`,
+> **`timesheets.edit` is a *read* gate too.** The **Utilization report**
+> (`/dashboards/utilization`) is the only surface where one person can see another's logged
+> hours, and it reuses this capability rather than adding one. **Without it, the report's entire
+> "Logged" basis is unavailable:** `getUtilizationReport` **skips both timesheet queries
+> outright** — not even the viewer's own rows are fetched — the toggle is disabled, and every
+> logged figure is `null`, never `0`. (Earlier it scoped those queries to the viewer's own staff
+> record and populated their one row; that own-row path was removed by
+> [ADR 0063](../decisions/0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §6,
+> which only tightens disclosure — a person's own logged hours are still on `/timesheets`.) This
+> matches the fail-closed posture of `getTimesheetList`/`getTimesheet` above. Anyone auditing
+> `timesheets.edit` must count that report. Widening the audience (actuals without edit rights)
+> means adding a **`timesheets.view`** capability in lockstep across `permissions.ts`,
 > `permissions.test.ts` and [permissions.md](./permissions.md) — not loosening that read. See
-> [utilization.md](./utilization.md) and
-> [ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md).
+> [utilization.md](./utilization.md),
+> [ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md) and
+> [ADR 0063](../decisions/0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md).
 
 ## Connects to
 
@@ -245,10 +250,12 @@ week it's already showing, so it never nags about the sheet on screen.
   CRM `company`); logging is allowed against **any** project, not only allocated ones.
   Entries will eventually roll up to the project (and its company) for billing.
 - **Allocations** — `time_entries` are the **actuals** that reconcile against the
-  **plan** (`project_roles`). **Reconciliation now exists as a report** — the two series on
-  `/dashboards/utilization` ([utilization.md](./utilization.md)), which reads **submitted**
-  timesheets only and pairs every figure with submitted-week coverage, since a lazily-created
-  timesheet row means "not started" rather than zero. There is still no reconciliation
+  **plan** (`project_roles`). **Reconciliation now exists as a report** —
+  `/dashboards/utilization` ([utilization.md](./utilization.md)), whose **Logged** basis reads
+  **submitted** timesheets only and pairs every figure with submitted-week coverage, since a
+  lazily-created timesheet row means "not started" rather than zero. The plan and the actuals are
+  never shown side by side there: a basis toggle picks one, and a logged figure ≥20% *and* ≥8 h
+  from plan gets a **deviation flag**. There is still no reconciliation
   *workflow* (nothing writes back, nothing re-forecasts). The other link is the **one-way
   "Fill in allocations" prefill**, which reads `project_roles` to seed suggested hours (see
   [Adding rows & prefill](#adding-rows--prefill)).
@@ -285,13 +292,15 @@ Still genuinely open:
 - **Approval workflow** — if/when a manager sign-off step is added (approve/reject,
   audit trail, per-scope granularity).
 - ~~**Allocation reconciliation** — surfacing actuals vs. the `project_roles` plan.~~
-  **Built for reporting** — the Utilization report's planned/confirmed pair
+  **Built for reporting** — the Utilization report's Planned/Logged bases plus its deviation flags
   ([utilization.md](./utilization.md)). Still open as a *workflow*: nothing re-forecasts, flags a
-  diverged role, or writes anything back.
+  diverged role at the role level, or writes anything back.
 - ~~**Utilization reporting** — billable ÷ available hours over a period.~~ **Built** at
-  `/dashboards/utilization` ([ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md)).
-  Its confirmed side counts **submitted** weeks only, so its accuracy is bounded by submission
-  discipline — which is itself now visible on the page as coverage.
+  `/dashboards/utilization` ([ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md),
+  reshaped by [ADR 0063](../decisions/0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md)).
+  Its Logged basis counts **submitted** weeks only, so its accuracy is bounded by submission
+  discipline — which is itself visible on the page as coverage. **The seed carries only ~4 weeks of
+  timesheets**, so that basis looks near-empty locally over a long window.
 - **PTO ↔ `staff_pto` sync** — the timesheet PTO bucket is independent today; whether
   logged PTO should reconcile with imported Rippling leave is unresolved.
 </content>

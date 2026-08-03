@@ -247,8 +247,12 @@ this domain:
 > flag over-allocation ([ADR 0060](../decisions/0060-allocations-capacity-meter.md)).
 > **Separately**, the **Utilization report** (`/dashboards/utilization`) sums that same
 > load again over a reporting window and reconciles it against submitted-timesheet
-> actuals, read-only — see [utilization.md](./utilization.md) and
-> [ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md).
+> actuals, read-only — see [utilization.md](./utilization.md),
+> [ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md) and
+> [ADR 0063](../decisions/0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md).
+> ⚠️ **The two surfaces deliberately disagree about the same person:** this meter counts
+> `tentative` load alongside `confirmed`, while the report counts **confirmed only** — the planner
+> forecasts, the report measures ([ADR 0063](../decisions/0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §2).
 > What neither does: model a person's real capacity (the baseline is a flat 40h week for
 > everyone — no `utilizationTarget`, no part-time, no joiners/leavers, no holidays), roll a
 > window up into a per-person verdict, sort or filter by free capacity, or resolve a
@@ -257,8 +261,9 @@ this domain:
 ## Utilization: the plan read against the actuals
 
 `/dashboards/utilization` is the read-only reporting counterpart to this planner, and the
-first surface anywhere that puts `project_roles` (the plan) and `time_entries` (the actuals)
-side by side. It matters to this domain in four ways, all detailed in
+only surface that reconciles `project_roles` (the plan) against `time_entries` (the actuals).
+It never shows them side by side: a **`Planned | Logged` basis toggle** picks one, and the other
+is spent on **deviation flags**. It matters to this domain in four ways, all detailed in
 [utilization.md](./utilization.md):
 
 - **It shares this domain's arithmetic.** `HOURS_PER_DAY` is now **exported** from
@@ -272,8 +277,11 @@ side by side. It matters to this domain in four ways, all detailed in
   range and pairs it against actuals, which the grid still can't do.
 - **It inherits this planner's PTO posture exactly** — approved leave dates in, leave **type**
   never selected ([ADR 0038](../decisions/0038-allocations-planner-pto-disclosure.md)).
-- **It reads `tentative` roles behind a forecast toggle** (full weight; there is no
-  win-probability field to weight by) and `confirmed` roles always.
+- **It reads `confirmed` roles only** — `tentative` roles were dropped from it outright, because a
+  forecast isn't an allocation and there is no win-probability field to weight one by
+  ([ADR 0063](../decisions/0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §2).
+  **This planner's capacity meter still counts them**, so the same person can read differently on
+  the two surfaces — deliberately.
 
 ## Purpose
 
@@ -318,7 +326,7 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
 ## Connects to
 
 - **Staff profiles** — skills + availability drive who can be allocated.
-- **Timesheets** — actuals (`time_entries`) are logged against the same Person↔Project pairing (now **built**; logging isn't restricted to allocated projects). **Reconciling actuals against the `project_roles` plan is now built, read-only**, as the Utilization report's two series — see [domains/utilization.md](./utilization.md) and [domains/timesheets.md](./timesheets.md).
+- **Timesheets** — actuals (`time_entries`) are logged against the same Person↔Project pairing (now **built**; logging isn't restricted to allocated projects). **Reconciling actuals against the `project_roles` plan is now built, read-only**, as the Utilization report's Planned/Logged bases plus its deviation flags — see [domains/utilization.md](./utilization.md) and [domains/timesheets.md](./timesheets.md).
 - **Performance** — utilization (from allocations vs. availability) is a performance input. The measurement now exists at `/dashboards/utilization`; nothing feeds it into a review yet.
 
 ## Open questions
@@ -331,12 +339,15 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
   per-cell **capacity meter** sums confirmed + tentative load across projects, subtracts
   PTO, and flags anyone past 100% ([ADR 0060](../decisions/0060-allocations-capacity-meter.md));
   the **Utilization report** sums that same load again over a reporting window and likewise
-  does not clamp it ([ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md) §6).
+  does not clamp it ([ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md) §6,
+  which [ADR 0063](../decisions/0063-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md)
+  leaves standing — though the report counts **confirmed roles only**, so it and the meter can read
+  differently for the same person).
   Neither **resolves** anything: there is no warning at the point of allocating, no block, and
   no suggested fix, and the same visibility is missing from the **opportunity planner**, which
   only greys a staffed person's other-project commitments in without totalling them.
 - ~~How are the planner-view percentages (the *plan*) reconciled against timesheet actuals?~~
-  **Resolved for reporting** — the Utilization report's planned/confirmed pair, with a variance
+  **Resolved for reporting** — the Utilization report's Planned/Logged bases, its deviation flags
   and submitted-week coverage ([utilization.md](./utilization.md)). Still unbuilt: reconciliation
   as a *workflow* (re-forecasting, flagging a role whose actuals have diverged, anything that
   writes back) — the planner grid itself still measures only against itself.

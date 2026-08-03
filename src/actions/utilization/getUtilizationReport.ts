@@ -18,7 +18,6 @@ import { firstPerKey } from "@/lib/core/collections";
 import { db } from "@/lib/db/db";
 import {
   projectRoles,
-  projects,
   staff,
   staffEmployment,
   staffPto,
@@ -37,12 +36,12 @@ import type {
   UtilizationStaff,
   UtilizationWeek,
 } from "@/lib/utilization/utilization-report";
-import { ownStaffId } from "../staff/ownStaffId";
 
 /**
  * Filter dimensions for the utilization report, re-exported so the page passes
  * them as props without importing the Drizzle schema (the actions layer owns all
- * `@/lib/db` access). Only `lineOfBusiness` is used today.
+ * `@/lib/db` access). `lineOfBusiness` filters the cohort; `role` and
+ * `employmentType` filter the two per-person tables.
  */
 export const utilizationFilterOptions = STAFF_FILTER_OPTIONS;
 
@@ -55,12 +54,13 @@ export type UtilizationReportData = {
   weeks: UtilizationWeek[];
   firstRoleStartByStaff: Record<string, string>;
   /**
-   * The staff whose confirmed (timesheet) hours the viewer may read. `null` means
-   * every one of them — see the disclosure note on {@link getUtilizationReport}.
-   * The single signal for the gate: the client derives every "may I see this"
-   * decision from it rather than from a second boolean that could disagree.
+   * Whether the viewer may read the cohort's logged (timesheet) hours — see the
+   * disclosure note on {@link getUtilizationReport}. The single signal for the
+   * gate: the client derives every "may I see this" decision from it, including
+   * whether to offer the report's Logged basis at all, rather than from a second
+   * flag that could disagree.
    */
-  confirmedStaffIds: string[] | null;
+  canViewLogged: boolean;
 };
 
 /**
@@ -78,13 +78,14 @@ export type UtilizationReportData = {
  * is deliberately not selected here — it is the one PTO field gated on
  * `pto.review`, and this report has no need for it.
  *
- * **The confirmed series is gated.** Today no one can read another person's
- * logged hours: `getTimesheetList`/`getTimesheet` fail closed unless the caller
- * holds `timesheets.edit`. A cross-person actuals column would be the first such
- * disclosure, so entries are scoped to the viewer's own staff record unless they
- * hold that capability — withheld in the read, never shipped and hidden in the
- * UI. Widening this audience means adding a `timesheets.view` capability to the
- * matrix, its test and the permissions doc in lockstep — not loosening it here.
+ * **The logged series is gated, cohort-wide.** Today no one can read another
+ * person's logged hours: `getTimesheetList`/`getTimesheet` fail closed unless the
+ * caller holds `timesheets.edit`. A cross-person actuals figure would be the first
+ * such disclosure, so without that capability **no** timesheet row is read at all
+ * and the report offers its Planned basis only — withheld in the read, never
+ * shipped and hidden in the UI. Widening this audience means adding a
+ * `timesheets.view` capability to the matrix, its test and the permissions doc in
+ * lockstep — not loosening it here.
  */
 export async function getUtilizationReport(
   range: UtilizationRange,
@@ -92,13 +93,9 @@ export async function getUtilizationReport(
   const { start, end } = range;
 
   const currentUser = await getCurrentUser();
-  const canViewAllTimesheets = currentUser
+  const canViewLogged = currentUser
     ? userHasPermission(currentUser, { timesheets: ["edit"] })
     : false;
-  const viewerStaffId =
-    currentUser && !canViewAllTimesheets
-      ? await ownStaffId(currentUser.id)
-      : null;
 
   // Everyone employed for any part of the window — NOT just currently-active
   // staff. The importer defines `isActive` as "has no termination date"
@@ -136,30 +133,26 @@ export async function getUtilizationReport(
     .orderBy(...latestEmploymentFirst);
   const latestByStaff = firstPerKey(employmentRows, (row) => row.staffId);
 
-  // Staffed roles only (a placeholder has no person to attribute time to) in the
-  // two live planning states, overlapping the window. `paused`/`cancelled` are
-  // not allocations — the same rule the allocations planner applies.
+  // Staffed, confirmed roles only, overlapping the window. A placeholder has no
+  // person to attribute time to; `tentative` is a forecast rather than an
+  // allocation, and with no win probability in the schema to weight it by,
+  // counting it only made every figure softer than it looked. `paused`/`cancelled`
+  // were never allocations either.
   const roleRows = await db
     .select({
       id: projectRoles.id,
       staffId: projectRoles.staffId,
       projectId: projectRoles.projectId,
-      projectName: projects.name,
-      status: projectRoles.status,
       lineOfBusiness: projectRoles.lineOfBusiness,
       startDate: projectRoles.startDate,
       endDate: projectRoles.endDate,
       hoursPerDay: projectRoles.hoursPerDay,
     })
     .from(projectRoles)
-    .innerJoin(projects, eq(projectRoles.projectId, projects.id))
     .where(
       and(
         isNotNull(projectRoles.staffId),
-        inArray(projectRoles.status, [
-          ROLE_STATUS.tentative,
-          ROLE_STATUS.confirmed,
-        ]),
+        eq(projectRoles.status, ROLE_STATUS.confirmed),
         lte(projectRoles.startDate, end),
         gte(projectRoles.endDate, start),
       ),
@@ -199,20 +192,13 @@ export async function getUtilizationReport(
     )
     .groupBy(projectRoles.staffId);
 
-  // The confirmed series. Draft weeks are excluded: they're still being edited,
-  // so counting them would make the number move under the reader.
+  // The logged series. Draft weeks are excluded: they're still being edited, so
+  // counting them would make the number move under the reader.
   //
-  // Scoping is a real SQL predicate, not a post-filter: a viewer without
-  // `timesheets.edit` never has another person's rows in memory. A signed-in
-  // viewer with no linked staff record has nothing of their own to read, so both
-  // timesheet queries are skipped outright rather than run with a predicate
-  // contrived to match nothing.
-  const timesheetScope = canViewAllTimesheets
-    ? undefined
-    : eq(timesheets.staffId, viewerStaffId ?? "");
-  const canReadAnyTimesheet = canViewAllTimesheets || viewerStaffId != null;
-
-  const entryRows = !canReadAnyTimesheet
+  // The gate is the absence of the query, not a post-filter: a viewer without
+  // `timesheets.edit` never has a timesheet row in memory at all — not even their
+  // own, because a cohort figure built from one person is not a cohort figure.
+  const entryRows = !canViewLogged
     ? []
     : await db
         .select({
@@ -229,15 +215,13 @@ export async function getUtilizationReport(
             eq(timesheets.status, "submitted"),
             gte(timeEntries.date, start),
             lte(timeEntries.date, end),
-            timesheetScope,
           ),
         );
 
-  // Submitted-week coverage, under the same scoping. A timesheet row is created
-  // lazily, so a missing week means "not started" — without this, a low
-  // confirmed number is indistinguishable from an unsubmitted one.
-  const rangeWeeks = eachWeek(start, end);
-  const weekRows = !canReadAnyTimesheet
+  // Submitted-week coverage, under the same gate. A timesheet row is created
+  // lazily, so a missing week means "not started" — without this, a low logged
+  // number is indistinguishable from an unsubmitted one.
+  const weekRows = !canViewLogged
     ? []
     : await db
         .select({
@@ -246,9 +230,7 @@ export async function getUtilizationReport(
           status: timesheets.status,
         })
         .from(timesheets)
-        .where(
-          and(inArray(timesheets.weekStartDate, rangeWeeks), timesheetScope),
-        );
+        .where(inArray(timesheets.weekStartDate, eachWeek(start, end)));
 
   // **Billable staff only.** Overhead disciplines (leadership, sales, solutions,
   // operations — `NON_BILLABLE_ROLES`) carry `utilizationTarget = 0` by invariant
@@ -280,8 +262,6 @@ export async function getUtilizationReport(
       id: r.id,
       staffId: r.staffId,
       projectId: r.projectId,
-      projectName: r.projectName,
-      status: r.status,
       lineOfBusiness: r.lineOfBusiness,
       startDate: r.startDate,
       endDate: r.endDate,
@@ -307,10 +287,6 @@ export async function getUtilizationReport(
       submitted: w.status === "submitted",
     })),
     firstRoleStartByStaff,
-    confirmedStaffIds: canViewAllTimesheets
-      ? null
-      : viewerStaffId
-        ? [viewerStaffId]
-        : [],
+    canViewLogged,
   };
 }

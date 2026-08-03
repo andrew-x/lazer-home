@@ -1,5 +1,6 @@
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import Link from "next/link";
+import type { ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
 import { buildListHref, type SearchParams } from "@/lib/core/list-href";
 
@@ -53,6 +54,16 @@ function pageWindow(page: number, pageCount: number): PageSlot[] {
   return result;
 }
 
+/**
+ * How one page button navigates: `render` for a real link, `onClick` for an
+ * in-memory table. Spread straight onto a `Button`.
+ */
+type SlotProps = Pick<ComponentProps<typeof Button>, "render" | "onClick">;
+
+/**
+ * Server-paginated lists: every page is a link, so the current page lives in the
+ * URL and is shareable. The default.
+ */
 export function PaginationControls({
   basePath,
   params,
@@ -66,6 +77,51 @@ export function PaginationControls({
   page: number;
   pageCount: number;
 }) {
+  return (
+    <PaginationStrip
+      page={page}
+      pageCount={pageCount}
+      slotProps={(target) => ({
+        render: <Link href={buildHref(basePath, params, paramKey, target)} />,
+      })}
+    />
+  );
+}
+
+/**
+ * Client-paginated tables: the page is component state and paging never touches
+ * the URL. Use this when the rows are **already** in the client — routing the
+ * page through the URL would re-run the server component and refetch everything
+ * just to slice an array (the utilization report's two per-person tables).
+ */
+export function ClientPaginationControls({
+  page,
+  pageCount,
+  onPageChange,
+}: {
+  page: number;
+  pageCount: number;
+  onPageChange: (page: number) => void;
+}) {
+  return (
+    <PaginationStrip
+      page={page}
+      pageCount={pageCount}
+      slotProps={(target) => ({ onClick: () => onPageChange(target) })}
+    />
+  );
+}
+
+/** The shared control strip, agnostic about how a page button navigates. */
+function PaginationStrip({
+  page,
+  pageCount,
+  slotProps,
+}: {
+  page: number;
+  pageCount: number;
+  slotProps: (target: number) => SlotProps;
+}) {
   const hasPrev = page > 1;
   const hasNext = page < pageCount;
 
@@ -76,13 +132,7 @@ export function PaginationControls({
       </p>
       <div className="flex items-center gap-2">
         {hasPrev ? (
-          <Button
-            variant="outline"
-            size="sm"
-            render={
-              <Link href={buildHref(basePath, params, paramKey, page - 1)} />
-            }
-          >
+          <Button variant="outline" size="sm" {...slotProps(page - 1)}>
             <IconChevronLeft />
             Previous
           </Button>
@@ -121,11 +171,7 @@ export function PaginationControls({
                   variant="outline"
                   size="sm"
                   className="min-w-9"
-                  render={
-                    <Link
-                      href={buildHref(basePath, params, paramKey, slot.page)}
-                    />
-                  }
+                  {...slotProps(slot.page)}
                 >
                   {slot.page}
                 </Button>
@@ -135,13 +181,7 @@ export function PaginationControls({
         ) : null}
 
         {hasNext ? (
-          <Button
-            variant="outline"
-            size="sm"
-            render={
-              <Link href={buildHref(basePath, params, paramKey, page + 1)} />
-            }
-          >
+          <Button variant="outline" size="sm" {...slotProps(page + 1)}>
             Next
             <IconChevronRight />
           </Button>

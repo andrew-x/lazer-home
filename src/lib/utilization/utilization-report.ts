@@ -3,15 +3,22 @@
  * React) so the read stays a projection and every definition below is testable in
  * isolation. See docs/domains/allocations.md and docs/domains/timesheets.md.
  *
- * The report carries **two series everywhere**, and never adds them together:
+ * Every hours-bearing figure is computed in **two series**, and the reader picks
+ * one to look at with the report's basis toggle:
  *
  * - **Planned** — from `project_roles`, i.e. what we staffed. `hoursPerDay` over the
  *   working days a role covers, the same basis `roleBillableHours` uses in
- *   `@/lib/projects/project-margin`.
- * - **Confirmed** — from `time_entries` on **submitted** timesheets, i.e. what people
- *   logged. Draft weeks are excluded (they're still being edited), so every hours
- *   figure is paired with submitted-week *coverage* — a timesheet row is created
- *   lazily, so a missing week means "not started", not zero.
+ *   `@/lib/projects/project-margin`. The default, and the only series available to
+ *   a viewer who may not read other people's timesheets.
+ * - **Logged** — from `time_entries` on **submitted** timesheets, i.e. what people
+ *   actually recorded. Draft weeks are excluded (they're still being edited), so
+ *   every logged figure is paired with submitted-week *coverage* — a timesheet row
+ *   is created lazily, so a missing week means "not started", not zero.
+ *
+ * Both series are always computed, never summed, and never shown side by side: the
+ * cards render one and use the other to flag a figure that {@link deviates} from
+ * plan. That is where the comparison earns its keep, instead of doubling every
+ * column to pay for it.
  *
  * The definitions the numbers depend on, stated once:
  *
@@ -22,7 +29,12 @@
  *   hours "adjusted for join/termination".
  * - **Available hours** — full-time only: employed working days × 8h. Hourly staff
  *   have no fixed capacity, so they get no denominator and no utilization %; their
- *   project hours still count toward the totals.
+ *   project hours still count toward the totals and carry their own share.
+ * - **PTO and bench are full-time measures.** Planned leave books 8h against a
+ *   full-timer's capacity; an hourly person has no capacity to book it against, so
+ *   they contribute no planned PTO and no bench. Their *logged* PTO still lands
+ *   somewhere in the line-of-business attribution — it happened — but it is not
+ *   counted in the PTO card or the utilization split.
  * - **PTO wins.** On an approved-PTO working day a full-timer books 8 PTO hours and
  *   *no* project or bench hours, even if a role covers that day. So project + PTO +
  *   bench equals available hours exactly — except when someone is over-allocated.
@@ -31,11 +43,14 @@
  *   across projects, so this is the first surface that shows it; hiding it would
  *   defeat the point.
  * - **Bench day** — a full-time *billable* working day inside the employment window
- *   with no included role and no approved PTO. Streaks run over working days: a
- *   weekend doesn't break one, a PTO day does.
- * - **Which roles count** — `confirmed` always, `tentative` only when the forecast
- *   toggle is on. Line-of-business alignment ignores the toggle by design (it asks
- *   where committed work actually sits), so it reads confirmed roles only.
+ *   with no role and no approved PTO. Streaks run over working days: a weekend
+ *   doesn't break one, a PTO day does.
+ * - **Which roles count** — `confirmed` only. A tentative role is a forecast, not an
+ *   allocation, and there is no win probability to weight one by, so counting it at
+ *   full weight only made every figure softer than it looked.
+ * - **Internal admin is excluded.** Overhead time belongs to no practice and to
+ *   neither the project nor the bench series, so it is dropped rather than given a
+ *   bucket that has no planned counterpart.
  */
 
 import {
@@ -46,10 +61,6 @@ import {
   LINE_OF_BUSINESS,
   type LineOfBusiness,
 } from "@/lib/crm/line-of-business";
-import {
-  type ProjectRoleStatus,
-  ROLE_STATUS,
-} from "@/lib/projects/project-role-status";
 import { countWorkingDays } from "@/lib/staff/pto-working-days";
 import type { EmploymentType, Role } from "@/lib/staff/staff-enums";
 import type { TimesheetCategory } from "@/lib/timesheets/timesheet-category";
@@ -59,16 +70,23 @@ import {
   isWeekend,
 } from "@/lib/timesheets/timesheet-week";
 
-/**
- * The weight a tentative role carries when the forecast toggle is on. Flat 100%
- * today: the schema has no win-probability field, so there is nothing to weight
- * with. Kept as one named constant so probability tiers (High/Medium/Low) can be
- * introduced by making this a lookup, without touching any of the math below.
- */
-export const TENTATIVE_WEIGHT = 1;
+/** Which series the report is currently showing. Planned is the default. */
+export type ReportBasis = "planned" | "logged";
 
 /** More than this many consecutive bench days is what the Bench card counts. */
 export const BENCH_STREAK_THRESHOLD = 5;
+
+/**
+ * How far a logged figure has to sit from its planned counterpart, in relative
+ * terms, before the report flags it. 20% is roughly one day a week.
+ */
+export const DEVIATION_THRESHOLD = 0.2;
+
+/**
+ * The absolute gap a deviation also has to clear — one working day. Without it a
+ * 4h plan against 6h logged reads as a 50% miss, which is noise rather than news.
+ */
+export const DEVIATION_FLOOR_HOURS = HOURS_PER_DAY;
 
 // ---------------------------------------------------------------------------
 // Inputs — the shape `getUtilizationReport` projects into
@@ -89,13 +107,11 @@ export type UtilizationStaff = {
   isBillable: boolean;
 };
 
-/** One staffed role span overlapping the range. */
+/** One confirmed, staffed role span overlapping the range. */
 export type UtilizationRole = {
   id: string;
   staffId: string;
   projectId: string;
-  projectName: string;
-  status: ProjectRoleStatus;
   lineOfBusiness: LineOfBusiness;
   startDate: string;
   endDate: string;
@@ -135,14 +151,13 @@ export type UtilizationInputs = {
    *  "days to first placement" metric needs a role that may precede the range. */
   firstRoleStartByStaff: Record<string, string>;
   range: UtilizationRange;
-  includeTentative: boolean;
   /**
-   * The staff whose confirmed hours the viewer may read. `null` means "all of
-   * them" (a `timesheets.edit` holder); otherwise it is the viewer's own id and
-   * nothing else. Cohort-level confirmed figures are withheld entirely when this
-   * is a subset — a partial sum presented as a total would be a lie.
+   * Whether the viewer may read the cohort's logged hours (`timesheets.edit`).
+   * When false every logged figure is `null` — never `0` — so "no access" and
+   * "logged nothing" stay distinguishable all the way to the render, and the
+   * report's basis toggle offers Planned only.
    */
-  confirmedStaffIds: readonly string[] | null;
+  canViewLogged: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -151,13 +166,19 @@ export type UtilizationInputs = {
 
 /**
  * One metric carried in both series. `confirmed` (and therefore `variance`) is
- * `null` — never `0` — when the viewer may not read the underlying timesheets, so
- * "no access" and "logged nothing" stay distinguishable all the way to the render.
+ * `null` when the viewer may not read the underlying timesheets.
  */
 export type HoursSeries = {
   planned: number;
   confirmed: number | null;
   variance: number | null;
+};
+
+/** A {@link HoursSeries} plus each series' share of whatever denominator it has. */
+export type HoursMetric = {
+  hours: HoursSeries;
+  plannedShare: number | null;
+  confirmedShare: number | null;
 };
 
 function series(planned: number, confirmed: number | null): HoursSeries {
@@ -166,6 +187,65 @@ function series(planned: number, confirmed: number | null): HoursSeries {
     confirmed,
     variance: confirmed == null ? null : confirmed - planned,
   };
+}
+
+function metric(
+  planned: number,
+  confirmed: number | null,
+  denominator: number | null,
+): HoursMetric {
+  const share = (value: number | null) =>
+    value == null || denominator == null || denominator === 0
+      ? null
+      : value / denominator;
+  return {
+    hours: series(planned, confirmed),
+    plannedShare: share(planned),
+    confirmedShare: share(confirmed),
+  };
+}
+
+/** Pick the value for the basis being displayed. */
+export function pickBasis<T>(basis: ReportBasis, planned: T, logged: T): T {
+  return basis === "planned" ? planned : logged;
+}
+
+/** The figure a {@link HoursSeries} shows on the given basis. */
+export function hoursFor(
+  value: HoursSeries,
+  basis: ReportBasis,
+): number | null {
+  return pickBasis(basis, value.planned, value.confirmed);
+}
+
+/** The share a {@link HoursMetric} shows on the given basis. */
+export function shareFor(
+  value: HoursMetric,
+  basis: ReportBasis,
+): number | null {
+  return pickBasis(basis, value.plannedShare, value.confirmedShare);
+}
+
+/**
+ * How far the logged figure sits from the planned one, as a signed fraction of
+ * plan. `null` when there are no logged hours to compare or nothing was planned —
+ * a series with no plan has nothing to deviate from.
+ */
+export function hoursDeviation(value: HoursSeries): number | null {
+  if (value.confirmed == null || value.planned <= 0) return null;
+  return (value.confirmed - value.planned) / value.planned;
+}
+
+/**
+ * Whether a logged figure is far enough from plan to be worth flagging. Both
+ * gates must clear: {@link DEVIATION_THRESHOLD} in relative terms *and*
+ * {@link DEVIATION_FLOOR_HOURS} in absolute ones.
+ */
+export function deviates(value: HoursSeries): boolean {
+  const deviation = hoursDeviation(value);
+  if (deviation == null || value.variance == null) return false;
+  if (Math.abs(value.variance) < DEVIATION_FLOOR_HOURS) return false;
+  return Math.abs(deviation) >= DEVIATION_THRESHOLD;
 }
 
 export type HeadcountRoleRow = {
@@ -192,8 +272,9 @@ export type RoleSummary = {
   ended: number;
   averageLengthWeeks: number | null;
   averageRolesPerProject: number | null;
+  /** Distinct projects staffed in the window. */
   uniqueProjects: number;
-  /** Distinct projects with logged time; `null` without full timesheet access. */
+  /** Distinct projects with logged time; `null` without timesheet access. */
   projectsWithLoggedTime: number | null;
 };
 
@@ -205,8 +286,8 @@ export type BenchSummary = {
   maxBenchDays: number;
   averageDaysToFirstPlacement: number | null;
   unplacedJoiners: number;
-  /** Logged `UNALLOCATED_BENCH` hours; `null` without full timesheet access. */
-  confirmedBenchHours: number | null;
+  /** Unstaffed full-time capacity, against logged `UNALLOCATED_BENCH` hours. */
+  benchHours: HoursSeries;
 };
 
 export type PtoSummary = {
@@ -215,28 +296,25 @@ export type PtoSummary = {
   maxRecordLength: number;
   peopleWithPto: number;
   peopleWithoutPto: number;
-  /** Logged `PTO`-category hours; `null` without full timesheet access. */
-  confirmedPtoHours: number | null;
-};
-
-/** One row of the full-time time split. Shares are fractions of available hours. */
-export type UtilizationSplitRow = {
-  key: "project" | "pto" | "bench" | "internalAdmin";
-  /** `null` for `internalAdmin` — the plan has no equivalent bucket. */
-  planned: number | null;
-  plannedShare: number | null;
-  confirmed: number | null;
-  confirmedShare: number | null;
+  /** Approved leave as capacity, against logged `PTO`-category hours. */
+  ptoHours: HoursSeries;
 };
 
 export type UtilizationSummary = {
   availableHours: number;
+  /**
+   * The full-time split, each as a share of available hours. `fullTimeProject`'s
+   * share **is** the utilization rate, and may exceed 1 — see the module header
+   * on over-allocation.
+   */
+  fullTimeProject: HoursMetric;
+  pto: HoursMetric;
+  bench: HoursMetric;
+  /** Project hours across the whole cohort, full-time and hourly together. */
   projectHours: HoursSeries;
-  projectHoursFullTime: HoursSeries;
   projectHoursHourly: HoursSeries;
-  rows: UtilizationSplitRow[];
-  /** Project hours ÷ available hours, full-time only. May exceed 1. */
-  utilization: { planned: number | null; confirmed: number | null };
+  /** Hourly staff's share of all project hours — the part-time contribution. */
+  hourlyProjectShare: { planned: number | null; confirmed: number | null };
 };
 
 export type StaffBreakdownRow = {
@@ -247,29 +325,34 @@ export type StaffBreakdownRow = {
   employmentType: EmploymentType | null;
   /** `null` for hourly staff — no fixed capacity, so no denominator. */
   availableHours: number | null;
-  plannedProjectHours: number;
-  confirmedProjectHours: number | null;
-  plannedUtilization: number | null;
-  confirmedUtilization: number | null;
-  varianceHours: number | null;
-  weeksSubmitted: number;
-  weeksInRange: number;
-  hasConfirmedAccess: boolean;
+  project: HoursMetric;
+  /** `null` for non-full-time staff: PTO is a full-time measure. */
+  pto: HoursMetric | null;
+  /** `null` for non-full-time staff: bench is a full-time measure. */
+  bench: HoursMetric | null;
 };
+
+/** Hours per line of business, with every practice present so shares line up. */
+export type LobHours = Record<LineOfBusiness, number>;
 
 export type LobAlignmentRow = {
-  lineOfBusiness: LineOfBusiness;
-  plannedDays: number;
-  plannedShare: number;
-  confirmedHours: number | null;
-  confirmedShare: number | null;
+  staffId: string;
+  name: string;
+  role: Role | null;
+  lineOfBusiness: LineOfBusiness | null;
+  employmentType: EmploymentType | null;
+  planned: LobHours;
+  /** `null` without timesheet access — withheld, not zero. */
+  logged: LobHours | null;
+  plannedTotal: number;
+  loggedTotal: number | null;
 };
 
-/** Submitted-week coverage for the cohort — the caveat on every confirmed number. */
+/** Submitted-week coverage for the cohort — the caveat on every logged number. */
 export type CoverageSummary = {
   weeksSubmitted: number;
   weeksTotal: number;
-  hasFullAccess: boolean;
+  canViewLogged: boolean;
 };
 
 export type UtilizationReport = {
@@ -320,7 +403,41 @@ function isFullTime(person: UtilizationStaff): boolean {
   return person.employmentType === "FULL_TIME";
 }
 
-/** Everything the cards need about one person's days in the range. */
+/** A zeroed hours-per-practice record — every line of business always present. */
+function emptyLobHours(): LobHours {
+  const out = {} as LobHours;
+  for (const lob of LINE_OF_BUSINESS) out[lob] = 0;
+  return out;
+}
+
+/** Book `hours` against a practice; a person with no home practice is skipped. */
+function addLob(
+  target: LobHours,
+  lob: LineOfBusiness | null,
+  hours: number,
+): void {
+  if (lob == null || hours === 0) return;
+  target[lob] += hours;
+}
+
+function sumLobHours(hours: LobHours): number {
+  return LINE_OF_BUSINESS.reduce((total, lob) => total + hours[lob], 0);
+}
+
+/** The role covering `day` that the person spends most of it on, if any. */
+function topRoleOn(
+  roles: readonly UtilizationRole[],
+  day: string,
+): UtilizationRole | null {
+  let top: UtilizationRole | null = null;
+  for (const role of roles) {
+    if (day < role.startDate || day > role.endDate) continue;
+    if (top == null || role.hoursPerDay > top.hoursPerDay) top = role;
+  }
+  return top;
+}
+
+/** Everything the cards need about one person's planned days in the range. */
 type StaffLedger = {
   employedWorkingDays: number;
   employedWeeks: Set<string>;
@@ -331,8 +448,8 @@ type StaffLedger = {
   ptoDays: number;
   benchDays: number;
   benchStreaks: number[];
-  /** Working days attributed to each line of business (confirmed roles only). */
-  lobDays: Map<LineOfBusiness, number>;
+  /** Planned hours attributed to each line of business. */
+  lobHours: LobHours;
 };
 
 function emptyLedger(): StaffLedger {
@@ -346,15 +463,13 @@ function emptyLedger(): StaffLedger {
     ptoDays: 0,
     benchDays: 0,
     benchStreaks: [],
-    lobDays: new Map(),
+    lobHours: emptyLobHours(),
   };
 }
 
 /**
  * Walk one person's working days in the range, folding roles and PTO into the
- * ledger the cards read. Roles are pre-filtered to those the forecast toggle
- * includes; `confirmedRoles` is the unfiltered-by-toggle confirmed subset, used
- * for line-of-business attribution only.
+ * ledger the cards read.
  *
  * `workingDays` is the range's weekday spine, built once by the caller and shared
  * across everyone — re-deriving it per person would re-parse and re-format every
@@ -362,8 +477,7 @@ function emptyLedger(): StaffLedger {
  */
 function buildStaffLedger(
   person: UtilizationStaff,
-  includedRoles: UtilizationRole[],
-  confirmedRoles: UtilizationRole[],
+  roles: UtilizationRole[],
   ptoDays: ReadonlySet<string>,
   workingDays: readonly string[],
 ): StaffLedger {
@@ -387,45 +501,38 @@ function buildStaffLedger(
     ledger.employedWeeks.add(getWeekStart(day));
     if (fullTime) ledger.availableHours += HOURS_PER_DAY;
 
-    let dayHours = 0;
-    for (const role of includedRoles) {
-      if (day < role.startDate || day > role.endDate) continue;
-      dayHours +=
-        role.status === ROLE_STATUS.tentative
-          ? role.hoursPerDay * TENTATIVE_WEIGHT
-          : role.hoursPerDay;
-    }
-
-    // Line of business: the confirmed role the person spends most of the day on
-    // wins; otherwise the day sits with their home line of business. PTO days go
-    // home too — nobody bills a practice while they're away.
-    const onPto = ptoDays.has(day);
-    let lob = person.lineOfBusiness;
-    if (!onPto) {
-      let topHours = 0;
-      for (const role of confirmedRoles) {
-        if (day < role.startDate || day > role.endDate) continue;
-        if (role.hoursPerDay > topHours) {
-          topHours = role.hoursPerDay;
-          lob = role.lineOfBusiness;
-        }
-      }
-    }
-    if (lob != null) {
-      ledger.lobDays.set(lob, (ledger.lobDays.get(lob) ?? 0) + 1);
-    }
-
-    if (onPto) {
-      // PTO wins: no project or bench hours book against a day off.
+    if (ptoDays.has(day)) {
+      // PTO wins: no project or bench hours book against a day off. Leave taken
+      // while staffed on a project sits with that project's practice — the
+      // client is still carrying the cost of the person being away.
       ledger.ptoDays += 1;
-      if (fullTime) ledger.plannedPtoHours += HOURS_PER_DAY;
+      if (fullTime) {
+        ledger.plannedPtoHours += HOURS_PER_DAY;
+        const covering = topRoleOn(roles, day);
+        addLob(
+          ledger.lobHours,
+          covering?.lineOfBusiness ?? person.lineOfBusiness,
+          HOURS_PER_DAY,
+        );
+      }
       closeStreak();
       continue;
     }
 
+    let dayHours = 0;
+    for (const role of roles) {
+      if (day < role.startDate || day > role.endDate) continue;
+      dayHours += role.hoursPerDay;
+      addLob(ledger.lobHours, role.lineOfBusiness, role.hoursPerDay);
+    }
     ledger.plannedProjectHours += dayHours;
+
     if (fullTime) {
-      ledger.plannedBenchHours += Math.max(0, HOURS_PER_DAY - dayHours);
+      // Whatever the day wasn't staffed for is bench, and bench sits with the
+      // person's own practice — nobody else is carrying that time.
+      const bench = Math.max(0, HOURS_PER_DAY - dayHours);
+      ledger.plannedBenchHours += bench;
+      addLob(ledger.lobHours, person.lineOfBusiness, bench);
     }
 
     if (tracksBench && dayHours === 0) {
@@ -457,36 +564,74 @@ function ptoDaysInRange(
   return days;
 }
 
-/** Confirmed hours split into the four buckets a time entry can land in. */
-type EntryTotals = {
+/** One person's logged hours, bucketed and attributed to practices. */
+type LoggedTotals = {
   project: number;
   pto: number;
   bench: number;
-  internalAdmin: number;
+  lobHours: LobHours;
 };
 
-function emptyEntryTotals(): EntryTotals {
-  return { project: 0, pto: 0, bench: 0, internalAdmin: 0 };
+function emptyLoggedTotals(): LoggedTotals {
+  return { project: 0, pto: 0, bench: 0, lobHours: emptyLobHours() };
 }
 
-function addEntry(totals: EntryTotals, entry: UtilizationEntry): void {
-  if (entry.projectId != null) {
-    totals.project += entry.hours;
-    return;
+/**
+ * Fold one person's submitted time entries. Practice attribution mirrors the
+ * planned side: project hours go to the role they were staffed to on that project
+ * for that date, leave logged while staffed goes to that project's practice, and
+ * bench time — plus anything logged against a project they were never staffed to
+ * — falls back to their own practice. `projects` carries no line of business of
+ * its own (ADR 0033), only its roles do, which is what makes that fallback
+ * necessary. Internal admin is dropped entirely.
+ */
+function buildLoggedTotals(
+  person: UtilizationStaff,
+  roles: readonly UtilizationRole[],
+  entries: readonly UtilizationEntry[],
+): LoggedTotals {
+  const totals = emptyLoggedTotals();
+
+  for (const entry of entries) {
+    if (entry.projectId != null) {
+      totals.project += entry.hours;
+      const staffed = roles.find(
+        (role) =>
+          role.projectId === entry.projectId &&
+          entry.date >= role.startDate &&
+          entry.date <= role.endDate,
+      );
+      addLob(
+        totals.lobHours,
+        staffed?.lineOfBusiness ?? person.lineOfBusiness,
+        entry.hours,
+      );
+      continue;
+    }
+
+    switch (entry.category) {
+      case "PTO": {
+        totals.pto += entry.hours;
+        const covering = topRoleOn(roles, entry.date);
+        addLob(
+          totals.lobHours,
+          covering?.lineOfBusiness ?? person.lineOfBusiness,
+          entry.hours,
+        );
+        break;
+      }
+      case "UNALLOCATED_BENCH":
+        totals.bench += entry.hours;
+        addLob(totals.lobHours, person.lineOfBusiness, entry.hours);
+        break;
+      default:
+        // INTERNAL_ADMIN (and any future overhead category) is out of scope by
+        // definition — it belongs to no practice and has no planned counterpart.
+        break;
+    }
   }
-  switch (entry.category) {
-    case "PTO":
-      totals.pto += entry.hours;
-      break;
-    case "UNALLOCATED_BENCH":
-      totals.bench += entry.hours;
-      break;
-    case "INTERNAL_ADMIN":
-      totals.internalAdmin += entry.hours;
-      break;
-    default:
-      break;
-  }
+
+  return totals;
 }
 
 function groupBy<T>(
@@ -524,14 +669,9 @@ function shareOf(value: number, total: number): number | null {
 export function buildUtilizationReport(
   inputs: UtilizationInputs,
 ): UtilizationReport {
-  const { range, includeTentative } = inputs;
+  const { range, canViewLogged } = inputs;
   const cohort = inputs.staff;
   const cohortIds = new Set(cohort.map((p) => p.id));
-  const hasFullAccess = inputs.confirmedStaffIds == null;
-  const visibleIds =
-    inputs.confirmedStaffIds == null ? null : new Set(inputs.confirmedStaffIds);
-  const canSeeConfirmed = (staffId: string) =>
-    visibleIds == null || visibleIds.has(staffId);
 
   // The weekday spine, built once and shared by every person's ledger.
   const workingDays = eachDay(range.start, range.end).filter(
@@ -556,31 +696,23 @@ export function buildUtilizationReport(
   );
 
   const ledgers = new Map<string, StaffLedger>();
-  const entryTotals = new Map<string, EntryTotals>();
-  const ptoDayCounts = new Map<string, number>();
+  const loggedTotals = new Map<string, LoggedTotals>();
 
   for (const person of cohort) {
-    const all = rolesByStaff.get(person.id) ?? [];
-    const confirmedRoles = all.filter(
-      (r) => r.status === ROLE_STATUS.confirmed,
-    );
-    const includedRoles = includeTentative ? all : confirmedRoles;
+    const roles = rolesByStaff.get(person.id) ?? [];
     const ptoDays = ptoDaysInRange(ptoByStaff.get(person.id) ?? [], range);
-    const ledger = buildStaffLedger(
-      person,
-      includedRoles,
-      confirmedRoles,
-      ptoDays,
-      workingDays,
+    ledgers.set(
+      person.id,
+      buildStaffLedger(person, roles, ptoDays, workingDays),
     );
-    ledgers.set(person.id, ledger);
-    ptoDayCounts.set(person.id, ledger.ptoDays);
-
-    const totals = emptyEntryTotals();
-    for (const entry of entriesByStaff.get(person.id) ?? []) {
-      addEntry(totals, entry);
+    // Without access there are no entries to fold, and every logged figure
+    // below resolves to `null` rather than to a total built from nothing.
+    if (canViewLogged) {
+      loggedTotals.set(
+        person.id,
+        buildLoggedTotals(person, roles, entriesByStaff.get(person.id) ?? []),
+      );
     }
-    entryTotals.set(person.id, totals);
   }
 
   return {
@@ -590,50 +722,47 @@ export function buildUtilizationReport(
       rolesByStaff,
       entriesByStaff,
       range,
-      includeTentative,
-      hasFullAccess,
+      canViewLogged,
     ),
     bench: buildBenchSummary(
       cohort,
       ledgers,
-      entryTotals,
+      loggedTotals,
       inputs.firstRoleStartByStaff,
       range,
-      hasFullAccess,
+      canViewLogged,
     ),
     pto: buildPtoSummary(
       cohort,
       ptoByStaff,
-      ptoDayCounts,
-      entryTotals,
+      ledgers,
+      loggedTotals,
       range,
-      hasFullAccess,
+      canViewLogged,
     ),
     utilization: buildUtilizationSummary(
       cohort,
       ledgers,
-      entryTotals,
-      hasFullAccess,
+      loggedTotals,
+      canViewLogged,
     ),
     staffBreakdown: buildStaffBreakdown(
       cohort,
       ledgers,
-      entryTotals,
-      weeksByStaff,
-      canSeeConfirmed,
+      loggedTotals,
+      canViewLogged,
     ),
     lobAlignment: buildLobAlignment(
       cohort,
       ledgers,
-      entriesByStaff,
-      rolesByStaff,
-      hasFullAccess,
+      loggedTotals,
+      canViewLogged,
     ),
-    coverage: buildCoverage(cohort, ledgers, weeksByStaff, hasFullAccess),
+    coverage: buildCoverage(cohort, ledgers, weeksByStaff, canViewLogged),
   };
 }
 
-/** Headcount, FT/hourly split, joiners/departures — overall and per discipline. */
+/** Headcount, full-time/hourly split, joiners/departures — overall and per role. */
 export function buildHeadcount(
   cohort: UtilizationStaff[],
   range: UtilizationRange,
@@ -670,13 +799,11 @@ export function buildRoleSummary(
   rolesByStaff: Map<string, UtilizationRole[]>,
   entriesByStaff: Map<string, UtilizationEntry[]>,
   range: UtilizationRange,
-  includeTentative: boolean,
-  hasFullAccess: boolean,
+  canViewLogged: boolean,
 ): RoleSummary {
   const roles: UtilizationRole[] = [];
   for (const person of cohort) {
     for (const role of rolesByStaff.get(person.id) ?? []) {
-      if (!includeTentative && role.status !== ROLE_STATUS.confirmed) continue;
       if (!spansOverlap(role.startDate, role.endDate, range.start, range.end))
         continue;
       roles.push(role);
@@ -707,7 +834,7 @@ export function buildRoleSummary(
     averageRolesPerProject:
       projectIds.size === 0 ? null : roles.length / projectIds.size,
     uniqueProjects: projectIds.size,
-    projectsWithLoggedTime: hasFullAccess ? loggedProjects.size : null,
+    projectsWithLoggedTime: canViewLogged ? loggedProjects.size : null,
   };
 }
 
@@ -715,21 +842,25 @@ export function buildRoleSummary(
 export function buildBenchSummary(
   cohort: UtilizationStaff[],
   ledgers: Map<string, StaffLedger>,
-  entryTotals: Map<string, EntryTotals>,
+  loggedTotals: Map<string, LoggedTotals>,
   firstRoleStartByStaff: Record<string, string>,
   range: UtilizationRange,
-  hasFullAccess: boolean,
+  canViewLogged: boolean,
 ): BenchSummary {
   const tracked = cohort.filter((p) => isFullTime(p) && p.isBillable);
 
   const streaks: number[] = [];
   const benchDays: number[] = [];
   let overThreshold = 0;
+  let plannedBench = 0;
+  let loggedBench = 0;
   for (const person of tracked) {
     const ledger = ledgers.get(person.id);
     if (!ledger) continue;
     benchDays.push(ledger.benchDays);
     streaks.push(...ledger.benchStreaks);
+    plannedBench += ledger.plannedBenchHours;
+    loggedBench += loggedTotals.get(person.id)?.bench ?? 0;
     const longest = Math.max(0, ...ledger.benchStreaks);
     if (longest > BENCH_STREAK_THRESHOLD) overThreshold += 1;
   }
@@ -751,11 +882,6 @@ export function buildBenchSummary(
     placementGaps.push(Math.max(0, daysBetween(person.joinDate, firstStart)));
   }
 
-  let confirmedBench = 0;
-  for (const person of cohort) {
-    confirmedBench += entryTotals.get(person.id)?.bench ?? 0;
-  }
-
   return {
     staffOverThreshold: overThreshold,
     averageStreak: average(streaks),
@@ -764,31 +890,36 @@ export function buildBenchSummary(
     maxBenchDays: Math.max(0, ...benchDays),
     averageDaysToFirstPlacement: average(placementGaps),
     unplacedJoiners: unplaced,
-    confirmedBenchHours: hasFullAccess ? confirmedBench : null,
+    benchHours: series(plannedBench, canViewLogged ? loggedBench : null),
   };
 }
 
 /**
- * PTO volume and shape. `totalDays` is clipped to the range and the employment
- * window (it answers "how much leave landed in this period"), while the average
- * and max record lengths measure the **whole** record — a two-week holiday
- * straddling the range edge is still a two-week holiday.
+ * PTO volume and shape, for **full-time staff only** — planned leave books
+ * against a fixed working week, and an hourly person has none to book against.
+ *
+ * `totalDays` is clipped to the range and the employment window (it answers "how
+ * much leave landed in this period"), while the average and max record lengths
+ * measure the **whole** record — a two-week holiday straddling the range edge is
+ * still a two-week holiday.
  */
 export function buildPtoSummary(
   cohort: UtilizationStaff[],
   ptoByStaff: Map<string, UtilizationPtoRecord[]>,
-  ptoDayCounts: Map<string, number>,
-  entryTotals: Map<string, EntryTotals>,
+  ledgers: Map<string, StaffLedger>,
+  loggedTotals: Map<string, LoggedTotals>,
   range: UtilizationRange,
-  hasFullAccess: boolean,
+  canViewLogged: boolean,
 ): PtoSummary {
+  const tracked = cohort.filter(isFullTime);
   const recordLengths: number[] = [];
   let totalDays = 0;
   let peopleWithPto = 0;
-  let confirmedPto = 0;
+  let plannedPto = 0;
+  let loggedPto = 0;
 
-  for (const person of cohort) {
-    const days = ptoDayCounts.get(person.id) ?? 0;
+  for (const person of tracked) {
+    const days = ledgers.get(person.id)?.ptoDays ?? 0;
     totalDays += days;
     if (days > 0) peopleWithPto += 1;
 
@@ -800,7 +931,8 @@ export function buildPtoSummary(
       recordLengths.push(countWorkingDays(record.startDate, record.endDate));
     }
 
-    confirmedPto += entryTotals.get(person.id)?.pto ?? 0;
+    plannedPto += ledgers.get(person.id)?.plannedPtoHours ?? 0;
+    loggedPto += loggedTotals.get(person.id)?.pto ?? 0;
   }
 
   return {
@@ -808,123 +940,95 @@ export function buildPtoSummary(
     averageRecordLength: average(recordLengths),
     maxRecordLength: Math.max(0, ...recordLengths),
     peopleWithPto,
-    peopleWithoutPto: cohort.length - peopleWithPto,
-    confirmedPtoHours: hasFullAccess ? confirmedPto : null,
+    peopleWithoutPto: tracked.length - peopleWithPto,
+    ptoHours: series(plannedPto, canViewLogged ? loggedPto : null),
   };
 }
 
-/** The headline split of full-time time into project / PTO / bench, both series. */
+/**
+ * The headline split of full-time time into project / PTO / bench, plus the
+ * part-time contribution alongside it. Project + PTO + bench reconciles to
+ * available hours, so the total is left implicit rather than reported.
+ *
+ * Every row is **full-time only** on both sides of the comparison: the plan books
+ * capacity a full-timer has and an hourly person doesn't, so counting hourly
+ * people's logged PTO or bench against a full-time denominator would compare two
+ * different populations. Their project hours are reported separately, as a share
+ * of all project hours.
+ */
 export function buildUtilizationSummary(
   cohort: UtilizationStaff[],
   ledgers: Map<string, StaffLedger>,
-  entryTotals: Map<string, EntryTotals>,
-  hasFullAccess: boolean,
+  loggedTotals: Map<string, LoggedTotals>,
+  canViewLogged: boolean,
 ): UtilizationSummary {
   let availableHours = 0;
   let plannedProjectFt = 0;
   let plannedProjectHourly = 0;
   let plannedPto = 0;
   let plannedBench = 0;
-  let confirmedProjectFt = 0;
-  let confirmedProjectHourly = 0;
-  let confirmedPto = 0;
-  let confirmedBench = 0;
-  let confirmedAdmin = 0;
+  let loggedProjectFt = 0;
+  let loggedProjectHourly = 0;
+  let loggedPto = 0;
+  let loggedBench = 0;
 
   for (const person of cohort) {
     const ledger = ledgers.get(person.id);
-    const totals = entryTotals.get(person.id) ?? emptyEntryTotals();
     if (!ledger) continue;
+    const logged = loggedTotals.get(person.id) ?? emptyLoggedTotals();
 
     if (isFullTime(person)) {
       availableHours += ledger.availableHours;
       plannedProjectFt += ledger.plannedProjectHours;
       plannedPto += ledger.plannedPtoHours;
       plannedBench += ledger.plannedBenchHours;
-      confirmedProjectFt += totals.project;
+      loggedProjectFt += logged.project;
+      loggedPto += logged.pto;
+      loggedBench += logged.bench;
     } else {
       plannedProjectHourly += ledger.plannedProjectHours;
-      confirmedProjectHourly += totals.project;
+      loggedProjectHourly += logged.project;
     }
-    confirmedPto += totals.pto;
-    confirmedBench += totals.bench;
-    confirmedAdmin += totals.internalAdmin;
   }
 
-  const gate = (value: number) => (hasFullAccess ? value : null);
-  const share = (value: number | null) =>
-    value == null ? null : shareOf(value, availableHours);
-
-  const rows: UtilizationSplitRow[] = [
-    {
-      key: "project",
-      planned: plannedProjectFt,
-      plannedShare: shareOf(plannedProjectFt, availableHours),
-      confirmed: gate(confirmedProjectFt),
-      confirmedShare: share(gate(confirmedProjectFt)),
-    },
-    {
-      key: "pto",
-      planned: plannedPto,
-      plannedShare: shareOf(plannedPto, availableHours),
-      confirmed: gate(confirmedPto),
-      confirmedShare: share(gate(confirmedPto)),
-    },
-    {
-      key: "bench",
-      planned: plannedBench,
-      plannedShare: shareOf(plannedBench, availableHours),
-      confirmed: gate(confirmedBench),
-      confirmedShare: share(gate(confirmedBench)),
-    },
-    {
-      key: "internalAdmin",
-      planned: null,
-      plannedShare: null,
-      confirmed: gate(confirmedAdmin),
-      confirmedShare: share(gate(confirmedAdmin)),
-    },
-  ];
-
+  const gate = (value: number) => (canViewLogged ? value : null);
   const plannedProjectTotal = plannedProjectFt + plannedProjectHourly;
-  const confirmedProjectTotal = confirmedProjectFt + confirmedProjectHourly;
+  const loggedProjectTotal = loggedProjectFt + loggedProjectHourly;
 
   return {
     availableHours,
-    projectHours: series(plannedProjectTotal, gate(confirmedProjectTotal)),
-    projectHoursFullTime: series(plannedProjectFt, gate(confirmedProjectFt)),
-    projectHoursHourly: series(
-      plannedProjectHourly,
-      gate(confirmedProjectHourly),
+    fullTimeProject: metric(
+      plannedProjectFt,
+      gate(loggedProjectFt),
+      availableHours,
     ),
-    rows,
-    utilization: {
-      planned: shareOf(plannedProjectFt, availableHours),
-      confirmed: share(gate(confirmedProjectFt)),
+    pto: metric(plannedPto, gate(loggedPto), availableHours),
+    bench: metric(plannedBench, gate(loggedBench), availableHours),
+    projectHours: series(plannedProjectTotal, gate(loggedProjectTotal)),
+    projectHoursHourly: series(plannedProjectHourly, gate(loggedProjectHourly)),
+    hourlyProjectShare: {
+      planned: shareOf(plannedProjectHourly, plannedProjectTotal),
+      confirmed: canViewLogged
+        ? shareOf(loggedProjectHourly, loggedProjectTotal)
+        : null,
     },
   };
 }
 
-/** One row per person: capacity, both hour series, utilization, and coverage. */
+/** One row per person: capacity, and project / PTO / bench hours against it. */
 export function buildStaffBreakdown(
   cohort: UtilizationStaff[],
   ledgers: Map<string, StaffLedger>,
-  entryTotals: Map<string, EntryTotals>,
-  weeksByStaff: Map<string, UtilizationWeek[]>,
-  canSeeConfirmed: (staffId: string) => boolean,
+  loggedTotals: Map<string, LoggedTotals>,
+  canViewLogged: boolean,
 ): StaffBreakdownRow[] {
   return cohort
     .map((person) => {
       const ledger = ledgers.get(person.id) ?? emptyLedger();
-      const visible = canSeeConfirmed(person.id);
-      const confirmedHours = visible
-        ? (entryTotals.get(person.id)?.project ?? 0)
-        : null;
-      const availableHours = isFullTime(person) ? ledger.availableHours : null;
-
-      const weeks = (weeksByStaff.get(person.id) ?? []).filter((w) =>
-        ledger.employedWeeks.has(w.weekStartDate),
-      );
+      const logged = loggedTotals.get(person.id) ?? emptyLoggedTotals();
+      const gate = (value: number) => (canViewLogged ? value : null);
+      const fullTime = isFullTime(person);
+      const availableHours = fullTime ? ledger.availableHours : null;
 
       return {
         staffId: person.id,
@@ -933,90 +1037,85 @@ export function buildStaffBreakdown(
         lineOfBusiness: person.lineOfBusiness,
         employmentType: person.employmentType,
         availableHours,
-        plannedProjectHours: ledger.plannedProjectHours,
-        confirmedProjectHours: confirmedHours,
-        plannedUtilization:
-          availableHours == null
-            ? null
-            : shareOf(ledger.plannedProjectHours, availableHours),
-        confirmedUtilization:
-          availableHours == null || confirmedHours == null
-            ? null
-            : shareOf(confirmedHours, availableHours),
-        varianceHours:
-          confirmedHours == null
-            ? null
-            : confirmedHours - ledger.plannedProjectHours,
-        weeksSubmitted: visible ? weeks.filter((w) => w.submitted).length : 0,
-        weeksInRange: ledger.employedWeeks.size,
-        hasConfirmedAccess: visible,
+        project: metric(
+          ledger.plannedProjectHours,
+          gate(logged.project),
+          availableHours,
+        ),
+        // PTO and bench are full-time measures — see the module header.
+        pto: fullTime
+          ? metric(ledger.plannedPtoHours, gate(logged.pto), availableHours)
+          : null,
+        bench: fullTime
+          ? metric(ledger.plannedBenchHours, gate(logged.bench), availableHours)
+          : null,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
- * Where the cohort's time sits by line of business. Planned counts working days
- * (each day lands in exactly one line of business, so the shares total 100%).
- * Confirmed counts logged hours, attributed to the person's own confirmed role on
- * that project for that date and falling back to their home line of business when
- * they logged against a project they were never staffed to — `projects` has no
- * line of business of its own, only its roles do.
+ * Where each person's time sits by line of business, one row per person. Both
+ * series count **hours** so a row's percentages are comparable across the basis
+ * toggle; the attribution rule is stated once on `buildStaffLedger` (planned) and
+ * `buildLoggedTotals` (logged), and is deliberately identical on both sides.
  */
 export function buildLobAlignment(
   cohort: UtilizationStaff[],
   ledgers: Map<string, StaffLedger>,
-  entriesByStaff: Map<string, UtilizationEntry[]>,
-  rolesByStaff: Map<string, UtilizationRole[]>,
-  hasFullAccess: boolean,
+  loggedTotals: Map<string, LoggedTotals>,
+  canViewLogged: boolean,
 ): LobAlignmentRow[] {
-  const plannedDays = new Map<LineOfBusiness, number>();
-  const confirmedHours = new Map<LineOfBusiness, number>();
-  let plannedTotal = 0;
-  let confirmedTotal = 0;
+  return cohort
+    .map((person) => {
+      const planned = ledgers.get(person.id)?.lobHours ?? emptyLobHours();
+      const logged = canViewLogged
+        ? (loggedTotals.get(person.id)?.lobHours ?? emptyLobHours())
+        : null;
+      return {
+        staffId: person.id,
+        name: person.name,
+        role: person.role,
+        lineOfBusiness: person.lineOfBusiness,
+        employmentType: person.employmentType,
+        planned,
+        logged,
+        plannedTotal: sumLobHours(planned),
+        loggedTotal: logged == null ? null : sumLobHours(logged),
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
 
-  for (const person of cohort) {
-    const ledger = ledgers.get(person.id);
-    if (ledger) {
-      for (const [lob, days] of ledger.lobDays) {
-        plannedDays.set(lob, (plannedDays.get(lob) ?? 0) + days);
-        plannedTotal += days;
-      }
-    }
+/**
+ * Aggregate line-of-business rows into one cohort row. Takes the rows the reader
+ * can currently see, so the footer always describes the table above it rather
+ * than an unfiltered cohort they aren't looking at.
+ */
+export function sumLobAlignment(rows: readonly LobAlignmentRow[]): {
+  planned: LobHours;
+  logged: LobHours | null;
+  plannedTotal: number;
+  loggedTotal: number | null;
+} {
+  const planned = emptyLobHours();
+  const logged = emptyLobHours();
+  let hasLogged = false;
 
-    const confirmedRoles = (rolesByStaff.get(person.id) ?? []).filter(
-      (r) => r.status === ROLE_STATUS.confirmed,
-    );
-    for (const entry of entriesByStaff.get(person.id) ?? []) {
-      if (entry.projectId == null) continue;
-      const match = confirmedRoles.find(
-        (r) =>
-          r.projectId === entry.projectId &&
-          entry.date >= r.startDate &&
-          entry.date <= r.endDate,
-      );
-      const lob = match?.lineOfBusiness ?? person.lineOfBusiness;
-      if (lob == null) continue;
-      confirmedHours.set(lob, (confirmedHours.get(lob) ?? 0) + entry.hours);
-      confirmedTotal += entry.hours;
+  for (const row of rows) {
+    for (const lob of LINE_OF_BUSINESS) {
+      planned[lob] += row.planned[lob];
+      if (row.logged != null) logged[lob] += row.logged[lob];
     }
+    if (row.logged != null) hasLogged = true;
   }
 
-  return LINE_OF_BUSINESS.map((lob) => {
-    const days = plannedDays.get(lob) ?? 0;
-    const hours = confirmedHours.get(lob) ?? 0;
-    return {
-      lineOfBusiness: lob,
-      plannedDays: days,
-      plannedShare: plannedTotal === 0 ? 0 : days / plannedTotal,
-      confirmedHours: hasFullAccess ? hours : null,
-      confirmedShare: !hasFullAccess
-        ? null
-        : confirmedTotal === 0
-          ? 0
-          : hours / confirmedTotal,
-    };
-  }).filter((row) => row.plannedDays > 0 || (row.confirmedHours ?? 0) > 0);
+  return {
+    planned,
+    logged: hasLogged ? logged : null,
+    plannedTotal: sumLobHours(planned),
+    loggedTotal: hasLogged ? sumLobHours(logged) : null,
+  };
 }
 
 /** How much of the cohort's in-range time is actually backed by submitted weeks. */
@@ -1024,7 +1123,7 @@ export function buildCoverage(
   cohort: UtilizationStaff[],
   ledgers: Map<string, StaffLedger>,
   weeksByStaff: Map<string, UtilizationWeek[]>,
-  hasFullAccess: boolean,
+  canViewLogged: boolean,
 ): CoverageSummary {
   let submitted = 0;
   let total = 0;
@@ -1037,5 +1136,5 @@ export function buildCoverage(
         submitted += 1;
     }
   }
-  return { weeksSubmitted: submitted, weeksTotal: total, hasFullAccess };
+  return { weeksSubmitted: submitted, weeksTotal: total, canViewLogged };
 }

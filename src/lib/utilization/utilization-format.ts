@@ -15,13 +15,16 @@ export function formatHours(value: number | null): string {
   return `${Math.round(value).toLocaleString("en-US")} h`;
 }
 
-/** A signed hour delta, e.g. `-12` → "−12 h", `0` → "0 h". Minus is U+2212. */
-export function formatHoursDelta(value: number | null): string {
+/**
+ * A signed percentage from a 0–1 fraction, e.g. `-0.38` → "−38%". Whole numbers:
+ * this reports how far a logged figure sits from plan, and a tenth of a percent
+ * is below the precision the underlying hours support. Minus is U+2212.
+ */
+export function formatPercentDelta(value: number | null): string {
   if (value == null) return "—";
-  const rounded = Math.round(value);
-  if (rounded === 0) return "0 h";
-  const sign = rounded > 0 ? "+" : "−";
-  return `${sign}${Math.abs(rounded).toLocaleString("en-US")} h`;
+  const rounded = Math.round(value * 100);
+  if (rounded === 0) return "0%";
+  return `${rounded > 0 ? "+" : "−"}${Math.abs(rounded)}%`;
 }
 
 /** Whole days, e.g. `12` → "12 days" (and "1 day"). */

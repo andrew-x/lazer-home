@@ -79,6 +79,7 @@ function makeEmployment(
   effectiveFromDate: string,
   role: EmploymentInsert["role"],
   isManagement: boolean,
+  employmentType: EmploymentInsert["employmentType"] = "FULL_TIME",
 ): EmploymentInsert {
   const isBillable = !isManagement && role !== "SOLUTIONS";
   return {
@@ -87,7 +88,7 @@ function makeEmployment(
     effectiveFromDate,
     lineOfBusiness: faker.helpers.arrayElement(LINE_OF_BUSINESS),
     role,
-    employmentType: "FULL_TIME",
+    employmentType,
     isBillable,
     utilizationTarget: isBillable
       ? faker.helpers.arrayElement([80, 90, 100])
@@ -188,8 +189,17 @@ export async function seedStaff(db: SeedDb): Promise<Staff[]> {
         "ic",
       ),
     );
+    // A slice of the delivery bench is hourly — the schema's stand-in for
+    // part-time. Without any, the utilization report's part-time figures, its
+    // "n/a" capacity cells and its type filter all read as empty.
     employmentRows.push(
-      makeEmployment(id, join, faker.helpers.arrayElement(IC_ROLES), false),
+      makeEmployment(
+        id,
+        join,
+        faker.helpers.arrayElement(IC_ROLES),
+        false,
+        chance(0.15) ? "HOURLY" : "FULL_TIME",
+      ),
     );
   }
 

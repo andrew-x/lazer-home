@@ -16,15 +16,16 @@ import type { HeadcountSummary } from "@/lib/utilization/utilization-report";
 
 /**
  * **Headcount** — billable staff in the period, split full-time vs hourly, with
- * joiners and departures, and the same cut per discipline. The only single-series
- * card: these are roster facts, so there is no plan-versus-actual to compare.
+ * joiners and departures, and the same cut per role. The one card the basis
+ * toggle doesn't touch: these are roster facts, so there is no plan to compare
+ * an actual against.
  */
 export function HeadcountCard({ headcount }: { headcount: HeadcountSummary }) {
   return (
     <ReportSection
       title="Headcount"
       description="Billable staff on the roster during the period, and how that changed."
-      caption="Overhead disciplines (leadership, sales, solutions, operations) are excluded throughout the report — they hold no project roles, so counting them would only dilute every utilization figure. Hourly staff stand in for part-time: the schema has no separate part-time employment type. Joiners and departures count start and termination dates falling inside the period, so someone who left mid-period still contributes the capacity and hours they had while here."
+      caption="Overhead roles (leadership, sales, solutions, operations) are excluded throughout the report — they hold no project roles, so counting them would only dilute every utilization figure. Hourly staff stand in for part-time: the schema has no separate part-time employment type. Joiners and departures count start and termination dates falling inside the period, so someone who left mid-period still contributes the capacity and hours they had while here."
     >
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
@@ -51,7 +52,7 @@ export function HeadcountCard({ headcount }: { headcount: HeadcountSummary }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Discipline</TableHead>
+              <TableHead>Role</TableHead>
               <TableHead className="text-right">Total</TableHead>
               <TableHead className="text-right">Full time</TableHead>
               <TableHead className="text-right">Hourly</TableHead>
@@ -63,7 +64,7 @@ export function HeadcountCard({ headcount }: { headcount: HeadcountSummary }) {
             {headcount.byRole.map((row) => (
               <TableRow key={row.role ?? "unknown"}>
                 <TableCell className="font-medium">
-                  {row.role ? ROLE_LABELS[row.role] : "No discipline"}
+                  {row.role ? ROLE_LABELS[row.role] : "No role"}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {formatCount(row.total)}
@@ -85,7 +86,7 @@ export function HeadcountCard({ headcount }: { headcount: HeadcountSummary }) {
           </TableBody>
           <TableFooter>
             <TableRow>
-              <TableCell className="font-medium">All disciplines</TableCell>
+              <TableCell className="font-medium">All roles</TableCell>
               <TableCell className="text-right tabular-nums">
                 {formatCount(headcount.total)}
               </TableCell>
