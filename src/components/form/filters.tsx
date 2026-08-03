@@ -227,6 +227,12 @@ export function SearchableSelectFilter({
  * an `overflow-x-auto` box so a wide group (e.g. the 9 roles) scrolls on narrow
  * viewports instead of forcing the page to. Values render through `labels` when
  * provided, else the raw option string.
+ *
+ * Pass `includeAll={false}` to drop that segment, making the control a plain choice
+ * between the options with no unfiltered state — for an axis the caller must always
+ * pick a side of, rather than an optional narrowing. The home dashboard's staffing
+ * panel is the one such case: it splits full-time from hourly staff, whose rates
+ * aren't comparable, so a blended "All" would be a figure nobody wants.
  */
 export function SegmentedFilter({
   label,
@@ -234,12 +240,15 @@ export function SegmentedFilter({
   options,
   labels,
   onChange,
+  includeAll = true,
 }: {
   label: string;
   value: string;
   options: readonly string[];
   labels?: Record<string, string>;
   onChange: (value: string) => void;
+  /** Whether to render the leading "All" ({@link ALL}) segment. */
+  includeAll?: boolean;
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
@@ -256,7 +265,7 @@ export function SegmentedFilter({
             if (values.length > 0) onChange(values[0]);
           }}
         >
-          <ToggleGroupItem value={ALL}>All</ToggleGroupItem>
+          {includeAll && <ToggleGroupItem value={ALL}>All</ToggleGroupItem>}
           {options.map((option) => (
             <ToggleGroupItem key={option} value={option}>
               {labels?.[option] ?? option}

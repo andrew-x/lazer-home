@@ -61,6 +61,19 @@ export const EMPLOYMENT_TYPE_LABELS: Record<EmploymentType, string> = {
   HOURLY: "Hourly",
 };
 
+/**
+ * The employment types as an ordered option list — salaried first, matching how the
+ * org reads its own bench.
+ *
+ * Taken from the label map's keys rather than written out again: `Record<EmploymentType, …>`
+ * forces that map to be exhaustive, so a new enum value shows up here for free instead
+ * of silently missing a segment. Shared by the two segmented controls on the home
+ * dashboard — availability's optional filter and staffing's required cohort split.
+ */
+export const EMPLOYMENT_TYPES = Object.keys(
+  EMPLOYMENT_TYPE_LABELS,
+) as readonly EmploymentType[];
+
 /** Which delivery pool bills the person's time. */
 export const BILLABLE_TYPE_LABELS: Record<BillableType, string> = {
   HUB: "Hub",
