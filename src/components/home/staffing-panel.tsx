@@ -111,7 +111,7 @@ export function StaffingPanel({
             {/* Rendered outside the per-cohort empty check below: an empty cohort
                 must not take the toggle with it, or picking it strands you there. */}
             <SegmentedFilter
-              label="Employment"
+              label="Type"
               value={employmentType}
               options={EMPLOYMENT_TYPES}
               labels={EMPLOYMENT_TYPE_LABELS}
