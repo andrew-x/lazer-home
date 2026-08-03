@@ -1,0 +1,1 @@
+CREATE INDEX "tasks_owner_done_idx" ON "tasks" USING btree ("owner_staff_id","done","created_at" DESC NULLS LAST);

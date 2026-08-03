@@ -286,11 +286,11 @@ this domain's data** alongside the planner and the utilization report. Read
 [ADR 0063](../decisions/0063-home-dashboard-two-time-bases-and-point-in-time-staffing.md)
 before changing anything here — the time bases are load-bearing.
 
-- **Your Status — year to date.** Personal tiles (PTO taken, Utilization, Planned) from
+- **Your Status — mostly year to date.** Personal tiles (PTO taken, Utilization, Planned) from
   submitted timesheets via `getStaffUtilization` + `src/lib/timesheets/utilization.ts`, plus
   **`MyAllocationsTable`** (Project · Client · Dates · Hours/day; live rows, then an
   "Upcoming" divider) over `getMyAllocations` + `buildMyAllocationRows`
-  (`src/lib/home/my-work.ts`). Rows are **one per project** (two roles on one engagement
+  (`src/lib/home/my-work.ts`). **This band also carries a point-in-time block that has nothing to do with allocations** — the CRM personal task list ([ADR 0065](../decisions/0065-home-personal-task-list-and-assignee-completion.md)), which is why the band description no longer names a single window. Rows are **one per project** (two roles on one engagement
   merge, hours summed), a **delivery-manager seat** appears with `hoursPerDay: null` rendered
   as "—" (`project_delivery_managers` has no hours or dates — its window is derived from the
   project's live roles), and `status` reads `tentative` only when *every* role on the project

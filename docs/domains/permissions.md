@@ -53,13 +53,36 @@ so the admin role retains its built-in capabilities) with two business resources
 These semantics are about acting on / viewing **other** people; the owner path is
 always allowed without a permission.
 
-Two flat write capabilities gate data entry (no ownership dimension). Reads are
+Two write capabilities gate data entry. They are **near**-flat: `projects.edit` has no
+ownership dimension at all, and `crm.edit` has exactly **one** (completing a task you were
+assigned — below). Reads are
 open: any signed-in user can browse companies, contacts, opportunities, and projects
 — with one carve-out, `projects.viewMargin` below, because a project's cost is
 derived from individual compensation.
 
 - **`crm.edit`** — add/edit CRM companies, contacts *and* opportunities (including
   creating a company or contact inline from another CRM form).
+
+  **The one owner path inside it — completing a task** (`src/actions/crm/canCompleteTask.ts`,
+  [ADR 0065](../decisions/0065-home-personal-task-list-and-assignee-completion.md) §2). **The
+  task's own assignee may always complete it; anyone else needs `crm.edit`.** Every other CRM
+  write — including `createTask` / `updateTask` / `deleteTask` — is the flat capability with
+  no ownership dimension whatsoever, and notes and both relationship junctions have none
+  either. Three things to know before touching it:
+  - **Why it exists.** `crm.edit` is held only by `sales` / `manager` / `admin`, but
+    `tasks.ownerStaffId` can point at **any** staff row. The flat gate therefore made the
+    home dashboard's personal task list **read-only for exactly the people whose list it
+    is** — an engineer or a finance lead handed a task could not tick it off. Rewording or
+    destroying a task *is* editing CRM data; closing out your own assignment is not.
+  - **It is the `canEditStaff` shape, not a new one** (ADR 0014): a decision function plus an
+    `ActionAuthorize` hook (`authorizeTaskDone`) in metadata, with the rule itself in the
+    pure, unit-tested `taskCompletionAllowed` (`src/lib/crm/task-completion.ts`) — which
+    takes the **already-evaluated** `crm.edit` answer as a boolean, so no role is
+    re-interpreted outside `permissions.ts`.
+  - **No capability was added and the matrix did not change.** `permissions.ts` and
+    `permissions.test.ts` are untouched; this prose is the contract for the owner path. If a
+    future surface wants the *same* treatment (say "the assignee may also reword it"), that
+    is a new decision, not an extension of this one.
 - **`projects.edit`** — add/edit projects and their staffing (delivery managers and
   roles). Its type-ahead staff/company pickers have their own `projects.edit`-gated
   search actions (`src/actions/projects/searchStaff.ts` / `searchCompanies.ts`), so a
@@ -86,9 +109,10 @@ derived from individual compensation.
   (**again no matrix change**: "may correct an engagement's delivery record" has exactly the
   audience of "may re-date its roles"). Two things to know before touching them: **edit and delete
   are deliberately *not* author-only** — a delivery note is the operational record of a shared
-  engagement, so any capability holder may correct it, exactly as CRM notes and tasks have no
-  per-entry ownership, and the deliberate **inverse** of self-evaluations below, where authorship is
-  the point ([ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md) §3). Which
+  engagement, so any capability holder may correct it, exactly as CRM notes have no per-entry
+  ownership and CRM tasks have none over *create/edit/delete* (their one owner path is
+  **completion**, which has no delivery-note counterpart), and the deliberate **inverse** of
+  self-evaluations below, where authorship is the point ([ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md) §3). Which
   means **`authorStaffId` is attribution only and must never become an authorization input.** And
   **the notes read is open** (`getProjectDeliveryNotes` takes no user, masks nothing), so the health
   figure and the **Low health** badge on `/projects` reach *every* viewer — unlike the
@@ -303,6 +327,17 @@ claim is only as good as the matrix row it points at. If you change a role's
 and it does not appear in the matrix at all.** Read it before you conclude that the
 matrix is the whole model.
 
+> **Narrower claim than it looks — and the matrix is even less of the whole model than it
+> used to be.** What is unique here is *relationship*-based access (`staff.managerId`
+> deciding who may read a row). **Owner paths are not unique and are now spread across four
+> domains:** staff (`canEditStaff`, `canViewCompensation`, `getStaffPto`), timesheets
+> (`canEditTimesheet`), performance (self-evaluations — the widest owner path, with a
+> narrower author-only write), and **since [ADR 0065](../decisions/0065-home-personal-task-list-and-assignee-completion.md)
+> the CRM too** (`canCompleteTask` — the assignee may complete their own task). None of
+> those five appears in the matrix either. So: "the reporting line decides" is still the
+> one relationship gate; "a capability plus an owner path" is an ordinary pattern, and any
+> audit that reads only the matrix rows will miss all of them.
+
 **Performance review notes** (`performance_review_note` — a manager's write-up of a
 review conversation) are gated on the **reporting line**, not on a capability:
 `src/actions/performance/reviewNoteAccess.ts` is **the only place `staff.managerId`
@@ -402,7 +437,7 @@ pass is an access-control decision — make it deliberately in every new action.
 
 | Pass `activeOnly: true` | Leave it off |
 |---|---|
-| `canGiveFeedback`, `getReviewNoteAccess`, `loadStaffProfileDrawer` | `canEditStaff`, `canViewCompensation`, `canEditTimesheet`, `getCurrentStaffId`, **`authorizeSelfEvaluationMutate` / `getStaffSelfEvaluations`** |
+| `canGiveFeedback`, `getReviewNoteAccess`, `loadStaffProfileDrawer` | `canEditStaff`, `canViewCompensation`, `canEditTimesheet`, `getCurrentStaffId`, `authorizeSelfEvaluationMutate` / `getStaffSelfEvaluations`, **`canCompleteTask`** |
 | **Relationship / eligibility** checks — the caller's identity is used to reach **other people's** data, so `isActive` is part of "are you still one of us" | **Ownership** checks — the caller is resolved only to compare against **their own** row, so a stale-active caller reaches nothing but themselves |
 
 **The self-evaluation gates are the newest worked example of the right-hand column, and the
@@ -562,6 +597,30 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
     bodies** (the old `// TODO: lock down` markers are gone). The hook is the real
     boundary; the UI check is never trusted alone. **Contract:** any action using it
     must take a `staffId: string` in its input.
+- **`src/actions/crm/canCompleteTask.ts`** — the **task-completion** decision point, the
+  CRM's only ownership check and the newest copy of the `canEditStaff` shape
+  ([ADR 0065](../decisions/0065-home-personal-task-list-and-assignee-completion.md) §2).
+  - **`canCompleteTask(user, taskId): Promise<boolean>`** — the task's **assignee** may
+    always complete it; anyone else needs `crm.edit`. `crm.edit` **short-circuits before the
+    DB is touched**, so only a non-holder pays for the owner lookup. It resolves the caller
+    from the **passed** `user`, not the ambient session (as `canEditStaff` does) — a function
+    taking a `user` must answer about *that* user, or a future caller gets a silently wrong
+    answer. `ownStaffId(user.id)` with **`activeOnly` off**: an ownership check, per the table
+    above.
+  - **`authorizeTaskDone: ActionAuthorize`** — reads `clientInput.id` (raw and pre-validation,
+    so a non-string denies outright) and throws unless `canCompleteTask` passes. **`setTaskDone`
+    declares it instead of `permission: { crm: ["edit"] }`**; `createTask` / `updateTask` /
+    `deleteTask` keep the static capability. **Contract:** any action using this hook must take
+    an `id: string` naming a task.
+  - **The rule is the pure `taskCompletionAllowed`** (`src/lib/crm/task-completion.ts`,
+    unit-tested): `hasCrmEdit` wins; otherwise `ownerStaffId === callerStaffId`, and **either
+    being null never matches** — comparing two nulls as equal would hand every unassigned task
+    to every account with no linked staff row. An **unknown task id denies** for non-holders
+    (you can't own a row that isn't there); the body's `assertRowExists` owns the message.
+  - **The read beside it needs no gate at all.** `getMyTasks` takes **no `staffId`** — the
+    subject comes from the session, like `getMyAllocations`, so there is no cross-user id to
+    authorize. Its `MyTaskView` is a **whitelist** because it is a Client Component prop on
+    `/` (see [crm.md](./crm.md#the-personal-task-list-on-)).
 - **`src/actions/staff/canViewCompensation.ts`** — the comp-visibility decision
   point (mirrors `canEditStaff`). **`canViewCompensation(user, targetStaffId):
   Promise<boolean>`** — a user may **always** see their **own** compensation; seeing
