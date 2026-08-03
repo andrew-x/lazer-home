@@ -1,6 +1,6 @@
 # Domain: Utilization (reporting)
 
-**Status: built (v1).** A read-only report at **`/dashboards/utilization`**. It is
+**Status: built (v1).** A read-only report at **`/analytics/utilization`**. It is
 **not a new domain in the data-model sense** — no table, no migration, no capability.
 It is the first surface in the app that puts the **allocation plan** (`project_roles`)
 and the **timesheet actuals** (`time_entries`) side by side, which both
@@ -165,11 +165,11 @@ capability to `src/lib/auth/permissions.ts`, `src/lib/auth/permissions.test.ts` 
 [permissions.md](./permissions.md) **in lockstep** ([ADR 0014](../decisions/0014-rbac-better-auth-access-control.md))
 — not loosening the scope in this read.
 
-**Nav.** The **Dashboards** parent nav entry lost its `staff.viewCompensation` gate; that gate moved
+**Nav.** The **Analytics** parent nav entry lost its `staff.viewCompensation` gate; that gate moved
 down onto the Compensation and Bonuses children, and Utilization was added as an **ungated** child.
-A section is now as loose as its loosest child. `/dashboards` (still a redirect, not a page) keeps
+A section is now as loose as its loosest child. `/analytics` (still a redirect, not a page) keeps
 sending `staff.viewCompensation` holders to Compensation and `ratings.view` holders to Levels, then
-falls through to **`/dashboards/utilization`** instead of `notFound()` — so the section is finally
+falls through to **`/analytics/utilization`** instead of `notFound()` — so the section is finally
 reachable by everyone.
 
 ## Code map
@@ -188,7 +188,7 @@ reachable by everyone.
   they pin the access gate's `null`-not-`0` behaviour and the definitions above, which no type states.
 - **Window:** `src/lib/utilization/utilization-range.ts` (pure; params, current-month default, cap).
 - **Format:** `src/lib/utilization/utilization-format.ts` (pure; the `null` → "—" convention).
-- **UI:** `src/app/(app)/dashboards/utilization/page.tsx` (server) → `src/components/utilization/`
+- **UI:** `src/app/(app)/analytics/utilization/page.tsx` (server) → `src/components/utilization/`
   — `utilization-report.tsx` (the client shell owning the two in-memory filters) + seven cards +
   `report-primitives.tsx` (`ReportSection`, `CoverageNote`) + `utilization-filters.tsx`.
 - **Shared control:** `src/components/form/endpoint-picker.tsx` — `EndpointPicker` was **extracted out
@@ -224,5 +224,5 @@ reachable by everyone.
   and join/termination dates all come from `staff` + the latest `staff_employment`; `staff_pto`
   supplies leave. **`utilizationTarget` is deliberately not read** — the report measures actual
   capacity use, not attainment against a target.
-- **[Performance](./performance.md)** — it sits in the Dashboards section beside the three gated
+- **[Performance](./performance.md)** — it sits in the Analytics section beside the three gated
   analytics pages, and is the only one open to everyone.

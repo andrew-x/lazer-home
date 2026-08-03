@@ -18,7 +18,7 @@ export const metadata: Metadata = { title: "Utilization" };
 type SearchParams = Record<string, string | string[] | undefined>;
 
 /**
- * The **Utilization report** (`/dashboards/utilization`).
+ * The **Utilization report** (`/analytics/utilization`).
  *
  * No capability gate beyond being signed in: the planned series re-aggregates
  * what the allocations planner already discloses to everyone (role spans, hours

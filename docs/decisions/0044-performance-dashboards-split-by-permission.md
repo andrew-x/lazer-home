@@ -7,10 +7,10 @@ tabs" UI half of [ADR 0032](./0032-staff-rating-levels-effective-dated-manager-o
 > **Routes moved — read this ADR for the *reasoning*, not the paths.**
 > [ADR 0055](./0055-nav-dashboards-vs-people-management.md) later regrouped these
 > surfaces by read-vs-write and moved every route below: `/performance/compensation` →
-> `/dashboards/compensation`, `/performance/levels` → `/dashboards/levels`,
+> `/analytics/compensation`, `/performance/levels` → `/analytics/levels`,
 > `/performance/levels/edit` → `/people/levels`, `/performance/compensation-plans` →
-> `/people/compensation-plans`, and `/performance` → two redirects (`/dashboards` and
-> `/people`). A third dashboard, `/dashboards/bonuses`, was split out of the
+> `/people/compensation-plans`, and `/performance` → two redirects (`/analytics` and
+> `/people`). A third dashboard, `/analytics/bonuses`, was split out of the
 > Compensation page. The `/performance/*` paths below are kept as the historical
 > record of *this* decision; the split, the gates, and the per-page control-bar
 > reasoning are all unchanged and still current.

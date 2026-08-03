@@ -6,7 +6,7 @@ merged `/performance` page into gated sibling routes; that decision stands — t
 regroups the result and moves the routes)
 
 **TL;DR:** `Dashboards` = the three aggregate, anonymized, read-only analytics pages
-(`/dashboards/{compensation,bonuses,levels}`). `People management` = the three
+(`/analytics/{compensation,bonuses,levels}`). `People management` = the three
 identity-bearing write screens (`/people/{levels,compensation-plans,bonus-payments}`).
 Both section indexes are permission-aware redirects. Bonuses stop being a section of
 the Compensation dashboard and become a page. **No gate, read or schema changed.**
@@ -20,6 +20,14 @@ the Compensation dashboard and become a page. **No gate, read or schema changed.
 > takes the new branch **last** (all four gates are {manager, admin} today, so nobody's
 > landing page moved). See
 > [domains/staff-profiles.md](../domains/staff-profiles.md#profile-completeness-peopleprofile-completeness).
+
+> **Renamed, 2026-08-03.** The section is now labelled **`Analytics`** and lives at
+> **`/analytics/*`** (`/dashboards/*` is gone, not redirected — nothing linked to it
+> from outside the app). The route paths below have been updated in place; the word
+> `Dashboards` is left as this ADR wrote it, so read it as `Analytics`. The split this
+> ADR decided is unchanged; only the label and the URL segment moved. The same round
+> **deleted `/settings`** (account info + sign out, both already elsewhere) and moved
+> **Peer Feedback** above Companies in `NAV_ITEMS`; neither touches a gate.
 
 ## Context
 
@@ -58,10 +66,10 @@ people, and give bonuses their own dashboard.**
 
 | Section | Route | Gate |
 |---|---|---|
-| **Dashboards** (`IconChartBar`) | `/dashboards` → redirect | `staff.viewCompensation` |
-| | `/dashboards/compensation` | (parent's) |
-| | `/dashboards/bonuses` | `BONUS_PAYMENT_READ_ACCESS` = `staff.viewCompensation` |
-| | `/dashboards/levels` | `ratings.view` |
+| **Dashboards** (`IconChartBar`) | `/analytics` → redirect | `staff.viewCompensation` |
+| | `/analytics/compensation` | (parent's) |
+| | `/analytics/bonuses` | `BONUS_PAYMENT_READ_ACCESS` = `staff.viewCompensation` |
+| | `/analytics/levels` | `ratings.view` |
 | **People management** (`IconUserStar`) | `/people` → redirect | `ratings.edit` |
 | | `/people/levels` | `ratings.edit` |
 | | `/people/compensation-plans` (+ `[planId]`, `[planId]/staff`) | `COMPENSATION_PLAN_ACCESS` |
@@ -83,7 +91,7 @@ gate later can't silently drop a viewer onto a 404.
 
 ### The bonus dashboard
 
-`/dashboards/bonuses` is a page of its own with the same `staff.viewCompensation`
+`/analytics/bonuses` is a page of its own with the same `staff.viewCompensation`
 gate, now expressed through the **existing** `BONUS_PAYMENT_READ_ACCESS` constant
 rather than a hand-written literal. `BonusDashboard` (`bonus-dashboard.tsx`) is a thin
 shell: it owns `useDashboardFilters()`, renders `DashboardFilterBar` (with `rates` —

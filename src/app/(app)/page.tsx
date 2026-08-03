@@ -38,7 +38,7 @@ export const metadata: Metadata = { title: "Home" };
  *
  * Because both halves would otherwise be called "utilization", **every figure must
  * name its window** — the bare word is ambiguous here. Don't unify the two: doing so
- * destroys one of the two answers. (`/dashboards/utilization` is a third thing
+ * destroys one of the two answers. (`/analytics/utilization` is a third thing
  * again: plan reconciled *against* actuals over a chosen range — ADR 0062.)
  *
  * The two sections are sibling async Server Components rather than one top-level
