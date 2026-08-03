@@ -19,6 +19,7 @@ import {
   PLANNER_COLUMN_WIDTH,
   PLANNER_LABEL_COL,
   PLANNER_UNIT_NOUN,
+  plannerTableWidth,
 } from "@/components/planner/planner-columns";
 import {
   Tooltip,
@@ -91,7 +92,13 @@ export function ProjectAllocationsGrid({
 
   return (
     <div className="overflow-x-auto rounded-md border">
-      <table className="table-fixed border-collapse text-sm">
+      {/* The explicit width is what makes `table-fixed` bind, and so what keeps a
+          column the same width whether a project's roles are collapsed or
+          expanded — see `plannerTableWidth`. */}
+      <table
+        className="table-fixed border-collapse text-sm"
+        style={plannerTableWidth(granularity, columns.length)}
+      >
         <thead>
           <tr className="border-b">
             <th
