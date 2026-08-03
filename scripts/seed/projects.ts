@@ -108,7 +108,13 @@ export async function seedProjects(
     // a project born from a won opportunity is confirmed by definition).
     const finished = chance(0.35);
     const cancelled = !opp && !finished && chance(0.15);
-    return { project, opp, finished, cancelled };
+    // Some sold work hasn't kicked off yet. Without this every seeded role started
+    // in the past, so the home dashboard's "Upcoming roles → Starting" list was
+    // always empty and only the Ending half could be seen. A future-start project
+    // is confirmed and unfinished, so `projectStatusBucket` files it under Active,
+    // which is where upcoming committed work belongs.
+    const upcoming = !finished && !cancelled && chance(0.2);
+    return { project, opp, finished, cancelled, upcoming };
   });
 
   const projectRows = entries.map((e) => e.project);
@@ -126,7 +132,7 @@ export async function seedProjects(
 
   const deliveryManagers: DeliveryManagerInsert[] = [];
   const roles: RoleInsert[] = [];
-  for (const { project, opp, finished, cancelled } of entries) {
+  for (const { project, opp, finished, cancelled, upcoming } of entries) {
     // 1–2 delivery managers (distinct → no duplicate pairs).
     for (const s of faker.helpers.arrayElements(
       staff,
@@ -142,10 +148,13 @@ export async function seedProjects(
     // 2–4 staffing lines; some left open (null staffId) as unfilled positions.
     const roleCount = faker.number.int({ min: 2, max: 4 });
     // A finished engagement starts 10–36 months back and runs 2–8, so it always
-    // ends before today; a live one started within the last 90 days.
+    // ends before today; an upcoming one kicks off in the next 60 days; a live one
+    // started within the last 90.
     const start = finished
       ? monthsAgo(faker.number.int({ min: 10, max: 36 }))
-      : faker.date.recent({ days: 90 });
+      : upcoming
+        ? faker.date.soon({ days: 60 })
+        : faker.date.recent({ days: 90 });
     const end = new Date(start);
     end.setMonth(end.getMonth() + faker.number.int({ min: 2, max: 8 }));
     // Every role of a cancelled project is cancelled; won-from-CRM and delivered

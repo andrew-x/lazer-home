@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { cache } from "react";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { userHasPermission } from "@/lib/auth/permissions";
@@ -69,6 +69,14 @@ export type AllocationRoleRow = {
 };
 
 /**
+ * One **open** project-role span — a placeholder position with nobody allocated to
+ * it yet. Structurally an {@link AllocationRoleRow} minus the person: `staffId` is
+ * null by definition, so the field is dropped rather than typed nullable, which
+ * keeps "a role row always has a person" true of {@link AllocationRoleRow}.
+ */
+export type OpenRoleRow = Omit<AllocationRoleRow, "staffId">;
+
+/**
  * One approved time-off span. `type` (the leave reason) is populated only for
  * viewers who hold `pto:[review]`; it is `null` for everyone else — see the
  * disclosure note in {@link getAllocationsGrid}.
@@ -83,6 +91,8 @@ export type AllocationTimeOff = {
 export type AllocationsGridData = {
   staff: AllocationStaffRow[];
   roles: AllocationRoleRow[];
+  /** Live role spans with nobody allocated yet — see {@link OpenRoleRow}. */
+  openRoles: OpenRoleRow[];
   timeOff: AllocationTimeOff[];
   /** Whether the viewer may see and edit the allocation-notes column. */
   canEditNotes: boolean;
@@ -92,18 +102,36 @@ export type AllocationsGridData = {
 
 /**
  * The raw material for the allocations planner: every active staff member, the
- * staffed (tentative/confirmed) project-role spans, and approved time off. Week
- * bucketing and percentages are pure client math (`@/lib/allocations/allocations-grid`),
- * so this read stays a simple projection.
+ * staffed (tentative/confirmed) project-role spans, the equivalent **open**
+ * positions, and approved time off. Week bucketing and percentages are pure client
+ * math (`@/lib/allocations/allocations-grid`), so this read stays a simple
+ * projection.
  *
- * No metadata gate: the `(app)` layout guarantees the viewer is signed in, and
- * project-role reads are open by design — this page is visible to everyone.
+ * No capability gate: project-role reads are open by design — `/allocations` and
+ * the home dashboard are visible to every signed-in user.
+ *
+ * It does, however, **fail closed without a session.** The `(app)` layout already
+ * redirects an anonymous visitor, but a read this wide — every active person's name,
+ * discipline and allocation span — shouldn't depend on its caller to establish that.
+ * Returning the empty projection keeps the guarantee local to the read.
  *
  * Request-cached: the allocations planner and the home dashboard both read it,
  * and it takes no arguments, so one render should cost one set of queries.
  */
+const EMPTY_GRID: AllocationsGridData = {
+  staff: [],
+  roles: [],
+  openRoles: [],
+  timeOff: [],
+  canEditNotes: false,
+  canAllocate: false,
+};
+
 export const getAllocationsGrid = cache(
   async (): Promise<AllocationsGridData> => {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) return EMPTY_GRID;
+
     const [staffRows, employmentRows, roleRows, ptoRows] = await Promise.all([
       db
         .select({
@@ -129,9 +157,10 @@ export const getAllocationsGrid = cache(
         .from(staffEmployment)
         .orderBy(...latestEmploymentFirst),
 
-      // Staffed roles only (a placeholder/open position has no person to row), and
-      // only the two live planning states — a paused/cancelled role isn't an active
-      // allocation.
+      // Both staffed and open (placeholder) roles, in the two live planning states —
+      // a paused/cancelled role isn't an active allocation. The staffed/open split
+      // happens below on `staffId`, so this is one query feeding two projections
+      // rather than a second round trip for the open positions.
       db
         .select({
           id: projectRoles.id,
@@ -148,12 +177,7 @@ export const getAllocationsGrid = cache(
         })
         .from(projectRoles)
         .innerJoin(projects, eq(projectRoles.projectId, projects.id))
-        .where(
-          and(
-            isNotNull(projectRoles.staffId),
-            inArray(projectRoles.status, ["tentative", "confirmed"]),
-          ),
-        ),
+        .where(inArray(projectRoles.status, ["tentative", "confirmed"])),
 
       db
         .select({
@@ -173,22 +197,16 @@ export const getAllocationsGrid = cache(
     // availability ("Away") to every viewer and reveal the leave type solely to
     // those who hold `pto:[review]`. A deliberate, minimal disclosure — NOT a
     // loosening of the PTO gate. Only approved (non-pending) leave is shown.
-    const currentUser = await getCurrentUser();
-    const canSeePtoType = currentUser
-      ? userHasPermission(currentUser, { pto: ["review"] })
-      : false;
+    // `currentUser` is non-null here — the read returned early without a session.
+    const canSeePtoType = userHasPermission(currentUser, { pto: ["review"] });
     // Allocation notes are manager/admin-only staffing metadata. Gate both the
     // read here (never ship the value to an unprivileged client) and the write
     // (`updateStaffAllocationNotes`) on `staff.edit`.
-    const canEditNotes = currentUser
-      ? userHasPermission(currentUser, { staff: ["edit"] })
-      : false;
+    const canEditNotes = userHasPermission(currentUser, { staff: ["edit"] });
     // Allocating a person to an open role writes a project role, so gate the
     // per-row "Allocate" button (and its actions) on `projects.edit` — the same
     // capability the opportunity planner's staffing uses.
-    const canAllocate = currentUser
-      ? userHasPermission(currentUser, { projects: ["edit"] })
-      : false;
+    const canAllocate = userHasPermission(currentUser, { projects: ["edit"] });
 
     const staffList: AllocationStaffRow[] = staffRows.map((s) => {
       const employment = latestByStaff.get(s.id);
@@ -220,6 +238,26 @@ export const getAllocationsGrid = cache(
         hoursPerDay: r.hoursPerDay,
       }));
 
+    // Open positions: the same live spans with nobody in them yet. Kept as a
+    // separate array rather than a nullable `staffId` on `roles` so every existing
+    // consumer of `roles` (the planner grid, availability, utilization) keeps its
+    // "one row = one person" guarantee and can't accidentally count a vacancy as a
+    // person. The home dashboard's upcoming-roles panel is the one reader.
+    const openRoles: OpenRoleRow[] = roleRows
+      .filter((r) => r.staffId === null)
+      .map((r) => ({
+        id: r.id,
+        projectId: r.projectId,
+        projectName: r.projectName,
+        roleType: r.roleType,
+        status: r.status,
+        lineOfBusiness: r.lineOfBusiness,
+        description: r.description,
+        startDate: r.startDate,
+        endDate: r.endDate,
+        hoursPerDay: r.hoursPerDay,
+      }));
+
     const timeOff: AllocationTimeOff[] = ptoRows.map((p) => ({
       staffId: p.staffId,
       startDate: p.startDate,
@@ -227,6 +265,13 @@ export const getAllocationsGrid = cache(
       type: canSeePtoType ? p.type : null,
     }));
 
-    return { staff: staffList, roles, timeOff, canEditNotes, canAllocate };
+    return {
+      staff: staffList,
+      roles,
+      openRoles,
+      timeOff,
+      canEditNotes,
+      canAllocate,
+    };
   },
 );

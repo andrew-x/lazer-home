@@ -21,12 +21,20 @@ export function PersonRow({
   staffRole,
   lineOfBusiness,
   trailing,
+  subtitle,
 }: {
   staffId: string;
   name: string;
   staffRole: AllocationStaffRow["role"];
   lineOfBusiness: AllocationStaffRow["lineOfBusiness"];
   trailing?: ReactNode;
+  /**
+   * Replaces the "Core · Engineer" sublabel when the row has something more
+   * relevant to say there — the upcoming-leave list puts the affected project
+   * here, since which engagement goes short matters more than the person's
+   * discipline. Must ellipsize rather than wrap: these rows are one line each.
+   */
+  subtitle?: ReactNode;
 }) {
   const meta = staffMetaLine({ role: staffRole, lineOfBusiness });
   return (
@@ -38,7 +46,11 @@ export function PersonRow({
         >
           {name}
         </Link>
-        {meta ? (
+        {subtitle ? (
+          <span className="min-w-0 truncate text-xs text-muted-foreground">
+            {subtitle}
+          </span>
+        ) : meta ? (
           <span className="truncate text-xs text-muted-foreground">{meta}</span>
         ) : null}
       </div>

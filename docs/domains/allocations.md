@@ -13,6 +13,14 @@ load summing and over-allocation flagging in the app
 ([ADR 0060](../decisions/0060-allocations-capacity-meter.md)) — but a dedicated capacity
 *model*, forecast vs. actuals, and conflict resolution are still proposed.
 
+The same `getAllocationsGrid` read now backs **two further surfaces**: the **home
+dashboard's "Lazer Status" band** — a *point-in-time* staffing snapshot of the whole org
+(who is on a confirmed role today, who is free which week, what starts/ends in 28 days,
+who is lent across lines of business), see *The home dashboard's "Lazer Status"* below and
+[ADR 0063](../decisions/0063-home-dashboard-two-time-bases-and-point-in-time-staffing.md) —
+and the **Utilization report** (`/dashboards/utilization`), which reconciles the same plan
+against timesheet actuals over a chosen range.
+
 ## The planner view (realized) — mostly a read over `project_roles`
 
 `/allocations` is a **company-wide** grid: **rows = active staff**,
@@ -178,7 +186,20 @@ this domain:
   latest-employment-per-person fold (no N+1), mirroring `getStaffDirectory`. Selects
   `staff.allocationNotes`, computes `canEditNotes`, and only projects the note when the
   viewer holds `staff.edit` (`AllocationsGridData` carries `canEditNotes`;
-  `AllocationStaffRow.allocationNotes: string | null`).
+  `AllocationStaffRow.allocationNotes: string | null`). **Wrapped in `React.cache`** — the
+  planner and the home dashboard both read it and it takes no arguments, so one render costs
+  one set of queries. It returns **two role arrays**: `roles` (staffed) and **`openRoles:
+  OpenRoleRow[]`** = `Omit<AllocationRoleRow, "staffId">`, the unstaffed placeholder
+  positions. The `staffId IS NOT NULL` predicate is **not** in the WHERE clause any more —
+  the role query fetches both and the split happens in JS over one result set, so `roles` is
+  unchanged for every existing consumer and there is **no extra round trip**. Keeping
+  vacancies in a *separate array* rather than nullable-`staffId` rows is what stops the
+  planner grid / availability / utilization from ever counting a vacancy as a person
+  ([ADR 0063](../decisions/0063-home-dashboard-two-time-bases-and-point-in-time-staffing.md) §8).
+  It also **fails closed without a session** — no capability gate (project-role reads are
+  open to every signed-in user), but a read this wide returns the empty projection rather
+  than trusting the `(app)` layout's redirect to have happened. The home dashboard's
+  deleted `getOrgUtilization` had that guard; when it went, the guarantee moved here.
 - **Notes write:** `src/actions/staff/updateStaffAllocationNotes.ts` (+ `.schema.ts`,
   a client-importable pure module sharing one zod schema with the inline editor). Gated
   on `metadata.permission: { staff: ["edit"] }`; revalidates `/allocations`.
@@ -253,6 +274,108 @@ this domain:
 > everyone — no `utilizationTarget`, no part-time, no joiners/leavers, no holidays), roll a
 > window up into a per-person verdict, sort or filter by free capacity, or resolve a
 > conflict once flagged. Those remain the open questions below.
+
+## The home dashboard's "Lazer Status" — the same data, as of today
+
+`/` (`src/app/(app)/page.tsx`) has two bands, and the second one is a **third consumer of
+this domain's data** alongside the planner and the utilization report. Read
+[ADR 0063](../decisions/0063-home-dashboard-two-time-bases-and-point-in-time-staffing.md)
+before changing anything here — the time bases are load-bearing.
+
+- **Your Status — year to date.** Personal tiles (PTO taken, Utilization, Planned) from
+  submitted timesheets via `getStaffUtilization` + `src/lib/timesheets/utilization.ts`, plus
+  **`MyAllocationsTable`** (Project · Client · Dates · Hours/day; live rows, then an
+  "Upcoming" divider) over `getMyAllocations` + `buildMyAllocationRows`
+  (`src/lib/home/my-work.ts`). Rows are **one per project** (two roles on one engagement
+  merge, hours summed), a **delivery-manager seat** appears with `hoursPerDay: null` rendered
+  as "—" (`project_delivery_managers` has no hours or dates — its window is derived from the
+  project's live roles), and `status` reads `tentative` only when *every* role on the project
+  is. There is deliberately **no link to `/allocations`** from this band.
+  ⚠️ **`getMyAllocations` has no forward bound** — `endDate >= today`, everything upcoming.
+  It used to clip to a deleted gantt's −1/+2-month window; don't reintroduce a clip.
+  Nuance: the **Planned** tile's *value* is year-to-date, but its *hint* flips to
+  "Over-allocated — N% committed today" from `currentLoadPercent(roles, today)` — a
+  point-in-time, confirmed-only, **uncapped** sum. Two windows in one tile, on purpose.
+- **Lazer Status — point in time, from the plan.** A Client Component
+  (`src/components/home/lazer-status-section.tsx`) over the pure
+  **`src/lib/home/org-status.ts`**, folded from `getAllocationsGrid` — so five panels and
+  three filters cost **one** set of queries, shared with `/allocations` through
+  `React.cache`. It reads **no timesheets**: partial submission would otherwise read as an
+  idle bench.
+
+### The definitions Lazer Status depends on
+
+- **Staffed** = holds **≥ 1 `confirmed` role whose span contains today**. Tentative doesn't
+  commit anyone; **approved leave today does *not* un-staff someone** (this measures the
+  plan, not attendance — availability, right beside it, is where leave nets out).
+- **Population** = `isBillable === true`, the *same* predicate as `buildAvailability`, so the
+  staffing rate and the availability strip can't disagree about who counts.
+- **`rate`** = staffed ÷ headcount. **`normalizedRate`** = staffed ÷ **full-time** headcount,
+  **deliberately uncapped** (staffed hourly staff can push it past 100%, which is the signal)
+  and `null` — never `0` — when nobody is full time.
+- **The by-role breakdown keys off `staff_employment.role`** (the *person's* discipline), not
+  `project_roles.roleType` (the *work's*). Empty disciplines render "—", not 0%.
+- **It counts people, not hours** (the hours-weighted question is
+  [utilization.md](./utilization.md)) and carries **no target column** and **no small-cohort
+  suppression** — these are headcounts over allocations `/allocations` already publishes by
+  name. See ADR 0063 §4 before adding a guard by analogy with the gated dashboards.
+
+### The five panels
+
+| Panel | Shows | Notes |
+|---|---|---|
+| `staffing-panel.tsx` | Staffed now / Headcount / Staffed rate / Normalized + a by-discipline table over the **five delivery disciplines** (Engineer, Designer, Architect, Delivery, QA) | Replaced a YTD, timesheet-driven `utilization-panel.tsx`. Overhead roles aren't rows — they're never staffed onto client work; anyone billable outside those five falls into `Other`, which appears only when non-empty so the rows still account for exactly the Overall population |
+| `availability-panel.tsx` | **Week tabs** (Bench, +1…+4 wk) + a Full time/Hourly/All filter. Tab 0 is the bench; each later tab lists only who **newly frees up** that week | Client component. The tabs are **deltas, not running totals** (`buildAvailabilityTabs`) — a cumulative list re-printed the standing bench in every tab and buried the people whose project actually ends that week. Consequence: the tab counts don't sum to "people with capacity", so `freeFte` carries the cumulative capacity view |
+| `upcoming-time-off-panel.tsx` | Approved leave within 30 days, each row carrying the **project** the absence leaves short | Leave *reason* rendered only when `type` is non-null (ADR 0038) |
+| `project-roles-panel.tsx` | Roles within **28 days** (`UPCOMING_ROLES_HORIZON_DAYS`), **grouped by project**, including **unfilled** open positions badged `Unfilled`. Rendered **twice** — as "Starting soon" and "Ending soon" | Two cards, not one with two lists: they prompt different work (find people vs. find their next engagement). Grouped by project via `groupRolesByProject` because roles are stored per seat but sold and staffed per engagement — three engineers rolling onto one project is *one* thing to plan for. A short engagement can still appear in both cards |
+| `borrowed-staff-panel.tsx` | People on a **confirmed** role today whose LoB differs from their own home LoB | The named-people twin of the report's `buildLobAlignment` aggregate — keep both |
+
+### Two constraints that will bite
+
+1. **`buildOrgStatus`'s output is a Client Component prop, so it is serialized into the page
+   HTML for every viewer.** It therefore **copies staff fields one at a time and never
+   spreads the staff row** — `AllocationStaffRow` carries `allocationNotes` (gated on
+   `staff.edit`, [ADR 0041](../decisions/0041-allocation-notes-on-staff.md)) and `skills`,
+   and a spread would ship whatever sensitive column lands upstream next. Two tests in
+   `org-status.test.ts` assert this against the *serialized* payload. PTO `type` is nulled
+   upstream by the read and **passed through, never re-derived**.
+2. **The filters re-derive their own counts.** `summarizeWeeks(people, weekStarts)` was
+   extracted from `buildAvailability` precisely so the client can recompute availability
+   counts over a filtered subset; reusing the server's unfiltered numbers would print the
+   whole company's availability above a filtered name list. The line-of-business filter
+   matches each person's **home** LoB on every panel — the sole exception being an **open**
+   upcoming role, which has no holder and falls back to the role's own LoB.
+   The week *columns* come from **`availabilityWeekStarts(fromWeek)`**, not from any
+   person's `weeks` array: they are a fact about the calendar, and deriving them from
+   `people[0]` collapsed to zero columns whenever nobody was billable.
+
+### Home-dashboard code map
+
+- **Reads:** `getAllocationsGrid` (below — now also returns `openRoles`) ·
+  `src/actions/allocations/getMyAllocations.ts` (own-data-only **by construction** — takes no
+  `staffId`, so there is no cross-user id to authorize; roles + delivery-manager seats with
+  each project's live-role span folded in) · `src/actions/staff/getStaffPto` ·
+  `src/actions/timesheets/getStaffUtilization`.
+- **Pure math:** `src/lib/home/org-status.ts` (+ `.test.ts`, 41 tests) — `buildOrgStatus`,
+  `summarizeStaffing`, `filterByLineOfBusiness`, `filterByEmploymentType` (the availability
+  panel calls it rather than re-filtering inline, so the employment filter has one
+  definition), `UPCOMING_ROLES_HORIZON_DAYS`. ·
+  `src/lib/home/my-work.ts` (+ `.test.ts`) — `buildMyAllocationRows` (**buckets each role
+  live-vs-upcoming *before* merging per project — merging first would report a future
+  role's hours as today's commitment and hide its start date; one project may therefore
+  appear in both lists**),
+  `currentLoadPercent`. · `src/lib/allocations/availability.ts` (+ `.test.ts`) —
+  `buildAvailability`, the extracted **`summarizeWeeks`**, `buildUpcomingTimeOff` (which
+  takes `roles` purely to name each absence's affected projects) and the thresholds
+  `AVAILABILITY_WEEKS` / `AVAILABLE_THRESHOLD_PERCENT` (50) /
+  `UPCOMING_TIME_OFF_HORIZON_DAYS` (30).
+- **UI:** `src/components/home/` — `home-section.tsx` (its `action` slot is reserved for a
+  control that scopes the *whole* band) + `lazer-status-section.tsx` + the five panels +
+  `my-allocations-table.tsx` + `person-row.tsx` (its `subtitle` prop *replaces* the
+  "Core · Engineer" meta line) + the shared `StatCard`.
+- **Deleted here, don't resurrect:** `src/components/home/allocation-timeline.tsx`,
+  `src/lib/home/allocation-timeline.ts`, `src/components/home/utilization-panel.tsx`,
+  `src/actions/timesheets/getOrgUtilization.ts`.
 
 ## Utilization: the plan read against the actuals
 
@@ -345,10 +468,12 @@ Decide who works on what, when, and how much — and keep the plan reconcilable 
   (non-billable ⇒ 0), and part-time contracts, `staff.joinDate`/`terminationDate` and
   holiday calendars are all unmodelled. Every one of those makes the meter read
   optimistically.
-- **No rollup, no sort, no filter on capacity.** Over-allocation is visible per cell only;
-  nothing answers "who is free in September" or "who is oversold this quarter" without
-  reading the grid. The row sort still keys off `latestConfirmedEnd` (soonest-to-free),
-  not the meter.
+- **No rollup, no sort, no filter on capacity *in the planner*.** Over-allocation is visible
+  per cell only; nothing in the grid answers "who is oversold this quarter", and the row sort
+  still keys off `latestConfirmedEnd` (soonest-to-free), not the meter. **Partially answered
+  elsewhere:** the home dashboard's availability panel names who is ≥50% free in each of the
+  next **five** weeks (`AVAILABILITY_WEEKS`), and its staffing panel gives a staffed-vs-bench
+  headcount for today — but neither reaches "September", and neither writes back.
 - **Planned figures for a past range aren't historically faithful** — `project_roles` is mutable
   with no history ([ADR 0017](../decisions/0017-project-roles-as-first-allocation-cut.md)), so
   last quarter's report reflects the plan as it stands *now*. This is the strongest argument yet

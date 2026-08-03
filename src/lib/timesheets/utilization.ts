@@ -1,8 +1,19 @@
 /**
  * Utilization **year to date** — from 1 January through today, never beyond. A
  * pure, client-importable module (no `db`/drizzle, no React) so the arithmetic is
- * testable and the personal tile and the org table share one definition. See
- * docs/domains/timesheets.md.
+ * testable. See docs/domains/timesheets.md.
+ *
+ * This now serves **one** caller: the home dashboard's *personal* tiles, via
+ * `getStaffUtilization`. It used to back an org-wide cohort table on the same page
+ * as well; that table was replaced by a point-in-time, staffing-plan-based panel
+ * (`@/lib/home/org-status`), because "how much of the bench is working *now*" is a
+ * plan question and answering it from partial timesheet coverage read low coverage
+ * as low utilization. The cohort/suppression machinery went with it.
+ *
+ * So the surviving contract is per-person and cumulative. Anything measuring the
+ * *organization* belongs either in `@/lib/home/org-status` (point in time, from the
+ * plan) or `@/lib/utilization/utilization-report` (plan reconciled against actuals
+ * over a chosen range, ADR 0062) — don't grow a third org aggregator here.
  *
  * Two rates, deliberately different questions:
  *
@@ -36,7 +47,8 @@
  *
  * Aggregation is **sum-then-divide** (hours-weighted) throughout, so one person's
  * 4-hour week cannot outvote a colleague's 40-hour week. A mean of per-person
- * ratios is the tempting bug.
+ * ratios is the tempting bug — {@link computeUtilization} takes arrays for that
+ * reason, even though only one record is passed today.
  */
 
 import type { AllocationRoleRow } from "@/actions/allocations/getAllocationsGrid";
@@ -46,19 +58,9 @@ import {
   awayWeekdays,
   totalWeekdays,
 } from "@/lib/allocations/weekdays";
-import type { EmploymentType } from "@/lib/staff/staff-enums";
 
 /** A full working day — the capacity baseline, mirroring the allocations planner. */
 const HOURS_PER_DAY = 8;
-
-/**
- * Below this many people, a cohort shows its headcount but not its rates. A
- * one-person "cohort" *is* an individual, and this surface is visible to every
- * signed-in user while individual timesheet hours are otherwise gated behind
- * `timesheets.edit` (see `getTimesheetList`). Suppression lives here, in the pure
- * layer, so it's testable rather than a rendering afterthought.
- */
-export const MIN_COHORT_SIZE = 3;
 
 /** One person's logged hours for the period, as summed by the timesheet reads. */
 export type HoursRow = {
@@ -90,41 +92,6 @@ export type Rate = {
 
 /** The pair of rates a utilization surface renders. */
 export type UtilizationSummary = { actual: Rate; planned: Rate };
-
-/**
- * One person's inputs, stripped of identity. The org read emits these — see
- * `getOrgUtilization`, which never lets a `staffId` leave the server.
- * `hours` is null when the person has logged no timesheet this year at all.
- */
-export type UtilizationRecord = {
-  employmentType: EmploymentType | null;
-  utilizationTarget: number;
-  hours: HoursRow | null;
-  plan: PlanRow;
-};
-
-/**
- * A cohort's aggregated rates, plus how much of it actually reported. `UNKNOWN`
- * is anyone with no employment row (never defaulted into `FULL_TIME`); `OVERALL`
- * is the whole population, computed from the raw records rather than by averaging
- * the cohorts — averaging averages would drop the hours weighting.
- */
-export type UtilizationGroup = {
-  key: EmploymentType | "UNKNOWN" | "OVERALL";
-  /** People in the cohort. */
-  headcount: number;
-  /** How many of them logged any time this year — the coverage disclosure. */
-  logged: number;
-  summary: UtilizationSummary;
-  /** Capacity-weighted mean `utilizationTarget` as a 0–1 fraction, like-for-like
-   * with the numerator. A headcount mean would not be comparable. */
-  weightedTarget: number | null;
-  /**
-   * The cohort is too small to report without naming someone — see
-   * {@link MIN_COHORT_SIZE}. Rates are nulled; `headcount` still renders.
-   */
-  suppressed: boolean;
-};
 
 function toRate(numerator: number, denominator: number): Rate {
   return {
@@ -214,94 +181,5 @@ export function computeUtilization(
   return {
     actual: toRate(billable, logged),
     planned: toRate(allocated, capacity),
-  };
-}
-
-/** The capacity-hours-weighted mean of a cohort's targets, as a 0–1 fraction. */
-function weightedTargetOf(
-  records: readonly UtilizationRecord[],
-): number | null {
-  let weighted = 0;
-  let capacity = 0;
-  for (const record of records) {
-    const available = Math.max(
-      0,
-      record.plan.nominalHours - record.plan.ptoHours,
-    );
-    weighted += (record.utilizationTarget / 100) * available;
-    capacity += available;
-  }
-  return capacity > 0 ? weighted / capacity : null;
-}
-
-/**
- * A fully withheld rate. The parts are zeroed, not merely the ratio: leaving the
- * numerator and denominator in place would make the suppression cosmetic, since
- * they *are* the individual's hours.
- *
- * Residual, worth knowing: a breakdown plus a total is always weakly invertible —
- * given Overall and every cohort but one, the missing cohort can be approximated
- * from the rounded displayed figures. Suppression removes the precise value, not
- * the arithmetic. Fully closing that would mean suppressing the large cohorts too,
- * which costs far more than the residual is worth on a surface where utilization
- * is deliberately open to everyone.
- */
-const withheld = (): Rate => ({ numerator: 0, denominator: 0, rate: null });
-
-function groupOf(
-  key: UtilizationGroup["key"],
-  records: readonly UtilizationRecord[],
-  { suppressSmall = true }: { suppressSmall?: boolean } = {},
-): UtilizationGroup {
-  const summary = computeUtilization(
-    records.map((r) => r.hours),
-    records.map((r) => r.plan),
-  );
-  // A cohort of one or two is an individual wearing a cohort's clothes. Withhold
-  // the rates rather than the row: the headcount is not the sensitive part, and
-  // dropping the row entirely would make the table's numbers fail to add up.
-  const suppressed =
-    suppressSmall && records.length > 0 && records.length < MIN_COHORT_SIZE;
-
-  return {
-    key,
-    headcount: records.length,
-    logged: records.filter((r) => r.hours !== null).length,
-    summary: suppressed ? { actual: withheld(), planned: withheld() } : summary,
-    weightedTarget: suppressed ? null : weightedTargetOf(records),
-    suppressed,
-  };
-}
-
-/**
- * Split a population into employment-type cohorts (full time vs hourly, plus an
- * explicit UNKNOWN for anyone with no employment row — never defaulted into
- * `FULL_TIME`), alongside the overall figure. Cohorts are returned in a stable
- * order so the table doesn't reshuffle between renders, and an empty cohort is
- * still returned so the row can render "—" rather than a fabricated 0.0%.
- */
-export function splitByEmploymentType(records: readonly UtilizationRecord[]): {
-  overall: UtilizationGroup;
-  groups: UtilizationGroup[];
-  headcount: number;
-  logged: number;
-} {
-  const order: UtilizationGroup["key"][] = ["FULL_TIME", "HOURLY", "UNKNOWN"];
-  const groups = order
-    .map((key) =>
-      groupOf(
-        key,
-        records.filter((r) => (r.employmentType ?? "UNKNOWN") === key),
-      ),
-    )
-    // Only surface UNKNOWN when someone actually lands there.
-    .filter((group) => group.key !== "UNKNOWN" || group.headcount > 0);
-
-  const overall = groupOf("OVERALL", records);
-  return {
-    overall,
-    groups,
-    headcount: overall.headcount,
-    logged: overall.logged,
   };
 }
