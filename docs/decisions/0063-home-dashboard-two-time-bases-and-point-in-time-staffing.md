@@ -1,6 +1,10 @@
 # 0063 — The home dashboard's two time bases: year-to-date for you, point-in-time for the org
 
-**Status:** accepted · 2026-08-03 · **complements, does not supersede,**
+**Status:** accepted · 2026-08-03 · **§2 amended 2026-08-03** by
+[ADR 0065](./0065-home-personal-task-list-and-assignee-completion.md) — the "name the
+window" rule is unchanged, but Your Status now carries point-in-time task state, so the band
+description no longer names one window and the quoted string in §2 is stale ·
+**complements, does not supersede,**
 [ADR 0062](./0062-utilization-report-two-series-and-timesheet-disclosure.md) — the
 Utilization report stays exactly as specified there; this records a *third* kind of
 number and forbids merging it with either of 0062's two series · **reuses**
@@ -53,6 +57,16 @@ this page** and every figure states its window: the section descriptions ("Your 
 year — 1 January to today, from your timesheets." / "The whole organization, as it stands
 today."), the tile hints, and the Staffing card's `As of <date>` header. Any new figure on
 either band inherits this rule.
+
+> **Amended 2026-08-03 — the rule stands, one of its examples moved.** Your Status now also
+> carries a **point-in-time** block (the Tasks list,
+> [ADR 0065](./0065-home-personal-task-list-and-assignee-completion.md)), so a band
+> description that named *one* window would be false. The quoted Your Status string above is
+> **stale**: it now reads *"Your year so far, and what's on your plate. Each figure below
+> names its own window."*, and the window is named per block instead — the tile hints
+> ("· YTD, N weeks in 2026") and the Tasks caption ("open right now"). The Lazer Status
+> description, the tile hints and the `As of <date>` header are unchanged. **The band is no
+> longer single-basis; the page's two *utilization* bases are.**
 
 ### 3. The org metric is *staffing*, from the plan — and here is exactly what it means
 
@@ -224,6 +238,15 @@ trip**.
 - **Still not a capacity model.** The baseline stays a flat 40h week for everyone; nothing
   here reads `utilizationTarget`, part-time, joiners/leavers or holidays. See
   [domains/allocations.md](../domains/allocations.md) → *Open questions*.
+- **Your Status is no longer timesheet-only** (added 2026-08-03). It now also reads the CRM:
+  a **Tasks** block listing every task assigned to you, which is *point-in-time* state
+  sitting beside YTD figures — hence the §2 amendment above, and hence the Planned tile's
+  over-allocated hint was reworded to keep **· YTD** on the headline figure while the
+  over-allocation note carries its own "today"
+  (`Confirmed work against capacity · YTD — over-allocated today (N%)`). §5's whitelist rule
+  applied again, verbatim and independently: `MyTaskView` copies fields one at a time and
+  withholds `ownerStaffId` / `creatorStaffId` / `updatedAt`. See
+  [ADR 0065](./0065-home-personal-task-list-and-assignee-completion.md).
 
 ## Alternatives rejected
 
