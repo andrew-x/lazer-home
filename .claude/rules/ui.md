@@ -52,3 +52,13 @@ Pick by **when the write happens**, and don't bend one into the other:
 - `error.tsx` is a **Client Component**; the retry prop is **`unstable_retry`** (this Next build), NOT `reset`.
 - `not-found.tsx` is a Server Component; trigger with `notFound()` from `next/navigation`.
 - `global-error.tsx` replaces the root layout, so it renders its own `<html>`/`<body>` with inline styles.
+
+## JSX text — no HTML entities in a client component
+
+Write apostrophes and ampersands **literally** (`doesn't`, `R&D`), not as `&apos;` / `&amp;`, in any `"use client"` component. An entity inside a **multi-line** JSX text run makes **SWC drop that run's leading space** while Babel keeps it — and Next runs React Compiler (Babel) on the *client* compilation only (`getReactCompilerPlugins` returns `undefined` when `isServer`), so the browser and the SSR HTML end up one space apart. React reports it as *"server rendered text didn't match the client"* on a paragraph that looks completely innocent.
+
+- **Don't "fix" it with `{" "}`** — an explicit `{" "}` does converge the two builds, but `bun run format` collapses it straight back to a literal space. Drop the entity instead.
+- **`&nbsp;` isn't interchangeable with a space.** If you need one, keep its text run on a single line so no leading-space decision is in play.
+- Server Components are immune (never re-rendered on the client), so the same text is safe outside `"use client"` — but it becomes a silent bug the day the file gains the directive.
+
+Precedent: the explanatory paragraph in `src/components/home/staffing-panel.tsx`.

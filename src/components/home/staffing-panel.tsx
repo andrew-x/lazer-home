@@ -180,11 +180,19 @@ export function StaffingPanel({
 
                 {/* Inside the non-empty branch: it explains figures, so it has
                     nothing to say on a cohort that has none. */}
+                {/* The apostrophes below are literal, not `&apos;`, and that is
+                    load-bearing. SWC drops the leading space of a multi-line JSX
+                    text run that contains an HTML entity; Babel keeps it. Next
+                    runs React Compiler (Babel) on the client build only, so with
+                    an entity here the space after </strong> survives in the
+                    browser and vanishes from the SSR HTML — a hydration text
+                    mismatch. Writing the space as an explicit {" "} fixes it
+                    too, but the formatter collapses that back to a literal. */}
                 <p className="text-xs text-muted-foreground">
                   Every figure covers <strong>{cohortLabel}</strong> staff only,
                   and counts people on a confirmed allocation today — tentative
-                  work doesn&apos;t commit anyone, and approved leave
-                  doesn&apos;t un-staff them.{" "}
+                  work doesn't commit anyone, and approved leave doesn't
+                  un-staff them.{" "}
                   {employmentType === "FULL_TIME" && (
                     <>
                       <strong>Normalized</strong> is the exception: it counts{" "}
