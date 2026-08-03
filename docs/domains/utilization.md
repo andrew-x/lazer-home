@@ -12,6 +12,22 @@ for the *why* behind every rule below.
 > authoritative statement of every definition.** This doc summarises it and records the
 > reasoning; if the two disagree, the code wins.
 
+## Three surfaces say "utilization" — three different questions
+
+Don't unify them, and don't reuse one's number on another's surface
+([ADR 0063](../decisions/0063-home-dashboard-two-time-bases-and-point-in-time-staffing.md)):
+
+| Surface | Window | Source | Unit | Gate |
+|---|---|---|---|---|
+| Home → **Your Status** | **year to date** (1 Jan → today) | your own submitted timesheets (`getStaffUtilization` + `src/lib/timesheets/utilization.ts`) | hours ratio | own data only |
+| Home → **Lazer Status** | **today** | the `project_roles` plan (`src/lib/home/org-status.ts`) — no timesheets at all | **people** (staffed ÷ headcount) | open |
+| **This report** | a chosen range | plan **and** actuals, as two never-summed series | hours | open page; cross-person *confirmed* on `timesheets.edit` |
+
+`src/lib/timesheets/utilization.ts` is **per-person and cumulative only** — its org-wide
+cohort table and suppression machinery were deleted when Lazer Status landed. Anything
+measuring the *organization* belongs in `org-status.ts` (point in time) or here (a range);
+don't grow a third aggregator in the timesheets module.
+
 ## Two series, never summed
 
 Every hours-bearing number on the page carries **both** series plus a variance:
@@ -198,7 +214,10 @@ reachable by everyone.
 
 - **[Allocations](./allocations.md)** — the planned series *is* `project_roles`; the report answers
   that domain's open "how do we reconcile plan against actuals?" and "who is over-allocated?"
-  questions in read-only form.
+  questions in read-only form. Its **line-of-business alignment card has a point-in-time twin**:
+  the home dashboard's Borrowed-staff panel names the specific people working outside their home
+  LoB *today*, where `buildLobAlignment` gives the day-weighted aggregate over a range. Keep
+  both — "how much drift" and "who, right now" are different needs.
 - **[Timesheets](./timesheets.md)** — the confirmed series is submitted `time_entries`, and
   `timesheets.edit` is now a **read** gate as well as a write gate.
 - **[Staff profiles](./staff-profiles.md)** — cohort, billability, employment type, line of business

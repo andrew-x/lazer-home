@@ -81,13 +81,23 @@ function makeEmployment(
   isManagement: boolean,
 ): EmploymentInsert {
   const isBillable = !isManagement && role !== "SOLUTIONS";
+  // A minority of individual contributors are hourly. Management stays salaried.
+  // Without this the whole seeded org was FULL_TIME, which left two things
+  // undemonstrable in dev: the home dashboard's Hourly availability filter (always
+  // empty) and its *normalized* staffing rate, whose denominator is full-time
+  // headcount — identical to plain headcount when everyone is full time, so the two
+  // figures printed the same number and the distinction looked broken.
+  const employmentType =
+    !isManagement && faker.datatype.boolean({ probability: 0.15 })
+      ? "HOURLY"
+      : "FULL_TIME";
   return {
     id: generateId("emp"),
     staffId,
     effectiveFromDate,
     lineOfBusiness: faker.helpers.arrayElement(LINE_OF_BUSINESS),
     role,
-    employmentType: "FULL_TIME",
+    employmentType,
     isBillable,
     utilizationTarget: isBillable
       ? faker.helpers.arrayElement([80, 90, 100])

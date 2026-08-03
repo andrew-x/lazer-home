@@ -258,6 +258,24 @@ week it's already showing, so it never nags about the sheet on screen.
   `src/actions/staff/getEmploymentTypeAsOf.ts`.
 - **Performance / reporting** — billable vs. available hours = utilization, **now built** as
   a read-only report ([utilization.md](./utilization.md)). Nothing feeds it into a review yet.
+- **Home dashboard (own data only)** — a second, much smaller consumer of submitted hours:
+  `src/actions/timesheets/getStaffUtilization.ts` + the pure
+  `src/lib/timesheets/utilization.ts` back the **"Your Status"** tiles at `/` — utilization
+  **year to date**, 1 January through today. Two rates with **deliberately different
+  denominators**: *actual* = `projectHours / (totalHours − ptoHours)` (divided by hours
+  **recorded**, so a partly-logged year reads as low *coverage*, never low utilization) and
+  *planned* = `allocatedHours / (nominalHours − ptoHours)` from **confirmed** roles only
+  (divided by **calendar capacity** net of approved leave, and **not clamped**). The mismatch
+  is intentional: `staff_pto` (HR) and `time_entries.category = 'PTO'` (self-reported) are not
+  synced, so a blended denominator would reconcile with neither. Surfaces must label both and
+  footnote the difference. Aggregation is **sum-then-divide** throughout — a mean of per-person
+  ratios is the tempting bug, which is why `computeUtilization` takes arrays.
+  ⚠️ **This module is per-person and cumulative only.** Its org-wide cohort table
+  (`splitByEmploymentType`, `weightedTargetOf`, `MIN_COHORT_SIZE`) and the
+  `getOrgUtilization` read were **deleted** — the org half of the home page is now a
+  point-in-time, plan-based staffing figure that reads no timesheets at all
+  ([ADR 0063](../decisions/0063-home-dashboard-two-time-bases-and-point-in-time-staffing.md),
+  [allocations.md](./allocations.md)). Don't grow a third org aggregator here.
 
 ## Open questions
 
@@ -294,5 +312,3 @@ Still genuinely open:
   discipline — which is itself now visible on the page as coverage.
 - **PTO ↔ `staff_pto` sync** — the timesheet PTO bucket is independent today; whether
   logged PTO should reconcile with imported Rippling leave is unresolved.
-</content>
-</invoke>

@@ -8,6 +8,7 @@ import {
   AVAILABLE_THRESHOLD_PERCENT,
   buildAvailability,
   buildUpcomingTimeOff,
+  summarizeWeeks,
 } from "@/lib/allocations/availability";
 
 // 2026-07-27 is a Monday; the five columns run 27 Jul, 3 / 10 / 17 / 24 Aug.
@@ -256,6 +257,7 @@ describe("buildUpcomingTimeOff", () => {
   test("leave beyond the horizon is dropped", () => {
     const rows = buildUpcomingTimeOff(
       staff,
+      [],
       [leave({ startDate: "2026-09-14", endDate: "2026-09-18" })],
       "2026-08-02",
       30,
@@ -266,6 +268,7 @@ describe("buildUpcomingTimeOff", () => {
   test("leave already finished is dropped", () => {
     const rows = buildUpcomingTimeOff(
       staff,
+      [],
       [leave({ startDate: "2026-07-01", endDate: "2026-07-05" })],
       "2026-08-02",
     );
@@ -275,6 +278,7 @@ describe("buildUpcomingTimeOff", () => {
   test("leave under way right now is kept and flagged ongoing", () => {
     const rows = buildUpcomingTimeOff(
       staff,
+      [],
       [leave({ startDate: "2026-07-30", endDate: "2026-08-05" })],
       "2026-08-02",
     );
@@ -285,6 +289,7 @@ describe("buildUpcomingTimeOff", () => {
   test("days-until and working-day count come back alongside the real dates", () => {
     const rows = buildUpcomingTimeOff(
       staff,
+      [],
       [leave({ startDate: "2026-08-10", endDate: "2026-08-14" })],
       "2026-08-02",
     );
@@ -296,6 +301,7 @@ describe("buildUpcomingTimeOff", () => {
   test("a masked leave type is passed through as null, never re-derived", () => {
     const rows = buildUpcomingTimeOff(
       staff,
+      [],
       [leave({ startDate: "2026-08-10", endDate: "2026-08-14", type: null })],
       "2026-08-02",
     );
@@ -305,6 +311,7 @@ describe("buildUpcomingTimeOff", () => {
   test("rows are soonest first, ties broken by name", () => {
     const rows = buildUpcomingTimeOff(
       staff,
+      [],
       [
         leave({
           staffId: "staff-2",
@@ -334,6 +341,7 @@ describe("buildUpcomingTimeOff", () => {
   test("leave for someone not in the staff list is dropped", () => {
     const rows = buildUpcomingTimeOff(
       [person()],
+      [],
       [
         leave({
           staffId: "ghost",
@@ -344,5 +352,140 @@ describe("buildUpcomingTimeOff", () => {
       "2026-08-02",
     );
     expect(rows).toHaveLength(0);
+  });
+});
+
+describe("buildUpcomingTimeOff — the projects an absence affects", () => {
+  const staff = [person()];
+  const away = [leave({ startDate: "2026-08-10", endDate: "2026-08-14" })];
+  const today = "2026-08-02";
+
+  test("a role overlapping the leave names its project", () => {
+    const rows = buildUpcomingTimeOff(staff, [role()], away, today);
+    expect(rows[0].projects).toEqual([
+      { projectId: "project-1", projectName: "Acme Rebuild" },
+    ]);
+  });
+
+  test("someone on the bench taking leave has no projects, not a placeholder", () => {
+    const rows = buildUpcomingTimeOff(staff, [], away, today);
+    expect(rows[0].projects).toEqual([]);
+  });
+
+  test("a role that ends before the leave starts is not affected by it", () => {
+    const rows = buildUpcomingTimeOff(
+      staff,
+      [role({ startDate: "2026-01-01", endDate: "2026-08-09" })],
+      away,
+      today,
+    );
+    expect(rows[0].projects).toEqual([]);
+  });
+
+  test("two roles on one project collapse to a single entry", () => {
+    const rows = buildUpcomingTimeOff(
+      staff,
+      [role(), role({ id: "role-2", roleType: "ARCHITECT" })],
+      away,
+      today,
+    );
+    expect(rows[0].projects).toHaveLength(1);
+  });
+
+  test("confirmed work is named ahead of tentative, then heaviest first", () => {
+    const rows = buildUpcomingTimeOff(
+      staff,
+      [
+        role({
+          id: "role-tentative",
+          projectId: "p-tentative",
+          projectName: "Pencilled",
+          status: "tentative",
+          hoursPerDay: 8,
+        }),
+        role({
+          id: "role-light",
+          projectId: "p-light",
+          projectName: "Light",
+          hoursPerDay: 2,
+        }),
+        role({
+          id: "role-heavy",
+          projectId: "p-heavy",
+          projectName: "Heavy",
+          hoursPerDay: 6,
+        }),
+      ],
+      away,
+      today,
+    );
+    expect(rows[0].projects.map((p) => p.projectName)).toEqual([
+      "Heavy",
+      "Light",
+      "Pencilled",
+    ]);
+  });
+
+  test("another person's roles never leak onto this row", () => {
+    const rows = buildUpcomingTimeOff(
+      [person(), person({ id: "staff-2", name: "Grace Hopper" })],
+      [
+        role({
+          id: "role-other",
+          staffId: "staff-2",
+          projectId: "p-other",
+          projectName: "Someone Else",
+        }),
+      ],
+      away,
+      today,
+    );
+    expect(rows[0].name).toBe("Ada Lovelace");
+    expect(rows[0].projects).toEqual([]);
+  });
+});
+
+describe("summarizeWeeks", () => {
+  // The whole point of the extraction: a filtered subset must be summarized by the
+  // same arithmetic, so a filtered count can never inherit the full population's.
+  test("summarizing a subset reports only that subset", () => {
+    const { people, weeks } = buildAvailability(
+      [
+        person(),
+        person({ id: "staff-2", name: "Grace Hopper" }),
+        person({ id: "staff-3", name: "Alan Turing" }),
+      ],
+      [],
+      [],
+      WEEK,
+    );
+    expect(weeks[0].availableCount).toBe(3);
+
+    const subset = summarizeWeeks(people.slice(0, 1), [WEEK]);
+    expect(subset[0].availableCount).toBe(1);
+    expect(subset[0].freeFte).toBe(1);
+  });
+
+  test("an empty population yields a zeroed column, not a missing one", () => {
+    const weeks = summarizeWeeks([], [WEEK, WEEK_2]);
+    expect(weeks).toHaveLength(2);
+    expect(weeks[0]).toEqual({
+      weekStart: WEEK,
+      availableCount: 0,
+      tentativeCount: 0,
+      freeFte: 0,
+    });
+  });
+
+  test("it agrees with buildAvailability over the same whole population", () => {
+    const staff = [person(), person({ id: "staff-2", name: "Grace Hopper" })];
+    const roles = [role({ hoursPerDay: 4 })];
+    const { people, weeks } = buildAvailability(staff, roles, [], WEEK);
+    expect(
+      summarizeWeeks(
+        people,
+        weeks.map((w) => w.weekStart),
+      ),
+    ).toEqual(weeks);
   });
 });

@@ -1,5 +1,3 @@
-"use client";
-
 import type { Icon } from "@tabler/icons-react";
 import { IconInfoCircle } from "@tabler/icons-react";
 import type { ReactNode } from "react";
@@ -17,6 +15,15 @@ import { cn } from "@/lib/core/utils";
  * `tone` only ever escalates to `destructive`; there is no success/info colour,
  * because the design language keeps in-page surfaces monochrome and reserves
  * colour for genuine problems.
+ *
+ * **Not a Client Component, deliberately** — it holds no state, no handlers and no
+ * browser API, so it renders on the server. It used to carry `"use client"`, which
+ * made `icon` (a component *reference*) unpassable from a Server Component: React
+ * cannot serialize a function across that boundary, so the home page's
+ * "no staff record" branch crashed with "Functions cannot be passed directly to
+ * Client Components". Client callers can still import it — a plain module used by a
+ * `"use client"` module is simply bundled into that chunk. Don't re-add the
+ * directive.
  */
 export function InlineNotice({
   icon: Icon = IconInfoCircle,
