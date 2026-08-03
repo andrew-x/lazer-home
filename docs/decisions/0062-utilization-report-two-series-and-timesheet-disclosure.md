@@ -1,6 +1,10 @@
 # 0062 — Utilization report: two never-summed series, cross-person actuals gated on `timesheets.edit`, a billable-only cohort
 
-**Status:** accepted · 2026-08-02 · **no schema change, no migration, no matrix change** ·
+**Status:** accepted, **§1, §3, §7, §8 and §9 superseded by
+[ADR 0064](./0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md)** (2026-08-03 —
+one basis at a time with deviation flags, tentative roles dropped, per-person hours-based LoB
+attribution, a cohort-wide logged gate with no own-row path, and period-to-date presets).
+**§2, §4, §5 and §6 stand unchanged.** · 2026-08-02 · **no schema change, no migration, no matrix change** ·
 first surface to reconcile the `project_roles` plan against `time_entries` actuals, closing
 open questions in [allocations.md](../domains/allocations.md) and
 [timesheets.md](../domains/timesheets.md) · first surface to **sum a person's load across
@@ -30,6 +34,11 @@ documented in [domains/utilization.md](../domains/utilization.md); this ADR reco
 
 ### 1. Two series everywhere, and they are never added
 
+> **Superseded by [ADR 0064](./0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §1.**
+> Both series are still computed and still never summed, but a **basis toggle** picks which one the
+> page renders; the comparison is surfaced as a **deviation flag** instead of a second column.
+> Everything below about the *planned* basis and `HOURS_PER_DAY` still holds.
+
 Every hours-bearing card carries **planned** (from `project_roles`) and **confirmed** (from
 `time_entries` on submitted timesheets), plus a **variance**. One blended number would have to pick
 a rule for the overlap — count the plan where no timesheet exists? prefer actuals where they do? —
@@ -56,6 +65,12 @@ unreadable, and a reader's first instinct on a low number ("the team is underuti
 wrong.
 
 ### 3. The page is open; the **confirmed series** is gated on `timesheets.edit`
+
+> **Narrowed by [ADR 0064](./0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §6.**
+> The gate is the same capability, but it is now **cohort-wide with no own-row path**: without
+> `timesheets.edit` the read **skips both timesheet queries entirely** and `canViewLogged: boolean`
+> replaced `confirmedStaffIds`. The open page, the PTO-*type* posture and the `null`-never-`0`
+> discipline below all stand; only the "their own row still populates" sentence does not.
 
 **Open page, no capability.** The `(app)` layout guarantees a session, and the *planned* series is a
 re-aggregation of what `getAllocationsGrid` already discloses openly to every signed-in user: staffed
@@ -127,6 +142,11 @@ is the whole reason to look.
 
 ### 7. Line-of-business attribution: days for the plan, hours for the actuals
 
+> **Superseded in full by [ADR 0064](./0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §3.**
+> Both sides now count **hours**, the card is **one row per person**, and **leave taken while
+> staffed on a project books against that project's practice** rather than the person's home one.
+> Only the "`projects` has no line of business, so unstaffed hours fall back home" point survives.
+
 - **Planned** counts **working days**, so shares total 100%: each day defaults to the person's home
   LoB (`staff_employment.lineOfBusiness`) and is reassigned to the LoB of whichever **confirmed** role
   they spend most of that day on. Splitting a day fractionally across roles was rejected — it makes a
@@ -144,6 +164,12 @@ is the whole reason to look.
 
 ### 8. The forecast toggle includes tentative roles at **full** weight — tiers deferred, not forgotten
 
+> **Superseded by [ADR 0064](./0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §2.**
+> Tentative roles are **gone entirely** — the read takes `confirmed` only, and `TENTATIVE_WEIGHT`,
+> the `includeTentative` input and the Forecast switch are deleted. The reasoning below (no
+> win-probability field exists) is exactly why: full weight was the only option, and it made every
+> figure softer than it looked.
+
 `tentative` roles are excluded by default and included at `TENTATIVE_WEIGHT = 1` when the toggle is on.
 The requested probability tiers (High 90% / Medium 60% / Low 30%) were **explicitly deferred, because
 there is no win-probability field anywhere in the schema** — not on `opportunities`, not on
@@ -155,6 +181,12 @@ any of the math. The toggle affects **only** the Utilization and Staff breakdown
 answer "how full are we going to be"); headcount, roles, bench, PTO and LoB alignment are unaffected.
 
 ### 9. The window lives in the URL, capped at 366 days
+
+> **Amended by [ADR 0064](./0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §7–§8.**
+> The URL contract, the degrade-don't-error parsing, the 366-day cap and window-length stepping all
+> stand — but the default is now the current month **to date** (four period-to-date presets;
+> `currentMonthRange()` deleted), and the in-memory state is **basis + line of business** with the
+> forecast toggle gone and per-table search/filter/pagination added alongside.
 
 `?start=&end=`, defaulting to the **current calendar month**, because the range bounds the server query
 and a report worth reading is worth linking to. `parseUtilizationRange` degrades every invalid, missing

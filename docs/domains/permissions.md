@@ -137,19 +137,35 @@ utilization report, *reading* other people's logged hours**:
   [timesheets domain](timesheets.md).
 
   **It is also a read gate.** The **Utilization report** (`/analytics/utilization`) is the
-  first surface where one person could see another's logged hours, and it **reuses this
+  only surface where one person could see another's logged hours, and it **reuses this
   capability rather than adding one** — the set who may already edit anyone's timesheet is
   exactly the set who may already read anyone's hours. The page itself is **ungated** (its
-  *planned* series only re-aggregates what `getAllocationsGrid` discloses to everyone, and PTO
-  *type* is never selected), but inside `getUtilizationReport` a viewer without
-  `timesheets.edit` gets: both timesheet queries **scoped by a SQL predicate** to their own
-  staff record (never a post-filter, never a UI hide), and every cohort-level confirmed figure
-  returned as **`null`, not `0`** — a partial sum shown as a total would be a lie. The single
-  signal is `confirmedStaffIds` (`null` = all). **No matrix row changed.** If the audience ever
-  needs to widen (actuals without edit rights), the named path is a new **`timesheets.view`**
-  capability added in lockstep across `permissions.ts`, `permissions.test.ts` and this doc —
-  **not** loosening the scope in that read. See [utilization.md](./utilization.md) and
-  [ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md).
+  **Planned** basis only re-aggregates what `getAllocationsGrid` discloses to everyone, and PTO
+  *type* is never selected), but the report's whole **Logged** basis sits behind the capability,
+  **cohort-wide**:
+
+  - Without `timesheets.edit`, `getUtilizationReport` **skips both timesheet queries entirely** —
+    it doesn't resolve the viewer's own staff id and doesn't scope anything with a predicate,
+    because there is nothing to scope. **The gate is the absence of the query.** Verified against
+    the real database: zero timesheet rows fetched, every logged figure `null`.
+  - **`canViewLogged: boolean` is the single signal** the client reads (it replaced
+    `confirmedStaffIds`; the per-row `hasConfirmedAccess` flag and the `canSeeConfirmed` predicate
+    are gone). It disables the **Logged** toggle, with the reason stated in `BasisNote` above
+    the first card (the filter bar's duplicate of that line is gone).
+  - Every logged figure stays **`null`, not `0`** — a partial sum shown as a total would be a lie,
+    and a zero would be worse.
+
+  **There is deliberately no own-row path.** Earlier the read scoped the queries to the viewer and
+  populated their single row; a single-basis report showing one row and "restricted" everywhere
+  else is worse than not offering the basis, and their own hours are already on `/timesheets`. The
+  change **only tightens** disclosure ([ADR 0064](../decisions/0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §6).
+
+  **No matrix row changed** by either ADR. If the audience ever needs to widen (actuals without
+  edit rights), the named path is a new **`timesheets.view`** capability added in lockstep across
+  `permissions.ts`, `permissions.test.ts` and this doc — **not** loosening the scope in that read.
+  See [utilization.md](./utilization.md),
+  [ADR 0062](../decisions/0062-utilization-report-two-series-and-timesheet-disclosure.md) and
+  [ADR 0064](../decisions/0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md).
 
 Another capability gates a **read** rather than a write (as `projects.viewMargin`
 above does):

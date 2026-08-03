@@ -13,21 +13,33 @@ import {
   formatRatio,
   formatWeeks,
 } from "@/lib/utilization/utilization-format";
-import type { RoleSummary } from "@/lib/utilization/utilization-report";
+import type {
+  ReportBasis,
+  RoleSummary,
+} from "@/lib/utilization/utilization-report";
 
 /**
  * **Roles** — the staffing lines active in the period: how many, how much churn,
- * how long they run, and how thickly they stack on a project. The confirmed side
- * is one number (distinct projects people actually logged against), which read
- * beside the planned project count is the quickest signal that the plan and
- * reality have drifted apart.
+ * how long they run, and how thickly they stack on a project.
+ *
+ * Only the project count has two sides to it. Every other tile describes the plan
+ * itself — a role's span and its stacking are properties of how we staffed, and a
+ * timesheet has nothing to say about them — so they read the same on either basis.
  */
-export function RolesCard({ roles }: { roles: RoleSummary }) {
+export function RolesCard({
+  roles,
+  basis,
+}: {
+  roles: RoleSummary;
+  basis: ReportBasis;
+}) {
+  const logged = basis === "logged";
+
   return (
     <ReportSection
       title="Roles"
       description="Staffing lines overlapping the period, and the projects behind them."
-      caption="A role counts as active if any part of its span falls inside the period; started and ended count only spans that begin or finish within it. Average length measures the whole role, not the part inside the period."
+      caption="A role counts as active if any part of its span falls inside the period; started and ended count only spans that begin or finish within it. Average length measures the whole role, not the part inside the period. Tentative roles are excluded: a forecast isn't a staffing line."
     >
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
@@ -62,12 +74,10 @@ export function RolesCard({ roles }: { roles: RoleSummary }) {
         />
         <StatCard
           label="Projects"
-          value={formatCount(roles.uniqueProjects)}
-          hint={
-            roles.projectsWithLoggedTime == null
-              ? "Planned · confirmed needs timesheet access"
-              : `Planned · ${roles.projectsWithLoggedTime} with logged time`
-          }
+          value={formatCount(
+            logged ? roles.projectsWithLoggedTime : roles.uniqueProjects,
+          )}
+          hint={logged ? "With logged time" : "Staffed in this period"}
           icon={IconBriefcase}
         />
       </div>

@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import type { LineOfBusiness } from "@/lib/crm/line-of-business";
 import {
   buildUtilizationReport,
+  deviates,
+  type HoursSeries,
+  hoursDeviation,
+  type LobHours,
+  sumLobAlignment,
   type UtilizationEntry,
   type UtilizationInputs,
   type UtilizationPtoRecord,
@@ -37,8 +43,6 @@ function role(overrides: Partial<UtilizationRole> = {}): UtilizationRole {
     id: "r1",
     staffId: "s1",
     projectId: "p1",
-    projectName: "Apollo",
-    status: "confirmed",
     lineOfBusiness: "CORE",
     startDate: RANGE.start,
     endDate: RANGE.end,
@@ -56,9 +60,22 @@ function inputs(overrides: Partial<UtilizationInputs> = {}): UtilizationInputs {
     weeks: [],
     firstRoleStartByStaff: {},
     range: RANGE,
-    includeTentative: false,
-    confirmedStaffIds: null,
+    canViewLogged: true,
     ...overrides,
+  };
+}
+
+/** The three full-time split metrics, keyed for direct assertion. */
+function splitRows(report: ReturnType<typeof buildUtilizationReport>) {
+  const { fullTimeProject, pto, bench } = report.utilization;
+  return { project: fullTimeProject, pto, bench };
+}
+
+function series(planned: number, confirmed: number | null = null): HoursSeries {
+  return {
+    planned,
+    confirmed,
+    variance: confirmed == null ? null : confirmed - planned,
   };
 }
 
@@ -98,7 +115,7 @@ describe("available hours", () => {
     );
     expect(report.utilization.projectHours.planned).toBe(WORKING_DAYS * 4);
     expect(report.staffBreakdown[0].availableHours).toBeNull();
-    expect(report.staffBreakdown[0].plannedUtilization).toBeNull();
+    expect(report.staffBreakdown[0].project.plannedShare).toBeNull();
   });
 });
 
@@ -107,15 +124,14 @@ describe("the per-day split", () => {
     const pto: UtilizationPtoRecord[] = [
       { staffId: "s1", startDate: "2026-06-01", endDate: "2026-06-05" },
     ];
-    const report = buildUtilizationReport(inputs({ roles: [role()], pto }));
-    const rows = Object.fromEntries(
-      report.utilization.rows.map((r) => [r.key, r]),
+    const rows = splitRows(
+      buildUtilizationReport(inputs({ roles: [role()], pto })),
     );
 
     // Five PTO days are booked as leave, not as project time, and not as bench.
-    expect(rows.pto.planned).toBe(5 * 8);
-    expect(rows.project.planned).toBe(17 * 8);
-    expect(rows.bench.planned).toBe(0);
+    expect(rows.pto.hours.planned).toBe(5 * 8);
+    expect(rows.project.hours.planned).toBe(17 * 8);
+    expect(rows.bench.hours.planned).toBe(0);
   });
 
   test("project + PTO + bench equals available hours when not over-allocated", () => {
@@ -127,9 +143,11 @@ describe("the per-day split", () => {
         ],
       }),
     );
-    const total = report.utilization.rows
-      .filter((r) => r.planned != null)
-      .reduce((sum, r) => sum + (r.planned ?? 0), 0);
+    const split = splitRows(report);
+    const total = [split.project, split.pto, split.bench].reduce(
+      (sum, m) => sum + m.hours.planned,
+      0,
+    );
     expect(total).toBe(FULL_MONTH_HOURS);
   });
 
@@ -138,17 +156,76 @@ describe("the per-day split", () => {
       inputs({
         roles: [
           role({ id: "r1", projectId: "p1" }),
-          role({ id: "r2", projectId: "p2", projectName: "Beacon" }),
+          role({ id: "r2", projectId: "p2" }),
         ],
       }),
     );
-    expect(report.utilization.projectHoursFullTime.planned).toBe(
+    expect(report.utilization.fullTimeProject.hours.planned).toBe(
       FULL_MONTH_HOURS * 2,
     );
-    expect(report.utilization.utilization.planned).toBe(2);
+    expect(report.utilization.fullTimeProject.plannedShare).toBe(2);
     // Bench stays at zero rather than going negative.
-    const bench = report.utilization.rows.find((r) => r.key === "bench");
-    expect(bench?.planned).toBe(0);
+    expect(splitRows(report).bench.hours.planned).toBe(0);
+  });
+
+  test("only the roles handed to it count — tentative never reaches the math", () => {
+    // Status is no longer part of the projection: `getUtilizationReport` selects
+    // confirmed roles only, so anything here is by definition an allocation.
+    const report = buildUtilizationReport(inputs({ roles: [role()] }));
+    expect(report.roles.activeRoles).toBe(1);
+    expect(report.utilization.fullTimeProject.hours.planned).toBe(
+      FULL_MONTH_HOURS,
+    );
+  });
+});
+
+describe("the part-time contribution", () => {
+  const staff = [
+    person({ id: "s1" }),
+    person({ id: "s2", name: "Grace Hopper", employmentType: "HOURLY" }),
+  ];
+  const roles = [
+    role({ id: "r1", staffId: "s1", hoursPerDay: 8 }),
+    role({ id: "r2", staffId: "s2", hoursPerDay: 4 }),
+  ];
+
+  test("hourly project hours are reported apart, as a share of the total", () => {
+    const report = buildUtilizationReport(inputs({ staff, roles }));
+    expect(report.utilization.fullTimeProject.hours.planned).toBe(
+      WORKING_DAYS * 8,
+    );
+    expect(report.utilization.projectHoursHourly.planned).toBe(
+      WORKING_DAYS * 4,
+    );
+    // 88 of 264 hours.
+    expect(report.utilization.hourlyProjectShare.planned).toBeCloseTo(
+      1 / 3,
+      10,
+    );
+  });
+
+  test("the split rows stay full-time on both sides of the comparison", () => {
+    const entries: UtilizationEntry[] = [
+      // The hourly person logs leave and bench time; neither is a full-time
+      // measure, so neither lands in the split.
+      {
+        staffId: "s2",
+        date: "2026-06-02",
+        projectId: null,
+        category: "PTO",
+        hours: 8,
+      },
+      {
+        staffId: "s2",
+        date: "2026-06-03",
+        projectId: null,
+        category: "UNALLOCATED_BENCH",
+        hours: 8,
+      },
+    ];
+    const rows = splitRows(buildUtilizationReport(inputs({ staff, entries })));
+    expect(rows.pto.hours.confirmed).toBe(0);
+    expect(rows.bench.hours.confirmed).toBe(0);
   });
 });
 
@@ -183,6 +260,23 @@ describe("bench", () => {
     );
     expect(report.bench.maxBenchDays).toBe(0);
     expect(report.bench.averageBenchDays).toBeNull();
+    expect(report.bench.benchHours.planned).toBe(0);
+  });
+
+  test("bench hours carry both series", () => {
+    const entries: UtilizationEntry[] = [
+      {
+        staffId: "s1",
+        date: "2026-06-02",
+        projectId: null,
+        category: "UNALLOCATED_BENCH",
+        hours: 8,
+      },
+    ];
+    const report = buildUtilizationReport(inputs({ entries }));
+    // Nothing staffed all month, so the whole month is planned bench.
+    expect(report.bench.benchHours.planned).toBe(FULL_MONTH_HOURS);
+    expect(report.bench.benchHours.confirmed).toBe(8);
   });
 
   test("joiner placement measures join date to first role, unplaced counted apart", () => {
@@ -200,62 +294,126 @@ describe("bench", () => {
   });
 });
 
-describe("the forecast toggle", () => {
-  const roles = [
-    role({ id: "r1", status: "confirmed", hoursPerDay: 4 }),
-    role({ id: "r2", status: "tentative", projectId: "p2", hoursPerDay: 4 }),
-  ];
-
-  test("tentative roles are excluded by default", () => {
-    const report = buildUtilizationReport(inputs({ roles }));
-    expect(report.utilization.projectHoursFullTime.planned).toBe(
-      WORKING_DAYS * 4,
-    );
-    expect(report.roles.activeRoles).toBe(1);
-  });
-
-  test("turning it on adds them at full weight", () => {
+describe("PTO", () => {
+  test("total days clip to the range while record length measures the whole record", () => {
     const report = buildUtilizationReport(
-      inputs({ roles, includeTentative: true }),
+      inputs({
+        pto: [
+          // Starts before the range: 3 in-range working days, 6 working days long.
+          { staffId: "s1", startDate: "2026-05-27", endDate: "2026-06-03" },
+        ],
+      }),
     );
-    expect(report.utilization.projectHoursFullTime.planned).toBe(
-      WORKING_DAYS * 8,
-    );
-    expect(report.roles.activeRoles).toBe(2);
+    expect(report.pto.totalDays).toBe(3);
+    expect(report.pto.maxRecordLength).toBe(6);
+    expect(report.pto.peopleWithPto).toBe(1);
+    expect(report.pto.peopleWithoutPto).toBe(0);
+    expect(report.pto.ptoHours.planned).toBe(3 * 8);
   });
 
-  test("line-of-business alignment ignores it, reading confirmed roles only", () => {
-    const split = [
-      role({
-        id: "r1",
-        status: "confirmed",
-        lineOfBusiness: "FINTECH",
-        startDate: "2026-06-01",
-        endDate: "2026-06-05",
+  test("people who took no leave are counted", () => {
+    const report = buildUtilizationReport(
+      inputs({
+        staff: [person({ id: "s1" }), person({ id: "s2", name: "B" })],
+        pto: [
+          { staffId: "s1", startDate: "2026-06-01", endDate: "2026-06-01" },
+        ],
       }),
-      role({
-        id: "r2",
-        status: "tentative",
-        lineOfBusiness: "COMMERCE",
-        startDate: "2026-06-08",
-        endDate: "2026-06-30",
-      }),
+    );
+    expect(report.pto.peopleWithPto).toBe(1);
+    expect(report.pto.peopleWithoutPto).toBe(1);
+  });
+
+  test("hourly staff are excluded entirely — PTO is a full-time measure", () => {
+    const pto: UtilizationPtoRecord[] = [
+      { staffId: "s1", startDate: "2026-06-01", endDate: "2026-06-05" },
     ];
-    const on = buildUtilizationReport(
-      inputs({ roles: split, includeTentative: true }),
+    const report = buildUtilizationReport(
+      inputs({ staff: [person({ employmentType: "HOURLY" })], pto }),
     );
-    const commerce = on.lobAlignment.find(
-      (r) => r.lineOfBusiness === "COMMERCE",
+    expect(report.pto.totalDays).toBe(0);
+    expect(report.pto.peopleWithPto).toBe(0);
+    expect(report.pto.peopleWithoutPto).toBe(0);
+    expect(report.pto.ptoHours.planned).toBe(0);
+    expect(report.pto.maxRecordLength).toBe(0);
+  });
+
+  test("an hourly person's row carries no PTO or bench metric at all", () => {
+    const report = buildUtilizationReport(
+      inputs({ staff: [person({ employmentType: "HOURLY" })] }),
     );
-    expect(commerce).toBeUndefined();
+    expect(report.staffBreakdown[0].pto).toBeNull();
+    expect(report.staffBreakdown[0].bench).toBeNull();
   });
 });
 
 describe("line-of-business alignment", () => {
-  test("a confirmed role overrides the home line of business, and shares total 100%", () => {
+  /** A person's practice hours on the given basis, as a plain object. */
+  function hoursFor(
+    report: ReturnType<typeof buildUtilizationReport>,
+    staffId: string,
+    basis: "planned" | "logged",
+  ): LobHours {
+    const row = report.lobAlignment.find((r) => r.staffId === staffId);
+    if (row == null) throw new Error(`no row for ${staffId}`);
+    const hours = basis === "planned" ? row.planned : row.logged;
+    if (hours == null) throw new Error("logged hours withheld");
+    return hours;
+  }
+
+  test("role hours go to the role's practice and bench to the person's own", () => {
     const report = buildUtilizationReport(
       inputs({
         staff: [person({ lineOfBusiness: "CORE" })],
+        roles: [role({ lineOfBusiness: "FINTECH", hoursPerDay: 4 })],
+      }),
+    );
+    const planned = hoursFor(report, "s1", "planned");
+    // Half of each day is staffed to Fintech; the unstaffed half is bench, which
+    // sits with the person's own practice.
+    expect(planned.FINTECH).toBe(WORKING_DAYS * 4);
+    expect(planned.CORE).toBe(WORKING_DAYS * 4);
+    expect(report.lobAlignment[0].plannedTotal).toBe(FULL_MONTH_HOURS);
+  });
+
+  test("leave taken while staffed belongs to that project's practice", () => {
+    const report = buildUtilizationReport(
+      inputs({
+        staff: [person({ lineOfBusiness: "DESIGN" })],
+        roles: [
+          role({
+            lineOfBusiness: "FINTECH",
+            startDate: "2026-06-01",
+            endDate: "2026-06-05",
+          }),
+        ],
+        pto: [
+          { staffId: "s1", startDate: "2026-06-01", endDate: "2026-06-05" },
+        ],
+      }),
+    );
+    const planned = hoursFor(report, "s1", "planned");
+    // The five days of leave land on Fintech, not on the person's own practice;
+    // the remaining unstaffed 17 days are bench, which do.
+    expect(planned.FINTECH).toBe(5 * 8);
+    expect(planned.DESIGN).toBe(17 * 8);
+  });
+
+  test("leave taken while unstaffed belongs to the person's own practice", () => {
+    const report = buildUtilizationReport(
+      inputs({
+        staff: [person({ lineOfBusiness: "DESIGN" })],
+        pto: [
+          { staffId: "s1", startDate: "2026-06-01", endDate: "2026-06-05" },
+        ],
+      }),
+    );
+    expect(hoursFor(report, "s1", "planned").DESIGN).toBe(FULL_MONTH_HOURS);
+  });
+
+  test("a person's shares total 100% of their attributed hours", () => {
+    const report = buildUtilizationReport(
+      inputs({
         roles: [
           role({
             lineOfBusiness: "FINTECH",
@@ -265,20 +423,63 @@ describe("line-of-business alignment", () => {
         ],
       }),
     );
-    const byLob = Object.fromEntries(
-      report.lobAlignment.map((r) => [r.lineOfBusiness, r]),
-    );
-    expect(byLob.FINTECH.plannedDays).toBe(5);
-    expect(byLob.CORE.plannedDays).toBe(WORKING_DAYS - 5);
-
-    const total = report.lobAlignment.reduce(
-      (sum, r) => sum + r.plannedShare,
+    const row = report.lobAlignment[0];
+    const total = (Object.keys(row.planned) as LineOfBusiness[]).reduce(
+      (sum, lob) => sum + row.planned[lob] / row.plannedTotal,
       0,
     );
     expect(total).toBeCloseTo(1, 10);
   });
 
-  test("hours logged against an unstaffed project fall back to the home line of business", () => {
+  test("logged hours follow the same rule, and internal admin is dropped", () => {
+    const entries: UtilizationEntry[] = [
+      // Staffed to Fintech on p1.
+      {
+        staffId: "s1",
+        date: "2026-06-02",
+        projectId: "p1",
+        category: null,
+        hours: 6,
+      },
+      // Leave logged on a day they were staffed → Fintech.
+      {
+        staffId: "s1",
+        date: "2026-06-02",
+        projectId: null,
+        category: "PTO",
+        hours: 2,
+      },
+      // Bench → their own practice.
+      {
+        staffId: "s1",
+        date: "2026-06-03",
+        projectId: null,
+        category: "UNALLOCATED_BENCH",
+        hours: 4,
+      },
+      // Overhead belongs to no practice at all.
+      {
+        staffId: "s1",
+        date: "2026-06-03",
+        projectId: null,
+        category: "INTERNAL_ADMIN",
+        hours: 4,
+      },
+    ];
+    const report = buildUtilizationReport(
+      inputs({
+        staff: [person({ lineOfBusiness: "CORE" })],
+        roles: [role({ lineOfBusiness: "FINTECH" })],
+        entries,
+      }),
+    );
+    const logged = hoursFor(report, "s1", "logged");
+    expect(logged.FINTECH).toBe(8);
+    expect(logged.CORE).toBe(4);
+    expect(report.lobAlignment[0].loggedTotal).toBe(12);
+  });
+
+  test("hours logged against an unstaffed project fall back to the home practice", () => {
     const entries: UtilizationEntry[] = [
       {
         staffId: "s1",
@@ -295,14 +496,30 @@ describe("line-of-business alignment", () => {
         entries,
       }),
     );
-    const design = report.lobAlignment.find(
-      (r) => r.lineOfBusiness === "DESIGN",
+    expect(hoursFor(report, "s1", "logged").DESIGN).toBe(8);
+  });
+
+  test("the cohort total sums only the rows handed to it", () => {
+    const report = buildUtilizationReport(
+      inputs({
+        staff: [
+          person({ id: "s1", lineOfBusiness: "CORE" }),
+          person({ id: "s2", name: "Grace Hopper", lineOfBusiness: "DESIGN" }),
+        ],
+      }),
     );
-    expect(design?.confirmedHours).toBe(8);
+    const all = sumLobAlignment(report.lobAlignment);
+    expect(all.plannedTotal).toBe(FULL_MONTH_HOURS * 2);
+
+    const one = sumLobAlignment(
+      report.lobAlignment.filter((r) => r.staffId === "s1"),
+    );
+    expect(one.plannedTotal).toBe(FULL_MONTH_HOURS);
+    expect(one.planned.DESIGN).toBe(0);
   });
 });
 
-describe("the confirmed series and its access gate", () => {
+describe("the logged series and its access gate", () => {
   const entries: UtilizationEntry[] = [
     {
       staffId: "s1",
@@ -338,51 +555,78 @@ describe("the confirmed series and its access gate", () => {
     person({ id: "s2", name: "Grace Hopper" }),
   ];
 
-  test("full access sums the cohort and buckets by target", () => {
+  test("with access, the cohort is summed and bucketed by target", () => {
     const report = buildUtilizationReport(inputs({ staff, entries }));
-    const rows = Object.fromEntries(
-      report.utilization.rows.map((r) => [r.key, r]),
-    );
-    expect(rows.project.confirmed).toBe(13);
-    expect(rows.pto.confirmed).toBe(2);
-    expect(rows.bench.confirmed).toBe(8);
+    const rows = splitRows(report);
+    expect(rows.project.hours.confirmed).toBe(13);
+    expect(rows.pto.hours.confirmed).toBe(2);
+    expect(rows.bench.hours.confirmed).toBe(8);
     expect(report.utilization.projectHours.variance).toBe(13);
   });
 
-  test("partial access withholds every cohort total rather than under-reporting", () => {
+  test("without access every logged figure is null, never zero", () => {
     const report = buildUtilizationReport(
-      inputs({ staff, entries, confirmedStaffIds: ["s1"] }),
+      inputs({ staff, entries, canViewLogged: false }),
     );
-    for (const row of report.utilization.rows) {
-      expect(row.confirmed).toBeNull();
-      expect(row.confirmedShare).toBeNull();
+    const split = splitRows(report);
+    for (const value of [split.project, split.pto, split.bench]) {
+      expect(value.hours.confirmed).toBeNull();
+      expect(value.confirmedShare).toBeNull();
     }
     expect(report.utilization.projectHours.confirmed).toBeNull();
     expect(report.utilization.projectHours.variance).toBeNull();
-    expect(report.bench.confirmedBenchHours).toBeNull();
-    expect(report.pto.confirmedPtoHours).toBeNull();
+    expect(report.utilization.hourlyProjectShare.confirmed).toBeNull();
+    expect(report.bench.benchHours.confirmed).toBeNull();
+    expect(report.pto.ptoHours.confirmed).toBeNull();
     expect(report.roles.projectsWithLoggedTime).toBeNull();
-  });
+    expect(report.coverage.canViewLogged).toBe(false);
 
-  test("partial access still shows the viewer their own row, and hides the others", () => {
-    const report = buildUtilizationReport(
-      inputs({ staff, entries, confirmedStaffIds: ["s1"] }),
-    );
-    const own = report.staffBreakdown.find((r) => r.staffId === "s1");
-    const other = report.staffBreakdown.find((r) => r.staffId === "s2");
+    const row = report.staffBreakdown[0];
+    expect(row.project.hours.confirmed).toBeNull();
+    expect(row.project.confirmedShare).toBeNull();
+    expect(row.pto?.hours.confirmed).toBeNull();
+    expect(row.bench?.hours.confirmed).toBeNull();
 
-    expect(own?.hasConfirmedAccess).toBe(true);
-    expect(own?.confirmedProjectHours).toBe(6);
-    expect(other?.hasConfirmedAccess).toBe(false);
-    expect(other?.confirmedProjectHours).toBeNull();
-    expect(other?.confirmedUtilization).toBeNull();
+    expect(report.lobAlignment[0].logged).toBeNull();
+    expect(report.lobAlignment[0].loggedTotal).toBeNull();
   });
 
   test("no logged hours reads as zero, not as no access", () => {
     const report = buildUtilizationReport(inputs({ staff: [person()] }));
     expect(report.utilization.projectHours.confirmed).toBe(0);
-    expect(report.staffBreakdown[0].confirmedProjectHours).toBe(0);
-    expect(report.staffBreakdown[0].hasConfirmedAccess).toBe(true);
+    expect(report.staffBreakdown[0].project.hours.confirmed).toBe(0);
+    expect(report.lobAlignment[0].loggedTotal).toBe(0);
+  });
+});
+
+describe("deviation from plan", () => {
+  test("a gap clearing both thresholds is flagged", () => {
+    const value = series(100, 70);
+    expect(hoursDeviation(value)).toBeCloseTo(-0.3, 10);
+    expect(deviates(value)).toBe(true);
+  });
+
+  test("a small relative gap is not, however many hours it is", () => {
+    // 40 hours out of 1,000 is a lot of hours and 4% of the plan.
+    expect(deviates(series(1000, 960))).toBe(false);
+  });
+
+  test("a small absolute gap is not, however large the percentage", () => {
+    // −25% reads dramatic on a 24-hour plan; it is six hours.
+    const value = series(24, 18);
+    expect(hoursDeviation(value)).toBeCloseTo(-0.25, 10);
+    expect(deviates(value)).toBe(false);
+  });
+
+  test("over-delivery is flagged the same way as a shortfall", () => {
+    expect(deviates(series(100, 140))).toBe(true);
+  });
+
+  test("nothing planned, or nothing readable, is not a deviation", () => {
+    expect(hoursDeviation(series(0, 40))).toBeNull();
+    expect(deviates(series(0, 40))).toBe(false);
+    expect(hoursDeviation(series(100, null))).toBeNull();
+    expect(deviates(series(100, null))).toBe(false);
   });
 });
 
@@ -397,8 +641,6 @@ describe("submitted-week coverage", () => {
     const report = buildUtilizationReport(inputs({ weeks }));
     expect(report.coverage.weeksTotal).toBe(5);
     expect(report.coverage.weeksSubmitted).toBe(2);
-    expect(report.staffBreakdown[0].weeksInRange).toBe(5);
-    expect(report.staffBreakdown[0].weeksSubmitted).toBe(2);
   });
 
   test("weeks before a joiner started are not counted against them", () => {
@@ -472,39 +714,5 @@ describe("headcount and roles", () => {
     expect(report.roles.activeRoles).toBe(1);
     expect(report.roles.started).toBe(0);
     expect(report.roles.ended).toBe(1);
-  });
-});
-
-describe("PTO", () => {
-  test("total days clip to the range while record length measures the whole record", () => {
-    const report = buildUtilizationReport(
-      inputs({
-        pto: [
-          // Starts before the range: 3 in-range working days, 8 working days long.
-          {
-            staffId: "s1",
-            startDate: "2026-05-27",
-            endDate: "2026-06-03",
-          },
-        ],
-      }),
-    );
-    expect(report.pto.totalDays).toBe(3);
-    expect(report.pto.maxRecordLength).toBe(6);
-    expect(report.pto.peopleWithPto).toBe(1);
-    expect(report.pto.peopleWithoutPto).toBe(0);
-  });
-
-  test("people who took no leave are counted", () => {
-    const report = buildUtilizationReport(
-      inputs({
-        staff: [person({ id: "s1" }), person({ id: "s2", name: "B" })],
-        pto: [
-          { staffId: "s1", startDate: "2026-06-01", endDate: "2026-06-01" },
-        ],
-      }),
-    );
-    expect(report.pto.peopleWithPto).toBe(1);
-    expect(report.pto.peopleWithoutPto).toBe(1);
   });
 });

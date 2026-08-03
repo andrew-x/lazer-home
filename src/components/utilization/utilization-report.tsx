@@ -7,37 +7,48 @@ import { BenchCard } from "@/components/utilization/bench-card";
 import { HeadcountCard } from "@/components/utilization/headcount-card";
 import { LobAlignmentCard } from "@/components/utilization/lob-alignment-card";
 import { PtoCard } from "@/components/utilization/pto-card";
-import { CoverageNote } from "@/components/utilization/report-primitives";
+import { BasisNote } from "@/components/utilization/report-primitives";
 import { RolesCard } from "@/components/utilization/roles-card";
 import { StaffBreakdownCard } from "@/components/utilization/staff-breakdown-card";
 import { UtilizationCard } from "@/components/utilization/utilization-card";
 import { UtilizationFilters } from "@/components/utilization/utilization-filters";
-import { buildUtilizationReport } from "@/lib/utilization/utilization-report";
+import {
+  buildUtilizationReport,
+  type ReportBasis,
+} from "@/lib/utilization/utilization-report";
 
 /**
- * The **Utilization report** (`/analytics/utilization`): headcount, roles, bench,
- * PTO, utilization, a per-person breakdown, and line-of-business alignment over a
- * chosen period.
+ * The **Utilization report** (`/analytics/utilization`): the utilization split
+ * first as the headline, then headcount, roles, bench and PTO behind it, then the
+ * per-person breakdown and line-of-business alignment, over a chosen period.
  *
- * Every hours-bearing card carries two series and never adds them together —
- * **planned** from the allocations plan (`project_roles`) and **confirmed** from
- * submitted timesheets (`time_entries`). The gap between them is the point of the
- * report; the definitions behind each number live in
+ * Every hours-bearing figure exists in two series — **planned** from the
+ * allocations plan (`project_roles`) and **logged** from submitted timesheets
+ * (`time_entries`) — and the basis toggle picks which one the whole page shows.
+ * The other series doesn't go to waste: on the logged basis a figure far enough
+ * from plan is flagged, which is the comparison that mattered without paying for
+ * it in a doubled column on every row. Definitions live in
  * `@/lib/utilization/utilization-report`.
  *
- * Filtering is in-memory over the once-fetched projection: narrowing the cohort by
- * line of business or flipping the forecast toggle re-derives everything client
- * side. Only the date range round-trips to the server, because it bounds the query.
+ * Filtering is in-memory over the once-fetched projection: narrowing the cohort
+ * by line of business or flipping the basis re-derives everything client side.
+ * Only the date range round-trips to the server, because it bounds the query.
  */
 export function UtilizationReport({
   data,
+  today,
   lineOfBusinessOptions,
+  roleOptions,
+  typeOptions,
 }: {
   data: UtilizationReportData;
+  today: string;
   lineOfBusinessOptions: string[];
+  roleOptions: string[];
+  typeOptions: string[];
 }) {
+  const [basis, setBasis] = useState<ReportBasis>("planned");
   const [lineOfBusiness, setLineOfBusiness] = useState(ALL);
-  const [includeTentative, setIncludeTentative] = useState(false);
 
   const cohort = useMemo(
     () =>
@@ -57,35 +68,43 @@ export function UtilizationReport({
         weeks: data.weeks,
         firstRoleStartByStaff: data.firstRoleStartByStaff,
         range: data.range,
-        confirmedStaffIds: data.confirmedStaffIds,
-        includeTentative,
+        canViewLogged: data.canViewLogged,
       }),
-    [cohort, data, includeTentative],
+    [cohort, data],
   );
 
   return (
     <div className="flex flex-col gap-6">
       <UtilizationFilters
         range={data.range}
+        today={today}
+        basis={basis}
+        onBasisChange={setBasis}
+        canViewLogged={data.canViewLogged}
         lineOfBusinessOptions={lineOfBusinessOptions}
         lineOfBusiness={lineOfBusiness}
         onLineOfBusinessChange={setLineOfBusiness}
-        includeTentative={includeTentative}
-        onIncludeTentativeChange={setIncludeTentative}
       />
 
-      <CoverageNote coverage={report.coverage} />
+      <BasisNote basis={basis} coverage={report.coverage} />
 
-      <UtilizationCard
-        utilization={report.utilization}
-        includeTentative={includeTentative}
-      />
+      <UtilizationCard utilization={report.utilization} basis={basis} />
       <HeadcountCard headcount={report.headcount} />
-      <RolesCard roles={report.roles} />
-      <BenchCard bench={report.bench} />
-      <PtoCard pto={report.pto} />
-      <StaffBreakdownCard rows={report.staffBreakdown} />
-      <LobAlignmentCard rows={report.lobAlignment} />
+      <RolesCard roles={report.roles} basis={basis} />
+      <BenchCard bench={report.bench} basis={basis} />
+      <PtoCard pto={report.pto} basis={basis} />
+      <StaffBreakdownCard
+        rows={report.staffBreakdown}
+        basis={basis}
+        roleOptions={roleOptions}
+        typeOptions={typeOptions}
+      />
+      <LobAlignmentCard
+        rows={report.lobAlignment}
+        basis={basis}
+        roleOptions={roleOptions}
+        typeOptions={typeOptions}
+      />
     </div>
   );
 }

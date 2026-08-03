@@ -1,4 +1,5 @@
 import type { Icon } from "@tabler/icons-react";
+import type { ReactNode } from "react";
 import {
   Card,
   CardContent,
@@ -19,11 +20,18 @@ export function StatCard({
   label,
   value,
   hint,
+  marker,
   icon: IconComponent,
 }: {
   label: string;
   value: string;
   hint?: string;
+  /**
+   * A small element rendered beside the value — a warning marker, not a second
+   * figure. The utilization report uses it to flag a number that has drifted
+   * from plan.
+   */
+  marker?: ReactNode;
   icon?: Icon;
 }) {
   return (
@@ -37,7 +45,10 @@ export function StatCard({
         )}
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-semibold tabular-nums">{value}</div>
+        <div className="text-2xl font-semibold tabular-nums">
+          {value}
+          {marker}
+        </div>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>

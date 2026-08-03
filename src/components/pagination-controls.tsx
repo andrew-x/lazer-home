@@ -1,6 +1,6 @@
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { buildListHref, type SearchParams } from "@/lib/core/list-href";
 import { cn } from "@/lib/core/utils";
@@ -55,19 +55,25 @@ function pageWindow(page: number, pageCount: number): PageSlot[] {
   return result;
 }
 
+/**
+ * How one page button navigates: `render` for a real link, `onClick` for an
+ * in-memory table. Spread straight onto a `Button`.
+ */
+type SlotProps = Pick<ComponentProps<typeof Button>, "render" | "onClick">;
+
 /** Shared geometry for every slot in the strip: a 24px-tall, square-ish cell. */
 const CELL = "h-6 min-w-6 rounded-sm px-1.5 text-xs tabular-nums";
 const QUIET = "text-muted-foreground hover:text-foreground";
 
 /**
- * A step control (Prev/Next). Renders as a link when the step exists, and as a
+ * A step control (Prev/Next). Navigates when the step exists, and renders as a
  * disabled button otherwise so the strip's width never shifts between pages.
  */
 function StepButton({
-  href,
+  slotProps,
   children,
 }: {
-  href: string | undefined;
+  slotProps: SlotProps | undefined;
   children: ReactNode;
 }) {
   return (
@@ -75,14 +81,18 @@ function StepButton({
       variant="ghost"
       size="xs"
       className={cn(CELL, "gap-0.5 px-1", QUIET)}
-      disabled={href === undefined}
-      {...(href !== undefined ? { render: <Link href={href} /> } : {})}
+      disabled={slotProps === undefined}
+      {...slotProps}
     >
       {children}
     </Button>
   );
 }
 
+/**
+ * Server-paginated lists: every page is a link, so the current page lives in the
+ * URL and is shareable. The default.
+ */
 export function PaginationControls({
   basePath,
   params,
@@ -96,10 +106,53 @@ export function PaginationControls({
   page: number;
   pageCount: number;
 }) {
+  return (
+    <PaginationStrip
+      page={page}
+      pageCount={pageCount}
+      slotProps={(target) => ({
+        render: <Link href={buildHref(basePath, params, paramKey, target)} />,
+      })}
+    />
+  );
+}
+
+/**
+ * Client-paginated tables: the page is component state and paging never touches
+ * the URL. Use this when the rows are **already** in the client — routing the
+ * page through the URL would re-run the server component and refetch everything
+ * just to slice an array (the utilization report's two per-person tables).
+ */
+export function ClientPaginationControls({
+  page,
+  pageCount,
+  onPageChange,
+}: {
+  page: number;
+  pageCount: number;
+  onPageChange: (page: number) => void;
+}) {
+  return (
+    <PaginationStrip
+      page={page}
+      pageCount={pageCount}
+      slotProps={(target) => ({ onClick: () => onPageChange(target) })}
+    />
+  );
+}
+
+/** The shared control strip, agnostic about how a page button navigates. */
+function PaginationStrip({
+  page,
+  pageCount,
+  slotProps,
+}: {
+  page: number;
+  pageCount: number;
+  slotProps: (target: number) => SlotProps;
+}) {
   // Nothing to page through — don't spend a bar on two dead arrows.
   if (pageCount <= 1) return null;
-
-  const href = (p: number) => buildHref(basePath, params, paramKey, p);
 
   return (
     <nav
@@ -110,7 +163,7 @@ export function PaginationControls({
         Page {page} of {pageCount}
       </p>
       <div className="flex items-center gap-1">
-        <StepButton href={page > 1 ? href(page - 1) : undefined}>
+        <StepButton slotProps={page > 1 ? slotProps(page - 1) : undefined}>
           <IconChevronLeft />
           Prev
         </StepButton>
@@ -143,7 +196,7 @@ export function PaginationControls({
                 variant="ghost"
                 size="xs"
                 className={cn(CELL, QUIET)}
-                render={<Link href={href(slot.page)} />}
+                {...slotProps(slot.page)}
               >
                 {slot.page}
               </Button>
@@ -151,7 +204,9 @@ export function PaginationControls({
           )}
         </div>
 
-        <StepButton href={page < pageCount ? href(page + 1) : undefined}>
+        <StepButton
+          slotProps={page < pageCount ? slotProps(page + 1) : undefined}
+        >
           Next
           <IconChevronRight />
         </StepButton>

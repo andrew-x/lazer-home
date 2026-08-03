@@ -79,18 +79,9 @@ function makeEmployment(
   effectiveFromDate: string,
   role: EmploymentInsert["role"],
   isManagement: boolean,
+  employmentType: EmploymentInsert["employmentType"] = "FULL_TIME",
 ): EmploymentInsert {
   const isBillable = !isManagement && role !== "SOLUTIONS";
-  // A minority of individual contributors are hourly. Management stays salaried.
-  // Without this the whole seeded org was FULL_TIME, which left two things
-  // undemonstrable in dev: the home dashboard's Hourly availability filter (always
-  // empty) and its *normalized* staffing rate, whose denominator is full-time
-  // headcount — identical to plain headcount when everyone is full time, so the two
-  // figures printed the same number and the distinction looked broken.
-  const employmentType =
-    !isManagement && faker.datatype.boolean({ probability: 0.15 })
-      ? "HOURLY"
-      : "FULL_TIME";
   return {
     id: generateId("emp"),
     staffId,
@@ -198,8 +189,21 @@ export async function seedStaff(db: SeedDb): Promise<Staff[]> {
         "ic",
       ),
     );
+    // A slice of the delivery bench is hourly — the schema's stand-in for
+    // part-time; management stays salaried. Without any, two surfaces go
+    // undemonstrable in dev: the utilization report's part-time figures, "n/a"
+    // capacity cells and type filter all read as empty, and on the home
+    // dashboard the Hourly availability filter is always empty while the
+    // *normalized* staffing rate — whose denominator is full-time headcount —
+    // prints the same number as the plain rate, so the distinction looks broken.
     employmentRows.push(
-      makeEmployment(id, join, faker.helpers.arrayElement(IC_ROLES), false),
+      makeEmployment(
+        id,
+        join,
+        faker.helpers.arrayElement(IC_ROLES),
+        false,
+        chance(0.15) ? "HOURLY" : "FULL_TIME",
+      ),
     );
   }
 
