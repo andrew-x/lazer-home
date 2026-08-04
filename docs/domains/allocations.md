@@ -81,6 +81,15 @@ the inline **Notes** column (shown and editable to `staff.edit` holders — mana
   prorated/uncapped figure; at month granularity two blocks reading "100%" can legitimately
   sit above "0% free". See *Two load figures* below and
   [ADR 0060](../decisions/0060-allocations-capacity-meter.md).
+  ⚠️ **`DELIVERY` roles now consume capacity here.** Since
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md) a delivery
+  manager holds an ordinary dated, hourly role, so running an engagement shows up as load where it
+  used to be invisible — the meter's figures moved on existing plans. (The seed gives delivery roles
+  1–2 h/day precisely so a manager on three engagements doesn't read as 300%.) **The coverage rule
+  in `delivery-coverage.ts` deliberately does *not* match this meter's status filter** — it counts
+  everything but `cancelled`, because it asks "does the plan account for delivery" rather than
+  "whose capacity is consumed"; see
+  [projects.md](./projects.md#delivery-managers--coverage).
 - **Column headers are granularity-aware** (`columnLabel`): a day is `Mon, Jul 6`, a
   week is a compact Mon–Fri range `Jul 6–10` / `Jun 29–Jul 3` (`weekColumnLabel`), a
   month is `Jul 2026`. **Confirmed** roles render as a solid block, **tentative** as a
@@ -291,10 +300,18 @@ before changing anything here — the time bases are load-bearing.
   **`MyAllocationsTable`** (Project · Client · Dates · Hours/day; live rows, then an
   "Upcoming" divider) over `getMyAllocations` + `buildMyAllocationRows`
   (`src/lib/home/my-work.ts`). **This band also carries a point-in-time block that has nothing to do with allocations** — the CRM personal task list ([ADR 0065](../decisions/0065-home-personal-task-list-and-assignee-completion.md)), which is why the band description no longer names a single window. Rows are **one per project** (two roles on one engagement
-  merge, hours summed), a **delivery-manager seat** appears with `hoursPerDay: null` rendered
-  as "—" (`project_delivery_managers` has no hours or dates — its window is derived from the
-  project's live roles), and `status` reads `tentative` only when *every* role on the project
+  merge, hours summed) and `status` reads `tentative` only when *every* role on the project
   is. There is deliberately **no link to `/allocations`** from this band.
+  **The delivery-manager special case is gone**
+  ([ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)): a
+  delivery manager holds a dated, hourly `DELIVERY` role like anyone else, so its row renders like
+  any other allocation with `Delivery` in the role-type sub-line. `my-work.ts` lost
+  `managedProjects`, `deliveryManagerOnly` and every null branch — **`MyAllocationRow`'s
+  `hoursPerDay`/`startDate`/`endDate` are non-nullable again** — and the table lost its
+  "Delivery lead" badge and em-dash hours cell. That whole class of nullability existed *only*
+  because the junction had no dates or hours (the row had to borrow its window from whoever else was
+  staffed, and inventing hours would have corrupted a column people read down). Consequence:
+  **delivery work now counts toward `currentLoadPercent`.**
   ⚠️ **`getMyAllocations` has no forward bound** — `endDate >= today`, everything upcoming.
   It used to clip to a deleted gantt's −1/+2-month window; don't reintroduce a clip.
   Nuance: the **Planned** tile's *value* is year-to-date, but its *hint* flips to
@@ -312,6 +329,10 @@ before changing anything here — the time bases are load-bearing.
 - **Staffed** = holds **≥ 1 `confirmed` role whose span contains today**. Tentative doesn't
   commit anyone; **approved leave today does *not* un-staff someone** (this measures the
   plan, not attendance — availability, right beside it, is where leave nets out).
+  ⚠️ **A `DELIVERY` role staffs you** — since
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md) running an
+  engagement is an ordinary dated role, so the staffing count moved on existing data. There is **no
+  role-type filter and none should be added**: running a project is committed delivery work.
 - **Population** = `isBillable === true`, the *same* predicate as `buildAvailability`, so the
   staffing rate and the availability strip can't disagree about who counts.
 - **`rate`** = staffed ÷ headcount. **`normalizedRate`** = staffed ÷ **full-time** headcount,
@@ -357,8 +378,11 @@ before changing anything here — the time bases are load-bearing.
 
 - **Reads:** `getAllocationsGrid` (below — now also returns `openRoles`) ·
   `src/actions/allocations/getMyAllocations.ts` (own-data-only **by construction** — takes no
-  `staffId`, so there is no cross-user id to authorize; roles + delivery-manager seats with
-  each project's live-role span folded in) · `src/actions/staff/getStaffPto` ·
+  `staffId`, so there is no cross-user id to authorize. **One query now**: every live-or-upcoming
+  role, `DELIVERY` ones included, so `MyManagedProject`/`managedProjects` and the `min`/`max`
+  group-by query are deleted —
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)) ·
+  `src/actions/staff/getStaffPto` ·
   `src/actions/timesheets/getStaffUtilization`.
 - **Pure math:** `src/lib/home/org-status.ts` (+ `.test.ts`, 41 tests) — `buildOrgStatus`,
   `summarizeStaffing`, `filterByLineOfBusiness`, `filterByEmploymentType` (the availability

@@ -1,6 +1,6 @@
 # 0045 — Two role editors: deal-side (opportunity planner) vs. delivery-side (project page); "confirmed roles are locked" narrowed
 
-**Status:** accepted · 2026-07-28 · amends [ADR 0031](./0031-opportunity-project-planner-and-role-status.md) · **self-amended the same day** — decision points 5 and 6 were reversed (the Gantt is an edit surface; the project's company is editable). Read the [Amendment](#amendment-2026-07-28-the-gantt-is-an-edit-surface-and-company-is-editable) before trusting those two points.
+**Status:** accepted · 2026-07-28 · amends [ADR 0031](./0031-opportunity-project-planner-and-role-status.md) · **self-amended the same day** — decision points 5 and 6 were reversed (the Gantt is an edit surface; the project's company is editable). Read the [Amendment](#amendment-2026-07-28-the-gantt-is-an-edit-surface-and-company-is-editable) before trusting those two points. **Partly superseded on 2026-08-04 by [ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md)** — decision points 2 and 5's `deliveryManagers` variant no longer exists (delivery managers are derived from `DELIVERY` roles); everything else stands.
 
 ## Context
 
@@ -47,8 +47,10 @@ enforced by `secureActionClient` before the body.
 **2. New project-scoped actions** (`src/actions/projects/`, one per file + a `.schema.ts` each,
 all `projects.edit`): `createProjectRoleOnProject`, `updateProjectRoleOnProject`,
 `deleteProjectRoleOnProject`, and the field-scoped `updateProjectField` (a discriminated union on
-`field`: `name` | `deliveryManagers` — **plus `company`, added by amendment B below** — mirroring
-`updateCompanyField`). They reuse the shared
+`field`: ~~`name` | `deliveryManagers`~~ — **plus `company`, added by amendment B below** — mirroring
+`updateCompanyField`; **the `deliveryManagers` variant was deleted by
+[ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md), so the union is
+`name` | `company`**). They reuse the shared
 `projectRoleFields`/`endOnOrAfterStart` validation, so the two editors validate identically.
 
 **3. `status` and `opportunityId` stay server-controlled.** The project page never writes either.
@@ -66,6 +68,19 @@ rewrite the delivery-manager junction. ~~**Company stays read-only** (structural
 reparented)~~ — **superseded by the amendment below: company is editable.** **Status / lines of
 business are not fields at all** (derived from roles,
 [ADR 0033](./0033-line-of-business-on-role-derived-project-status.md)).
+
+> **Partly superseded by [ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md).**
+> Delivery managers joined status and LoB in "not a field at all": they derive from the project's
+> `DELIVERY` roles, the junction is dropped, and the sidebar field is a read-only `MetaField`
+> (`delivery-managers-meta.tsx`) mirroring "Line of business" — so **the sidebar has two
+> inline-editable fields, name and company, not three.** The field-scoping *rationale* survives
+> intact and is if anything sharper: the union's remaining two variants are genuinely different
+> writes (one column vs. a re-parent carrying a data-integrity refusal and a two-company
+> revalidation), which is why it stayed a union rather than collapsing. Naming a delivery manager
+> is now an *edit in the Roles tab* — strictly more capable, since the assignment is dated,
+> statused and priced. That also makes this page the surface that shows a **delivery-coverage
+> gap**, including past ones: it's the delivery-side editor this ADR argued for, so a historical
+> hole is either a data fix or a fact worth knowing.
 
 ~~**6. The Timeline (Gantt) tab stays non-editable** — editing lives in the Roles tab, so the Gantt
 is a display surface, still passing `""` as the current opportunity so `buildPlannerRows` marks no

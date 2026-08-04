@@ -18,6 +18,7 @@ import { parseIsoDate } from "@/lib/format/format";
 import { isOffStandardRate } from "@/lib/projects/bill-rates";
 import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
 import {
+  isDeliveryDiscipline,
   PROJECT_ROLE_TYPE_LABELS,
   type ProjectRoleType,
 } from "@/lib/projects/project-role-type";
@@ -84,6 +85,12 @@ export type PlannerRow = {
    * nothing is emphasised and the block fill falls back to the role's status.
    */
   emphasized: boolean;
+  /**
+   * This is the delivery line. Drives the row tint and the sort — carried on the row
+   * rather than re-derived in the grid so the ordering here and the highlight there
+   * can't disagree about which row that is.
+   */
+  isDelivery: boolean;
   staffId: string | null;
   staffName: string | null;
   startDate: string;
@@ -206,6 +213,7 @@ export function buildPlannerRows(
       offStandardRate: isOffStandardRate(role),
       status: role.status,
       ...editStateFor(role, editability),
+      isDelivery: isDeliveryDiscipline(role.roleType),
       staffId: role.staffId,
       staffName: role.staffName,
       startDate: role.startDate,
@@ -215,6 +223,11 @@ export function buildPlannerRows(
   });
 
   return rows.sort((a, b) => {
+    // The delivery line first, always — above even a staffed role, because it is who
+    // runs the engagement rather than another line of work on it. An *open* delivery
+    // role still sorts here: the seat's position in the plan doesn't depend on
+    // whether it's filled yet.
+    if (a.isDelivery !== b.isDelivery) return a.isDelivery ? -1 : 1;
     // Staffed roles before open positions.
     const aStaffed = a.staffId !== null;
     const bStaffed = b.staffId !== null;

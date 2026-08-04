@@ -7,21 +7,19 @@ import { secureActionClient } from "@/lib/core/action";
 import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
-import {
-  opportunities,
-  projectDeliveryManagers,
-  projectRoles,
-  projects,
-} from "@/lib/db/schema";
+import { opportunities, projectRoles, projects } from "@/lib/db/schema";
 import { createProjectSchema } from "./createProject.schema";
 import { projectBudgetColumns } from "./projectBudgetWrite";
 
 /**
- * Create a project with its budget, delivery managers and staffing roles (one
- * transaction). Gated on `projects.edit`. The company must already exist (picked
- * via its own search); this only consumes ids. Per-role date and hours rules are
- * enforced by `createProjectSchema`, and the billing shape by
- * `projectBudgetSchema` plus the `projects_budget_shape` check constraint.
+ * Create a project with its budget and staffing roles (one transaction). Gated on
+ * `projects.edit`. The company must already exist (picked via its own search); this
+ * only consumes ids. Per-role date and hours rules are enforced by
+ * `createProjectSchema`, and the billing shape by `projectBudgetSchema` plus the
+ * `projects_budget_shape` check constraint.
+ *
+ * Delivery managers need no separate input: one of `roles` with
+ * `roleType: "DELIVERY"` is what names who runs the engagement (ADR 0068).
  */
 export const createProject = secureActionClient
   .metadata({
@@ -39,9 +37,6 @@ export const createProject = secureActionClient
     }
 
     const projectId = generateId("proj");
-
-    // Dedupe so a duplicate can't trip the junction unique index.
-    const deliveryManagerIds = [...new Set(parsedInput.deliveryManagerIds)];
 
     await db.transaction(async (tx) => {
       await tx.insert(projects).values({
@@ -82,16 +77,6 @@ export const createProject = secureActionClient
               : "That opportunity no longer exists.",
           );
         }
-      }
-
-      if (deliveryManagerIds.length > 0) {
-        await tx.insert(projectDeliveryManagers).values(
-          deliveryManagerIds.map((staffId) => ({
-            id: generateId("proj-dm"),
-            projectId,
-            staffId,
-          })),
-        );
       }
 
       if (parsedInput.roles.length > 0) {

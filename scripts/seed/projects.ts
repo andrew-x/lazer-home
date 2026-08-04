@@ -1,12 +1,14 @@
 import { eq, type InferInsertModel } from "drizzle-orm";
-import { LINE_OF_BUSINESS } from "@/lib/crm/line-of-business";
+import {
+  LINE_OF_BUSINESS,
+  type LineOfBusiness,
+} from "@/lib/crm/line-of-business";
 import { generateId } from "@/lib/db/ids";
 import {
   type Company,
   type Opportunity,
   opportunities as opportunitiesTable,
   type Project,
-  projectDeliveryManagers,
   projectDeliveryNotes,
   projectRoles,
   projects,
@@ -22,13 +24,32 @@ import {
 } from "@/lib/projects/project-health";
 import { PROJECT_ROLE_STATUSES } from "@/lib/projects/project-role-status";
 import { PROJECT_ROLE_TYPES } from "@/lib/projects/project-role-type";
+import { addDays, isWeekend } from "@/lib/timesheets/timesheet-week";
 import type { SeedDb } from "./client";
 import { chance, faker, isoDate, money, monthsAgo } from "./faker";
 
 const PROJECT_COUNT = 15;
 
+/**
+ * The disciplines a *staffing* line can draw. `DELIVERY` is excluded and seeded
+ * deliberately instead (see {@link deliveryCoverageShape}) — a random draw would
+ * plant stray delivery roles that silently close the coverage gaps the seed is
+ * trying to create.
+ */
+const STAFFING_ROLE_TYPES = PROJECT_ROLE_TYPES.filter(
+  (type) => type !== "DELIVERY",
+);
+
+/**
+ * Hours a day for a delivery role. Deliberately part-time, unlike the staffing
+ * lines: a delivery role is an ordinary `project_roles` row now, so its hours feed
+ * plan revenue, the planner's capacity meter and the utilization report — and a
+ * full-time delivery manager on three engagements would read as 300% allocated
+ * (ADR 0068).
+ */
+const DELIVERY_HOURS_PER_DAY = [1, 2];
+
 type ProjectInsert = InferInsertModel<typeof projects>;
-type DeliveryManagerInsert = InferInsertModel<typeof projectDeliveryManagers>;
 type RoleInsert = InferInsertModel<typeof projectRoles>;
 type DeliveryNoteInsert = InferInsertModel<typeof projectDeliveryNotes>;
 
@@ -63,17 +84,52 @@ function billingFor(): Pick<
   return { billingType: null, budgetAmount: null, budgetCurrency: null };
 }
 
+/** The next Mon–Fri day strictly after `day`. */
+function nextWeekday(day: string): string {
+  let next = addDays(day, 1);
+  while (isWeekend(next)) next = addDays(next, 1);
+  return next;
+}
+
+/**
+ * How a project's delivery is covered. Every seeded project shares one start and end
+ * across its staffing lines, so a naive delivery role would always cover perfectly
+ * and the coverage warning would be invisible on real data. These four shapes make
+ * each state of it reachable:
+ *
+ * - `full` — one delivery role spanning the window. **No warning.**
+ * - `seam` — a handover: two roles, the second starting the *next weekday* after the
+ *   first ends. Also **no warning**, and it's the case that proves the weekend rule
+ *   (a Friday→Monday handover is contiguous) on real data rather than only in tests.
+ * - `gap` — a delivery role covering the first ~60% of the window. **Warns**, with a
+ *   real date range.
+ * - `open` — one *unstaffed* delivery role over the whole window. **Warns**, because
+ *   a seat nobody sits in isn't coverage, and it's the only shape that exercises the
+ *   sidebar's "Open delivery role" state.
+ */
+const DELIVERY_COVERAGE_SHAPES = [
+  { value: "full", weight: 5 },
+  { value: "seam", weight: 2 },
+  { value: "gap", weight: 2 },
+  { value: "open", weight: 1 },
+] as const;
+
+function deliveryCoverageShape() {
+  return faker.helpers.weightedArrayElement(DELIVERY_COVERAGE_SHAPES);
+}
+
 /**
  * Seed projects (some originating from closed-won opportunities, respecting the
- * ≤1-project-per-opportunity constraint), their delivery managers, and staffing
- * roles — a mix of staffed and open (unstaffed) positions. The CRM → delivery
- * link lives on `opportunities.projectId`, set below for the won opps that
- * spawned a project; those projects' roles are tagged with the opportunity and
- * marked confirmed (won), while standalone projects' roles vary across statuses.
- * A project has no stored status or line of business — both are derived from its
- * roles — so those live on the roles here (mirroring the app). The mix spans every
- * section of the projects list: live work, engagements that already finished, and
- * a few cancelled outright.
+ * ≤1-project-per-opportunity constraint) and their roles — a mix of staffed and open
+ * (unstaffed) positions, plus the `DELIVERY` role(s) that name who runs each
+ * engagement. The CRM → delivery link lives on `opportunities.projectId`, set below
+ * for the won opps that spawned a project; those projects' roles are tagged with the
+ * opportunity and marked confirmed (won), while standalone projects' roles vary
+ * across statuses. A project has no stored status, line of business or delivery
+ * manager — all three are derived from its roles — so those live on the roles here
+ * (mirroring the app). The mix spans every section of the projects list: live work,
+ * engagements that already finished, and a few cancelled outright, and every state
+ * of the delivery-coverage warning (see {@link deliveryCoverageShape}).
  *
  * Each project also gets one of the three billing states (fixed fee / time and
  * materials / no budget) — see {@link billingFor}.
@@ -131,21 +187,8 @@ export async function seedProjects(
     }
   }
 
-  const deliveryManagers: DeliveryManagerInsert[] = [];
   const roles: RoleInsert[] = [];
   for (const { project, opp, finished, cancelled, upcoming } of entries) {
-    // 1–2 delivery managers (distinct → no duplicate pairs).
-    for (const s of faker.helpers.arrayElements(
-      staff,
-      faker.number.int({ min: 1, max: 2 }),
-    )) {
-      deliveryManagers.push({
-        id: generateId("pdm"),
-        projectId: project.id,
-        staffId: s.id,
-      });
-    }
-
     // 2–4 staffing lines; some left open (null staffId) as unfilled positions.
     const roleCount = faker.number.int({ min: 2, max: 4 });
     // A finished engagement starts 10–36 months back and runs 2–8, so it always
@@ -165,13 +208,19 @@ export async function seedProjects(
       if (opp || finished) return "confirmed";
       return faker.helpers.arrayElement(PROJECT_ROLE_STATUSES);
     };
+    // Which lines of business this project sells, accumulated as its staffing lines
+    // are drawn so the delivery role below can reuse one instead of drawing afresh —
+    // a project's LoBs are derived from ALL its roles, so a stray draw on the
+    // delivery line would add a practice the project doesn't actually sell.
+    const projectLobs: LineOfBusiness[] = [];
     for (let i = 0; i < roleCount; i++) {
       const open = chance(0.25);
       // A role's line of business: inherit the originating opportunity's, or a
       // random one for standalone roles (so those projects span several LoBs).
       const lineOfBusiness =
         opp?.lineOfBusiness ?? faker.helpers.arrayElement(LINE_OF_BUSINESS);
-      const roleType = faker.helpers.arrayElement(PROJECT_ROLE_TYPES);
+      projectLobs.push(lineOfBusiness);
+      const roleType = faker.helpers.arrayElement(STAFFING_ROLE_TYPES);
       roles.push({
         id: generateId("role"),
         projectId: project.id,
@@ -196,9 +245,49 @@ export async function seedProjects(
           : billRateFor({ lineOfBusiness, roleType }),
       });
     }
+
+    // The delivery line(s) — who runs the engagement. Same window and status rules
+    // as the staffing lines above; the shape decides how much of the window they
+    // actually cover (see {@link deliveryCoverageShape}).
+    const shape = deliveryCoverageShape();
+    const lineOfBusiness =
+      opp?.lineOfBusiness ?? faker.helpers.arrayElement(projectLobs);
+    const startIso = isoDate(start);
+    const endIso = isoDate(end);
+    const midIso = isoDate(
+      new Date(start.getTime() + (end.getTime() - start.getTime()) * 0.6),
+    );
+    const deliverySpans: { startDate: string; endDate: string }[] =
+      shape === "seam"
+        ? [
+            { startDate: startIso, endDate: midIso },
+            { startDate: nextWeekday(midIso), endDate: endIso },
+          ]
+        : shape === "gap"
+          ? [{ startDate: startIso, endDate: midIso }]
+          : [{ startDate: startIso, endDate: endIso }];
+
+    // One delivery manager per project, so a handover reads as one person taking
+    // over from another rather than as two people sharing every span.
+    const managers = faker.helpers.arrayElements(staff, deliverySpans.length);
+    deliverySpans.forEach((span, i) => {
+      roles.push({
+        id: generateId("role"),
+        projectId: project.id,
+        // The `open` shape is the one that leaves nobody accountable.
+        staffId: shape === "open" ? null : (managers[i]?.id ?? null),
+        opportunityId: opp?.id ?? null,
+        status: roleStatus(),
+        lineOfBusiness,
+        description: null,
+        roleType: "DELIVERY",
+        ...span,
+        hoursPerDay: faker.helpers.arrayElement(DELIVERY_HOURS_PER_DAY),
+        billRate: billRateFor({ lineOfBusiness, roleType: "DELIVERY" }),
+      });
+    });
   }
 
-  await db.insert(projectDeliveryManagers).values(deliveryManagers);
   await db.insert(projectRoles).values(roles);
 
   return db.query.projects.findMany();

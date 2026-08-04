@@ -19,7 +19,9 @@ conversion pattern of [ADR 0029](./0029-external-fx-rates-and-currency-normaliza
 
 After ADR 0053, plan margin existed on exactly two surfaces — the project detail page and the
 opportunity drawer's Project-plan tab — both **one project at a time**. `/projects` showed
-name, company, a status badge, line-of-business badges, delivery managers and a date range:
+name, company, a status badge, line-of-business badges, delivery managers (then read from the
+`project_delivery_managers` junction; **derived from `DELIVERY` roles since
+[ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md)**) and a date range:
 enough to *find* a project, nothing to tell you **which one needs attention**. The question a
 delivery lead opens that page with is "what's in trouble?", and answering it meant opening
 engagements one by one.
@@ -199,6 +201,14 @@ context (`ProjectsCurrencyProvider` / `useProjectsCurrency`), with the `ToggleGr
   > delivery judgement, not compensation-derived, which is the only thing §1's fail-quiet rule was
   > protecting. The rest of this ADR is unchanged, and the "unknown ⇒ no tag" rule extends to
   > unrated projects.
+  >
+  > **Amended again by [ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md):**
+  > a **fifth** tag, **`noDeliveryManager`** (third — below `lowHealth`, above `lowMargin`),
+  > also **ungated** for the same reason, so a non-`viewMargin` viewer can now see *three*.
+  > It fires only on coverage gaps ending **today or later**, so the Past tab doesn't carry
+  > permanent badges; it takes **pre-derived** gaps on `ProjectFlagInputs` so this module keeps
+  > owning no date arithmetic; and it added **no threshold constant**, so
+  > `PROJECT_FLAGS_REVIEWED_ON` did *not* move.
 - **One residual em dash.** The card's "No roles" branch tests `roleCount` (**all** roles,
   including cancelled) while the null margin comes from `countedRoleCount` (which excludes
   cancelled). So a budgeted project whose roles are *all cancelled* has `roleCount > 0` and a

@@ -94,9 +94,15 @@ convention paid off: this was **three source lines and one migration, with zero 
 Every filter, form and label reads the shared tuple and label map, so exactly two exhaustive
 `Record<ProjectRoleType, …>` maps needed touching.
 
-`project_delivery_managers` is **unchanged and unrelated**. A delivery *role* is a billable
-plan line with dates, hours and a rate; the junction names who owns the engagement and
-carries none of those. One person can be both.
+> **Overtaken the same day by [ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md).**
+> This section originally read: "`project_delivery_managers` is **unchanged and unrelated**. A
+> delivery *role* is a billable plan line with dates, hours and a rate; the junction names who
+> owns the engagement and carries none of those. One person can be both." That distinction is
+> now **backwards** — the junction was dropped and a `DELIVERY` role *is* the delivery manager.
+> The reasoning above for *adding* the discipline stands untouched; what changed is that adding
+> it turned out to make the junction redundant rather than complementary, which is why the
+> hours-and-rate consequence §3 treated as incidental became load-bearing (0068 §7: delivery
+> time now moves revenue, margin, capacity and utilization).
 
 ### 4. Duplicate and Extend carry the rate; Assign and Bump don't touch it
 

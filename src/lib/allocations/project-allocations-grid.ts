@@ -12,6 +12,7 @@
  */
 
 import type { ProjectAllocationRoleRow } from "@/actions/allocations/getProjectAllocationsGrid";
+import { isDeliveryDiscipline } from "@/lib/projects/project-role-type";
 import {
   bucketPercent,
   type Granularity,
@@ -68,8 +69,10 @@ export type ProjectAllocationRow = {
 
 /**
  * Fold live project roles into project rows aligned to `columns` at the given
- * `granularity`. Roles are grouped by project; within a project they keep the
- * order they arrive in (the read sorts by start date).
+ * `granularity`. Roles are grouped by project; within a project the **delivery
+ * line** comes first — it is who runs the engagement rather than another line of
+ * work on it — and the rest keep the order they arrive in (the read sorts by start
+ * date).
  *
  * A role that is idle in **every** column is dropped — it doesn't touch the
  * planner window — and a project left with no roles is dropped with it, so the
@@ -102,6 +105,13 @@ export function buildProjectAllocationRows(
 
   const rows: ProjectAllocationRow[] = [];
   for (const lines of byProject.values()) {
+    // Delivery first, arrival order otherwise. A stable partition rather than a
+    // comparator, so the read's start-date ordering survives among the rest.
+    lines.sort(
+      (a, b) =>
+        Number(isDeliveryDiscipline(b.role.roleType)) -
+        Number(isDeliveryDiscipline(a.role.roleType)),
+    );
     const first = lines[0].role;
     const cells: ProjectSummaryCell[] = columns.map((_, i) => {
       let percentTotal = 0;

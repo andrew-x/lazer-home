@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { idList, optionalId } from "@/lib/schemas/id-schema";
+import { optionalId } from "@/lib/schemas/id-schema";
 import { projectBudgetSchema } from "./projectBudget.schema";
 import { projectRoleSchema } from "./projectRole.schema";
 
@@ -23,10 +23,10 @@ export const createProjectSchema = z.object({
   companyId: z.string().min(1, "Company is required."),
   // Optional CRM opportunity this project delivers.
   opportunityId: optionalId,
-  deliveryManagerIds: idList,
-  // Roles and delivery managers are optional at creation — the create form
-  // collects only name + company + budget, and they're added afterward in the
-  // project planner. Defaults to none.
+  // Roles are optional at creation — the create form collects only name + company
+  // + budget, and they're added afterward in the project planner. Defaults to none.
+  // This is also how a delivery manager is named: a role with
+  // `roleType: "DELIVERY"`, not a separate id list (ADR 0068).
   roles: z.array(projectRoleSchema).default([]),
   // Required: every project created from here on states how it bills. Projects
   // that predate budgets have none — those columns are nullable and the UI reads

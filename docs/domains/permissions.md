@@ -83,8 +83,13 @@ derived from individual compensation.
     `permissions.test.ts` are untouched; this prose is the contract for the owner path. If a
     future surface wants the *same* treatment (say "the assignee may also reword it"), that
     is a new decision, not an extension of this one.
-- **`projects.edit`** — add/edit projects and their staffing (delivery managers and
-  roles). Its type-ahead staff/company pickers have their own `projects.edit`-gated
+- **`projects.edit`** — add/edit projects and their staffing (**roles — which is now the *only*
+  way a delivery manager is named**, since a delivery manager is a `roleType = "DELIVERY"` role and
+  the `project_delivery_managers` junction is gone;
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md) **changed no
+  gate** — it only deleted mutation surface that already rode this capability. ⚠️ Not to be confused
+  with the **role literally named `delivery-manager`** in the matrix below). Its type-ahead
+  staff/company pickers have their own `projects.edit`-gated
   search actions (`src/actions/projects/searchStaff.ts` / `searchCompanies.ts`), so a
   delivery manager can staff a project without gaining CRM write access. **Note the surface this
   capability now reaches: moving a project to a different company** (`updateProjectField`'s

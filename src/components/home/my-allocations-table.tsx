@@ -1,8 +1,5 @@
 import Link from "next/link";
-import type {
-  MyAllocationRole,
-  MyManagedProject,
-} from "@/actions/allocations/getMyAllocations";
+import type { MyAllocationRole } from "@/actions/allocations/getMyAllocations";
 import { EmptyState } from "@/components/empty-state";
 import { ROOMY_TABLE } from "@/components/table-density";
 import { Badge } from "@/components/ui/badge";
@@ -39,18 +36,12 @@ import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
  */
 export function MyAllocationsTable({
   roles,
-  managedProjects,
   today,
 }: {
   roles: MyAllocationRole[];
-  managedProjects: MyManagedProject[];
   today: string;
 }) {
-  const { live, upcoming } = buildMyAllocationRows(
-    roles,
-    managedProjects,
-    today,
-  );
+  const { live, upcoming } = buildMyAllocationRows(roles, today);
 
   return (
     <Card>
@@ -101,11 +92,6 @@ export function MyAllocationsTable({
   );
 }
 
-/**
- * A delivery-manager seat shows an em dash for hours, never a number:
- * `project_delivery_managers` carries no hours, and inventing one would corrupt a
- * column people will read down.
- */
 function AllocationRow({ row }: { row: MyAllocationRow }) {
   return (
     <TableRow>
@@ -117,11 +103,6 @@ function AllocationRow({ row }: { row: MyAllocationRow }) {
           >
             {row.projectName}
           </Link>
-          {row.deliveryManagerOnly ? (
-            <Badge variant="outline" className="font-normal">
-              Delivery lead
-            </Badge>
-          ) : null}
           {row.status === "tentative" ? (
             <Badge
               variant={PROJECT_ROLE_STATUS_VARIANTS.tentative}
@@ -131,22 +112,18 @@ function AllocationRow({ row }: { row: MyAllocationRow }) {
             </Badge>
           ) : null}
         </div>
-        {row.roleTypes.length > 0 ? (
-          <p className="text-xs text-muted-foreground">
-            {row.roleTypes
-              .map((type) => PROJECT_ROLE_TYPE_LABELS[type])
-              .join(" · ")}
-          </p>
-        ) : null}
+        <p className="text-xs text-muted-foreground">
+          {row.roleTypes
+            .map((type) => PROJECT_ROLE_TYPE_LABELS[type])
+            .join(" · ")}
+        </p>
       </TableCell>
       <TableCell className="text-muted-foreground">{row.companyName}</TableCell>
       <TableCell className="whitespace-nowrap">
-        {row.startDate && row.endDate
-          ? formatDateRange(row.startDate, row.endDate)
-          : "—"}
+        {formatDateRange(row.startDate, row.endDate)}
       </TableCell>
       <TableCell className="text-right tabular-nums">
-        {row.hoursPerDay === null ? "—" : row.hoursPerDay.toFixed(1)}
+        {row.hoursPerDay.toFixed(1)}
       </TableCell>
     </TableRow>
   );

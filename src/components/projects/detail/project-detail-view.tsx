@@ -50,12 +50,21 @@ import {
   isOffStandardRate,
 } from "@/lib/projects/bill-rates";
 import {
+  deliveryCoverageGaps,
+  isDeliveryRole,
+} from "@/lib/projects/delivery-coverage";
+import {
   buildPlannerRows,
   buildWeekColumns,
 } from "@/lib/projects/project-planner-grid";
-import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
+import {
+  DELIVERY_ROW_CLASS,
+  isDeliveryDiscipline,
+  PROJECT_ROLE_TYPE_LABELS,
+} from "@/lib/projects/project-role-type";
 import { PTO_TYPE_LABELS } from "@/lib/staff/staff-enums";
-import { DeliveryManagersField } from "./delivery-managers-field";
+import { DeliveryCoverageNotice } from "./delivery-coverage-notice";
+import { DeliveryManagersMeta } from "./delivery-managers-meta";
 import { DeliveryNotesPanel } from "./delivery-notes-panel";
 import { ProjectCompanyField } from "./project-company-field";
 import { ProjectNameField } from "./project-name-field";
@@ -70,12 +79,13 @@ import { ProjectRoleDialog } from "./project-role-dialog";
  * upcoming/past).
  *
  * This is the **delivery-side** editor of the engagement: with `projects.edit`, the
- * name, company and delivery managers are editable in place in the sidebar, and roles
- * can be added, edited and removed — from the Roles table *or* straight off the
- * timeline, both opening the same {@link ProjectRoleDialog}. That includes confirmed
- * roles, which the opportunity planner locks (see `assertProjectRoleEditable`). The
- * project's status and lines of business are derived from its roles, so neither is
- * editable.
+ * name and company are editable in place in the sidebar, and roles can be added,
+ * edited and removed — from the Roles table *or* straight off the timeline, both
+ * opening the same {@link ProjectRoleDialog}. That includes confirmed roles, which
+ * the opportunity planner locks (see `assertProjectRoleEditable`). The project's
+ * status, lines of business and delivery managers are all derived from its roles, so
+ * none of them is editable; a delivery manager is named by adding a `DELIVERY` role,
+ * which sorts to the top of both structural tabs and carries a row tint.
  */
 export function ProjectDetailView({
   plan,
@@ -110,6 +120,8 @@ export function ProjectDetailView({
   } | null>(null);
 
   const weekColumns = useMemo(() => buildWeekColumns(roles), [roles]);
+  // Pure and clock-free, so it computes here rather than costing the read a column.
+  const coverageGaps = useMemo(() => deliveryCoverageGaps(roles), [roles]);
   // Project scope: every role on the project is editable here, whatever its status
   // or provenance, and nothing is emphasised (there's no "other deal" to contrast
   // with — the block fill reads the role's status instead).
@@ -157,11 +169,15 @@ export function ProjectDetailView({
       }
     : undefined;
 
-  // Roles table order: staffed first (by name), then open positions; by start
-  // date within a person.
+  // Roles table order: the delivery line(s) first, then staffed roles by name, then
+  // open positions; by start date within a person. Same ordering rule as the
+  // timeline's planner rows, so the two tabs list the project in one order.
   const rolesSorted = useMemo(
     () =>
       [...roles].sort((a, b) => {
+        const aDelivery = isDeliveryDiscipline(a.roleType);
+        const bDelivery = isDeliveryDiscipline(b.roleType);
+        if (aDelivery !== bDelivery) return aDelivery ? -1 : 1;
         const aStaffed = a.staffId !== null;
         const bStaffed = b.staffId !== null;
         if (aStaffed !== bStaffed) return aStaffed ? -1 : 1;
@@ -209,10 +225,11 @@ export function ProjectDetailView({
                     .join(", ")
                 : null}
             </MetaField>
-            <DeliveryManagersField
-              projectId={project.id}
+            {/* Also derived from the project's roles, so also not editable — a
+                delivery manager is named by adding a Delivery role. */}
+            <DeliveryManagersMeta
               deliveryManagers={project.deliveryManagers}
-              canEdit={canEdit}
+              hasDeliveryRole={roles.some(isDeliveryRole)}
             />
             {/* The project's own public delivery channel. No `onChanged`: the
                 Slack actions revalidate this route, so the server re-renders. */}
@@ -256,6 +273,15 @@ export function ProjectDetailView({
         displayCurrency={displayCurrency}
         onDisplayCurrencyChange={setDisplayCurrency}
         canManage={canEdit}
+      />
+
+      {/* Also above the tabs: an uncovered period is a fact about the plan, and the
+          fix is reachable from both structural tabs. */}
+      <DeliveryCoverageNotice
+        gaps={coverageGaps}
+        timeline={timeline}
+        status={project.status}
+        canEdit={canEdit}
       />
 
       <Tabs defaultValue="timeline">
@@ -311,7 +337,19 @@ export function ProjectDetailView({
                 ]}
               >
                 {rolesSorted.map((role) => (
-                  <TableRow key={role.id}>
+                  <TableRow
+                    key={role.id}
+                    className={cn(
+                      isDeliveryDiscipline(role.roleType) && [
+                        DELIVERY_ROW_CLASS,
+                        // `TableRow`'s own `hover:bg-muted/50` is *lighter* than the
+                        // tint, so hovering a delivery row would lift the highlight
+                        // rather than deepen it. Override so hover still reads as
+                        // hover. (Same-variant, same-property, so `cn` merges it.)
+                        "hover:bg-muted/70",
+                      ],
+                    )}
+                  >
                     <TableCell className="font-medium">
                       {role.staffId && role.staffName ? (
                         <InternalLink href={`/staff/${role.staffId}`}>

@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type {
-  MyAllocationRole,
-  MyManagedProject,
-} from "@/actions/allocations/getMyAllocations";
+import type { MyAllocationRole } from "@/actions/allocations/getMyAllocations";
 import { buildMyAllocationRows, currentLoadPercent } from "@/lib/home/my-work";
 
 const TODAY = "2026-08-02";
@@ -23,20 +20,9 @@ function role(overrides: Partial<MyAllocationRole> = {}): MyAllocationRole {
   };
 }
 
-function managed(overrides: Partial<MyManagedProject> = {}): MyManagedProject {
-  return {
-    projectId: "project-9",
-    projectName: "Beta Platform",
-    companyName: "Beta",
-    liveStart: "2026-07-01",
-    liveEnd: "2026-09-30",
-    ...overrides,
-  };
-}
-
 describe("buildMyAllocationRows — live vs upcoming", () => {
   test("a role spanning today is live", () => {
-    const { live, upcoming } = buildMyAllocationRows([role()], [], TODAY);
+    const { live, upcoming } = buildMyAllocationRows([role()], TODAY);
     expect(live.map((r) => r.projectName)).toEqual(["Acme Rebuild"]);
     expect(upcoming).toHaveLength(0);
   });
@@ -44,7 +30,6 @@ describe("buildMyAllocationRows — live vs upcoming", () => {
   test("a role starting later is upcoming, not live", () => {
     const { live, upcoming } = buildMyAllocationRows(
       [role({ startDate: "2026-09-01", endDate: "2026-12-31" })],
-      [],
       TODAY,
     );
     expect(live).toHaveLength(0);
@@ -53,17 +38,16 @@ describe("buildMyAllocationRows — live vs upcoming", () => {
 
   test("a role starting or ending exactly today is live at both boundaries", () => {
     expect(
-      buildMyAllocationRows([role({ startDate: TODAY })], [], TODAY).live,
+      buildMyAllocationRows([role({ startDate: TODAY })], TODAY).live,
     ).toHaveLength(1);
     expect(
-      buildMyAllocationRows([role({ endDate: TODAY })], [], TODAY).live,
+      buildMyAllocationRows([role({ endDate: TODAY })], TODAY).live,
     ).toHaveLength(1);
   });
 
   test("a role far in the future is still listed — the table has no forward bound", () => {
     const { upcoming } = buildMyAllocationRows(
       [role({ startDate: "2027-06-01", endDate: "2027-12-31" })],
-      [],
       TODAY,
     );
     expect(upcoming).toHaveLength(1);
@@ -77,7 +61,6 @@ describe("buildMyAllocationRows — merging roles on one project", () => {
         role({ roleId: "a", hoursPerDay: 4 }),
         role({ roleId: "b", roleType: "ARCHITECT", hoursPerDay: 2 }),
       ],
-      [],
       TODAY,
     );
     expect(live).toHaveLength(1);
@@ -91,7 +74,6 @@ describe("buildMyAllocationRows — merging roles on one project", () => {
         role({ roleId: "a", startDate: "2026-07-01", endDate: "2026-08-31" }),
         role({ roleId: "b", startDate: "2026-06-01", endDate: "2026-09-30" }),
       ],
-      [],
       TODAY,
     );
     expect(live[0].startDate).toBe("2026-06-01");
@@ -101,7 +83,6 @@ describe("buildMyAllocationRows — merging roles on one project", () => {
   test("a duplicated role type is not repeated in the sub-line", () => {
     const { live } = buildMyAllocationRows(
       [role({ roleId: "a" }), role({ roleId: "b" })],
-      [],
       TODAY,
     );
     expect(live[0].roleTypes).toEqual(["ENGINEER"]);
@@ -125,7 +106,6 @@ describe("buildMyAllocationRows — merging roles on one project", () => {
           endDate: "2027-03-31",
         }),
       ],
-      [],
       TODAY,
     );
     expect(live).toHaveLength(1);
@@ -147,7 +127,6 @@ describe("buildMyAllocationRows — merging roles on one project", () => {
           endDate: "2027-03-31",
         }),
       ],
-      [],
       TODAY,
     );
     expect(live[0].key).not.toBe(upcoming[0].key);
@@ -169,7 +148,6 @@ describe("buildMyAllocationRows — merging roles on one project", () => {
           endDate: "2027-03-31",
         }),
       ],
-      [],
       TODAY,
     );
     expect(live[0].status).toBe("tentative");
@@ -182,7 +160,6 @@ describe("buildMyAllocationRows — merging roles on one project", () => {
         role({ roleId: "a", hoursPerDay: 4 }),
         role({ roleId: "b", roleType: "QA", hoursPerDay: 2 }),
       ],
-      [],
       TODAY,
     );
     expect(live).toHaveLength(1);
@@ -195,7 +172,6 @@ describe("buildMyAllocationRows — merging roles on one project", () => {
         role({ roleId: "a", status: "tentative" }),
         role({ roleId: "b", status: "tentative" }),
       ],
-      [],
       TODAY,
     );
     expect(allTentative.live[0].status).toBe("tentative");
@@ -205,57 +181,43 @@ describe("buildMyAllocationRows — merging roles on one project", () => {
         role({ roleId: "a", status: "tentative" }),
         role({ roleId: "b", status: "confirmed" }),
       ],
-      [],
       TODAY,
     );
     expect(mixed.live[0].status).toBe("confirmed");
   });
 });
 
-describe("buildMyAllocationRows — delivery-manager seats", () => {
-  test("a DM seat on a live project appears with null hours, never a fabricated 0", () => {
-    const { live } = buildMyAllocationRows([], [managed()], TODAY);
+describe("buildMyAllocationRows — running delivery", () => {
+  test("a DELIVERY role is an ordinary row, with its real hours", () => {
+    // It used to be a special "delivery lead" row with null hours, because the old
+    // junction carried neither dates nor hours (ADR 0068).
+    const { live } = buildMyAllocationRows(
+      [role({ roleType: "DELIVERY", hoursPerDay: 2 })],
+      TODAY,
+    );
     expect(live[0]).toMatchObject({
-      projectName: "Beta Platform",
-      hoursPerDay: null,
-      deliveryManagerOnly: true,
+      projectName: "Acme Rebuild",
+      roleTypes: ["DELIVERY"],
+      hoursPerDay: 2,
     });
   });
 
-  test("a DM seat on a project with no live roles is dropped", () => {
-    expect(
-      buildMyAllocationRows(
-        [],
-        [managed({ liveStart: null, liveEnd: null })],
-        TODAY,
-      ).live,
-    ).toHaveLength(0);
-  });
-
-  test("a DM seat on a finished project is dropped", () => {
-    const { live, upcoming } = buildMyAllocationRows(
-      [],
-      [managed({ liveEnd: "2026-07-15" })],
-      TODAY,
-    );
-    expect(live).toHaveLength(0);
-    expect(upcoming).toHaveLength(0);
-  });
-
-  test("holding a role on a project you also run yields one row, not two", () => {
+  test("running a project you also hold a role on yields one row summing both", () => {
     const { live } = buildMyAllocationRows(
-      [role({ projectId: "project-9", projectName: "Beta Platform" })],
-      [managed()],
+      [
+        role({ roleId: "eng", hoursPerDay: 6 }),
+        role({ roleId: "dm", roleType: "DELIVERY", hoursPerDay: 2 }),
+      ],
       TODAY,
     );
     expect(live).toHaveLength(1);
-    expect(live[0].deliveryManagerOnly).toBe(false);
     expect(live[0].hoursPerDay).toBe(8);
+    expect(live[0].roleTypes).toEqual(["ENGINEER", "DELIVERY"]);
   });
 });
 
 describe("buildMyAllocationRows — ordering", () => {
-  test("live rows are heaviest first, DM seats last", () => {
+  test("live rows are heaviest first", () => {
     const { live } = buildMyAllocationRows(
       [
         role({
@@ -271,10 +233,9 @@ describe("buildMyAllocationRows — ordering", () => {
           hoursPerDay: 8,
         }),
       ],
-      [managed({ projectId: "p-z", projectName: "Zeta" })],
       TODAY,
     );
-    expect(live.map((r) => r.projectName)).toEqual(["Heavy", "Light", "Zeta"]);
+    expect(live.map((r) => r.projectName)).toEqual(["Heavy", "Light"]);
   });
 
   test("equal hours break the tie by project name", () => {
@@ -283,7 +244,6 @@ describe("buildMyAllocationRows — ordering", () => {
         role({ roleId: "b", projectId: "p-b", projectName: "Beta" }),
         role({ roleId: "a", projectId: "p-a", projectName: "Alpha" }),
       ],
-      [],
       TODAY,
     );
     expect(live.map((r) => r.projectName)).toEqual(["Alpha", "Beta"]);
@@ -307,7 +267,6 @@ describe("buildMyAllocationRows — ordering", () => {
           endDate: "2026-10-31",
         }),
       ],
-      [],
       TODAY,
     );
     expect(upcoming.map((r) => r.projectName)).toEqual(["Sooner", "Later"]);
