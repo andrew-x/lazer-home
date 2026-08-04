@@ -4,6 +4,10 @@
 [ADR 0065](./0065-home-personal-task-list-and-assignee-completion.md) — the "name the
 window" rule is unchanged, but Your Status now carries point-in-time task state, so the band
 description no longer names one window and the quoted string in §2 is stale ·
+**§1/§2 and §6 amended 2026-08-04** by
+[ADR 0069](./0069-home-pipeline-closed-at-and-project-plan-deal-value.md) — the mirror-image
+change on the other band (**Lazer Status** now carries a *windowed* block too), plus the
+line-of-business filter's meaning widened to a **deal's own** line of business ·
 **complements, does not supersede,**
 [ADR 0062](./0062-utilization-report-two-series-and-timesheet-disclosure.md) — the
 Utilization report stays exactly as specified there; this records a *third* kind of
@@ -45,6 +49,8 @@ actually came for: when does this start, when does it end, how much of me does i
 - **Lazer Status** — instantaneous, from the **staffing plan** (`project_roles`) as of
   today, via the new pure `src/lib/home/org-status.ts` over `getAllocationsGrid`. It
   reads **no timesheets at all**, so thin submission can't masquerade as an idle bench.
+  (No longer *purely* instantaneous — one windowed block now sits inside this band; see the
+  **2026-08-04** amendment at the end of §2.)
 
 A person's own utilization is a cumulative fact about their year; the organization's is an
 instantaneous fact about today. Collapsing them onto one window destroys one of the two
@@ -67,6 +73,18 @@ either band inherits this rule.
 > ("· YTD, N weeks in 2026") and the Tasks caption ("open right now"). The Lazer Status
 > description, the tile hints and the `As of <date>` header are unchanged. **The band is no
 > longer single-basis; the page's two *utilization* bases are.**
+
+> **Amended 2026-08-04 — the same thing happened to the other band, and §1's "instantaneous"
+> now has one exception.** Lazer Status carries a **windowed** block: the Pipeline card's
+> closed-won / closed-lost counts for **this week** and **this month**
+> ([ADR 0069](./0069-home-pipeline-closed-at-and-project-plan-deal-value.md)). The rule above is
+> **not relaxed** — it is what forces the treatment: the card's funnel half keeps the band's
+> `Open now · <date>` header, and the closed figures sit in their own sub-row **each naming its
+> own window**. They name it as **dates**, not as the bare words "this week"/"this month",
+> because with a Monday-start week `currentWeekStart()` can precede `currentMonthStart()`, so
+> **the week is not a subset of the month** and the two words would imply a nesting that does
+> not hold. So both bands are now mixed-window, and both name the window per *block*; the
+> page's two **utilization** bases are still one apiece.
 
 ### 3. The org metric is *staffing*, from the plan — and here is exactly what it means
 
@@ -161,6 +179,18 @@ Consequences of client-side filtering, both handled:
   it falls back to the role's own LoB, or every unfilled position would vanish the moment
   a filter was applied.
 
+> **Amended 2026-08-04 — "one filter, one meaning" now spans two kinds of subject.** The
+> Pipeline card ([ADR 0069](./0069-home-pipeline-closed-at-and-project-plan-deal-value.md))
+> responds to the same band-level control by matching **`opportunities.lineOfBusiness` — the
+> *deal's own*** line of business. That is not an exception smuggled in: the rule above is about
+> not matching a person's *work* when the **person** is the subject, and a deal has no person
+> whose home line of business could be matched. But §6's text read as forbidding it, so it is
+> amended rather than quietly reinterpreted. The alternative — a card under a band-scoping
+> control that ignores it — is the classic filtered-dashboard bug in its worst form: unchanged
+> company-wide numbers sitting above a filtered list. (§6's other consequence still holds by
+> construction: the pipeline's filtered figures are **server-side folds, one per filter value**,
+> never the unfiltered total reused.)
+
 ### 7. Your Status: one table replaces a stat tile and a gantt
 
 `MyAllocationsTable` (Project · Client · Dates · Hours/day), live rows first then an
@@ -247,6 +277,14 @@ trip**.
   applied again, verbatim and independently: `MyTaskView` copies fields one at a time and
   withholds `ownerStaffId` / `creatorStaffId` / `updatedAt`. See
   [ADR 0065](./0065-home-personal-task-list-and-assignee-completion.md).
+- **Lazer Status is no longer allocations-only either** (added 2026-08-04). It now also reads the
+  CRM: a **Pipeline** card — open funnel deals by band with their linked projects' plan value,
+  plus closed-won/lost this week and month — so *both* bands mix windows and both name the window
+  per block (the §1/§2 amendment). §5's disclosure rule was satisfied a **different** way this
+  time: the card renders no per-deal row, so `getOrgPipeline` ships **pre-folded summaries, one
+  per line of business**, and there is nothing to whitelist because nothing itemized crosses.
+  §6's filter rule widened to a deal's own line of business (its amendment). See
+  [ADR 0069](./0069-home-pipeline-closed-at-and-project-plan-deal-value.md).
 
 ## Alternatives rejected
 

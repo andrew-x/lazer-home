@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import type { OrgPipeline } from "@/actions/crm/getOrgPipeline";
 import { ALL, SelectFilter } from "@/components/form/filters";
 import { AvailabilityPanel } from "@/components/home/availability-panel";
 import { BorrowedStaffPanel } from "@/components/home/borrowed-staff-panel";
 import { HomeSection } from "@/components/home/home-section";
+import { PipelinePanel } from "@/components/home/pipeline-panel";
 import { ProjectRolesPanel } from "@/components/home/project-roles-panel";
 import { StaffingPanel } from "@/components/home/staffing-panel";
 import { UpcomingTimeOffPanel } from "@/components/home/upcoming-time-off-panel";
@@ -54,6 +56,15 @@ import {
  * the *work's* line of business instead would make availability incoherent: a free
  * person is on no project and so has no work to match.
  *
+ * **Pipeline is the one panel that can't obey that literally**, because a deal has no
+ * person: it matches `opportunities.lineOfBusiness`, the deal's own. That's a
+ * coherent reading of "the control names a line of business" rather than an
+ * exception to it — the rule above is about not matching a *person's* work when the
+ * person is the subject. Written down because the original rule reads as forbidding
+ * this (ADR 0069 amends ADR 0063 §6). A card sitting under a band-scoping control
+ * while ignoring it would be worse: unchanged numbers above a filtered list is the
+ * classic filtered-dashboard bug.
+ *
  * The **employment-type controls are the deliberate exception**, and there are two of
  * them: Availability's is an optional All/Full time/Hourly narrowing of who is free,
  * while Staffing's is a required two-way split of a figure that must not be blended
@@ -63,7 +74,13 @@ import {
  * only because it shares a controlled shape with the week tabs beside it; Staffing's
  * lives in the panel, since nothing outside that card reads it.
  */
-export function LazerStatusSection({ status }: { status: OrgStatus }) {
+export function LazerStatusSection({
+  status,
+  pipeline,
+}: {
+  status: OrgStatus;
+  pipeline: OrgPipeline;
+}) {
   const [lineOfBusiness, setLineOfBusiness] = useState<LineOfBusiness | null>(
     null,
   );
@@ -72,6 +89,13 @@ export function LazerStatusSection({ status }: { status: OrgStatus }) {
 
   const filtered = filterByLineOfBusiness(status, lineOfBusiness);
   const staffing = summarizeStaffing(filtered.people);
+  // Selected, never recomputed: the read ships one server-side fold per filter
+  // value, so a filtered pipeline figure can't drift from an unfiltered total
+  // (ADR 0063 §6, satisfied by construction — see `getOrgPipeline`).
+  const pipelineSummary =
+    lineOfBusiness === null
+      ? pipeline.all
+      : pipeline.byLineOfBusiness[lineOfBusiness];
   const starting = groupRolesByProject(
     filtered.upcomingRoles.filter((role) => role.kind === "starting"),
   );
@@ -96,6 +120,18 @@ export function LazerStatusSection({ status }: { status: OrgStatus }) {
       }
     >
       <StaffingPanel model={staffing} today={status.today} />
+
+      {/* Directly under Staffing: that card says whether the bench is working,
+          this one says whether work is coming to keep it working. */}
+      <PipelinePanel
+        summary={pipelineSummary}
+        displayCurrency={pipeline.displayCurrency}
+        convertedFrom={pipeline.convertedFrom}
+        rates={pipeline.rates}
+        today={pipeline.today}
+        weekStart={pipeline.weekStart}
+        monthStart={pipeline.monthStart}
+      />
 
       <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
         <AvailabilityPanel

@@ -650,6 +650,19 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
   and the `type` field is **nulled** in the projection otherwise, so the reason never
   leaves the server. Minimal disclosure, not a loosening of the PTO gate — see
   [ADR 0038](../decisions/0038-allocations-planner-pto-disclosure.md).
+- **`src/actions/crm/getOrgPipeline.ts` + `getMyPipeline.ts`** — the home dashboard's pipeline
+  reads, **deliberately ungated, and listed here so the omission reads as a decision.** Both
+  carry money, and the reason it needs no gate is the **revenue-vs-cost asymmetry** this doc
+  already states for `projects.viewMargin`: they price a deal from its linked project's plan with
+  `includeCost: false` and an empty `openRoleCostUsd`, so `staff_employment` is never queried and
+  `getProjectCostBasis` is never called — there is **no compensation-derived figure** to protect,
+  and a plan's revenue is a commercial term about an engagement. Read parity with
+  `/opportunities`, which is open. `getMyPipeline` is additionally **own-data-only by
+  construction** (no id parameter; the subject comes from the session, the `getMyTasks` shape).
+  **No capability and no matrix row was added** — both read headers say so, and
+  [ADR 0069](../decisions/0069-home-pipeline-closed-at-and-project-plan-deal-value.md) §3 records
+  why. If a *cost* or margin figure is ever wanted on `/`, it needs the `projects.viewMargin`
+  door (`getProjectCostBasis`), not a new one.
 - **`src/actions/projects/getProjectPto.ts`** — the project detail page's Time off tab, a
   **third `pto.review` enforcement site** with the same shape (dates + person open to all,
   `type`/`isPending` nulled otherwise). **Tightened:** it previously returned **pending**

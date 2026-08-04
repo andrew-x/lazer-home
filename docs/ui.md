@@ -236,18 +236,22 @@ dashboard's "Lazer Status"*.
   its own edge and the widgets inside *are* cards. Its **`action` slot is reserved for a
   control that scopes the whole band** (Lazer Status's line-of-business filter); per-widget
   controls stay inside their own card.
-- **The two bands measure different windows, and every figure must say which.** *Lazer
-  Status* is **as of today** from the staffing plan. *Your Status* is **mixed**: the three
-  stat tiles and the allocations table are **year to date** from submitted timesheets, while
-  the **Tasks** block is **point in time** from the CRM — so its band description
-  deliberately names **no** single window ("Your year so far, and what's on your plate. Each
-  figure below names its own window.") and each block names its own instead. The bare word
-  "utilization" is ambiguous on this page, so tile hints carry "· YTD, N weeks in 2026" (the
-  Planned tile keeps **· YTD** even when it appends an over-allocated-*today* note), the
-  Tasks caption says "open right now", and the Staffing card headers `As of <date>`. The rule
-  is [ADR 0063](./decisions/0063-home-dashboard-two-time-bases-and-point-in-time-staffing.md)
+- **Both bands are now mixed-window, and every figure must say which.** *Your Status*: the three
+  stat tiles and the allocations table are **year to date** from submitted timesheets, while the
+  **Tasks** and **Pipeline** blocks are **point in time** from the CRM. *Lazer Status* is **as of
+  today** from the staffing plan, **except** the Pipeline card's closed-won/lost counts, which are
+  **windowed** (this week / this month). So **neither band description names a single window**
+  ("Your year so far, and what's on your plate. Each figure below names its own window.") and each
+  *block* names its own instead. The bare word "utilization" is ambiguous on this page, so tile
+  hints carry "· YTD, N weeks in 2026" (the Planned tile keeps **· YTD** even when it appends an
+  over-allocated-*today* note), the Tasks caption says "open right now", the Staffing card and the
+  Pipeline card header `As of <date>` / `Open now · <date>`, and the closed figures name their
+  windows as **dates** — because with a Monday-start week "this week" can begin in the previous
+  month, so it is **not** a subset of "this month" and the bare words would imply that it is. The
+  rule is [ADR 0063](./decisions/0063-home-dashboard-two-time-bases-and-point-in-time-staffing.md)
   §2, amended by [ADR 0065](./decisions/0065-home-personal-task-list-and-assignee-completion.md)
-  — **don't "restore" a single-window description on Your Status.**
+  and [ADR 0069](./decisions/0069-home-pipeline-closed-at-and-project-plan-deal-value.md)
+  — **don't "restore" a single-window description on either band.**
 - **They are sibling `async` Server Components**, not one top-level `Promise.all`, so their
   reads run concurrently and each band streams when ready.
 - **First client JS on this route.** `LazerStatusSection` is a Client Component owning three
@@ -259,7 +263,14 @@ dashboard's "Lazer Status"*.
   `allocationNotes` (gated on `staff.edit`) and `skills` off the wire. **The same rule now
   applies twice:** `MyTasksPanel` is the second Client Component here, and `MyTaskView` is
   likewise a field-by-field whitelist (no `ownerStaffId` / `creatorStaffId` / `updatedAt`,
-  and no `staffId` at all).
+  and no `staffId` at all). **The pipeline blocks satisfy it two different ways, and neither is a
+  third whitelist:** `pipeline-panel.tsx` renders no per-deal row, so `getOrgPipeline` hands over
+  **pre-folded summaries — one per line of business plus one for "all"** (no deal/company/owner
+  name, no ids, no per-project figure), which also means a filtered figure is a *server* fold, never
+  the unfiltered total reused; and `my-pipeline-panel.tsx` — which *does* show names, next steps and
+  per-deal money — is a **true Server Component**, so nothing crosses at all. ⚠️ **Don't add
+  `"use client"` to it** to "match" the Tasks panel above it: that would push every deal's plan
+  value into the page HTML.
 - **Tasks (Your Status).** `my-tasks-panel.tsx` — your assigned tasks, newest first, with a
   `SearchFilter` (description **and** parent name) + a parent-kind `SegmentedFilter` +
   `task-archive-dialog.tsx` (the full open+completed history, its own search/kind/status
@@ -280,7 +291,22 @@ dashboard's "Lazer Status"*.
 
   See [domains/crm.md](./domains/crm.md#the-personal-task-list-on-) and
   [ADR 0065](./decisions/0065-home-personal-task-list-and-assignee-completion.md).
-- **Widgets:** `StatCard` ×3 + `my-allocations-table.tsx` + the Tasks panel above (Your Status); `staffing-panel` +
+- **Pipeline (both bands).** `pipeline-panel.tsx` in *Lazer Status*, directly under Staffing (that
+  card says whether the bench is working, this one whether work is coming to keep it working):
+  three funnel bands — Top / Mid / Bottom — each with an open-deal count, a per-stage breakdown
+  (**zero rows retained**, so the shape doesn't shift as the filter changes) and, for Mid and Bottom
+  only, Plan value / Fixed fee / Time & materials plus "N projects priced · M unpriced". Top
+  deliberately shows no money. Then a Closed-deals sub-row (won/lost × week/month) and a footnote
+  carrying the "excludes **Maturing**", "counted **once per project**" and unpriced-≠-zero caveats
+  plus the `FxRateNote`. `my-pipeline-panel.tsx` in *Your Status*, under Tasks: your deals grouped
+  by stage inside a `ScrollList` (empty stages **dropped** here — it's a list of your work, not a
+  fixed grid), each row showing the deal, its company, its **"project plan value"** and its open
+  tasks as `→ next steps`. **Don't shorten that label to "value" or "deal size"** — it is the whole
+  linked project's plan revenue, which the org band counts once and this counts per deal. Neither
+  panel holds state; the filter lives in `LazerStatusSection`.
+  See [domains/crm.md](./domains/crm.md#pipeline-on-the-home-dashboard) and
+  [ADR 0069](./decisions/0069-home-pipeline-closed-at-and-project-plan-deal-value.md).
+- **Widgets:** `StatCard` ×3 + `my-allocations-table.tsx` + the Tasks and Pipeline blocks above (Your Status); `staffing-panel` + `pipeline-panel` +
   `availability-panel` (week tabs: bench, then who newly frees up) + `upcoming-time-off-panel` + `project-roles-panel` (rendered twice — Starting soon / Ending soon, grouped by project) +
   `borrowed-staff-panel` (Lazer Status), laid out `lg:grid-cols-[3fr_2fr]` then
   `lg:grid-cols-2`. `person-row.tsx` is the shared one-line person row; its **`subtitle`

@@ -1,9 +1,9 @@
 "use server";
 
 import { eq, type InferInsertModel } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { assertRowExists } from "@/actions/shared/assertRowExists";
 import { secureActionClient } from "@/lib/core/action";
+import { closedAtFor } from "@/lib/crm/opportunity-close";
 import { db } from "@/lib/db/db";
 import { opportunities } from "@/lib/db/schema";
 import { assertOpportunityTransitionAllowed } from "./assertOpportunityTransitionAllowed";
@@ -14,6 +14,7 @@ import {
   replaceOpportunitySourceContacts,
   replaceOpportunitySourceStaff,
 } from "./opportunityLinks";
+import { revalidateOpportunity } from "./revalidate";
 import { updateOpportunityFieldSchema } from "./updateOpportunityField.schema";
 
 /** `db` or a transaction handle — both expose the `.update` used below. */
@@ -70,15 +71,30 @@ export const updateOpportunityField = secureActionClient
         await assertOpportunityTransitionAllowed(id, parsedInput.status);
         const nextStatus = parsedInput.status;
         await db.transaction(async (tx) => {
-          // Capture the prior status to detect a genuine move into `closed_won`.
+          // Capture the prior status to detect a genuine move into `closed_won`,
+          // and the prior `closedAt` so a correction (won → lost) keeps the
+          // instant the deal was originally decided.
           const beforeRows = await tx
-            .select({ status: opportunities.status })
+            .select({
+              status: opportunities.status,
+              closedAt: opportunities.closedAt,
+            })
             .from(opportunities)
             .where(eq(opportunities.id, id))
             .limit(1);
           assertRowExists(beforeRows, "opportunity");
           const before = beforeRows[0];
-          await setOpportunity(tx, { status: nextStatus });
+          await setOpportunity(tx, {
+            status: nextStatus,
+            // Always written, never conditional: `opportunities_closed_at_shape`
+            // requires `closedAt` to agree with the status.
+            closedAt: closedAtFor(
+              before.status,
+              nextStatus,
+              new Date(),
+              before.closedAt,
+            ),
+          });
           // Won locks this opportunity's tentative roles (same transaction).
           await confirmRolesOnWon(tx, id, nextStatus, before.status);
         });
@@ -115,6 +131,6 @@ export const updateOpportunityField = secureActionClient
         break;
     }
 
-    revalidatePath("/opportunities");
+    revalidateOpportunity();
     return { id };
   });

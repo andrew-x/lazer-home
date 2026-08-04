@@ -3,6 +3,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { opportunityHasProject } from "@/actions/crm/opportunityHasProject";
+import { revalidateOpportunity } from "@/actions/crm/revalidate";
 import { secureActionClient } from "@/lib/core/action";
 import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
@@ -105,6 +106,6 @@ export const createProject = secureActionClient
 
     revalidatePath("/projects");
     // A project linked to an opportunity changes the board's `hasProject`.
-    revalidatePath("/opportunities");
+    revalidateOpportunity();
     return { id: projectId };
   });
