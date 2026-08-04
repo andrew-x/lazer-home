@@ -110,6 +110,9 @@ export const createProject = secureActionClient
             startDate: role.startDate,
             endDate: role.endDate,
             hoursPerDay: role.hoursPerDay,
+            // Already snapshotted from the rate card by `snapshotBillRate`, so this
+            // is always a concrete number — never fall back to the card here.
+            billRate: role.billRate,
           })),
         );
       }

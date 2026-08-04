@@ -4,6 +4,7 @@ import {
   endOnOrAfterStart,
   endOnOrAfterStartError,
   projectRoleFields,
+  snapshotBillRate,
 } from "./projectRole.schema";
 
 /**
@@ -18,7 +19,8 @@ export const createProjectRoleOnProjectSchema = z
     projectId: id,
     ...projectRoleFields,
   })
-  .refine(endOnOrAfterStart, endOnOrAfterStartError);
+  .refine(endOnOrAfterStart, endOnOrAfterStartError)
+  .transform(snapshotBillRate);
 
 export type CreateProjectRoleOnProjectInput = z.input<
   typeof createProjectRoleOnProjectSchema

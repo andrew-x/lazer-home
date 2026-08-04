@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
+import { LINE_OF_BUSINESS } from "@/lib/crm/line-of-business";
 import type { Currency } from "@/lib/format/currency";
-import { BILL_RATES } from "./bill-rates";
+import {
+  BILL_RATE_EXCEPTIONS,
+  billRateFor,
+  DEFAULT_BILL_RATE,
+  isOffStandardRate,
+  rateCardSummary,
+} from "./bill-rates";
 import {
   computeProjectMargin,
   type MarginRoleInput,
@@ -9,14 +16,16 @@ import {
   resolveDisplayCurrency,
   roleBillableHours,
 } from "./project-margin";
+import { PROJECT_ROLE_TYPES } from "./project-role-type";
 
 /**
  * The money math behind a project's budget summary. What's pinned here is the set
  * of claims the UI makes on top of it: that hours come from real weekdays (never
- * the planner's bucket percentages, ADR 0040), that T&M revenue comes from the
- * standard rate card, that an uncostable role makes a total *partial* rather than
- * silently smaller, that a fixed fee is never apportioned across roles, and that "no
- * basis" never renders as zero.
+ * the planner's bucket percentages, ADR 0040), that revenue comes from each role's own
+ * stored rate rather than a live rate-card lookup (ADR 0066), that an uncostable role
+ * makes a total *partial* rather than silently smaller, that a fixed fee is never
+ * apportioned across roles but *is* comparable to what those roles would bill hourly,
+ * and that "no basis" never renders as zero.
  */
 
 /** 1 USD → currency. Round numbers so expected figures stay checkable by hand. */
@@ -40,6 +49,7 @@ function role(overrides: Partial<MarginRoleInput> = {}): MarginRoleInput {
     startDate: START,
     endDate: END,
     hoursPerDay: 8,
+    billRate: RATE,
     staffId: null,
     staffHourlyCost: null,
     ...overrides,
@@ -52,8 +62,11 @@ const TM_BILLING = {
   budgetCurrency: null,
 };
 
-/** Every role type bills at the same placeholder rate today. */
-const RATE = BILL_RATES.ENGINEER;
+/**
+ * The rate a role snapshots by default. Read through `billRateFor` rather than hardcoded
+ * so these expectations survive the card gaining exception cells.
+ */
+const RATE = billRateFor({ lineOfBusiness: "CORE", roleType: "ENGINEER" });
 
 function compute(
   args: Partial<Parameters<typeof computeProjectMargin>[0]> = {},
@@ -190,8 +203,162 @@ describe("fixed fee", () => {
     expect(result.totals.marginPercent).toBeCloseTo(0.6);
   });
 
-  test("a fixed fee applies no rate card, so nothing is converted", () => {
+  // A fixed fee now DOES apply the roles' rates — to build the hourly comparator — so
+  // it legitimately claims a USD conversion where it didn't before ADR 0066. The USD
+  // case must stay empty: a figure already in the display currency needed no rate.
+  test("a fixed fee in its own currency converts nothing", () => {
     expect(compute(FIXED).convertedFrom).toEqual([]);
+  });
+
+  test("a fixed fee displayed in another currency converts the roles' rates", () => {
+    expect(
+      compute({ ...FIXED, displayCurrency: "CAD" }).convertedFrom,
+    ).toContain("USD");
+  });
+
+  test("the fee reads as a discount against what the roles would bill hourly", () => {
+    // One 80h role at 250/hr = 20,000 hourly value, against a 16,000 fee.
+    const result = compute({
+      billing: { ...FIXED.billing, budgetAmount: 16_000 },
+    });
+
+    expect(result.totals.hourlyValue).toBe(20_000);
+    expect(result.totals.hourlyValueDelta).toBe(-4_000);
+    expect(result.totals.hourlyValueDeltaPercent).toBeCloseTo(-0.2);
+  });
+
+  test("a fee above the roles' hourly value reads as a premium", () => {
+    const result = compute({
+      billing: { ...FIXED.billing, budgetAmount: 25_000 },
+    });
+
+    expect(result.totals.hourlyValueDelta).toBe(5_000);
+    expect(result.totals.hourlyValueDeltaPercent).toBeCloseTo(0.25);
+  });
+
+  test("a role still carries its rate even though it carries no revenue", () => {
+    // The line ADR 0053 §5 draws: an amount could be summed into an apportionment of
+    // the fee, a rate cannot — so the rate stays readable on a fixed-fee row.
+    const result = compute(FIXED);
+
+    expect(result.perRole[0].revenue).toBeNull();
+    expect(result.perRole[0].billRate).toBe(RATE);
+  });
+
+  test("a cancelled role contributes nothing to the hourly comparator", () => {
+    const result = compute({
+      ...FIXED,
+      roles: [role(), role({ roleId: "role-2", status: "cancelled" })],
+    });
+
+    expect(result.totals.hourlyValue).toBe(20_000);
+    expect(result.perRole[1].billRate).toBeNull();
+  });
+
+  test("a fee with no roles has no comparator percentage to report", () => {
+    const result = compute({ ...FIXED, roles: [] });
+
+    expect(result.totals.hourlyValue).toBe(0);
+    expect(result.totals.hourlyValueDeltaPercent).toBeNull();
+  });
+});
+
+describe("the hourly comparator is fixed-fee only", () => {
+  test("time & materials reports none of it, because it would just be revenue", () => {
+    const result = compute();
+
+    expect(result.totals.revenue).toBe(80 * RATE);
+    expect(result.totals.hourlyValue).toBeNull();
+    expect(result.totals.hourlyValueDelta).toBeNull();
+    expect(result.totals.hourlyValueDeltaPercent).toBeNull();
+  });
+
+  test("a project with no billing model has nothing to compare against", () => {
+    const result = compute({
+      billing: { billingType: null, budgetAmount: null, budgetCurrency: null },
+    });
+
+    expect(result.totals.hourlyValue).toBeNull();
+    expect(result.perRole[0].billRate).toBeNull();
+  });
+});
+
+describe("rates come from the row, not the card", () => {
+  test("a role priced off the card bills at its own stored rate", () => {
+    const result = compute({ roles: [role({ billRate: 300 })] });
+
+    expect(result.totals.revenue).toBe(80 * 300);
+    // Already in the display currency, so no rate was applied to it.
+    expect(result.convertedFrom).toEqual([]);
+  });
+
+  test("a stored rate converts exactly like a card rate would", () => {
+    const result = compute({
+      roles: [role({ billRate: 300 })],
+      displayCurrency: "CAD",
+    });
+
+    expect(result.totals.revenue).toBe(80 * 300 * 2);
+    expect(result.perRole[0].billRate).toBe(600);
+  });
+
+  test("roles at different rates sum without either winning", () => {
+    // Proves the math reads each row rather than resolving one rate for the plan.
+    const result = compute({
+      roles: [
+        role({ billRate: 200 }),
+        role({ roleId: "role-2", billRate: 400 }),
+      ],
+    });
+
+    expect(result.totals.revenue).toBe(80 * 200 + 80 * 400);
+  });
+});
+
+describe("billRateFor", () => {
+  // The card is `Partial` in both dimensions now, so the type checker no longer forces
+  // a new line of business or discipline to be priced. This loop is what's left of that
+  // pressure: every pair must resolve to a real, positive rate.
+  test("every line of business × discipline resolves to a real rate", () => {
+    for (const lineOfBusiness of LINE_OF_BUSINESS) {
+      for (const roleType of PROJECT_ROLE_TYPES) {
+        const rate = billRateFor({ lineOfBusiness, roleType });
+        const expected =
+          BILL_RATE_EXCEPTIONS[lineOfBusiness]?.[roleType] ?? DEFAULT_BILL_RATE;
+
+        expect(rate).toBe(expected);
+        expect(rate).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  test("only deviating cells are summarised, in canonical order", () => {
+    const { defaultRate, exceptions } = rateCardSummary();
+
+    expect(defaultRate).toBe(DEFAULT_BILL_RATE);
+    for (const row of exceptions) {
+      expect(row.hourlyRate).not.toBe(DEFAULT_BILL_RATE);
+    }
+    // Canonical order, so the panel reads the same way every render regardless of how
+    // the exceptions map happened to be written.
+    const order = exceptions.map(
+      (row) =>
+        LINE_OF_BUSINESS.indexOf(row.lineOfBusiness) *
+          PROJECT_ROLE_TYPES.length +
+        PROJECT_ROLE_TYPES.indexOf(row.roleType),
+    );
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  test("off-standard-rate compares rounded cents, not floats", () => {
+    const role = { lineOfBusiness: "CORE" as const, roleType: "QA" as const };
+    const card = billRateFor(role);
+
+    expect(isOffStandardRate({ ...role, billRate: card })).toBe(false);
+    // A `numeric(12, 2)` round trip can only shift a value by sub-cent amounts, and
+    // that must never read as a negotiated rate.
+    expect(isOffStandardRate({ ...role, billRate: card + 0.001 })).toBe(false);
+    expect(isOffStandardRate({ ...role, billRate: card + 25 })).toBe(true);
   });
 });
 

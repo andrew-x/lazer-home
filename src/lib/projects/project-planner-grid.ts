@@ -15,6 +15,7 @@ import type {
 import { weekPercent } from "@/lib/allocations/allocations-grid";
 import type { LineOfBusiness } from "@/lib/crm/line-of-business";
 import { parseIsoDate } from "@/lib/format/format";
+import { isOffStandardRate } from "@/lib/projects/bill-rates";
 import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
 import {
   PROJECT_ROLE_TYPE_LABELS,
@@ -65,6 +66,14 @@ export type PlannerRow = {
   roleLabel: string;
   roleTypeLabel: string;
   hoursPerDay: number;
+  /**
+   * The role's own rate, in `BILL_RATE_CURRENCY`, plus whether it differs from today's
+   * card. Precomputed here rather than in the grid so the label cell doesn't re-resolve
+   * the card per row — and kept as a *rate*, never an amount: the planner's money line
+   * is `RoleMarginLine`'s job.
+   */
+  billRate: number;
+  offStandardRate: boolean;
   status: ProjectRoleStatus;
   /** The viewer may edit this role — drives the row's Edit affordance. */
   editable: boolean;
@@ -193,6 +202,8 @@ export function buildPlannerRows(
       roleLabel: role.description ?? PROJECT_ROLE_TYPE_LABELS[role.roleType],
       roleTypeLabel: PROJECT_ROLE_TYPE_LABELS[role.roleType],
       hoursPerDay: role.hoursPerDay,
+      billRate: role.billRate,
+      offStandardRate: isOffStandardRate(role),
       status: role.status,
       ...editStateFor(role, editability),
       staffId: role.staffId,

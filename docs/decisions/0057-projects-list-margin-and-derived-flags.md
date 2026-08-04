@@ -64,8 +64,10 @@ Three tags, **worst first** so the most urgent one reads first in the badge row:
 you edit one). "Thin margin" is **policy** the company revises periodically, and every project
 must be judged by the same one or two projects could silently disagree about what "healthy"
 means. A code constant makes a revision a code review instead of a migration, versioned
-alongside the code that interprets it — the same argument as `BILL_RATES` (ADR 0053 §2) and
-`COMP_TARGETS`.
+alongside the code that interprets it — the same argument as the bill-rate card (ADR 0053 §2;
+`BILL_RATES` itself was later deleted when the card was re-keyed, see
+[ADR 0066](./0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md) — the
+*code-as-policy* precedent stands, only the identifier is gone) and `COMP_TARGETS`.
 
 ### 2. Flags are evaluated server-side, in ONE currency, and never recomputed on the client
 
@@ -214,8 +216,14 @@ context (`ProjectsCurrencyProvider` / `useProjectsCurrency`), with the `ToggleGr
   cancelled/unknown silences are exactly the cases the type system can't express.
 - **No schema change, no migration, no seed change.** Flags and list margin are entirely derived.
 - **Revising a threshold re-tags every project retroactively** and silently, since flags are
-  always evaluated from the current constants — the same "no history" property as `BILL_RATES`
-  (ADR 0053). `PROJECT_FLAGS_REVIEWED_ON` is the only signal of when the policy last moved.
+  always evaluated from the current constants — at the time, the same "no history" property as
+  `BILL_RATES` (ADR 0053). *(That parallel has since broken:
+  [ADR 0066](./0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md) snapshots a
+  rate onto each role, so a **card** revision now prices only future roles, while a **threshold**
+  revision is still fully retroactive. Flags are the last code-as-policy constant with the property.
+  Separately, note the flags' *inputs* moved under them — a project can flip in or out of "Low
+  margin" purely from an off-card rate, with no threshold change.)*
+  `PROJECT_FLAGS_REVIEWED_ON` is the only signal of when the policy last moved.
 
 ## Alternatives considered
 

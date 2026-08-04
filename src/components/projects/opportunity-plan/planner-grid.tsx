@@ -23,8 +23,10 @@ import {
   aggregateMoneyFormatters,
   type Currency,
   formatAmount,
+  formatMoney,
 } from "@/lib/format/currency";
 import { formatDate, formatPercent } from "@/lib/format/format";
+import { BILL_RATE_CURRENCY } from "@/lib/projects/bill-rates";
 import {
   marginAmountTone,
   type RoleCostBasis,
@@ -178,6 +180,20 @@ export function PlannerGrid({
                       </div>
                       <div className="truncate text-xs text-muted-foreground">
                         {row.roleTypeLabel} · {row.hoursPerDay}h/day
+                        {/* Only when the rate is off the card. One extra token on the
+                            exception and silence on the norm — a rate on every row
+                            would be noise, and a fourth line would make every planner
+                            in the app taller. */}
+                        {row.offStandardRate
+                          ? ` · ${formatMoney(
+                              row.billRate,
+                              BILL_RATE_CURRENCY,
+                              {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 2,
+                              },
+                            )}/hr`
+                          : null}
                       </div>
                       {margins ? (
                         <RoleMarginLine
@@ -402,6 +418,13 @@ function OwnBlockCell({ block, row }: { block: OwnBlock; row: PlannerRow }) {
           {formatDate(row.startDate)} – {formatDate(row.endDate)}
         </span>
         <span>{row.hoursPerDay * WORKING_DAYS_PER_WEEK} hrs/week</span>
+        <span>
+          {formatMoney(row.billRate, BILL_RATE_CURRENCY, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
+          })}
+          /hr{row.offStandardRate ? " (off standard rate)" : ""}
+        </span>
         <span className="text-background/70">
           {PROJECT_ROLE_STATUS_LABELS[row.status]} · {block.percent}% of week
         </span>

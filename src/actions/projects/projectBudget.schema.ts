@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CURRENCY } from "@/lib/format/currency";
+import { MAX_MONEY } from "@/lib/schemas/money-schema";
 
 /**
  * The budget fields shared by every flow that sets a project's billing model —
@@ -13,16 +14,14 @@ import { CURRENCY } from "@/lib/format/currency";
  * The action bodies then `switch` on `billingType` with each half narrowed. It is the
  * same rule the `projects_budget_shape` check constraint enforces in the DB.
  *
- * Time and materials takes **no input at all**: it bills hours at the company's
- * standard rate card, which lives in code (`@/lib/projects/bill-rates`) rather than
- * per project. Picking the billing type is the whole decision.
+ * Time and materials takes **no input at all**: it bills each role's hours at that
+ * role's own `billRate`, snapshotted from the code-owned card
+ * (`@/lib/projects/bill-rates`) when the role is created. Picking the billing type is
+ * the whole decision at the *project* level.
  *
  * See docs/domains/projects.md and
  * docs/decisions/0053-project-budgets-and-margin.md.
  */
-
-/** The largest value a `numeric(12, 2)` column holds. */
-const MAX_MONEY = 9_999_999_999.99;
 
 export const projectBudgetSchema = z.discriminatedUnion("billingType", [
   z.object({

@@ -125,9 +125,12 @@ derived from individual compensation.
   **read** capability, deliberately separate from `projects.edit`, because a role's cost *is*
   an individual's compensation — a staffed role costs that person's pay ÷ 2080, so on a
   one-role project even the aggregate discloses their salary, and the open-role figure is a
-  company-wide comp average. **Revenue (the fixed fee / rate card) is NOT gated** — it is
-  commercial, not personal, and every project read is open. `sales` therefore reaches a plan
-  through `loadOpportunityPlan` (gated `crm.edit`) and sees revenue only.
+  company-wide comp average. **The whole revenue side is NOT gated** — the fixed fee, each
+  role's own `billRate`, and the fixed-fee hourly-value comparator that compares the two
+  (ADR 0066) — because all of it is commercial, not personal, and every project read is open.
+  `sales` therefore reaches a plan through `loadOpportunityPlan` (gated `crm.edit`) and sees
+  revenue only; it can also set a rate on an opportunity's plan roles, which follows from the
+  same reasoning rather than being an oversight.
   Masking lives **inside the reads** — `getProjectCostBasis` decides once and both plan
   readers omit `costBasis` entirely for a viewer without it, so no compensation-derived value
   is ever sent to a client that merely hides it. The **list** goes through the same door

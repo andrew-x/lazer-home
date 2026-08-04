@@ -33,8 +33,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/core/utils";
 import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
+import { formatMoney } from "@/lib/format/currency";
 import { formatDate } from "@/lib/format/format";
+import {
+  BILL_RATE_CURRENCY,
+  billRateFor,
+  isOffStandardRate,
+} from "@/lib/projects/bill-rates";
 import {
   buildPlannerRows,
   buildWeekColumns,
@@ -272,6 +284,7 @@ export function ProjectDetailView({
                   "Status",
                   "Dates",
                   "Hrs/day",
+                  "Rate",
                   // Trailing actions column — one blank header only (DetailTable
                   // keys headers by their text).
                   ...(canEdit ? [""] : []),
@@ -303,6 +316,9 @@ export function ProjectDetailView({
                     </TableCell>
                     <TableCell className="tabular-nums">
                       {role.hoursPerDay}
+                    </TableCell>
+                    <TableCell>
+                      <BillRateCell role={role} />
                     </TableCell>
                     {canEdit ? (
                       <TableCell className="w-0 text-right">
@@ -364,6 +380,49 @@ export function ProjectDetailView({
 }
 
 /** One PTO section (Upcoming or Past). The Type column shows only to reviewers. */
+/**
+ * A role's bill rate, with a subtle marker when it isn't today's standard rate.
+ *
+ * The signal is **contrast, not an ornament**: a rate that matches the card renders
+ * muted, one that doesn't renders in full foreground. No badge (badges mean *status* in
+ * this table), no icon, no colour — the roles list would otherwise grow a glyph on the
+ * common case, which is exactly the noise `docs/ui.md` records deleting the per-figure
+ * FX markers over. The tooltip is on both states so the fact is discoverable either way.
+ *
+ * Reads the rate straight off the payload rather than out of `margin`, so it still shows
+ * on a project with no budget set — where a negotiated rate is arguably most surprising.
+ *
+ * `minimumFractionDigits: 0` is load-bearing: `formatMoney` uses `style: "currency"`,
+ * which would otherwise render a whole-dollar card rate as "$250.00".
+ */
+function BillRateCell({ role }: { role: PlanRole }) {
+  const offCard = isOffStandardRate(role);
+  const money = (value: number) =>
+    formatMoney(value, BILL_RATE_CURRENCY, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            className={cn("tabular-nums", !offCard && "text-muted-foreground")}
+          >
+            {money(role.billRate)}
+          </span>
+        }
+      />
+      <TooltipContent>
+        {offCard
+          ? `Off standard rate — the rate card is ${money(billRateFor(role))}/hr`
+          : "Matches the standard rate card"}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function PtoTable({
   title,
   spans,

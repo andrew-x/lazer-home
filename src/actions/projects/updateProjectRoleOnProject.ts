@@ -40,6 +40,10 @@ export const updateProjectRoleOnProject = secureActionClient
           startDate: parsedInput.startDate,
           endDate: parsedInput.endDate,
           hoursPerDay: parsedInput.hoursPerDay,
+          // A blank rate field means "re-snapshot from today's card", which
+          // `snapshotBillRate` has already resolved — so this is how a role stuck on a
+          // superseded price gets reset.
+          billRate: parsedInput.billRate,
         })
         .where(eq(projectRoles.id, parsedInput.id));
     });

@@ -126,11 +126,21 @@ export function BudgetSummaryPanel({
           label="Revenue"
           value={money(totals.revenue)}
           hint={
-            budget.billingType === "FIXED_FEE"
-              ? budget.budgetAmount != null && budget.budgetCurrency
-                ? `Fixed fee · ${formatMoney(budget.budgetAmount, budget.budgetCurrency, { maximumFractionDigits: 0 })}`
-                : undefined
-              : `${formatAmount(Math.round(totals.hours))} hrs · standard rate card`
+            budget.billingType === "FIXED_FEE" ? (
+              <>
+                {budget.budgetAmount != null && budget.budgetCurrency ? (
+                  <p>
+                    Fixed fee ·{" "}
+                    {formatMoney(budget.budgetAmount, budget.budgetCurrency, {
+                      maximumFractionDigits: 0,
+                    })}
+                  </p>
+                ) : null}
+                <HourlyValueLine margin={margin} />
+              </>
+            ) : (
+              `${formatAmount(Math.round(totals.hours))} hrs at role rates`
+            )
           }
         />
 
@@ -189,14 +199,58 @@ function BudgetFigure({
 }: {
   label: string;
   value: ReactNode;
-  hint?: string;
+  /** A node, not just a string, so a figure can carry more than one line of context. */
+  hint?: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-1">
       <FilterLabel>{label}</FilterLabel>
       <div className="text-2xl font-semibold">{value}</div>
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {hint ? (
+        <div className="text-xs text-muted-foreground">{hint}</div>
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * What a fixed fee would have come to at the roles' own hourly rates, and the discount
+ * or premium between the two — the only place a fee becomes legible as a commercial
+ * decision rather than just a number.
+ *
+ * Three deliberate choices:
+ *
+ * - **No colour.** A discount is a negotiation, not a loss, and this codebase colours
+ *   only losses (there is no success token, so a premium can't be green either). Margin
+ *   keeps the sole tone on this panel.
+ * - **Rendered outside the `includesCost` branch.** The comparator is revenue-side, so a
+ *   viewer without `projects.viewMargin` still sees it. Nesting it beside Cost would gate
+ *   a figure that isn't compensation-derived.
+ * - **Rounded before the sign and the word are chosen**, so a delta that renders as
+ *   "CA$0" reads "at role rates" instead of a signed zero — the same rule
+ *   `marginAmountTone` follows.
+ */
+function HourlyValueLine({ margin }: { margin: ProjectMargin }) {
+  const { hourlyValue, hourlyValueDelta, hourlyValueDeltaPercent } =
+    margin.totals;
+  // A plan with no counted roles already says so in its own notice below.
+  if (hourlyValue == null || hourlyValueDelta == null) return null;
+  if (margin.countedRoleCount === 0) return null;
+
+  const { money } = aggregateMoneyFormatters(margin.displayCurrency);
+  const rounded = Math.round(hourlyValueDelta);
+
+  return (
+    <p>
+      {money(hourlyValue)} at role rates
+      {rounded === 0
+        ? null
+        : ` · ${money(Math.abs(hourlyValueDelta))} ${rounded < 0 ? "discount" : "premium"}${
+            hourlyValueDeltaPercent == null
+              ? ""
+              : ` (${formatPercent(Math.abs(hourlyValueDeltaPercent))})`
+          }`}
+    </p>
   );
 }
 

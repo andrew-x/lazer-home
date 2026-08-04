@@ -37,6 +37,7 @@ export const duplicateProjectRoles = secureActionClient
           startDate: projectRoles.startDate,
           endDate: projectRoles.endDate,
           hoursPerDay: projectRoles.hoursPerDay,
+          billRate: projectRoles.billRate,
         })
         .from(projectRoles)
         .where(inArray(projectRoles.id, roleIds));
@@ -54,6 +55,11 @@ export const duplicateProjectRoles = secureActionClient
         startDate: row.startDate,
         endDate: row.endDate,
         hoursPerDay: row.hoursPerDay,
+        // The negotiated price IS part of the shape, so it travels with the copy
+        // rather than silently reverting to today's card. A copy that re-priced
+        // itself would be a re-pricing disguised as a duplicate; where the copied
+        // rate differs from the card, the roles list flags it as off standard rate.
+        billRate: row.billRate,
       }));
       if (values.length) await tx.insert(projectRoles).values(values);
       return values.map((v) => v.id);

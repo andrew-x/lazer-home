@@ -31,6 +31,7 @@ function role(
     roleType: "ENGINEER",
     status,
     opportunityId,
+    billRate: 250,
     startDate: "2026-08-03",
     endDate: "2026-08-14",
     hoursPerDay: 8,

@@ -1,7 +1,7 @@
 "use client";
 
 import type { Control, FieldErrors, UseFormRegister } from "react-hook-form";
-import { Controller } from "react-hook-form";
+import { Controller, useWatch } from "react-hook-form";
 import { searchStaff } from "@/actions/projects/searchStaff";
 import type { IssueTarget } from "@/components/form/apply-server-issues";
 import { EntityCombobox } from "@/components/form/entity-combobox";
@@ -15,13 +15,17 @@ import {
   LINE_OF_BUSINESS_LABELS,
   type LineOfBusiness,
 } from "@/lib/crm/line-of-business";
+import { BILL_RATE_CURRENCY, billRateFor } from "@/lib/projects/bill-rates";
 import {
   PROJECT_ROLE_TYPE_LABELS,
   PROJECT_ROLE_TYPES,
   type ProjectRoleType,
 } from "@/lib/projects/project-role-type";
 
-/** The form shape behind every role editor. Hours stay a string (coerced by the schema). */
+/**
+ * The form shape behind every role editor. Hours and the bill rate stay strings
+ * (coerced by the schema).
+ */
 export type RoleFormValues = {
   staff: EntityOption | null;
   lineOfBusiness: LineOfBusiness | "";
@@ -30,6 +34,7 @@ export type RoleFormValues = {
   startDate: string | null;
   endDate: string | null;
   hoursPerDay: string;
+  billRate: string;
 };
 
 /**
@@ -44,6 +49,7 @@ export const ROLE_ISSUE_FIELDS: Record<string, IssueTarget<RoleFormValues>> = {
   startDate: "startDate",
   endDate: "endDate",
   hoursPerDay: "hoursPerDay",
+  billRate: "billRate",
 };
 
 /**
@@ -194,7 +200,73 @@ export function RoleFields({
           />
         </FormField>
       </div>
+
+      <BillRateField
+        idPrefix={idPrefix}
+        control={control}
+        register={register}
+        errors={errors}
+      />
     </>
+  );
+}
+
+/**
+ * The role's hourly bill rate, with the current rate card as its **placeholder** rather
+ * than as a pre-filled value.
+ *
+ * That's the whole interaction: an empty field shows exactly what the role will bill at,
+ * and submitting it blank snapshots that figure (`snapshotBillRate` server-side). So
+ * "leave it alone" and "reset a role that's stuck on a superseded price" are the same
+ * gesture, and there's no dirty-tracking needed to stop a typed rate being clobbered
+ * when the discipline changes.
+ *
+ * The currency is named in the label because there is no per-role currency column — every
+ * rate is in `BILL_RATE_CURRENCY`, and the budget panel converts for display.
+ */
+function BillRateField({
+  idPrefix,
+  control,
+  register,
+  errors,
+}: {
+  idPrefix: string;
+  control: Control<RoleFormValues>;
+  register: UseFormRegister<RoleFormValues>;
+  errors: FieldErrors<RoleFormValues>;
+}) {
+  const [lineOfBusiness, roleType] = useWatch({
+    control,
+    name: ["lineOfBusiness", "roleType"],
+  });
+  // Both are required elsewhere in this form, so before they're picked there is no card
+  // cell to quote — fall back to the plain default rather than guessing a line.
+  const cardRate =
+    lineOfBusiness && roleType
+      ? billRateFor({ lineOfBusiness, roleType })
+      : null;
+
+  return (
+    <FormField
+      label={`Bill rate (${BILL_RATE_CURRENCY}/hr)`}
+      htmlFor={`${idPrefix}-bill-rate`}
+      error={errors.billRate?.message}
+    >
+      <Input
+        id={`${idPrefix}-bill-rate`}
+        type="number"
+        inputMode="decimal"
+        step="5"
+        min="0"
+        className="tabular-nums"
+        placeholder={cardRate === null ? undefined : String(cardRate)}
+        aria-invalid={Boolean(errors.billRate)}
+        {...register("billRate")}
+      />
+      <p className="text-xs text-muted-foreground">
+        Leave blank to use the standard rate card.
+      </p>
+    </FormField>
   );
 }
 
@@ -212,6 +284,7 @@ export function roleDefaultValues(
     startDate: string;
     endDate: string;
     hoursPerDay: number;
+    billRate: number;
   } | null,
   defaultLineOfBusiness: LineOfBusiness | "",
 ): RoleFormValues {
@@ -226,5 +299,9 @@ export function roleDefaultValues(
     startDate: existing?.startDate ?? null,
     endDate: existing?.endDate ?? null,
     hoursPerDay: existing ? String(existing.hoursPerDay) : "8",
+    // A new role opens blank so its placeholder previews the card rate it will
+    // snapshot; an existing role shows the rate it actually carries, which may be off
+    // the current card.
+    billRate: existing ? String(existing.billRate) : "",
   };
 }

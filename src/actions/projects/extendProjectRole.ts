@@ -53,6 +53,7 @@ export const extendProjectRole = secureActionClient
           lineOfBusiness: projectRoles.lineOfBusiness,
           description: projectRoles.description,
           roleType: projectRoles.roleType,
+          billRate: projectRoles.billRate,
         })
         .from(projectRoles)
         .where(eq(projectRoles.id, sourceRoleId))
@@ -78,6 +79,9 @@ export const extendProjectRole = secureActionClient
         lineOfBusiness: source.lineOfBusiness,
         description: source.description,
         roleType: source.roleType,
+        // Including its price: re-pricing a continuation at today's card would make
+        // "extend" a silent renegotiation.
+        billRate: source.billRate,
         startDate: parsedInput.startDate,
         endDate: parsedInput.endDate,
         hoursPerDay: parsedInput.hoursPerDay,

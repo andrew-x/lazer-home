@@ -14,6 +14,7 @@ import {
 } from "@/lib/db/schema";
 import { CURRENCY } from "@/lib/format/currency";
 import { parseIsoDate } from "@/lib/format/format";
+import { billRateFor } from "@/lib/projects/bill-rates";
 import { LOW_PROJECT_HEALTH_AT_OR_BELOW } from "@/lib/projects/project-flags";
 import {
   PROJECT_HEALTH_MAX,
@@ -33,8 +34,8 @@ type DeliveryNoteInsert = InferInsertModel<typeof projectDeliveryNotes>;
 
 /**
  * The billing columns for one project, spanning all three real states: a fixed fee
- * (a total + currency), time and materials (no stored money at all — it bills at the
- * standard rate card in `@/lib/projects/bill-rates`), and no budget whatsoever. The
+ * (a total + currency), time and materials (no stored money on the *project* — it bills
+ * each role at that role's own `billRate`), and no budget whatsoever. The
  * last is not an oversight: every project created before budgets existed has none, so
  * the "No budget set" state needs to be exercised on real seeded data. The
  * `projects_budget_shape` check constraint rejects any other combination, so this is
@@ -166,6 +167,11 @@ export async function seedProjects(
     };
     for (let i = 0; i < roleCount; i++) {
       const open = chance(0.25);
+      // A role's line of business: inherit the originating opportunity's, or a
+      // random one for standalone roles (so those projects span several LoBs).
+      const lineOfBusiness =
+        opp?.lineOfBusiness ?? faker.helpers.arrayElement(LINE_OF_BUSINESS);
+      const roleType = faker.helpers.arrayElement(PROJECT_ROLE_TYPES);
       roles.push({
         id: generateId("role"),
         projectId: project.id,
@@ -174,15 +180,20 @@ export async function seedProjects(
         // standalone-project roles vary across statuses and are untagged.
         opportunityId: opp?.id ?? null,
         status: roleStatus(),
-        // A role's line of business: inherit the originating opportunity's, or a
-        // random one for standalone roles (so those projects span several LoBs).
-        lineOfBusiness:
-          opp?.lineOfBusiness ?? faker.helpers.arrayElement(LINE_OF_BUSINESS),
+        lineOfBusiness,
         description: chance(0.5) ? faker.person.jobTitle() : null,
-        roleType: faker.helpers.arrayElement(PROJECT_ROLE_TYPES),
+        roleType,
         startDate: isoDate(start),
         endDate: isoDate(end),
         hoursPerDay: faker.helpers.arrayElement([8, 7.5, 4, 6]),
+        // Most roles snapshot the card, a minority carry a negotiated rate — so both
+        // states of the "off standard rate" indicator, and a non-zero fixed-fee
+        // discount/premium, exist in seeded data. The probability is deliberately low:
+        // an off-card rate is the exception, and seeding half of them would make the
+        // subtle indicator the norm and hide the design it exists to express.
+        billRate: chance(0.15)
+          ? faker.number.int({ min: 180, max: 400 })
+          : billRateFor({ lineOfBusiness, roleType }),
       });
     }
   }
