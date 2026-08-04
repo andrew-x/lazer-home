@@ -303,10 +303,14 @@ Resolved in v1 (recorded here so they aren't relitigated — see [ADR 0027](../d
 Still genuinely open:
 
 - **Billing** — invoice generation, and pricing the **logged** hours. Note charge rates
-  themselves are no longer missing: a project carries a fixed fee or a per-discipline rate
-  card, and margin is computed over its **allocation plan**, never over `time_entries`
+  themselves are no longer missing: a project carries a fixed fee, or each of its roles carries
+  its **own `billRate`** (snapshotted from the code-owned card), and margin is computed over the
+  **allocation plan**, never over `time_entries`
   ([ADR 0053](../decisions/0053-project-budgets-and-margin.md),
-  [projects.md](./projects.md#budget--margin)). Nothing in this domain reads them yet.
+  [ADR 0066](../decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md),
+  [projects.md](./projects.md#budget--margin)). Nothing in this domain reads them yet — and note a
+  rate is a property of a **role**, not of a project, so pricing logged hours will have to decide
+  which role a `time_entry` belongs to (`time_entries.projectId` hangs off the *project*).
 - **Approval workflow** — if/when a manager sign-off step is added (approve/reject,
   audit trail, per-scope granularity).
 - ~~**Allocation reconciliation** — surfacing actuals vs. the `project_roles` plan.~~

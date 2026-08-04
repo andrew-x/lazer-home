@@ -50,6 +50,7 @@ export function useProjectMargin({
           startDate: role.startDate,
           endDate: role.endDate,
           hoursPerDay: role.hoursPerDay,
+          billRate: role.billRate,
           staffId: role.staffId,
           staffHourlyCost:
             (role.staffId && costBasis?.staffHourlyCost[role.staffId]) || null,

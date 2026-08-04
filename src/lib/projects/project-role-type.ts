@@ -14,12 +14,16 @@
 // Types are erased, so this is free. Same caveat as `compensation-targets.ts`.
 import type { Role } from "@/lib/staff/staff-enums";
 
+// Keep DELIVERY last. `ALTER TYPE ... ADD VALUE` appends to the pgEnum's sort order,
+// so appending here keeps this tuple and the database agreeing on ordering — which
+// matters wherever a UI iterates the tuple to render rows in "canonical" order.
 export const PROJECT_ROLE_TYPES = [
   "ENGINEER",
   "DESIGNER",
   "ARCHITECT",
   "QA",
   "SPECIALIST",
+  "DELIVERY",
 ] as const;
 
 export type ProjectRoleType = (typeof PROJECT_ROLE_TYPES)[number];
@@ -31,17 +35,23 @@ export const PROJECT_ROLE_TYPE_LABELS: Record<ProjectRoleType, string> = {
   ARCHITECT: "Architect",
   QA: "QA",
   SPECIALIST: "Specialist",
+  DELIVERY: "Delivery",
 };
 
 /**
  * The `staff_employment.role` a project role type corresponds to, used to cost an
  * OPEN (unstaffed) role from the company-wide average for that discipline.
  *
- * Four map 1:1. `SPECIALIST` deliberately has no counterpart — it's the catch-all
+ * Five map 1:1. `SPECIALIST` deliberately has no counterpart — it's the catch-all
  * discipline, so `null` means "no single staff role to average" and the caller
  * falls back to every billable discipline (see `getRoleTypeAverageCostsUsd`).
  * The two enums are otherwise unrelated: `role` spans the whole company
  * (including overhead), while a project role type is a delivery discipline only.
+ *
+ * `DELIVERY` maps 1:1 like the rest. Note that a *delivery role on a plan* — billable
+ * time, dated, rated — is a different thing from `project_delivery_managers`, which
+ * names who owns the engagement and carries no dates, hours or money. One person can
+ * be both.
  */
 export const STAFF_ROLE_FOR_PROJECT_ROLE_TYPE: Record<
   ProjectRoleType,
@@ -52,4 +62,5 @@ export const STAFF_ROLE_FOR_PROJECT_ROLE_TYPE: Record<
   ARCHITECT: "ARCHITECT",
   QA: "QA",
   SPECIALIST: null,
+  DELIVERY: "DELIVERY",
 };

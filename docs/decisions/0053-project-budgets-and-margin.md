@@ -12,6 +12,18 @@ single card in code; the create-then-drop migration pair was **collapsed into on
 leaves no trace in the schema history. The reasoning is recorded below rather than deleted,
 because the rejected shape is the obvious one to re-propose.
 
+> **Superseded in part, 2026-08-04 ([ADR 0066](./0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md)).**
+> §1's rejection of `project_roles.hourlyRate` has been **reversed** — that ADR is the
+> deliberate reopening §2 asked for. The card still lives in code (§2 holds) but is now keyed
+> **line of business × discipline**, `Partial` with a default, and each role **snapshots** a
+> rate from it at creation. Two claims below are consequently false: the Consequences'
+> "revising `BILL_RATES` re-prices **every** T&M project's plan, retroactively" (it now prices
+> only future roles), and the "unrepresentable **because the map is total**" reasoning
+> (enforcement moved to a `??`). §5's ban on apportioning a fee across roles, §7's cost gate
+> and §8's FX rules all **stand** — though a fixed-fee panel now legitimately reports a USD
+> conversion, because it now displays a USD-derived figure. The rejection text below is left
+> intact: it is what 0066 had to answer.
+
 > **Extended, 2026-07-30 ([ADR 0057](./0057-projects-list-margin-and-derived-flags.md)) — margin
 > now also appears on the `/projects` **list**, which deviates from §8 on purpose.** The list
 > **precomputes margin server-side in both display currencies** instead of shipping native
@@ -68,6 +80,11 @@ price for a **discipline**, not a property of one line. Putting it on the row wo
 re-typing it on every duplicated, extended, or re-dated role — and
 `duplicateProjectRoles`/`extendProjectRole` copy role *shape*, so a rate would silently
 travel with a copy and then drift from its siblings.
+
+> **Reversed by [ADR 0066](./0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md)**
+> (`project_roles.billRate`). Both objections are answered there rather than dismissed: the
+> card still prices the discipline, and a travelling rate is no longer *silent* because every
+> rate that differs from the current card is flagged in the UI.
 
 **Rejected: a per-project rate card** (`project_role_rates`, one row per
 `(projectId, roleType)`). **This was built, migrated and then removed before shipping** —
@@ -273,10 +290,19 @@ sticky column would shift the week spine on every planner in the app.
   `ProjectMargin.mixedCurrencies` and `ProjectMargin.unpricedRoleCount`. That last one is the
   prize: because `BILL_RATES` is **total** over `ProjectRoleType`, **"a role type with no bill
   rate" is now unrepresentable** rather than a partial-revenue state the UI had to warn about.
+  *(The property still holds under
+  [ADR 0066](./0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md) — a role
+  carries its own NOT NULL rate — but the **reason** changed: the card is now `Partial` with a
+  default, so enforcement moved from the type checker to the `??` in `billRateFor`, and adding
+  a discipline no longer breaks the build.)*
 - **`updateProjectBudget` is still separate from `updateProject`** so renaming a project
   doesn't also re-submit its price — the last-write-wins clobbering `updateProjectField`
   exists to avoid.
-- **No rate history — and now it's global.** Revising `BILL_RATES` re-prices **every** T&M
+- **No rate history — and now it's global.** *(No longer true — reversed by
+  [ADR 0066](./0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md), which
+  snapshots a rate onto each role so a revision prices only future roles and a plan's revenue
+  is reproducible from its own rows. There is still no rate *history*: a snapshot is
+  overwritten on edit, not effective-dated.)* Revising `BILL_RATES` re-prices **every** T&M
   project's plan, retroactively, because revenue is always computed from the current card.
   For a forward-looking planning figure that's the desired behaviour (one card, one truth),
   but it means a past margin can't be reconstructed — the same limitation as `project_roles`

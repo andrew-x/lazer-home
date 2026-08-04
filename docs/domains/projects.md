@@ -99,7 +99,8 @@ delivery, allocations, timesheets, and billing.
     both create paths** going forward.
   - **`check("projects_budget_shape")`** makes the shape a DB invariant: *all three null*, **or**
     `FIXED_FEE` with amount **and** currency set, **or** `TIME_AND_MATERIALS` with **both null**
-    (a T&M project has no total — it bills hours at the code-owned rate card). Mirrored by the zod
+    (a T&M project has no total — it bills each role's hours at that role's own
+    `billRate`). Mirrored by the zod
     **discriminated union** in `projectBudget.schema.ts`, so a half-written budget is
     *unrepresentable* at both ends. Every pre-existing row satisfies the first branch ⇒ **the
     migration needed no backfill.**
@@ -138,7 +139,7 @@ delivery, allocations, timesheets, and billing.
 - **Project delivery note** (built, [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)) —
   a **dated write-up of how an engagement is going**, carrying its author's **1–10 health
   rating**. Table `project_delivery_notes`, id prefix `pdn`
-  (`drizzle/0021_special_doctor_spectrum.sql`). A **document, not a fact about the project**:
+  (`drizzle/0022_bumpy_omega_sentinel.sql`). A **document, not a fact about the project**:
   nothing supersedes anything, and `projects` has **no `health` column** — see
   [Delivery notes](#delivery-notes).
   - `projectId` → projects **cascade** (a note is meaningless without its engagement),
@@ -157,19 +158,25 @@ delivery, allocations, timesheets, and billing.
     `distinct on (project_id)`). **The trailing `.desc()`s are load-bearing:** Postgres walks a
     btree backwards only for a *wholly* reversed ordering, so an ascending index would force a
     sort node.
-- **Bill rates are NOT an entity.** There is **one company-wide rate card, in code** —
-  `BILL_RATES` in `src/lib/projects/bill-rates.ts` — and a T&M project stores nothing about
-  pricing at all.
+- **The rate card is still NOT an entity, but a *rate* now is a column.** There is **one
+  company-wide rate card, in code** (`src/lib/projects/bill-rates.ts`, keyed **line of business ×
+  discipline** — see [The rate card](#whats-built)), and **each `project_roles` row carries its own
+  `billRate`, snapshotted from that card when the role is created**
+  ([ADR 0066](../decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md)).
+  A project still stores **no** pricing: T&M has no total, and there is no per-*project* rate table.
   - ⚠️ **A `project_role_rates` table existed briefly on the branch and was dropped before
     shipping.** It was carried as an honest create-then-drop migration pair, but merging `main`
     renumbered those migrations anyway, so they were regenerated as a single
     `drizzle/0016_violet_whistler.sql` holding only the surviving columns. **No migration
     mentions the table** — [ADR 0053 §1–2](../decisions/0053-project-budgets-and-margin.md) is
     the only record it was tried.
-  - A rate card is **policy**, revised centrally, not negotiated per engagement — and storing a
-    copy per project invites two projects **silently disagreeing about what an engineer-hour is
-    worth** for no product benefit. Don't reintroduce per-project rates as a field; that's a
-    schema decision to reopen deliberately.
+  - A rate card is still **policy**, revised centrally: the card is the only place a discipline's
+    price is *decided*, and `project_roles.billRate` is a **snapshot of that decision plus any
+    negotiated deviation** — not a competing pricing policy. **A per-*project* rate card is still
+    rejected** (two projects silently disagreeing about what an engineer-hour is worth, for no
+    product benefit); ADR 0066 reopened the *per-role* half deliberately, as ADR 0053 §1 asked, and
+    answered its two objections rather than dismissing them — see it before proposing either shape
+    again.
 - **Project role** (built) — a **staffing line**: a person (or an open position) of a
   given discipline for a date range at N hours/day. Table `project_roles`, id prefix
   `proj-role`. **Not a pure junction** — it carries columns:
@@ -182,7 +189,10 @@ delivery, allocations, timesheets, and billing.
     a project's set of LoBs is *derived* from its roles, so one project can span practices. A
     role created from an opportunity's planner **defaults to the opportunity's LoB** (the UI
     prefills it; still editable). Sourced from the pure `src/lib/crm/line-of-business.ts`.
-  - **`roleType`** (NOT NULL, `projectRoleTypeEnum`: `ENGINEER`/`DESIGNER`/`ARCHITECT`/`QA`/`SPECIALIST`)
+  - **`roleType`** (NOT NULL, `projectRoleTypeEnum`: `ENGINEER`/`DESIGNER`/`ARCHITECT`/`QA`/
+    `SPECIALIST`/**`DELIVERY`** — six since
+    [ADR 0066 §3](../decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md),
+    `drizzle/0024_brainy_dexter_bennett.sql`)
     — the role's **discipline**, what identifies an open position when no person is set.
     **Orthogonal to `lineOfBusiness`** (what kind of work vs. which practice bills it). Its
     tuple + labels live in the pure `src/lib/projects/project-role-type.ts`.
@@ -212,6 +222,26 @@ delivery, allocations, timesheets, and billing.
   - `startDate`/`endDate` (`date`, string mode, `"YYYY-MM-DD"`), `hoursPerDay`
     (`numeric(4,2)`, number mode, default `8`, allows half-days) — **all required on
     every role**, staffed or placeholder.
+  - **`billRate`** (`numeric(12,2)`, number mode, **NOT NULL with no DB default**, under
+    `check("project_roles_bill_rate_positive")` — `drizzle/0025_empty_frank_castle.sql`,
+    [ADR 0066](../decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md)) —
+    what this line bills per hour, in `BILL_RATE_CURRENCY` (**no sibling currency column**: the card
+    has exactly one currency, so ADR 0053 §8's FX story is unchanged). **Snapshotted** from
+    `billRateFor({lineOfBusiness, roleType})` at creation, then **editable**; revising the card
+    prices *future* roles only. This is a **bill** rate (revenue) — a role never carries a cost, which
+    is derived from the assignee's compensation and gated on `projects.viewMargin`.
+    - **The missing DB default is load-bearing.** A default would put 250 in a second home, ignore
+      exception cells, and silently paper over a write path that forgot to snapshot; with none, such
+      a path fails loudly. Every insert goes through a role schema, which fills the field via the
+      shared **`snapshotBillRate`** transform (below) — don't add a default to "fix" a new insert
+      site that skips the schema.
+    - **Not effective-dated** ([ADR 0007](../decisions/0007-staff-employment-effective-dating.md)'s
+      pattern is deliberately *not* adopted): editing a rate **overwrites** it, so there is still no
+      per-role rate *history* and an override is as retroactive as the card used to be.
+    - The migration is **hand-edited**: add nullable → `UPDATE … = 250` → `SET NOT NULL` → add the
+      check. That literal is a **one-time historical snapshot, not policy** (the card ships with no
+      exceptions, so every pre-existing role took the default) — don't revisit it when the card
+      moves, which is the whole point of snapshotting.
   - `projectId` → projects **cascade** (a role dies with its project). Indexed on
     `projectId`, `staffId`, **and `opportunityId`**.
 
@@ -227,7 +257,8 @@ delivery, allocations, timesheets, and billing.
   [ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
   **Schema files are the source of truth for the current shape**; the drizzle history was
   squashed into a single baseline (`drizzle/0000_lethal_rictor.sql`) more than once, with
-  six incremental migrations now on top (`0001`–`0006`) — two of which touch this domain.
+  **twenty-five** incremental migrations now on top (`0001`–`0025`) — six of which touch this domain
+  (`0002`, `0003`, `0016`, `0022`, `0024`, `0025`).
   `drizzle/0002_gray_corsair.sql` applied
   [ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md): it **adds**
   the `paused`/`cancelled` values to `project_role_status`, **adds** `project_roles.line_of_business`
@@ -235,15 +266,22 @@ delivery, allocations, timesheets, and billing.
   `projects.line_of_business` and the `project_status` type. `drizzle/0003_gifted_kylun.sql` then
   **renames** the role's optional label column `project_roles.name` → `description` (a single
   `RENAME COLUMN`; still nullable text, max 200 in the schema). The projects domain now relies on:
-  the `project_role_type` + (four-state) `project_role_status` enums, a nullable
-  `project_roles.staff_id` with `line_of_business`/`description`/`role_type`/`status`/`opportunity_id`,
+  the **six-value** `project_role_type` (`drizzle/0024_brainy_dexter_bennett.sql` is one line —
+  `ALTER TYPE … ADD VALUE 'DELIVERY'`) + (four-state) `project_role_status` enums, a nullable
+  `project_roles.staff_id` with
+  `line_of_business`/`description`/`role_type`/`status`/`opportunity_id`/**`bill_rate`** (NOT NULL,
+  no default, `> 0` check — `drizzle/0025_empty_frank_castle.sql`, **hand-edited** into
+  add-nullable → backfill 250 → `SET NOT NULL` → add constraint, since Drizzle's bare
+  `ADD COLUMN … NOT NULL` can't run against a populated table; same shape as `0002`),
   a `projects` table with **no `status`/`line_of_business` columns** but **three budget
   columns + the `projects_budget_shape` CHECK** and the
-  `project_billing_type` enum (`drizzle/0016_violet_whistler.sql`; there is **no rate-card
+  `project_billing_type` enum (`drizzle/0016_violet_whistler.sql`; there is still **no rate-card
   table** — see the bill-rates bullet under
-  [Key entities](#key-entities) and
-  [ADR 0053](../decisions/0053-project-budgets-and-margin.md)), the **`project_delivery_notes`
-  table + its health check constraint** (`drizzle/0021_special_doctor_spectrum.sql`,
+  [Key entities](#key-entities),
+  [ADR 0053](../decisions/0053-project-budgets-and-margin.md) and
+  [ADR 0066](../decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md)),
+  the **`project_delivery_notes`
+  table + its health check constraint** (`drizzle/0022_bumpy_omega_sentinel.sql`,
   [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)), and the delivery link on
   `opportunities.project_id`.
 - **Derived-fields module** — `src/lib/projects/project-derived.ts`
@@ -294,16 +332,30 @@ delivery, allocations, timesheets, and billing.
   **pure, client-importable** module (no `db`/drizzle) so the `projectRoleStatusEnum` pgEnum,
   zod, the planner UI, **and the derived `ProjectStatusBadge`** all share one source.
 - **Shared role-type module** — `src/lib/projects/project-role-type.ts` exports `PROJECT_ROLE_TYPES`
-  (`ENGINEER`/`DESIGNER`/`ARCHITECT`/`QA`/`SPECIALIST`), the `ProjectRoleType` type, and
-  `PROJECT_ROLE_TYPE_LABELS`. A **pure, client-importable** module (no `db`/drizzle) so the
+  (**six**: `ENGINEER`/`DESIGNER`/`ARCHITECT`/`QA`/`SPECIALIST`/`DELIVERY`), the `ProjectRoleType`
+  type, and `PROJECT_ROLE_TYPE_LABELS`. A **pure, client-importable** module (no `db`/drizzle) so the
   `projectRoleTypeEnum` pgEnum, the create-project zod schema, and the form share one
   source — the same single-source pattern as `line-of-business.ts`. Role type is a role's
   **discipline**, orthogonal to line of business.
+  - **`DELIVERY` must stay last in the tuple.** `ALTER TYPE … ADD VALUE` appended it to the pgEnum's
+    sort order, so appending it here keeps the tuple and the database agreeing — which matters
+    wherever a UI iterates the tuple to render "canonical" order (e.g. `rateCardSummary()`).
+    Adding it was **three source lines, one migration and zero UI edits**, because every filter, form
+    and label reads the shared tuple + label map — recorded in
+    [ADR 0066 §3](../decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md)
+    as evidence the [ADR 0016](../decisions/0016-junction-table-and-shared-enum-conventions.md)
+    convention paid off. **A delivery *role* is not `project_delivery_managers`**: the role is a
+    billable plan line with dates, hours and a rate; the junction names who owns the engagement and
+    carries none of those. One person can be both.
   - It also exports **`STAFF_ROLE_FOR_PROJECT_ROLE_TYPE`** — the `staff_employment.role` each
     project role type corresponds to, used to cost an **open** role from the company-wide average
-    for that discipline. Four map 1:1; **`SPECIALIST` maps to `null`** (the catch-all discipline
+    for that discipline. **Five map 1:1** (`DELIVERY` included, which closed a latent gap: the staff
+    role `DELIVERY` is billable, but with no project role type mapping to it an open delivery role
+    could never be costed); **`SPECIALIST` maps to `null`** (the catch-all discipline
     has no staff-role counterpart), so the caller falls back to averaging *every billable*
-    discipline. Keep the `Role` import **`import type`** — `projects-schema.ts` imports this module
+    discipline. **SPECIALIST's figure did not move** when `DELIVERY` landed — delivery salaries were
+    already inside that billable fallback pool; `DELIVERY` simply gained its own bucket. Keep the
+    `Role` import **`import type`** — `projects-schema.ts` imports this module
     for **values** (the pgEnum), and `staff-enums` reads its unions out of `staff-schema.ts`, so a
     value import would close a runtime cycle through the schema (same caveat as
     `compensation-targets.ts`).
@@ -311,19 +363,58 @@ delivery, allocations, timesheets, and billing.
   (`FIXED_FEE`/`TIME_AND_MATERIALS`), the `BillingType` type and `BILLING_TYPE_LABELS`. **Pure,
   client-importable**, so the `projectBillingTypeEnum` pgEnum, the zod discriminated union, and the
   dialogs' labels share one source ([ADR 0016](../decisions/0016-junction-table-and-shared-enum-conventions.md)).
-- **The rate card (code as policy — the whole of it)** — `src/lib/projects/bill-rates.ts`:
-  **`BILL_RATES`** (a **total** map over `PROJECT_ROLE_TYPES` — every discipline must have a rate,
-  unlike the `Partial` `COMP_TARGETS`), **`BILL_RATE_CURRENCY`** (one currency for the whole card),
-  `BILL_RATES_REVIEWED_ON`, **`standardRateCard()`** (the rows in canonical order, *derived* from
-  `BILL_RATES` so the form can't show a rate the margin math doesn't use) and
-  **`isFlatRateCard()`** (lets the UI say "225/hr for every discipline" in one line instead of five
-  identical rows). It is **not** a set of defaults copied anywhere — it **is** the card every T&M
-  project bills at. Rates are **policy**, revised centrally by human judgement, so they live in
-  code (a review, not a migration), and one shared card means two projects can't disagree about
-  what an engineer-hour is worth — the `compensation-targets.ts` /
-  [ADR 0042](../decisions/0042-per-role-subratings-app-owned-jsonb.md) precedent. ⚠️ **The shipped
-  numbers are a flat 225 USD placeholder**, not our real rate card.
-- **Margin math** — `src/lib/projects/project-margin.ts` (+ `project-margin.test.ts`, 22 tests — a
+- **The rate card (code as policy — the whole of it)** — `src/lib/projects/bill-rates.ts`, reshaped by
+  [ADR 0066](../decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md) and
+  now keyed **line of business × discipline**, because what we charge for an hour depends both on the
+  practice selling it and the discipline doing it:
+  - **`DEFAULT_BILL_RATE`** (`250`) + **`BILL_RATE_EXCEPTIONS`** — a
+    `Partial<Record<LineOfBusiness, Partial<Record<ProjectRoleType, number>>>>` listing **only the
+    cells that deviate**, which **ships empty**. A total map over both keys would be 5 × 6 = 30
+    hand-maintained near-identical cells; an empty map means "one flat rate", and a *fabricated*
+    exception would read as a pricing decision nobody made.
+  - **`billRateFor({ lineOfBusiness, roleType })`** — **the only sanctioned reader** of the map, and
+    the only way to get a rate out of the module. Indexing `BILL_RATE_EXCEPTIONS` yourself puts back
+    the `undefined` case the default exists to eliminate. Takes the role **structurally**, so a
+    `PlanRole`, a form's watched values or a seed row all pass as-is.
+  - **`isOffStandardRate({ lineOfBusiness, roleType, billRate })`** — does this role bill at something
+    other than *today's* card? Compares **rounded cents**, not floats: the stored rate has been
+    through a `numeric(12,2)` round trip, so a card figure of `333.333` would otherwise make every
+    role priced from that cell read as off-card forever. **The card's docstring requires ≤2 decimal
+    places** — respect it.
+  - **`rateCardSummary()`** (replacing the deleted `standardRateCard()`) — the default plus its
+    exceptions in canonical `LINE_OF_BUSINESS` → `PROJECT_ROLE_TYPES` order, *derived* from the map so
+    a form can't show a rate the card doesn't hand out; `exceptions.length === 0` is how the UI says
+    "one flat rate" in a line.
+  - **`BILL_RATE_CURRENCY`** (one currency for the whole card — and therefore for every snapshotted
+    rate) and **`BILL_RATES_REVIEWED_ON`** (`2026-08-04`). Read the latter carefully now: it dates the
+    card **new roles are created at**, not the card any given plan bills at.
+  - ⚠️ **`BILL_RATES` and `isFlatRateCard()` are DELETED, not renamed.** After the reshape the map
+    holds *deviations*, not rates, so `BILL_RATES[x]` would have been a lie — deleting it made the
+    compiler name all three call sites. Don't reintroduce either.
+  - ⚠️ **This module no longer prices existing plans.** Each `project_roles.billRate` is snapshotted
+    from it at role creation, so revising a figure prices **future** roles and leaves existing ones
+    alone, and **`computeProjectMargin` never imports it** (only `BILL_RATE_CURRENCY`). Putting a
+    `billRateFor` lookup back into the margin math is a **bug**, not an optimization — it would
+    silently re-price history.
+  - **The cost of the `Partial` shape, stated plainly:** totality moved from the type checker to a
+    `??`. `billRateFor` still can't return `undefined`, but **adding a `LineOfBusiness` or a
+    `ProjectRoleType` no longer breaks the build** — it silently prices at the default (`DELIVERY`
+    was the first instance). Only safe because the default is a real price and never a zero; the loop
+    over all 30 pairs in `project-margin.test.ts` is what's left of the compile-time pressure.
+  - Rates are still **policy**, revised centrally by human judgement, so they live in code (a review,
+    not a migration) — the `compensation-targets.ts` /
+    [ADR 0042](../decisions/0042-per-role-subratings-app-owned-jsonb.md) precedent. ⚠️ **The shipped
+    figure is a flat 250 USD placeholder**, not our real rate card.
+- **Shared money primitives** — `src/lib/schemas/money-schema.ts`: **`MAX_MONEY`** (the
+  `numeric(12,2)` ceiling, now one home instead of a local const in `projectBudget.schema.ts`) and
+  **`optionalMoney({ positive, max })`** — a money field a **blank input means *absent* for**. It
+  `preprocess`es `""`/null to `undefined` *before* coercion, because `z.coerce.number()` maps `""` to
+  `0` and `.positive()` then **rejects** it, so a plainly-optional amount would error instead of
+  coming through absent. It is the **mirror image** of `projectBudget.schema.ts`'s fee, where that
+  rejection is load-bearing precisely so a blank fee *fails* rather than saving $0 — same coercion,
+  opposite intent, which is why it is a named primitive rather than an inline chain that reads like a
+  copy-paste slip. Use it only where absence has a real meaning the caller then supplies.
+- **Margin math** — `src/lib/projects/project-margin.ts` (+ `project-margin.test.ts`, **35** tests — a
   sanctioned [ADR 0037](../decisions/0037-unit-tests-removed-except-rbac-matrix.md) exception, same
   grounds as `compensation-plan.test.ts`). **Pure and client-importable**, so the server read and
   the client's currency toggle share one implementation. See
@@ -636,9 +727,12 @@ delivery, allocations, timesheets, and billing.
       `firstPerKey` (the ADR 0007 effective-dated shape, no N+1); somebody with no employment row
       is simply **absent** from the map. `getRoleTypeAverageCostsUsd(rates)` averages active staff
       per discipline **in USD** (so the client's currency toggle needs no re-read *and* no
-      individual amount ever leaves the server); `SPECIALIST` pools every **billable** role
+      individual amount ever leaves the server); the **five** 1:1 disciplines (now including
+      `DELIVERY`, which previously had no project role type mapping to it and so could never cost an
+      open delivery role) average their own staff, while `SPECIALIST` pools every **billable** role
       (`isBillableRole` — leadership/sales/ops salaries are overhead and would drag a delivery cost
-      basis); a role type with **no matching staff is absent, never 0**.
+      basis) — **and `SPECIALIST`'s figure did not move** when `DELIVERY` landed, since delivery
+      salaries were already in that pool; a role type with **no matching staff is absent, never 0**.
       ⚠️ **Everything this module produces is compensation-derived — never call it directly from a
       reader; go through `getProjectCostBasis`.**
     - `getProjectCostBasis.ts` — **the one place the `projects.viewMargin` decision is made**, and
@@ -686,17 +780,33 @@ delivery, allocations, timesheets, and billing.
     `name`, `companyId`, optional `opportunityId`, `deliveryManagerIds` (default empty), and
     `roles` (default empty — no `.min(1)`). **No top-level `lineOfBusiness`/`status`.** The
     per-role shape is the shared **`projectRole.schema.ts`** (`projectRoleFields` +
-    `endOnOrAfterStart`), reused by `createProjectRole`/`updateProjectRole`: per role `staffId`
+    `endOnOrAfterStart` + **`snapshotBillRate`**), reused by `createProjectRole`/`updateProjectRole`:
+    per role `staffId`
     optional (absent ⇒ placeholder), **required `lineOfBusiness`** (planner defaults it to the
     opportunity's), optional `description`, required `roleType`, required dates/hours (`endDate >=
-    startDate`; hours coerced, positive, ≤24). **`status`/`opportunityId` on a role are
-    server-controlled, not in this input schema.** `updateProject.schema.ts` is a sibling:
+    startDate`; hours coerced, positive, ≤24), and an **optional `billRate`** (`optionalMoney`).
+    **`status`/`opportunityId` on a role are
+    server-controlled, not in this input schema.**
+    - **`snapshotBillRate` is a `.transform()`, applied to `projectRoleSchema` *and* all four
+      composed role schemas** — so `billRate` is a plain `number` in every schema's *output* type and
+      the type checker does the remembering. It can't be a `.default()` like `hoursPerDay`: its
+      default depends on two **sibling** fields, not a constant. With five insert paths, two update
+      paths and no DB default, a single forgotten `?? billRateFor(...)` would have been a 500 — same
+      "one rule, every role schema" reasoning as `endOnOrAfterStart`
+      ([ADR 0066 §5](../decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md)).
+    - **An absent `billRate` means "use today's card"** — which is also how a role stuck on a
+      superseded price gets reset. ⚠️ **This only holds because both update schemas are full-object
+      writes.** Under a `saveCompensationPlanItem`-style *partial* patch, an absent rate would
+      silently re-snapshot a role whose rate the caller simply didn't send. Noted in the transform's
+      docstring; re-read it before adding a patch update.
+    `updateProject.schema.ts` is a sibling:
     `projectId` + `name` + `deliveryManagerIds` only. `createProjectFromOpportunity.schema.ts`
     is just `{ opportunityId }`.
   - **Role CRUD (planner) — all gated `projects.edit`.** `createProjectRole` (adds a fresh
     tentative role/open position to the opportunity's project), `updateProjectRole` (edits an
     existing role's fields), `deleteProjectRole` (removes one), `extendProjectRole` (inserts a
-    **new** tentative segment sharing a source role's `staffId`/`description`/`roleType`; each
+    **new** tentative segment sharing a source role's `staffId`/`description`/`roleType`/**`billRate`**
+    — re-pricing a continuation at today's card would make "extend" a silent renegotiation; each
     role is its own planner row, so an extension shows as a separate row for the same person —
     the source must be **confirmed** and on this opportunity's project, though it may belong to
     another opportunity). Each derives the target project from the opportunity's `projectId` (a
@@ -712,12 +822,22 @@ delivery, allocations, timesheets, and billing.
     `{ opportunityId, roleIds }` and running **`assertRoleEditable` per id inside one
     transaction** (a single non-editable id aborts the whole batch): **`deleteProjectRoles`**
     (bulk remove), **`duplicateProjectRoles`** (copies each role's *shape* — LoB, description,
-    role type, dates, hours — as a fresh **tentative, unstaffed open position**, deliberately
+    role type, dates, hours, **and its `billRate`** — as a fresh **tentative, unstaffed open
+    position**, deliberately
     dropping the assigned `staffId`), and **`bumpProjectRoles`** (`+ weeks`: shifts each role's
     `startDate` **and** `endDate` by whole weeks via `addWeeks`, preserving duration; `weeks`
     may be negative to pull work earlier). Plus **`assignRoleStaff`** (`{ roleId, opportunityId,
     staffId }`, `staffId` nullable) — the inline "Assign staff…" picker on an editable unstaffed
-    row; sets or clears the role's `staffId`. All are `secureActionClient`, gated `projects.edit`,
+    row; sets or clears the role's `staffId`.
+    - **Which of these touch the rate, and why** ([ADR 0066
+      §4](../decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md)):
+      **Duplicate and Extend carry it** — a negotiated price *is* part of the shape, and under
+      `NOT NULL` the alternative to carrying it is re-snapshotting at today's card, i.e. a silent
+      renegotiation. **`assignRoleStaff` and `bumpProjectRoles` leave it alone** (putting a person
+      into an overridden open role must not reset its price; a bump is dates only). And
+      **`createProjectFromOpportunity` / `loadOpportunityPlan` insert no roles at all** — named here
+      because the opportunity→project conversion is the obvious place to suspect a missed snapshot.
+    All are `secureActionClient`, gated `projects.edit`,
     guarded by `assertRoleEditable`, and revalidate `/opportunities` + `/projects`. **No RBAC
     matrix change** — they reuse the existing `projects.edit` capability.
   - `associateOpportunityProject.ts` (+ `.schema.ts`) — link an opportunity to an **existing**
@@ -742,8 +862,13 @@ delivery, allocations, timesheets, and billing.
     load so an over-allocation is visible while planning the deal. Empty when no one is staffed.
     - **It also carries the money** ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)):
       `PlanProject.budget` is a **`PlanBudget`** — just the three columns
-      (`billingType` + `budgetAmount`/`budgetCurrency`), **no rate card**, since the client imports
-      the one card from `bill-rates.ts` — plus top-level **`costBasis: PlanCostBasis | null`** (null
+      (`billingType` + `budgetAmount`/`budgetCurrency`), **no rate card**: a rate is a property of each
+      role, not of the project's billing model, so it rides on **`PlanRole.billRate`** (non-nullable
+      here, which is the compiler pressure that stops a plan reader forgetting to select it) and the
+      client imports `bill-rates.ts` only to resolve *today's* card for the off-standard-rate marker.
+      ⚠️ **`ExternalAllocation` deliberately carries no `billRate`** — another project's role is never
+      priced on this planner, and `billRateFor` would happily accept that shape, so nothing but the
+      comment stops someone adding one — plus top-level **`costBasis: PlanCostBasis | null`** (null
       ⇒ the viewer
       lacks `projects.viewMargin`) and **`exchangeRates`** (the USD table + its `asOf`/`stale`
       provenance, so the client converts — and can *name* the rates it used — without a refetch;
@@ -769,7 +894,10 @@ delivery, allocations, timesheets, and billing.
     externalAllocations, weekColumns, editability)`**, and `weekColumnLabel`. It is
     **role-centric — one `PlannerRow` per project role** (was one row per person with a person's
     roles grouped onto a line). Exported types: `PlannerRow` (`roleId`, `roleLabel`,
-    `roleTypeLabel`, `hoursPerDay`, `status`, **`editable`**, **`emphasized`**, `staffId`,
+    `roleTypeLabel`, `hoursPerDay`, **`billRate`** + **`offStandardRate`** — the rate and the
+    card comparison **precomputed here**, so the label cell doesn't re-resolve the card per row, and
+    kept as a *rate*, never an amount (the money line is `RoleMarginLine`'s job) — `status`,
+    **`editable`**, **`emphasized`**, `staffId`,
     `staffName`, `startDate`, `endDate`, `weeks`), `PlannerCell`
     (`{ own: OwnBlock | null; external: ExternalBlock[] }`),
     `OwnBlock` (this role's own % load for a week + start/end flags), and `ExternalBlock` (one of
@@ -895,11 +1023,21 @@ delivery, allocations, timesheets, and billing.
   `project-role-dialog.tsx`. See [Project detail page](#project-detail-page) below and
   [../ui.md](../ui.md).
 - **Shared role form fields** — `src/components/projects/role-fields.tsx` exports `RoleFields`
-  (line of business, role type, description, staff picker, dates, hours), `RoleFormValues`,
+  (line of business, role type, description, staff picker, dates, hours, **bill rate**),
+  `RoleFormValues`,
   `ROLE_ISSUE_FIELDS` and `roleDefaultValues(existing, defaultLineOfBusiness)`. **Extracted out of
   `opportunity-plan/role-dialog.tsx`** so the planner dialog and the project page's
   `ProjectRoleDialog` can't drift — the client-side mirror of the server-side shared
   `projectRoleFields`. **`status` is deliberately absent** (system-driven, never a form field).
+  - **`BillRateField` uses the current card rate as its *placeholder*, never as a pre-filled value**
+    — it `useWatch`es `lineOfBusiness` + `roleType` and quotes `billRateFor` (falling back to the
+    plain default before both are picked). That one choice does all the work: an empty field shows
+    exactly what the role will bill at, submitting it blank snapshots that figure server-side, so
+    **"leave it alone" and "reset a role stuck on a superseded price" are the same gesture** — and no
+    dirty-tracking is needed to stop a typed rate being clobbered when the discipline changes.
+    `roleDefaultValues` therefore opens a **new** role blank and an **existing** one at the rate it
+    actually carries (which may be off the current card). The label names the currency
+    (`Bill rate (USD/hr)`) because there is no per-role currency column.
 - **Budget UI** (`src/components/projects/`, [ADR 0053](../decisions/0053-project-budgets-and-margin.md)):
   - **`budget-fields.tsx`** — the form fragment behind **all three** budget editors (deliberately
     the mirror of `role-fields.tsx`): a billing-type picker plus a fee + currency.
@@ -909,12 +1047,17 @@ delivery, allocations, timesheets, and billing.
     Its issue map is
     keyed by `AllKeys<ProjectBudgetInput>` rather than `keyof` — plain `keyof` on a discriminated
     union yields only the discriminant, which would let the map omit the fee fields.
-    - **T&M renders a read-only `StandardRateCard` panel**, not an editable grid: there is nothing
-      to decide, and *showing* the rates is the point — it's what makes "time & materials" a
-      priced choice rather than a blank cheque. Built from `BILL_RATES` (via `isFlatRateCard()` /
-      `standardRateCard()`), so **a rate revision surfaces here without anyone touching the
-      form**, captioned "Company-wide and set in code, not per project — last reviewed
-      {`BILL_RATES_REVIEWED_ON`}".
+    - **Both billing models render the read-only `StandardRateCard` panel** (it was T&M-only before
+      ADR 0066): under a fixed fee the card still seeds every role's rate, and those rates are what
+      the budget panel compares the fee against, so a reader setting a fee needs to see it too.
+      Read-only because there is nothing to decide, and *showing* the rates is the point — it's what
+      makes a billing model a *priced* choice rather than a blank cheque. Built from
+      **`rateCardSummary()`**, so a revision surfaces here without anyone touching the form, and it
+      lists **only exceptions** (a full LoB × discipline grid is 30 near-identical rows) — "New roles
+      are priced at $250/hr, for every discipline and line of business" when the map is empty.
+      Captioned "Company-wide and set in code, not per project — last reviewed
+      {`BILL_RATES_REVIEWED_ON`}. Revising it prices new roles; existing roles keep the rate they
+      were created at."
   - **`budget-dialog.tsx`** (`ProjectBudgetDialog`) — set/edit a budget, wired to
     `updateProjectBudget`. Its own dialog rather than fields bolted onto the planner's
     Edit-project dialog (that one is name + delivery managers and carries a destructive "Remove
@@ -931,9 +1074,24 @@ delivery, allocations, timesheets, and billing.
     **Cost and Margin render only when the server sent a cost basis**; revenue always shows.
     **The Margin figure leads with the money amount, with the percentage as its hint line** — what
     the plan earns is the decision; the rate is how to read it. The T&M revenue hint reads
-    "*N* hrs · standard rate card". Two honesty notices remain: no roles yet, and roles with no comp
+    "*N* hrs at role rates" (it said "standard rate card" before rates moved onto the roles). Two
+    honesty notices remain: no roles yet, and roles with no comp
     on record (cost partial). The **unpriced-role and mixed-currency notices are gone** with the
-    per-project card — one total card in one currency makes both states unrepresentable.
+    per-project card — one card in one currency, and a NOT NULL rate per role, make both states
+    unrepresentable.
+    - **A fixed fee's Revenue hint gained a second line — `HourlyValueLine`:** "$X at role rates ·
+      $Y discount (Z%)", the plan's `hourlyValue` and the delta between it and the fee. This is the
+      only place a fee becomes legible as a commercial *decision* rather than just a number. Three
+      deliberate choices, all from
+      [ADR 0066 §7](../decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md):
+      **uncoloured** (a discount is a negotiation, not a loss; this codebase colours only losses and
+      has no success token, so a premium couldn't be green either — Margin keeps the sole tone on the
+      panel); rendered **outside the `margin.includesCost` branch**, so a viewer without
+      `projects.viewMargin` sees it (it is revenue-side, and it does *not* inherit the cost-side
+      caveats — a plan of entirely open roles has a **complete** hourly value); and **rounded before
+      the sign and the word are picked**, so a delta rendering as "CA$0" reads plainly "at role
+      rates" instead of a signed zero — the `marginAmountTone` rule. `BudgetFigure`'s `hint` is a
+      `ReactNode` now, so a figure can carry more than one line.
   - **`plan-summary-tiles.tsx`** — a pure extraction of the Length/Dates/Confirmed/Tentative/
     Delivery-managers tile row **both** plan surfaces had duplicated.
   - **`use-project-margin.ts`** — the client hook owning the display currency and calling
@@ -971,6 +1129,12 @@ delivery, allocations, timesheets, and billing.
     **other-project commitments** (from `getOpportunityPlan`'s `externalAllocations`) are greyed in
     behind the own block (project name + % + tooltip), mirroring the allocations grid's block style —
     surfacing over-allocation while planning.
+  - **The label cell's second line appends the rate *only when it's off the card*** —
+    `"Engineer · 8h/day · $310/hr"` on the exception, silence on the norm. A rate on every row would
+    be noise, and a fourth line would make every planner in the app taller. Driven by
+    `PlannerRow.offStandardRate`. The **own-block tooltip** (`OwnBlockCell`) states the rate
+    unconditionally, appending "(off standard rate)" when it applies — `RoleMarginLine`'s tooltip is
+    unchanged and still carries hours/breakdown/percentage/cost basis, not the rate.
   - **Per-role money is a third line in the sticky label cell**, driven by one optional
     **`margins`** prop (`{ byRoleId, currency }`) — so "off" (no budget, or no
     `projects.viewMargin`) is a single `undefined` rather than several flags. It carries **no FX
@@ -1004,18 +1168,67 @@ delivery, allocations, timesheets, and billing.
 
 ## Budget & margin
 
-The commercial layer, added by [ADR 0053](../decisions/0053-project-budgets-and-margin.md) — read
-that for the *why* behind each rule below. Math lives in the pure
+The commercial layer, added by [ADR 0053](../decisions/0053-project-budgets-and-margin.md) and
+re-shaped on the pricing side by
+[ADR 0066](../decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md) — read
+both for the *why* behind each rule below. Math lives in the pure
 `src/lib/projects/project-margin.ts`; the schema is in [Key entities](#key-entities).
 
 - **Revenue.** A **fixed fee** is the `projects` total, converted once — and it is **project-level
   only**: per-role `revenue` is `null`, because apportioning one price across roles would invent a
-  number. A **T&M** role's revenue is `hours × BILL_RATES[roleType]` in `BILL_RATE_CURRENCY`, and the
-  project's is the sum over its counted roles. `computeProjectMargin` takes **no rate-card
-  argument** — it imports the one card. Because `BILL_RATES` is **total** over `ProjectRoleType`,
-  **"a role type with no bill rate" is unrepresentable**: there is no partial-revenue state and no
-  `unpricedRoleCount`. The flip side: **revising `BILL_RATES` re-prices every T&M plan
-  retroactively**, since revenue is always computed from the current card.
+  number. A **T&M** role's revenue is `hours × role.billRate` in `BILL_RATE_CURRENCY`, and the
+  project's is the sum over its counted roles. **`computeProjectMargin` reads no rate card at all**
+  now — only `BILL_RATE_CURRENCY`, for conversion: rates arrive on the rows as
+  `MarginRoleInput.billRate`, which is why that type deliberately carries **no `lineOfBusiness`** (the
+  card's second key is none of the math's business). ⚠️ **Putting a `billRateFor` lookup back in there
+  is a bug**, not an optimization — it would silently re-price historical plans. And **ADR 0057's
+  server-side precomputation does not transfer**: its reason is that no individual's
+  compensation-derived cost may reach the browser, whereas a bill rate is commercial (ADR 0053 §7's
+  asymmetry) and `budget-fields.tsx` has always been a `"use client"` importer of the card.
+  - **"A role type with no bill rate" is still unrepresentable** — every role carries a NOT NULL rate,
+    so there is no partial-revenue state and no `unpricedRoleCount` — but the **reason changed**:
+    enforcement moved from a total map to `billRateFor`'s `??`. See the card bullet under
+    [What's built](#whats-built) for what that costs.
+  - **Revising the card no longer re-prices anything.** ADR 0053's consequence ("revising `BILL_RATES`
+    re-prices every T&M plan retroactively, so a past margin can't be reconstructed") is **reversed**:
+    a plan's revenue is reproducible from its own rows, and a price change can't silently move
+    historical figures. What's left is that an **edit** to a role's rate is still retroactive for that
+    role — a snapshot is overwritten, not effective-dated.
+- **A fixed fee has a comparator: `BudgetTotals.hourlyValue`** (+ `hourlyValueDelta` /
+  `hourlyValueDeltaPercent`) — what this plan would bill if the same roles were charged by the hour,
+  so the fee reads as a **discount or premium** rather than a bare number. Non-null **iff**
+  `billingType === "FIXED_FEE"` **and** the fee is set (the percent additionally needs a positive
+  denominator, reusing `marginOf`'s zero rule). Null on T&M, where it would be *identical* to
+  `revenue` and license a UI printing one number twice beside a tautological zero.
+  - **It is built from the roles' own rates, never a live card lookup.** Under snapshots there is no
+    "rate card value" for a plan; a card-derived comparator would move under the reader's feet on every
+    revision — exactly the retroactive behaviour that was removed — and would make the two billing
+    models use *different arithmetic*. As built, the T&M revenue expression and the fixed-fee
+    comparator are literally the same expression, which is what lets the panel claim they're
+    comparable.
+  - **ADR 0053 §5's ban on apportioning stands, unamended:** per-role `revenue` is still `null` on a
+    fixed fee, and a per-role *hourly value* is deliberately absent too — it's one `.reduce()` from
+    the apportionment §5 refused, and "$40k" on a fixed-fee row reads as that role's revenue. But
+    **`RoleMargin.billRate` *is* non-null there** (in the **display** currency, like every other
+    figure — not `BILL_RATE_CURRENCY`): a rate can't be summed into a fee the way an amount can. That
+    line is what keeps the off-standard-rate marker readable on a fixed-fee project.
+- **"Off standard rate" is *derived*, and deliberately conflates two causes.**
+  `isOffStandardRate(role)` compares the stored rate to today's card. There is **no `rateIsCustom`
+  provenance column**, so the marker is true both when someone negotiated a different rate *and* when
+  the card has since moved and the role still carries the old price.
+  - That conflation **is** the design. Snapshotting makes **stale prices** the new failure mode of the
+    whole system, and this is the only instrument that surfaces them: "who typed this" isn't
+    actionable, "this bills differently from the current card" is — you clear the field. Hence the
+    label is always "off standard rate", **never "overridden"**.
+  - It is not the per-value provenance system ADR 0053 §8 built and deleted: it **names its
+    reference** in the tooltip, appears **only on the exception** (and the one case where it lights up
+    every row *is itself the finding*), and is **derived at render** from two values already on
+    screen, so there is nothing to rot. A `rateIsCustom` column would be actively worse — it answers
+    the unactionable question, needs bookkeeping at nine write sites where one omission yields a
+    *lying* column, and duplicates something derivable.
+  - **Deferred, don't build:** to separate stale from deliberate later, the honest instrument is not a
+    boolean but `project_roles.createdAt` (already there) against `BILL_RATES_REVIEWED_ON` —
+    derivable, no migration, and probabilistic, which is why it isn't decided yet.
 - **Hours = `countWorkingDays(start, end) × hoursPerDay`** (reusing the PTO module's Mon–Fri math).
   **Never the planner grids' `weekPercent`/`bucketPercent`:** per
   [ADR 0040](../decisions/0040-allocations-planner-granularity.md) a grid column is a **flat nominal
@@ -1048,9 +1261,24 @@ that for the *why* behind each rule below. Math lives in the pure
   order, collected by an internal `noteConversion(from)` that **no-ops when `from` is already the
   display currency** (so a USD figure shown in USD is never claimed as converted). The UI
   renders that once via `FxRateNote`, beside the currency selector. **There is no mixed-currency
-  case any more** — one card, one `BILL_RATE_CURRENCY`; `mixedRateCurrencies` and
-  `ProjectMargin.mixedCurrencies` are gone. A plan can still need a rate when its fee, the card and
+  case any more** — one card, one `BILL_RATE_CURRENCY` for every snapshotted rate;
+  `mixedRateCurrencies` and
+  `ProjectMargin.mixedCurrencies` are gone. A plan can still need a rate when its fee, the rates and
   someone's compensation aren't all denominated alike.
+  - **A fixed-fee panel now legitimately claims a USD conversion** (it had none before ADR 0066):
+    the comparator applies the roles' USD rates, so a fixed-fee plan displayed in CAD adds `"USD"` to
+    `convertedFrom` and grows an `FxRateNote`. Correct — a USD-derived figure is on screen — and it
+    reversed a shipped test. The conversion is **gated on `billingType != null`** so a no-budget
+    project can't claim a conversion it never displayed.
+  - ⚠️ **The discount percentage is FX-sensitive.** `resolveDisplayCurrency` opens a CAD fee in CAD, so
+    a CAD fee against USD rates means "12% discount" drifts with the exchange rate at **zero commercial
+    change**. Both sides are shown in one currency so the figure is internally consistent, but the
+    *ratio* is rate-dependent — not fixable inside the one-currency-per-panel rule.
+  - **`/projects` risk flags will shift**, since `project-flags.ts` thresholds are unchanged while
+    their inputs moved: a project can flip in or out of "Low margin" purely from an off-card rate.
+    Separately, the list uses list-scoped `nativeCurrencies` rather than `convertedFrom`, so the FX
+    consequence above is **invisible there** and `getProjectsMarginContext.ts` needed no change —
+    noted because it looks like it should have.
   **This is deliberately a per-*panel* fact, not a per-value one** — "this figure was converted" is
   only half the information, and per-figure markers become noise as soon as more than one value is
   converted; what a reader needs is the **rate** and how fresh it is
@@ -1196,7 +1424,7 @@ stored `health` column; writes not author-only).
 A project carries an optional link to its **public Slack delivery channel**, `l-project-<slug>`
 (slug from the project name). Stored as `projects.slackChannelId` / `…Name` behind a
 both-null-or-both-set CHECK plus the named unique index `projects_slack_channel_idx`
-(`drizzle/0024_wide_marten_broadcloak.sql`, no backfill — all-null rows satisfy the check). **The
+(`drizzle/0026_wide_marten_broadcloak.sql`, no backfill — all-null rows satisfy the check). **The
 model, the Slack app setup and the integration's limitations live in [slack.md](./slack.md)**; the
 projects-side facts:
 
@@ -1337,13 +1565,23 @@ left as plain text by design are the **editable timesheet week grid** row labels
     `emphasized` and not `editable`.
   - **Roles — the same editor as a table.** All roles as a table (staffed first, then
     open/unstaffed placeholders shown as "Open role"), columns Staff · Role · Line of business ·
-    Status · Dates · Hrs/day, plus — when `canEdit` — a trailing per-row **pencil** and an **"Add
-    role"** button in the section header (the `DetailSection` `action` slot). Both open
+    Status · Dates · Hrs/day · **Rate**, plus — when `canEdit` — a trailing per-row **pencil** and an
+    **"Add role"** button in the section header (the `DetailSection` `action` slot). Both open
     **`project-role-dialog.tsx`** (`ProjectRoleDialog`), keyed per target so the form remounts with
     fresh defaults. Staffed role names link to `/staff/[id]`.
     - It shares the **`RoleFields`** fragment (`src/components/projects/role-fields.tsx`) with the
       planner's `role-dialog.tsx`, extracted so the two editors can't drift — the client-side
       mirror of the server-side shared `projectRoleFields`.
+    - **The Rate column marks an off-card rate by *contrast, not an ornament*** (`BillRateCell`): a
+      rate matching the card renders **muted**, one that doesn't renders in **full foreground**. No
+      badge (badges mean *status* in this table), no icon, no colour — the roles list would otherwise
+      grow a glyph on the common case, exactly the noise [../ui.md](../ui.md) records deleting the
+      per-figure FX markers over. **The tooltip is on both states** so the fact is discoverable either
+      way, and it *names the card's figure* on the exception. It reads the rate straight off the
+      payload rather than out of `margin`, so it **still shows on a project with no budget set** —
+      where a negotiated rate is arguably most surprising, and where it is invisible in money
+      (the panel says "No budget set"). `formatMoney`'s `minimumFractionDigits: 0` is load-bearing —
+      `style: "currency"` would otherwise render a whole-dollar rate as "$250.00".
     - Its actions are the project-scoped trio, so unlike the planner's dialog it **can adjust a
       `confirmed` role**. Deleting is therefore behind a **`ConfirmDialog`** (the planner's isn't —
       there only tentative drafts are removable), and when the role carries an `opportunityId` the
@@ -1374,8 +1612,15 @@ page** (`getProjectPlan`/`getProjectPto` are server-only; the `(app)` gate is th
 
 - **Cost & margin need `projects.viewMargin`** (a **new** capability —
   `admin`/`manager`/`finance`/`delivery-manager`; **not `sales`, not `user`**). **Revenue — the
-  fixed fee, and the rate card it bills at — is *not* gated**: it's commercial, not personal (and
-  the card is a code constant every client bundle already has). Cost is, because a
+  fixed fee, the rate card, each role's `billRate` and the fixed-fee hourly-value comparator — is
+  *not* gated**: it's commercial, not personal (and the card is a code constant every client bundle
+  already has). Rate **writes** likewise ride the existing `projects.edit`, so
+  [ADR 0066](../decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md)
+  changed **nothing** in `permissions.ts`, `permissions.test.ts` or
+  [permissions.md](./permissions.md) — stated explicitly so a future `/audit-rbac` reader doesn't
+  take the omission for an oversight. One consequence worth knowing rather than discovering:
+  **`sales` can already reach an opportunity's plan via `loadOpportunityPlan` (`crm.edit`) and can
+  therefore set a rate on its roles** — consistent with revenue being open. Cost is gated because a
   role's cost **is an individual's compensation** (their pay ÷ `HOURS_PER_YEAR`), so on a one-role
   project even the aggregate discloses a salary, and the open-role figure is a per-discipline comp
   average — the same bulk exposure `getCompensationSummaryData` gates. It is **deliberately not
@@ -1464,20 +1709,30 @@ matrix, so no single static `metadata.permission` covers both kinds without over
 *and* capability from the same entry, so "checked `crm.edit`, wrote a `projects` column" is
 unrepresentable. **No capability was added and the matrix is untouched** — don't "tidy" it into a
 static permission. See [slack.md](./slack.md) and
-[ADR 0066](../decisions/0066-slack-channel-links-bot-token-denormalized-pairs-and-record-scoped-gate.md).
+[ADR 0067](../decisions/0067-slack-channel-links-bot-token-denormalized-pairs-and-record-scoped-gate.md).
 
 ## Key flows
 
 - **Price an engagement and watch its margin** (built,
-  [ADR 0053](../decisions/0053-project-budgets-and-margin.md)) — a `projects.edit` holder states
+  [ADR 0053](../decisions/0053-project-budgets-and-margin.md) +
+  [ADR 0066](../decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md)) — a
+  `projects.edit` holder states
   how the work bills **at create time** — a fixed fee (amount + currency), or time & materials,
-  which needs **no further input** since it bills at the standard `BILL_RATES` card the dialog shows
-  read-only — or re-prices later via the shared budget dialog
-  (`updateProjectBudget` — the only route for a project that predates budgets). From then on both
+  which needs **no further project-level input** since each role is priced individually; either way
+  the dialog shows the read-only rate card the roles will be priced from — or re-prices later via the
+  shared budget dialog
+  (`updateProjectBudget` — the only route for a project that predates budgets). **Each role then
+  snapshots its rate from the card**, and the role dialog's Bill-rate field (card rate as
+  *placeholder*) is where a negotiated price is typed or a stale one cleared. From then on both
   plan surfaces — the opportunity's Project-plan tab and `/projects/[id]` — show a **Budget & margin
   panel** above the grid and a **per-role margin line inside it**, recomputed from the roles on every
-  staffing change. A viewer **without `projects.viewMargin`** sees the same page with revenue only;
-  the cost numbers are never sent. See [Budget & margin](#budget--margin).
+  staffing change; a **fixed fee** additionally reads as a discount/premium against what those roles
+  would bill hourly. A viewer **without `projects.viewMargin`** sees the same page with revenue only
+  (including the rates and that comparator); the cost numbers are never sent. **The create-project
+  dialog can't set a rate** — it collects no roles, so every role born there snapshots the card and a
+  nonstandard price is a second step in the planner (the `roles` array in `createProjectSchema`
+  carries `billRate` regardless, so a future caller can't silently drop it). See
+  [Budget & margin](#budget--margin).
 - **Record how an engagement is going** (built,
   [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)) — on `/projects/[id]`'s
   **Delivery notes** tab a `projects.edit` holder writes a dated note: what's going on, what's at
@@ -1633,16 +1888,28 @@ static permission. See [slack.md](./slack.md) and
   capacity planning (over/under-allocation, conflicts, forecast vs. actuals) is still
   in the Allocations domain's open questions.
 - ~~**No budget/value, no rates**~~ **Resolved** — a project carries a billing model (+ a fee when
-  fixed), the company bills T&M work at one code-owned per-discipline rate card, and the app computes
+  fixed), the company prices work from a code-owned card keyed **line of business × discipline** that
+  each role **snapshots** into its own `billRate`, and the app computes
   plan revenue/cost/margin
-  ([ADR 0053](../decisions/0053-project-budgets-and-margin.md)). What's still missing there:
-  **no rate history at all** — revising `BILL_RATES` re-prices every T&M plan retroactively, so a
-  past margin can't be reconstructed (dating the card is a deliberate reopening of ADR 0053 §1–2,
-  not a field to add); **plan
-  margin only** (nothing costs the *logged* hours — forecast-vs-actual is unbuilt); the shipped
-  `BILL_RATES` are a **placeholder**; **no per-project pricing** (rejected on purpose — see the ADR
-  before proposing it again); and margin per *person* (as opposed to per role and
-  per project) doesn't exist.
+  ([ADR 0053](../decisions/0053-project-budgets-and-margin.md),
+  [ADR 0066](../decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md)).
+  ~~revising the card re-prices every T&M plan retroactively~~ **resolved by 0066** — a revision prices
+  only future roles and a plan's revenue is reproducible from its own rows. What's still missing there:
+  - **No rate *history*.** A snapshot is **overwritten** on edit, not effective-dated
+    ([ADR 0007](../decisions/0007-staff-employment-effective-dating.md)'s pattern was deliberately not
+    adopted), so an edit is retroactive for that role and a past margin still can't be fully
+    reconstructed.
+  - **Stale prices are the new failure mode**, and the only instrument for them is the *derived*
+    "off standard rate" marker, which can't tell a negotiated rate from a superseded one. Deliberate —
+    and the honest next step is `project_roles.createdAt` vs. `BILL_RATES_REVIEWED_ON`, **not** a
+    `rateIsCustom` column (see [Budget & margin](#budget--margin)).
+  - **The card's exceptions map ships empty and the default is a placeholder**, so nothing yet varies
+    by practice; and because the map is `Partial`, **adding a line of business or a discipline no
+    longer breaks the build** — it silently prices at the default.
+  - **Plan margin only** (nothing costs the *logged* hours — forecast-vs-actual is unbuilt);
+    **no per-project pricing** (still rejected on purpose — see ADR 0053 §1–2 and ADR 0066 before
+    proposing it again); and margin per *person* (as opposed to per role and
+    per project) doesn't exist.
 - **The list's risk flags have no history and still can't be filtered on**
   ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)). Revising a threshold
   re-tags every project retroactively and silently — `PROJECT_FLAGS_REVIEWED_ON` is the only signal

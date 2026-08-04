@@ -12,6 +12,7 @@ import type { IssueTarget } from "@/components/form/apply-server-issues";
 import { EnumSelect } from "@/components/form/enum-select";
 import { FormField } from "@/components/form/form-field";
 import { Input } from "@/components/ui/input";
+import { LINE_OF_BUSINESS_LABELS } from "@/lib/crm/line-of-business";
 import {
   CURRENCY,
   CURRENCY_LABELS,
@@ -19,11 +20,8 @@ import {
   formatMoney,
 } from "@/lib/format/currency";
 import {
-  BILL_RATE_CURRENCY,
-  BILL_RATES,
   BILL_RATES_REVIEWED_ON,
-  isFlatRateCard,
-  standardRateCard,
+  rateCardSummary,
 } from "@/lib/projects/bill-rates";
 import {
   BILLING_TYPE_LABELS,
@@ -37,9 +35,10 @@ import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
  * `RoleFormValues` / `RoleFields` in `role-fields.tsx`, and the client-side twin of
  * `projectBudgetSchema`.
  *
- * Only a fixed fee has fields; time and materials bills at the standard rate card and
- * so has nothing to collect. The fee values persist across a billing-type switch so
- * nothing you typed is lost, and `toBudgetInput` drops them when they don't apply.
+ * Only a fixed fee has fields; time and materials bills each role at that role's own
+ * rate and so has nothing to collect here. The fee values persist across a billing-type
+ * switch so nothing you typed is lost, and `toBudgetInput` drops them when they don't
+ * apply.
  */
 export type BudgetFormValues = {
   billingType: BillingType | "";
@@ -217,52 +216,62 @@ export function BudgetFields<T extends BudgetFormValues>({
         </div>
       ) : null}
 
-      {billingType === "TIME_AND_MATERIALS" ? <StandardRateCard /> : null}
+      {billingType ? <StandardRateCard /> : null}
     </>
   );
 }
 
 /**
- * The rate card a T&M project will bill at, read-only — there is nothing to decide
- * here, and showing the rates is the point: it's what makes "time & materials" a
- * priced choice rather than a blank cheque.
+ * The rate card each new role will be priced from, read-only — there is nothing to
+ * decide here, and showing the rates is the point: it's what makes a billing model a
+ * *priced* choice rather than a blank cheque.
  *
- * Rendered from `BILL_RATES` rather than hardcoded copy, so a rate revision shows up
- * here without anyone remembering to update the form.
+ * Shown for **both** billing models, not just T&M. Under a fixed fee the card is still
+ * what seeds every role's rate, and those rates are what the budget panel compares the
+ * fee against — so a reader setting a fee needs to see it too.
+ *
+ * Rendered from `rateCardSummary()` rather than hardcoded copy, so a revision shows up
+ * here without anyone remembering to update the form — and only *exceptions* are listed,
+ * because a full line-of-business × discipline grid is 30 near-identical rows.
  */
 function StandardRateCard() {
-  const flatRate = isFlatRateCard()
-    ? formatMoney(BILL_RATES.ENGINEER, BILL_RATE_CURRENCY, {
-        maximumFractionDigits: 0,
-      })
-    : null;
+  const { defaultRate, currency, exceptions } = rateCardSummary();
+  const rate = (value: number) =>
+    formatMoney(value, currency, { maximumFractionDigits: 0 });
 
   return (
     <FormField label="Rate card">
       <div className="flex flex-col gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-        {flatRate ? (
+        {exceptions.length === 0 ? (
           <p>
-            Billed hourly at the standard rate card — {flatRate}/hr for every
-            discipline.
+            New roles are priced at {rate(defaultRate)}/hr, for every discipline
+            and line of business.
           </p>
         ) : (
-          <ul className="flex flex-col gap-0.5">
-            {standardRateCard().map((row) => (
-              <li key={row.roleType} className="flex justify-between gap-4">
-                <span>{PROJECT_ROLE_TYPE_LABELS[row.roleType]}</span>
-                <span className="tabular-nums">
-                  {formatMoney(row.hourlyRate, row.currency, {
-                    maximumFractionDigits: 0,
-                  })}
-                  /hr
-                </span>
-              </li>
-            ))}
-          </ul>
+          <>
+            <p>New roles are priced at {rate(defaultRate)}/hr unless listed:</p>
+            <ul className="flex flex-col gap-0.5">
+              {exceptions.map((row) => (
+                <li
+                  key={`${row.lineOfBusiness}-${row.roleType}`}
+                  className="flex justify-between gap-4"
+                >
+                  <span>
+                    {LINE_OF_BUSINESS_LABELS[row.lineOfBusiness]} ·{" "}
+                    {PROJECT_ROLE_TYPE_LABELS[row.roleType]}
+                  </span>
+                  <span className="tabular-nums">
+                    {rate(row.hourlyRate)}/hr
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
         <p className="text-xs text-muted-foreground">
           Company-wide and set in code, not per project — last reviewed{" "}
-          {BILL_RATES_REVIEWED_ON}.
+          {BILL_RATES_REVIEWED_ON}. Revising it prices new roles; existing roles
+          keep the rate they were created at.
         </p>
       </div>
     </FormField>

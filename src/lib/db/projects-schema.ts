@@ -36,8 +36,10 @@ import { currencyEnum, lineOfBusinessEnum, staff } from "./staff-schema";
 // `project_delivery_managers` is a junction to the staff who run the project.
 // `project_roles` are the staffing lines: a person for a date range at N
 // hours/day (the first cut of the proposed Allocation entity).
-// A time-and-materials project has no stored rates: it bills at the company's
-// standard rate card, which lives in code (`@/lib/projects/bill-rates`).
+// Each role carries its own `billRate`, snapshotted from the code-owned rate card
+// (`@/lib/projects/bill-rates`) when it's created and editable thereafter — so a
+// project's revenue is reproducible from its own rows and a card revision prices
+// only future roles (ADR 0066).
 // See docs/data-model.md and docs/domains/projects.md.
 // ---------------------------------------------------------------------------
 
@@ -68,10 +70,9 @@ export const projects = pgTable(
     // The create form requires it going forward.
     billingType: projectBillingTypeEnum(),
     // The total fee, for FIXED_FEE only. A time-and-materials project has no
-    // total and no stored rates — it bills hours at the standard rate card in
-    // `@/lib/projects/bill-rates` — so both of these stay null there, and the
-    // check constraint below makes the mismatched combinations unrepresentable
-    // rather than merely discouraged.
+    // total — it bills each role's hours at that role's own `billRate` — so both
+    // of these stay null there, and the check constraint below makes the
+    // mismatched combinations unrepresentable rather than merely discouraged.
     budgetAmount: numeric({ precision: 12, scale: 2, mode: "number" }),
     budgetCurrency: currencyEnum(),
 
@@ -80,7 +81,7 @@ export const projects = pgTable(
     // mirror of `opportunities.scopingSlackChannelId`. Managed only from this
     // project's own detail page — the opportunity drawer deliberately does not
     // reach across to it, since a project built from several opportunities would
-    // have no unambiguous owner for the control. See docs/decisions/0066.
+    // have no unambiguous owner for the control. See docs/decisions/0067.
     slackChannelId: text(),
     // A display-only SNAPSHOT of the name; see the note on the opportunity pair.
     slackChannelName: text(),
@@ -193,12 +194,34 @@ export const projectRoles = pgTable(
     hoursPerDay: numeric({ precision: 4, scale: 2, mode: "number" })
       .notNull()
       .default(8),
+    // The hourly rate this line bills at, in `BILL_RATE_CURRENCY`. This is a BILL
+    // rate (revenue); a role never carries a cost — cost is derived from the
+    // assignee's compensation and gated behind `projects.viewMargin`, see
+    // `getProjectCostBasis`.
+    //
+    // SNAPSHOTTED from the code-owned card (`billRateFor`) when the role is created,
+    // then editable. Revising the card prices FUTURE roles and deliberately does not
+    // re-price existing ones, so a plan's revenue stays reproducible from its own
+    // rows (ADR 0066, reversing ADR 0053).
+    //
+    // NOT NULL with **no default**, deliberately: a DB default would put the card's
+    // figure in a second home, ignore per-cell exceptions, and silently paper over
+    // any write path that forgot to snapshot. Every insert goes through a role schema,
+    // which fills this via `snapshotBillRate` — so a new insert site that skips the
+    // schema fails loudly instead of inventing a price.
+    //
+    // No sibling currency column: the card has exactly one currency, so the FX story
+    // of ADR 0053 §8 is unchanged (one `noteConversion` call site).
+    billRate: numeric({ precision: 12, scale: 2, mode: "number" }).notNull(),
     createdAt: timestamp().defaultNow().notNull(),
   },
   (t) => [
     index("project_roles_project_idx").on(t.projectId),
     index("project_roles_staff_idx").on(t.staffId),
     index("project_roles_opportunity_idx").on(t.opportunityId),
+    // A free or negative bill rate is never a real price — keep it out of the table
+    // so no import or backfill can plant one.
+    check("project_roles_bill_rate_positive", sql`${t.billRate} > 0`),
   ],
 );
 

@@ -478,6 +478,8 @@ Don't reach for `@base-ui/react/autocomplete` (present in `node_modules` but unv
 - **Three `variant="line"` tabs — roles are editable from two of them** (same dialog):
   - **Timeline** reuses the opportunity planner's `PlannerGrid`, fed `{ scope: "project" }` so **every row is editable and none is emphasised** (the old `currentOpportunityId = ""` sentinel is gone — see [domains/projects.md](./domains/projects.md)). It passes `onEditRole` only when `canEdit` and deliberately passes **neither `onAssignStaff` nor the selection/bulk props** — those actions are opportunity-scoped — so open roles are staffed via the role dialog. It uses a project-specific legend (Confirmed / Tentative / Other project) instead of the "This deal" one; that legend is why `ownBlockClass` keys the indigo emphasis fill off **`emphasized`**, not `editable` (keying it off `editable` here would flatten confirmed and tentative into one colour).
   - **Roles** lists all roles as a table (staffed first, then "Open role" placeholders; staffed names link to `/staff/[id]`): for `canEdit`, an "Add role" `Button` in the `DetailSection` `action` slot (the only "Add role" affordance on the page) plus a trailing-column per-row pencil `IconButton`, both opening `project-role-dialog.tsx` (keyed per target so the form remounts with fresh defaults). That dialog shares `RoleFields` with the planner's `role-dialog.tsx`, and — because it can touch **confirmed** roles — puts Remove behind a `ConfirmDialog` whose copy warns when the role came from an opportunity.
+    - **A `Rate` column marks an off-card rate by *contrast, not an ornament*** (`BillRateCell`, [ADR 0066](./decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md) §6): a rate matching today's card renders **muted**, one that doesn't renders in **full foreground**. No badge (badges mean *status* in this table), no icon, no colour — a glyph on the common case is exactly the noise the deleted per-figure FX markers were. The tooltip is on **both** states so the fact is discoverable either way and *names the card's figure* on the exception, and the cell reads the rate off the payload rather than out of `margin`, so it still renders on a project whose panel says "No budget set". `formatMoney`'s `minimumFractionDigits: 0` is load-bearing (`style: "currency"` would print "$250.00").
+    - `RoleFields`' **Bill rate** input uses the current card rate as its **placeholder**, never a pre-filled value, so an empty field previews what the role will bill at and submitting it blank re-snapshots the card — making "leave it alone" and "reset a stale price" the same gesture, with no dirty-tracking needed when the discipline changes. Existing roles open at the rate they actually carry.
   - **Time off** shows the project's PTO (`getProjectPto`) split Upcoming/Past — the **Type column renders only for `pto.review` reviewers** (`canSeeType`), and non-reviewers get **approved leave only**.
 
   See [domains/projects.md](./domains/projects.md#project-detail-page).
@@ -492,10 +494,16 @@ Project-plan tab) — [ADR 0053](./decisions/0053-project-budgets-and-margin.md)
   `toBudgetInput`) is the fragment behind **all three** budget forms — the deliberate mirror of
   `role-fields.tsx`, and the client twin of `projectBudgetSchema`. **Both billing modes' fields stay
   mounted** so switching type doesn't discard typed input; `toBudgetInput` drops the inactive half at
-  submit. **T&M renders a read-only `StandardRateCard` panel**, not editable rows — the card is
+  submit. **Both billing models render the read-only `StandardRateCard` panel** (T&M-only before
+  [ADR 0066](./decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md) — a
+  fixed fee needs it too, since the card seeds every role's rate and those rates are what the panel
+  compares the fee against), not editable rows — the card is
   company-wide and lives in code ([ADR 0053](./decisions/0053-project-budgets-and-margin.md) §2), so
-  there's nothing to decide and *showing* the rates is the point; it's built from `BILL_RATES` via
-  `isFlatRateCard()`/`standardRateCard()`, so a rate revision surfaces without touching the form.
+  there's nothing to decide and *showing* the rates is the point; it's built from **`rateCardSummary()`**
+  so a revision surfaces without touching the form, and it lists **only exceptions** to
+  `DEFAULT_BILL_RATE` (a full line-of-business × discipline grid would be 30 near-identical rows;
+  today the map is empty, so it reads as one sentence). Its caption now adds that revising the card
+  prices *new* roles while existing ones keep the rate they were created at.
   Its issue map is keyed by `AllKeys<ProjectBudgetInput>`, not `keyof` — plain `keyof` on a
   discriminated union yields only the discriminant and would let the map silently omit
   `budgetAmount`.
@@ -517,8 +525,17 @@ Project-plan tab) — [ADR 0053](./decisions/0053-project-budgets-and-margin.md)
   `billingType: null` project collapses to a one-line "No budget set" strip with a **Set budget**
   button and no currency toggle. **Two** `InlineNotice` honesty banners: no roles yet, and roles with
   no comp on record (cost partial) — the old unpriced-role and mixed-currency notices are **gone**,
-  since one total code-owned card in one currency makes both states unrepresentable
-  ([ADR 0053](./decisions/0053-project-budgets-and-margin.md)).
+  since one code-owned card in one currency (plus a NOT NULL rate per role) makes both states
+  unrepresentable ([ADR 0053](./decisions/0053-project-budgets-and-margin.md)).
+  - **A fixed fee's Revenue hint carries a second line** (`HourlyValueLine`): "$X at role rates ·
+    $Y discount (Z%)" — what the same roles would bill hourly, and the gap. `BudgetFigure`'s `hint`
+    is a `ReactNode` for this. **Uncoloured on purpose**: a discount is a negotiation, not a loss, and
+    this codebase colours only losses (no success token, so a premium couldn't be green either) —
+    Margin keeps the sole tone on the panel. Rendered **outside** the `includesCost` branch, so a
+    viewer without `projects.viewMargin` sees it, and **rounded before the sign and the word are
+    chosen** so a "CA$0" delta reads plainly rather than as a signed zero (the `marginAmountTone`
+    rule). The T&M hint is now "*N* hrs at role rates" (was "standard rate card").
+    See [ADR 0066 §7](./decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md).
 - **`plan-summary-tiles.tsx`** — the Length/Dates/Confirmed/Tentative/Delivery-manager tile row,
   extracted because both plan surfaces had a near-identical copy.
 - **`use-project-margin.ts`** — the client hook owning display currency + `computeProjectMargin`, so
@@ -533,7 +550,13 @@ Project-plan tab) — [ADR 0053](./decisions/0053-project-budgets-and-margin.md)
   `margins` prop (`{ byRoleId, currency }` — **no `rates`**: the grid renders no FX affordance, since
   that caveat is stated once in the panel above it). Like the panel it is **amount-led**
   (`"CA$8,000 margin"`, falling back to cost then revenue), with the percentage, hours and cost basis
-  in the tooltip; a row with nothing true to say renders nothing at all. **Not a new column:**
+  in the tooltip; a row with nothing true to say renders nothing at all.
+  - **The *second* line appends the role's rate only when it's off the current card**
+    (`"Engineer · 8h/day · $310/hr"`), driven by the precomputed `PlannerRow.offStandardRate`: one
+    extra token on the exception, silence on the norm — a rate on every row would be noise and a
+    fourth line would make every planner in the app taller. The **own-block tooltip** states the rate
+    unconditionally, appending "(off standard rate)" when it applies.
+  **Not a new column:**
   `PLANNER_SUB_LABEL_COL`'s `sticky left-56` is hand-twinned to
   `PLANNER_LABEL_COL` and those widths are **shared with the allocations grid**, so a third sticky
   column would shift the week spine on every planner in the app.

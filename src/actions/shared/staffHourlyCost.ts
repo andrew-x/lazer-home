@@ -87,8 +87,10 @@ export async function getStaffHourlyCosts(
  * client's CAD/USD toggle needs no re-read *and* no individual amount ever leaves
  * the server — only a per-discipline mean.
  *
- * ENGINEER/DESIGNER/ARCHITECT/QA average the active staff whose latest employment
- * `role` matches 1:1 (see `STAFF_ROLE_FOR_PROJECT_ROLE_TYPE`). SPECIALIST has no
+ * ENGINEER/DESIGNER/ARCHITECT/QA/DELIVERY average the active staff whose latest
+ * employment `role` matches 1:1 (see `STAFF_ROLE_FOR_PROJECT_ROLE_TYPE`). Note that
+ * DELIVERY salaries were always in the billable pool below (`isBillableRole` counts
+ * them), so giving DELIVERY its own bucket does not change SPECIALIST. SPECIALIST has no
  * counterpart, so it averages every active person in a *billable* discipline —
  * excluding leadership/sales/solutions/operations, whose salaries are overhead and
  * would drag a delivery cost basis. That makes SPECIALIST an approximation by

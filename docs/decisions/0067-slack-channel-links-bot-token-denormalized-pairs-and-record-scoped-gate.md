@@ -1,6 +1,9 @@
-# 0066 — Slack channel links: one workspace bot token, denormalized column pairs, and a record-scoped `authorize` gate
+# 0067 — Slack channel links: one workspace bot token, denormalized column pairs, and a record-scoped `authorize` gate
 
-**Status:** accepted · 2026-08-04 · **§10 amended the same day** — the feature-off row is hidden only
+**Status:** accepted · 2026-08-04 · **renumbered from a duplicate 0066** on 2026-08-04, when 0066 was
+independently taken on `main` by [0066](./0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md)
+(the migration was renumbered `drizzle/0024` → `drizzle/0026` in the same merge, for the same reason)
+· **§10 amended the same day** — the feature-off row is hidden only
 from viewers *without* the managing capability, reversing "hide it from everyone" (an invisible
 feature can't be adopted or debugged by the person who'd connect it) · **extends [ADR 0029](./0029-external-fx-rates-and-currency-normalization.md)**
 (which set the outbound-HTTP pattern with a deliberately *keyless* API and deferred secret
@@ -8,7 +11,7 @@ management) to the **first secret-bearing integration** · `src/lib/slack/` is j
 [ADR 0036](./0036-lib-organized-by-domain-subfolders.md) the same way `format/fx.ts` is · the
 gate is [ADR 0014](./0014-rbac-better-auth-access-control.md)'s `ActionAuthorize` hook, so
 **no capability and no matrix change** (the lockstep rule is not engaged) · the repo's **first
-Next cache tags** · migration `drizzle/0024_wide_marten_broadcloak.sql`
+Next cache tags** · migration `drizzle/0026_wide_marten_broadcloak.sql`
 
 ## Context
 

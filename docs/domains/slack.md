@@ -9,7 +9,7 @@ This is not a fifth business domain; it's a **cross-domain integration** that CR
 own half of. It gets its own doc because neither [crm.md](./crm.md) nor [projects.md](./projects.md)
 owns the shared machinery, which is the same reason `src/lib/slack/` exists at all
 ([ADR 0036](../decisions/0036-lib-organized-by-domain-subfolders.md)). Full rationale:
-[ADR 0066](../decisions/0066-slack-channel-links-bot-token-denormalized-pairs-and-record-scoped-gate.md).
+[ADR 0067](../decisions/0067-slack-channel-links-bot-token-denormalized-pairs-and-record-scoped-gate.md).
 
 ## The two kinds
 
@@ -47,7 +47,7 @@ Consequences, all of them visible to users:
 
 Per-user OAuth is the named upgrade path if this ever becomes intolerable; it was rejected as far too
 much machinery for writing two columns and opening a URL
-([ADR 0066 §1](../decisions/0066-slack-channel-links-bot-token-denormalized-pairs-and-record-scoped-gate.md)).
+([ADR 0067 §1](../decisions/0067-slack-channel-links-bot-token-denormalized-pairs-and-record-scoped-gate.md)).
 
 ## Slack app setup
 
@@ -178,7 +178,7 @@ Two nullable `text` columns per owning table, plus:
   `isUniqueViolation` can key off it;
 - a **`check`** per table (`…_slack_channel_shape`) enforcing **both null or both set**, so a
   half-written link is unrepresentable — the same call as `projects_budget_shape`. All-null rows
-  satisfy it, so `drizzle/0024_wide_marten_broadcloak.sql` **needed no backfill**.
+  satisfy it, so `drizzle/0026_wide_marten_broadcloak.sql` **needed no backfill**.
 
 **No `slack_channel_links` table**, deliberately: both relationships are 1:1, and a polymorphic table
 needs an untyped `recordId` with no FK — losing the cascade that drops the link for free when the deal
@@ -228,7 +228,7 @@ someone holding the capability: **an invisible feature can't be discovered, adop
 the one person whose job it'd be to connect Slack was the one person certain never to learn the slot
 existed. Gating the hide on `canManage` satisfies both concerns. Case 4 is deliberately **inert, not
 disabled-with-a-tooltip** — there's nothing to click, and the fix is an env var, not an in-app
-action. See [ADR 0066 §10](../decisions/0066-slack-channel-links-bot-token-denormalized-pairs-and-record-scoped-gate.md)
+action. See [ADR 0067 §10](../decisions/0067-slack-channel-links-bot-token-denormalized-pairs-and-record-scoped-gate.md)
 (amended).
 
 ## Transport + caching

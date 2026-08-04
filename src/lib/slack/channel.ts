@@ -11,7 +11,7 @@
  * that same name to `conversations.create`. Both call this function, so the
  * preview and the reality cannot drift.
  *
- * See docs/domains/slack.md and docs/decisions/0066.
+ * See docs/domains/slack.md and docs/decisions/0067.
  */
 
 /** The two kinds of channel we link. Each lives on exactly one table. */

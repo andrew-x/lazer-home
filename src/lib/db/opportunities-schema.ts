@@ -72,7 +72,7 @@ export const opportunities = pgTable(
     // need an untyped `recordId` with no FK — losing the cascade that drops the
     // link for free when the deal is deleted. The project channel is the mirror
     // pair on `projects`; each record owns only the channel that lives on it.
-    // See docs/decisions/0066.
+    // See docs/decisions/0067.
     scopingSlackChannelId: text(),
     // The channel name as a SNAPSHOT taken at link time, for display only. It
     // may drift if the channel is renamed in Slack — harmless, because every

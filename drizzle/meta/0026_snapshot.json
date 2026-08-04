@@ -1,6 +1,6 @@
 {
-  "id": "db4576e2-9ae3-4c65-94cb-2090933224d2",
-  "prevId": "f33a6223-531e-4dd2-9f6c-95d0275e8760",
+  "id": "7c87bcd6-22d5-45ed-8990-bd13700e0d02",
+  "prevId": "1bd12da3-3c25-4642-8d69-faa50f628890",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1110,6 +1110,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "scoping_slack_channel_id": {
+          "name": "scoping_slack_channel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scoping_slack_channel_name": {
+          "name": "scoping_slack_channel_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -1161,6 +1173,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "opportunities_scoping_slack_channel_idx": {
+          "name": "opportunities_scoping_slack_channel_idx",
+          "columns": [
+            {
+              "expression": "scoping_slack_channel_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -1194,7 +1221,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "opportunities_scoping_slack_channel_shape": {
+          "name": "opportunities_scoping_slack_channel_shape",
+          "value": "(\"opportunities\".\"scoping_slack_channel_id\" is null and \"opportunities\".\"scoping_slack_channel_name\" is null)\n       or (\"opportunities\".\"scoping_slack_channel_id\" is not null and \"opportunities\".\"scoping_slack_channel_name\" is not null)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.opportunity_contacts": {
@@ -2699,6 +2731,12 @@
           "notNull": true,
           "default": 8
         },
+        "bill_rate": {
+          "name": "bill_rate",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -2798,7 +2836,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "project_roles_bill_rate_positive": {
+          "name": "project_roles_bill_rate_positive",
+          "value": "\"project_roles\".\"bill_rate\" > 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.projects": {
@@ -2843,6 +2886,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "slack_channel_id": {
+          "name": "slack_channel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "slack_channel_name": {
+          "name": "slack_channel_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -2858,7 +2913,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "projects_slack_channel_idx": {
+          "name": "projects_slack_channel_idx",
+          "columns": [
+            {
+              "expression": "slack_channel_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "projects_company_id_companies_id_fk": {
           "name": "projects_company_id_companies_id_fk",
@@ -2881,6 +2952,10 @@
         "projects_budget_shape": {
           "name": "projects_budget_shape",
           "value": "(\"projects\".\"billing_type\" is null and \"projects\".\"budget_amount\" is null and \"projects\".\"budget_currency\" is null)\n       or (\"projects\".\"billing_type\" = 'FIXED_FEE' and \"projects\".\"budget_amount\" is not null and \"projects\".\"budget_currency\" is not null)\n       or (\"projects\".\"billing_type\" = 'TIME_AND_MATERIALS' and \"projects\".\"budget_amount\" is null and \"projects\".\"budget_currency\" is null)"
+        },
+        "projects_slack_channel_shape": {
+          "name": "projects_slack_channel_shape",
+          "value": "(\"projects\".\"slack_channel_id\" is null and \"projects\".\"slack_channel_name\" is null)\n       or (\"projects\".\"slack_channel_id\" is not null and \"projects\".\"slack_channel_name\" is not null)"
         }
       },
       "isRLSEnabled": false

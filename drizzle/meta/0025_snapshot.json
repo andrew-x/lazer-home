@@ -1,6 +1,6 @@
 {
-  "id": "db4576e2-9ae3-4c65-94cb-2090933224d2",
-  "prevId": "f33a6223-531e-4dd2-9f6c-95d0275e8760",
+  "id": "1bd12da3-3c25-4642-8d69-faa50f628890",
+  "prevId": "db4576e2-9ae3-4c65-94cb-2090933224d2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2699,6 +2699,12 @@
           "notNull": true,
           "default": 8
         },
+        "bill_rate": {
+          "name": "bill_rate",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -2798,7 +2804,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "project_roles_bill_rate_positive": {
+          "name": "project_roles_bill_rate_positive",
+          "value": "\"project_roles\".\"bill_rate\" > 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.projects": {

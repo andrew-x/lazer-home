@@ -112,6 +112,7 @@ export async function getProjectPlan(
       startDate: projectRoles.startDate,
       endDate: projectRoles.endDate,
       hoursPerDay: projectRoles.hoursPerDay,
+      billRate: projectRoles.billRate,
     })
     .from(projectRoles)
     .leftJoin(staff, eq(projectRoles.staffId, staff.id))

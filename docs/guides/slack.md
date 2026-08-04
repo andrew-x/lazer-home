@@ -4,7 +4,7 @@ This is the **runbook**: what to click, what to paste, how to check it worked. I
 followed once per workspace by whoever has permission to install a Slack app.
 
 For *why* any of it is shaped this way — the data model, the authorization gate, the caching — see
-[`domains/slack.md`](../domains/slack.md) and [ADR 0066](../decisions/). Those explain the design;
+[`domains/slack.md`](../domains/slack.md) and [ADR 0067](../decisions/). Those explain the design;
 this page just gets it running.
 
 ## What you get
