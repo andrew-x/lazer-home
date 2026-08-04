@@ -36,8 +36,11 @@ export function ProjectNameField({
   }
 
   if (save.editing) {
+    // `w-full` (not `flex-1`) so that in `DetailIdentity`'s wrapping title row the
+    // editor claims the whole line and the status badge wraps beneath it — at the
+    // sidebar's 320px the input, confirm/cancel and the badge don't fit on one row.
     return (
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex w-full min-w-0 flex-col gap-1">
         <div className="flex items-center gap-1">
           <Input
             value={draft}
