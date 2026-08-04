@@ -10,6 +10,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { BILLING_TYPES } from "@/lib/projects/project-billing";
 import {
@@ -75,6 +76,16 @@ export const projects = pgTable(
     budgetAmount: numeric({ precision: 12, scale: 2, mode: "number" }),
     budgetCurrency: currencyEnum(),
 
+    // --- Slack ------------------------------------------------------------
+    // The PUBLIC delivery channel for this project (`l-project-<slug>`), the
+    // mirror of `opportunities.scopingSlackChannelId`. Managed only from this
+    // project's own detail page — the opportunity drawer deliberately does not
+    // reach across to it, since a project built from several opportunities would
+    // have no unambiguous owner for the control. See docs/decisions/0067.
+    slackChannelId: text(),
+    // A display-only SNAPSHOT of the name; see the note on the opportunity pair.
+    slackChannelName: text(),
+
     createdAt: timestamp().defaultNow().notNull(),
     updatedAt: timestamp()
       .defaultNow()
@@ -92,6 +103,16 @@ export const projects = pgTable(
       sql`(${t.billingType} is null and ${t.budgetAmount} is null and ${t.budgetCurrency} is null)
        or (${t.billingType} = 'FIXED_FEE' and ${t.budgetAmount} is not null and ${t.budgetCurrency} is not null)
        or (${t.billingType} = 'TIME_AND_MATERIALS' and ${t.budgetAmount} is null and ${t.budgetCurrency} is null)`,
+    ),
+    // One Slack channel is linked to at most one project — the mirror of
+    // `opportunities_scoping_slack_channel_idx`, and the same NULLs-are-distinct
+    // reasoning applies.
+    uniqueIndex("projects_slack_channel_idx").on(t.slackChannelId),
+    // Both null or both set; a half-written link can't exist.
+    check(
+      "projects_slack_channel_shape",
+      sql`(${t.slackChannelId} is null and ${t.slackChannelName} is null)
+       or (${t.slackChannelId} is not null and ${t.slackChannelName} is not null)`,
     ),
   ],
 );

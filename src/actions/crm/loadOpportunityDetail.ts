@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { isSlackConfigured } from "@/actions/slack/slackApi";
 import { getCurrentStaffIdentity } from "@/actions/staff/getCurrentStaffIdentity";
 import { secureActionClient } from "@/lib/core/action";
 import { id } from "@/lib/schemas/id-schema";
@@ -11,6 +12,12 @@ import { getOpportunity, type OpportunityDetail } from "./getOpportunity";
 export type OpportunityDrawerData = {
   detail: OpportunityDetail | null;
   currentStaff: { id: string; name: string } | null;
+  /**
+   * Whether the Slack integration is configured at all. On the envelope rather
+   * than on `OpportunityDetail`, because it describes the *environment*, not this
+   * opportunity — the same reason `currentStaff` sits here.
+   */
+  slackEnabled: boolean;
 };
 
 /**
@@ -32,5 +39,8 @@ export const loadOpportunityDetail = secureActionClient
       getOpportunity(parsedInput.id),
       getCurrentStaffIdentity(),
     ]);
-    return { detail, currentStaff };
+    // Reads one env var — deliberately NOT a Slack round-trip, so opening the
+    // drawer never waits on Slack. The channel *suggestion*, which does need the
+    // network, is a separate action fired after render.
+    return { detail, currentStaff, slackEnabled: isSlackConfigured() };
   });

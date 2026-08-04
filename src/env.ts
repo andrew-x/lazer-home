@@ -24,6 +24,24 @@ const schema = z.object({
   // Optional: setting both turns on Google sign-in (see src/lib/auth.ts).
   GOOGLE_CLIENT_ID: optionalString,
   GOOGLE_CLIENT_SECRET: optionalString,
+  // Optional: setting this turns on the Slack channel integration (see
+  // src/actions/slack/). A BOT token — refined rather than left as a bare
+  // string so the classic "pasted a user token" mistake fails at boot here
+  // instead of as an opaque `missing_scope` on the first channel create.
+  SLACK_BOT_TOKEN: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z
+      .string()
+      .min(1)
+      .refine(
+        (v) => v.startsWith("xoxb-"),
+        "SLACK_BOT_TOKEN must be a bot token (starts with 'xoxb-')",
+      )
+      .optional(),
+  ),
+  // Optional companion: scopes Slack deep links to one workspace, so someone
+  // signed into several doesn't land in the wrong one. Links work without it.
+  SLACK_TEAM_ID: optionalString,
 });
 
 const parsed = schema.safeParse(process.env);

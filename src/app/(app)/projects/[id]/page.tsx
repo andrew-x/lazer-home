@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { getProjectDeliveryNotes } from "@/actions/projects/getProjectDeliveryNotes";
 import { getProjectPlan } from "@/actions/projects/getProjectPlan";
 import { getProjectPto } from "@/actions/projects/getProjectPto";
+import { isSlackConfigured } from "@/actions/slack/slackApi";
+import { getCurrentStaffIdentity } from "@/actions/staff/getCurrentStaffIdentity";
 import { ProjectDetailView } from "@/components/projects/detail/project-detail-view";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { userHasPermission } from "@/lib/auth/permissions";
@@ -28,11 +30,13 @@ export default async function ProjectDetailPage({
   // folded into it is fetched twice per request just to title the tab — and
   // `ProjectDetailPlan` is shared with the opportunity drawer's planner, which has
   // no notes to show.
-  const [plan, pto, notes, user] = await Promise.all([
+  const [plan, pto, notes, user, currentStaff] = await Promise.all([
     getProjectPlan(id),
     getProjectPto(id),
     getProjectDeliveryNotes(id),
     getCurrentUser(),
+    // Defaults the Slack create dialog's invite list to the viewer.
+    getCurrentStaffIdentity(),
   ]);
 
   if (!plan) notFound();
@@ -44,6 +48,16 @@ export default async function ProjectDetailPage({
     : false;
 
   return (
-    <ProjectDetailView plan={plan} pto={pto} notes={notes} canEdit={canEdit} />
+    <ProjectDetailView
+      plan={plan}
+      pto={pto}
+      notes={notes}
+      canEdit={canEdit}
+      // Reads one env var. The Slack channel already on `plan` renders straight
+      // away; only the *suggestion* costs a round-trip, and that runs client-side
+      // after this page has painted.
+      slackEnabled={isSlackConfigured()}
+      currentStaff={currentStaff}
+    />
   );
 }

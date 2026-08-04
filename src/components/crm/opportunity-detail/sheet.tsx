@@ -18,6 +18,7 @@ import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { COMPACT_META_FIELDS } from "@/components/form/field-density";
 import { IconButton } from "@/components/icon-button";
 import { OpportunityProjectPlan } from "@/components/projects/opportunity-plan/opportunity-project-plan";
+import { SlackChannelField } from "@/components/slack/slack-channel-field";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -86,6 +87,7 @@ export function OpportunityDetailSheet({
   const { execute: load, result, reset } = useAction(loadOpportunityDetail);
   const [detail, setDetail] = useState<OpportunityDetail | null>(null);
   const [currentStaff, setCurrentStaff] = useState<EntityOption | null>(null);
+  const [slackEnabled, setSlackEnabled] = useState(false);
 
   useEffect(() => {
     if (open && opportunityId) {
@@ -100,6 +102,7 @@ export function OpportunityDetailSheet({
     if (result.data) {
       setDetail(result.data.detail);
       setCurrentStaff(result.data.currentStaff);
+      setSlackEnabled(result.data.slackEnabled);
     }
   }, [result.data]);
 
@@ -195,6 +198,7 @@ export function OpportunityDetailSheet({
               detail={detail}
               currentStaff={currentStaff}
               canCreateProject={canCreateProject}
+              slackEnabled={slackEnabled}
               refresh={refresh}
             />
           ) : (
@@ -215,11 +219,13 @@ function OpportunityDetailView({
   detail,
   currentStaff,
   canCreateProject,
+  slackEnabled,
   refresh,
 }: {
   detail: OpportunityDetail;
   currentStaff: EntityOption | null;
   canCreateProject: boolean;
+  slackEnabled: boolean;
   refresh: () => void;
 }) {
   return (
@@ -242,6 +248,25 @@ function OpportunityDetailView({
             <CompanyField detail={detail} refresh={refresh} />
             <ContactsField detail={detail} refresh={refresh} />
             <OwnersField detail={detail} refresh={refresh} />
+            {/* Divided off from the fields above because it's the rail's only
+                *external* fact — a pointer out to Slack, not another attribute of
+                the opportunity. Only the scoping channel lives here; a project's
+                channel is managed on the project's own page. */}
+            <div className="border-t pt-3">
+              <SlackChannelField
+                kind="scoping"
+                recordId={detail.id}
+                sourceName={detail.name}
+                channel={detail.slack}
+                label="Scoping channel"
+                // The drawer only mounts for `crm.edit` users (gated on the
+                // board), which is exactly this kind's gate.
+                canManage
+                enabled={slackEnabled}
+                currentStaff={currentStaff}
+                onChanged={refresh}
+              />
+            </div>
           </div>
 
           <div className="flex flex-col gap-6">

@@ -1,5 +1,6 @@
-import type { InferSelectModel } from "drizzle-orm";
+import { type InferSelectModel, sql } from "drizzle-orm";
 import {
+  check,
   doublePrecision,
   index,
   pgEnum,
@@ -7,6 +8,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import {
   OPPORTUNITY_SOURCES,
@@ -63,6 +65,20 @@ export const opportunities = pgTable(
     // docs/decisions/0019 and 0024.
     projectId: text().references(() => projects.id, { onDelete: "restrict" }),
 
+    // --- Slack ------------------------------------------------------------
+    // The PRIVATE scoping channel for this deal (`l-scoping-<slug>`). Two plain
+    // columns rather than a `slack_channel_links` table: the relationship is 1:1
+    // (one scoping channel per opportunity), and a polymorphic link table would
+    // need an untyped `recordId` with no FK — losing the cascade that drops the
+    // link for free when the deal is deleted. The project channel is the mirror
+    // pair on `projects`; each record owns only the channel that lives on it.
+    // See docs/decisions/0067.
+    scopingSlackChannelId: text(),
+    // The channel name as a SNAPSHOT taken at link time, for display only. It
+    // may drift if the channel is renamed in Slack — harmless, because every
+    // link is built from the id, not the name. Never written back from a read.
+    scopingSlackChannelName: text(),
+
     createdAt: timestamp().defaultNow().notNull(),
     updatedAt: timestamp()
       .defaultNow()
@@ -72,6 +88,21 @@ export const opportunities = pgTable(
   (t) => [
     index("opportunities_status_position_idx").on(t.status, t.position),
     index("opportunities_project_idx").on(t.projectId),
+    // One Slack channel is linked to at most one opportunity. A plain unique
+    // index (not a partial one) is enough: Postgres treats NULLs as distinct, so
+    // the unlinked majority is unconstrained. This is also the concurrency
+    // backstop the link actions catch by name via `isUniqueViolation`.
+    uniqueIndex("opportunities_scoping_slack_channel_idx").on(
+      t.scopingSlackChannelId,
+    ),
+    // Both null or both set, so a half-written link can't exist — the same
+    // shape-as-DB-invariant call as `projects_budget_shape`. All-null rows
+    // satisfy it, so this needed no backfill.
+    check(
+      "opportunities_scoping_slack_channel_shape",
+      sql`(${t.scopingSlackChannelId} is null and ${t.scopingSlackChannelName} is null)
+       or (${t.scopingSlackChannelId} is not null and ${t.scopingSlackChannelName} is not null)`,
+    ),
   ],
 );
 

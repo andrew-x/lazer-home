@@ -4,7 +4,9 @@
 and a **per-project detail page** (`/projects/[id]`, the first single-project route) that is now
 the **delivery-side editor of an engagement** (see [Project detail page](#project-detail-page)
 below) all exist. This is the **hub linking CRM to delivery** and the first concrete cut of the
-proposed **Allocation** concept (`project_roles`).
+proposed **Allocation** concept (`project_roles`). A project also carries an optional link to its
+**public Slack delivery channel** (`l-project-<slug>`), created or linked from that detail page — see
+[Slack channel](#slack-channel) and [slack.md](./slack.md).
 
 **Two editors, one set of rows.** A project's roles are edited from **two** surfaces with
 **deliberately different invariants** ([ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md)):
@@ -581,7 +583,13 @@ delivery, allocations, timesheets, and billing.
     project page isn't a property of the *read* — every role on the project is editable by a
     `projects.edit` holder (the page's `canEdit` flag drives the affordances; the actions carry
     the gate), which the client expresses by passing `{ scope: "project" }` to `buildPlannerRows`.
-    Returns **`null` when the project id is unknown**, so the page `notFound()`s.
+    Returns **`null` when the project id is unknown**, so the page `notFound()`s. It also returns
+    **`slack: SlackChannelRef | null`** — the project's Slack delivery channel — as a **sibling
+    field, deliberately not part of `PlanProject`**: that type is shared with `getOpportunityPlan`,
+    and putting it there would oblige a second read to supply a field the planner grid never
+    renders (the same reasoning that keeps delivery notes out of `ProjectDetailPlan`). Both Slack
+    columns are already on the `projects` row being read, so it costs no extra query and no join.
+    See [Slack channel](#slack-channel).
   - `getProjectPto.ts` — **server-only** read backing the detail page's **Time off** tab.
     Aggregates PTO for **everyone connected to the project** — its staffed role assignees (`project_roles.staffId`)
     ∪ its delivery managers — into `{ upcoming, past, canSeeType }` (`endDate >= today` ⇒ upcoming
@@ -1411,6 +1419,35 @@ stored `health` column; writes not author-only).
   exercise the `createdAt` tie-break. Their `createdAt`s are set explicitly, because `now()` is
   transaction-scoped in Postgres and a bulk insert would otherwise leave that tie-break undefined.
 
+## Slack channel
+
+A project carries an optional link to its **public Slack delivery channel**, `l-project-<slug>`
+(slug from the project name). Stored as `projects.slackChannelId` / `…Name` behind a
+both-null-or-both-set CHECK plus the named unique index `projects_slack_channel_idx`
+(`drizzle/0026_wide_marten_broadcloak.sql`, no backfill — all-null rows satisfy the check). **The
+model, the Slack app setup and the integration's limitations live in [slack.md](./slack.md)**; the
+projects-side facts:
+
+- **Managed only here**, from the detail page's sidebar (`SlackChannelField`, under the delivery
+  managers). Create-or-link in one dialog, unlink behind a confirm; a linked channel renders as a
+  hyperlink out to Slack (there is no in-app join or invite-me action). `canManage` is the page's own
+  **`canEdit`** (`projects.edit`).
+- **The opportunity drawer deliberately does not reach across to it.** Many opportunities can feed
+  one project, so no single deal owns the control — and a sales-only viewer (who holds `crm.edit`
+  but not `projects.edit`) would face a permanently disabled button. A project created from an
+  opportunity also **does not inherit** that deal's scoping channel: private pursuit channel,
+  public delivery channel, different members.
+- **Public, unlike the scoping channel** — so the workspace listing is *complete* for this kind, and
+  search/suggestion actually work end to end here. The disclosure filter passes public channels
+  through untouched, since every employee can already browse them in Slack.
+- **No `onChanged` callback is passed.** This page is a Server Component handing `plan` down as a
+  prop, and the Slack actions call `revalidateProject`, so the server re-renders — the same
+  mechanism as `updateProjectField` (the opportunity drawer, which fetches its own payload, passes
+  its `refresh` instead).
+- **The gate is an `authorize` hook resolving `projects.edit` from the channel `kind`**, not a static
+  `metadata.permission`, because the scoping kind needs the *disjoint* `crm.edit`. **No new
+  capability and no matrix change** — see [Authorization](#authorization).
+
 ## Delete / detach
 
 When a project's link to an opportunity is severed, `detachProjectFromOpportunity` (the shared
@@ -1442,10 +1479,14 @@ See [ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status
 route** — previously the only in-depth single-project surface was the opportunity drawer's
 Project-plan tab (keyed by `opportunityId`). The Server Component `Promise.all`s
 `getProjectPlan(id)` + `getProjectPto(id)` + **`getProjectDeliveryNotes(id)`** +
-**`getCurrentUser()`** (its `generateMetadata` also
+**`getCurrentUser()`** + **`getCurrentStaffIdentity()`** (its `generateMetadata` also
 calls `getProjectPlan` to title the tab), `notFound()`s when the plan is null (unknown id), and
 renders the client `ProjectDetailView` (`src/components/projects/detail/project-detail-view.tsx`)
-with **`canEdit = userHasPermission(user, { projects: ["edit"] })`**.
+with **`canEdit = userHasPermission(user, { projects: ["edit"] })`**. The fifth read exists only to
+default the Slack create dialog's invite list to the viewer; the page also passes
+**`slackEnabled = isSlackConfigured()`**, which is **one env var read, not a Slack round-trip** — the
+stored channel is already on `plan`, and only the *suggestion* costs a network call, which runs
+client-side after paint ([Slack channel](#slack-channel)).
 
 **Delivery notes are a *sibling* read, not part of `ProjectDetailPlan`** — deliberately, for two
 reasons: `generateMetadata` calls the plan read too, so anything folded into it is fetched twice per
@@ -1481,6 +1522,13 @@ left as plain text by design are the **editable timesheet week grid** row labels
     `EntityMultiCombobox` over `searchStaff`, each manager linking to `/staff/[id]`.
   - **Line of business stays read-only** because it is *derived from the roles*, not a field; it
     renders as plain comma-separated text rather than `Badge` chips.
+  - **The Slack channel row sits below the delivery managers** — the sidebar's only *external* fact
+    (a link out, not an attribute of the project). It writes through the Slack actions, not
+    `updateProjectField`. With **no bot token configured** it hides itself **only from viewers who
+    lack `projects.edit`** — a `canEdit` holder gets a muted "Slack isn't connected" instead, because
+    an invisible feature can't be adopted or debugged by the person who'd connect it. An
+    already-stored link renders either way, since the deep link needs no bot. See
+    [Slack channel](#slack-channel).
   - **`use-project-inline-save.ts`** is the sibling of the opportunity drawer's `useInlineSave`,
     with one deliberate difference: it takes **no `refresh` callback**. The drawer fetches its own
     data client-side, whereas this page is a **Server Component passing `plan` down as a prop** —
@@ -1651,6 +1699,18 @@ all** (`permissions.ts`, `permissions.test.ts` and permissions.md's matrix table
 "may correct an engagement's delivery record" has exactly the audience of "may re-date its roles",
 so a `projects.deliveryNotes` row would be a second way to spell `projects.edit`.
 
+**The Slack channel actions are the one project write reached through an `authorize` hook rather
+than a static capability** — and they still require `projects.edit`, no more.
+`authorizeSlackChannel` parses the channel `kind` off the raw input and requires the capability of
+the record being written: `projects.edit` for the project channel, **`crm.edit`** for an
+opportunity's scoping channel. It is a hook precisely because those two are **disjoint** in the
+matrix, so no single static `metadata.permission` covers both kinds without over-granting one role.
+`SLACK_CHANNEL_TARGETS` is what keeps it honest: the hook and every action body read table, columns
+*and* capability from the same entry, so "checked `crm.edit`, wrote a `projects` column" is
+unrepresentable. **No capability was added and the matrix is untouched** — don't "tidy" it into a
+static permission. See [slack.md](./slack.md) and
+[ADR 0067](../decisions/0067-slack-channel-links-bot-token-denormalized-pairs-and-record-scoped-gate.md).
+
 ## Key flows
 
 - **Price an engagement and watch its margin** (built,
@@ -1777,6 +1837,12 @@ so a `projects.deliveryNotes` row would be a second way to spell `projects.edit`
   derived from it as compensation data — see [Authorization](#authorization),
   [staff-profiles.md](./staff-profiles.md) and
   [ADR 0020](../decisions/0020-compensation-effective-dated-import-only.md).
+- **Slack** — a project owns its **public delivery channel** (`slackChannelId`/`Name`); the mirror
+  pair on `opportunities` is the private scoping channel, and **each record manages only its own**
+  (the opportunity drawer never reaches across to this one). Both kinds share one pure module and one
+  `authorize` hook, but no capability — see [Slack channel](#slack-channel) and [slack.md](./slack.md).
+  This is the projects domain's **second external dependency** after FX, and its first
+  secret-bearing one.
 - **Timesheets / billing** — projects are what time is logged against (`time_entries.projectId`);
   **billing is still unbuilt**. The margin above is a *plan* figure costed from allocations, **not**
   from logged hours, so forecast-vs-actual reconciliation remains open.
