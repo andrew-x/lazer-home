@@ -5,12 +5,21 @@
  * this recomputes on every toggle, per ADR 0029.
  *
  * ── What the two billing models can honestly say ────────────────────────────
- * A TIME_AND_MATERIALS project bills each role type by the hour at the company's
- * standard rate card (`@/lib/projects/bill-rates`), so revenue is attributable per
- * role and every row gets a real margin. A FIXED_FEE project has ONE price for the
- * whole engagement: apportioning it across roles would invent a number, so per-role
- * revenue is `null` and the margin percentage exists only at the project level, where
- * it is true. Per-role rows still carry hours and cost.
+ * A TIME_AND_MATERIALS project bills each role by the hour at that role's own
+ * `billRate`, so revenue is attributable per role and every row gets a real margin. A
+ * FIXED_FEE project has ONE price for the whole engagement: apportioning it across
+ * roles would invent a number, so per-role revenue is `null` and the margin percentage
+ * exists only at the project level, where it is true. Per-role rows still carry hours,
+ * cost, and their rate — a rate can't be mistaken for a share of the fee the way an
+ * amount could. What a fixed fee *can* honestly report is
+ * {@link BudgetTotals.hourlyValue}: the same roles priced hourly, so the fee reads as a
+ * discount or a premium against it.
+ *
+ * ── This module never reads the rate card ───────────────────────────────────
+ * Rates arrive on the rows ({@link MarginRoleInput.billRate}), snapshotted when each
+ * role was created (ADR 0066). Only `BILL_RATE_CURRENCY` is imported, for conversion.
+ * Adding a `billRateFor` lookup back in here would silently re-price historical plans —
+ * a bug, not an optimization.
  *
  * ── Conversion provenance ───────────────────────────────────────────────────
  * Every amount below is already in the display currency;
@@ -26,7 +35,7 @@ import {
   type DisplayCurrency,
 } from "@/lib/format/currency";
 import { convert } from "@/lib/format/fx";
-import { BILL_RATE_CURRENCY, BILL_RATES } from "@/lib/projects/bill-rates";
+import { BILL_RATE_CURRENCY } from "@/lib/projects/bill-rates";
 import type { BillingType } from "@/lib/projects/project-billing";
 import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
 import type { ProjectRoleType } from "@/lib/projects/project-role-type";
@@ -60,6 +69,16 @@ export type MarginRoleInput = {
   startDate: string;
   endDate: string;
   hoursPerDay: number;
+  /**
+   * The rate this line bills at, in `BILL_RATE_CURRENCY` — snapshotted from the rate
+   * card when the role was created (ADR 0066).
+   *
+   * Note there is deliberately no `lineOfBusiness` here: because the rate is stored on
+   * the row, this module never resolves the card, so the card's second key is none of
+   * the math's business. Reintroducing a `billRateFor` lookup in here would be a bug —
+   * it would re-price historical plans, which is precisely what snapshotting undid.
+   */
+  billRate: number;
   /** Null for an open (unstaffed) role — the distinction the cost basis turns on. */
   staffId: string | null;
   /** The assignee's native hourly cost; null when open, or when they have no employment row. */
@@ -73,6 +92,14 @@ export type RoleMargin = {
   hours: number;
   /** Null for FIXED_FEE — a single fee isn't attributable to one role. */
   revenue: number | null;
+  /**
+   * The hourly rate applied, **in `displayCurrency`** like every other figure here (not
+   * in `BILL_RATE_CURRENCY` — a reader will assume otherwise). Non-null for every
+   * counted role on a project with a billing type, *including a fixed fee*: a rate can't
+   * be summed into a fee the way an amount can, so unlike `revenue` it stays honest
+   * there. Null for a cancelled role and when no billing model is set.
+   */
+  billRate: number | null;
   cost: number | null;
   costBasis: RoleCostBasis;
   margin: number | null;
@@ -85,6 +112,27 @@ export type BudgetTotals = {
   cost: number | null;
   margin: number | null;
   marginPercent: number | null;
+  /**
+   * What this plan would bill if the same roles were charged by the hour at their own
+   * rates — the FIXED_FEE-only comparator that turns a fee into a legible discount or
+   * premium.
+   *
+   * Deliberately not called a "rate card value": each role carries a *snapshotted*
+   * rate that may differ from today's card, and this figure is the sum of what the
+   * roles actually say, not of what the card currently says. That's the point — a
+   * comparator built from the live card would move under the reader's feet on every
+   * revision, reintroducing the retroactive repricing ADR 0066 removed.
+   *
+   * Null on every other billing model. On TIME_AND_MATERIALS it is *identical* to
+   * `revenue`, so a non-null value would license a UI printing one number twice beside
+   * a tautologically-zero delta; with no billing type there is nothing to compare
+   * against; and null when the fee itself is unset.
+   */
+  hourlyValue: number | null;
+  /** `revenue − hourlyValue`. Negative = a discount to the client, positive = a premium. */
+  hourlyValueDelta: number | null;
+  /** `hourlyValueDelta / hourlyValue`; null when the comparator is 0 (a plan with no roles). */
+  hourlyValueDeltaPercent: number | null;
 };
 
 export type ProjectMargin = {
@@ -247,6 +295,7 @@ export function computeProjectMargin({
         counted: false,
         hours: 0,
         revenue: null,
+        billRate: null,
         cost: null,
         costBasis: includeCost ? "UNKNOWN" : "HIDDEN",
         margin: null,
@@ -255,17 +304,32 @@ export function computeProjectMargin({
     }
 
     const hours = roleBillableHours(role);
-    // The standard rate card covers every role type, so a T&M role always prices.
-    let revenue: number | null = null;
-    if (isTimeAndMaterials) {
+
+    // Every role carries its own rate, so every counted role prices — no role type can
+    // be unpriced. Converted once, here, and reused for both the T&M revenue and the
+    // fixed-fee comparator, so the two billing models are guaranteed to be doing the
+    // same arithmetic rather than merely looking like they are.
+    //
+    // Gated on a billing model existing: a project with no budget has nothing to price
+    // against, and running the conversion anyway would make it claim an FX conversion it
+    // never displayed.
+    let billRate: number | null = null;
+    let hourlyAmount: number | null = null;
+    if (billing.billingType != null) {
       noteConversion(BILL_RATE_CURRENCY);
-      revenue = convert(
-        hours * BILL_RATES[role.roleType],
+      billRate = convert(
+        role.billRate,
         BILL_RATE_CURRENCY,
         displayCurrency,
         usdRates,
       );
+      hourlyAmount = billRate * hours;
     }
+
+    // T&M bills that amount. A fixed fee does not: per ADR 0053 §5 one fee isn't
+    // attributable to a single role, so the row's revenue stays null and the amount
+    // feeds only the project-level comparator.
+    const revenue = isTimeAndMaterials ? hourlyAmount : null;
 
     const { cost, costBasis } = roleCost({
       role,
@@ -282,6 +346,7 @@ export function computeProjectMargin({
       counted: true,
       hours,
       revenue,
+      billRate,
       cost,
       costBasis,
       ...marginOf(revenue, cost),
@@ -290,10 +355,9 @@ export function computeProjectMargin({
 
   const counted = perRole.filter((row) => row.counted);
 
-  // A FIXED_FEE project's revenue is the fee itself, converted once. A T&M
-  // project's is the sum of its priced roles — roles whose role type has no rate
-  // row contribute nothing and are counted separately, so the UI can say the total
-  // is partial rather than presenting it as complete.
+  // A FIXED_FEE project's revenue is the fee itself, converted once. A T&M project's
+  // is the sum of its roles' hourly amounts — and because every role stores a rate,
+  // that sum is always complete (there is no "unpriced role" state to warn about).
   const revenueTotal = ((): number | null => {
     if (billing.billingType === "FIXED_FEE") {
       if (billing.budgetAmount == null || billing.budgetCurrency == null) {
@@ -317,6 +381,37 @@ export function computeProjectMargin({
     ? sumKnown(counted.map((row) => row.cost))
     : null;
 
+  // The fixed-fee comparator. Computed from the rows' own rates, so it reconciles with
+  // how a T&M project of the same roles would bill — and it is revenue-side only, so it
+  // is available regardless of `includeCost`.
+  const comparator = ((): Pick<
+    BudgetTotals,
+    "hourlyValue" | "hourlyValueDelta" | "hourlyValueDeltaPercent"
+  > => {
+    const absent = {
+      hourlyValue: null,
+      hourlyValueDelta: null,
+      hourlyValueDeltaPercent: null,
+    };
+    if (billing.billingType !== "FIXED_FEE" || revenueTotal == null) {
+      return absent;
+    }
+    const hourlyValue = sumKnown(
+      counted.map((row) =>
+        row.billRate == null ? null : row.billRate * row.hours,
+      ),
+    );
+    const hourlyValueDelta = revenueTotal - hourlyValue;
+    return {
+      hourlyValue,
+      hourlyValueDelta,
+      // Same zero-denominator rule as `marginOf`, rather than a second convention:
+      // a plan with no roles reports "—" instead of an infinite discount.
+      hourlyValueDeltaPercent:
+        hourlyValue > 0 ? hourlyValueDelta / hourlyValue : null,
+    };
+  })();
+
   return {
     displayCurrency,
     billingType: billing.billingType,
@@ -328,6 +423,7 @@ export function computeProjectMargin({
       revenue: revenueTotal,
       cost: costTotal,
       ...marginOf(revenueTotal, costTotal),
+      ...comparator,
     },
     countedRoleCount: counted.length,
     openRoleCount: roles.filter(

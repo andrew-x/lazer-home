@@ -78,6 +78,8 @@ export function RoleDialog({
       startDate: values.startDate ?? "",
       endDate: values.endDate ?? "",
       hoursPerDay: values.hoursPerDay,
+      // Blank means "use today's rate card" — the schema's `snapshotBillRate` fills it.
+      billRate: values.billRate,
     };
 
     if (isEdit && existing) {

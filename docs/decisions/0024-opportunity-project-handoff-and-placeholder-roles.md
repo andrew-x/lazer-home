@@ -57,6 +57,10 @@ is **still not enforced** (deferred as in ADR 0019).
   (`ENGINEER`, `DESIGNER`, `ARCHITECT`, `QA`, `SPECIALIST`). This is what identifies an
   open position when there's no person yet. It is **orthogonal to `lineOfBusiness`**:
   role type = what kind of work; line of business = which practice bills it.
+  *(A sixth value, **`DELIVERY`**, was appended by
+  [ADR 0066 §3](./0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md) —
+  `drizzle/0024_brainy_dexter_bennett.sql`. It must stay last in the tuple, matching where
+  `ALTER TYPE … ADD VALUE` put it in the pgEnum's sort order.)*
 - **`name`** (optional text) — a free label, e.g. "Senior Backend Engineer".
 - Line of business, dates, and hours remain **required on every role**, staffed or not.
   *(Later changed by [ADR 0025](./0025-line-of-business-on-opportunity-and-project-not-role.md):

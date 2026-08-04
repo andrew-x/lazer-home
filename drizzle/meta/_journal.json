@@ -169,6 +169,20 @@
       "when": 1785775205428,
       "tag": "0023_panoramic_ben_parker",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1785840496315,
+      "tag": "0024_brainy_dexter_bennett",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1785840596064,
+      "tag": "0025_empty_frank_castle",
+      "breakpoints": true
     }
   ]
 }

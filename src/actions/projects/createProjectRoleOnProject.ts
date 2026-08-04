@@ -46,6 +46,8 @@ export const createProjectRoleOnProject = secureActionClient
       startDate: parsedInput.startDate,
       endDate: parsedInput.endDate,
       hoursPerDay: parsedInput.hoursPerDay,
+      // Snapshotted by `snapshotBillRate` when the form left it blank.
+      billRate: parsedInput.billRate,
     });
 
     revalidateProject(projectId);

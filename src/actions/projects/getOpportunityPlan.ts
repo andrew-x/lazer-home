@@ -39,6 +39,12 @@ export type PlanRole = {
   startDate: string;
   endDate: string;
   hoursPerDay: number;
+  // The rate this line bills at, in `BILL_RATE_CURRENCY`. Snapshotted from the rate
+  // card when the role was created, so it may differ from today's card — which is
+  // what the roles list flags as "off standard rate". Non-nullable: the column is
+  // NOT NULL, and making it required here is the compiler pressure that stops a
+  // plan reader forgetting to select it.
+  billRate: number;
 };
 
 /**
@@ -57,6 +63,9 @@ export type ExternalAllocation = {
   startDate: string;
   endDate: string;
   hoursPerDay: number;
+  // Deliberately NO `billRate`: another project's role is never priced on this
+  // planner — it appears only to show that someone's capacity is already committed.
+  // `billRateFor` would happily accept this shape, so don't add one.
 };
 
 /**
@@ -64,8 +73,8 @@ export type ExternalAllocation = {
  * permanent state for every project created before budgets existed, which the UI
  * renders as "No budget set".
  *
- * There are no rates here: a time-and-materials project bills at the company's
- * standard rate card, which lives in code (`@/lib/projects/bill-rates`).
+ * There are no rates here: a rate is a property of each role (`PlanRole.billRate`),
+ * not of the project's billing model.
  */
 export type PlanBudget = {
   billingType: BillingType | null;
@@ -193,6 +202,7 @@ export async function getOpportunityPlan(
       startDate: projectRoles.startDate,
       endDate: projectRoles.endDate,
       hoursPerDay: projectRoles.hoursPerDay,
+      billRate: projectRoles.billRate,
     })
     .from(projectRoles)
     .leftJoin(staff, eq(projectRoles.staffId, staff.id))

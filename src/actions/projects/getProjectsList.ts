@@ -365,6 +365,7 @@ async function assembleRows(
       roleType: projectRoles.roleType,
       hoursPerDay: projectRoles.hoursPerDay,
       staffId: projectRoles.staffId,
+      billRate: projectRoles.billRate,
     })
     .from(projectRoles)
     .where(inArray(projectRoles.projectId, ids));
@@ -396,6 +397,7 @@ async function assembleRows(
         startDate: row.startDate,
         endDate: row.endDate,
         hoursPerDay: row.hoursPerDay,
+        billRate: row.billRate,
         staffId: row.staffId,
         staffHourlyCost:
           (row.staffId && costBasis.staffHourlyCost[row.staffId]) || null,
