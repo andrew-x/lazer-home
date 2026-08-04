@@ -47,19 +47,20 @@ export function isDeliveryDiscipline(roleType: ProjectRoleType): boolean {
 /**
  * The row tint marking a delivery line in a list of roles. Neutral, never coloured:
  * running the engagement is a *kind* of line, not a status and not a problem, so it
- * gets the same "this row is structurally different" treatment the by-project
- * planner already gives its project header rows — and none of the badge or colour
- * vocabulary those columns already spend on status.
+ * reads as "this row is structurally different" and spends none of the badge or
+ * colour vocabulary those columns already give to status.
+ *
+ * Deeper than the by-project planner's `bg-muted/30` project-header rows on purpose.
+ * Delivery sorts first, so a delivery subrow there always lands directly beneath a
+ * header; at the *same* tint the two would read as one band, so this has to be a
+ * clear step darker rather than a shade of it.
+ *
+ * **Every sticky column in a row has to repeat this.** The planner grids paint
+ * `bg-background` on their sticky lead cells, so a tint set only on the `<tr>` gets
+ * punched through wherever a column is pinned — see `planner-grid.tsx`, which has
+ * two.
  */
-export const DELIVERY_ROW_CLASS = "bg-muted/30";
-
-/**
- * The same mark, one step lighter, for a surface whose *group header* rows already
- * carry {@link DELIVERY_ROW_CLASS} — the by-project allocations planner. Delivery
- * sorts first there, so a delivery subrow always lands directly beneath its project
- * header; at an identical tint the two would read as a single band.
- */
-export const DELIVERY_SUBROW_CLASS = "bg-muted/20";
+export const DELIVERY_ROW_CLASS = "bg-muted/60";
 
 /** Human-readable labels for each role type. */
 export const PROJECT_ROLE_TYPE_LABELS: Record<ProjectRoleType, string> = {

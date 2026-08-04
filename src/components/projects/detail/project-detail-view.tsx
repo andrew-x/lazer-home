@@ -320,7 +320,14 @@ export function ProjectDetailView({
                   <TableRow
                     key={role.id}
                     className={cn(
-                      isDeliveryDiscipline(role.roleType) && DELIVERY_ROW_CLASS,
+                      isDeliveryDiscipline(role.roleType) && [
+                        DELIVERY_ROW_CLASS,
+                        // `TableRow`'s own `hover:bg-muted/50` is *lighter* than the
+                        // tint, so hovering a delivery row would lift the highlight
+                        // rather than deepen it. Override so hover still reads as
+                        // hover. (Same-variant, same-property, so `cn` merges it.)
+                        "hover:bg-muted/70",
+                      ],
                     )}
                   >
                     <TableCell className="font-medium">

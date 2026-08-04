@@ -229,7 +229,11 @@ export function PlannerGrid({
                 <td
                   className={cn(
                     PLANNER_SUB_LABEL_COL,
-                    "sticky left-56 z-10 bg-background px-3 py-2 align-top",
+                    "sticky left-56 z-10 px-3 py-2 align-top",
+                    // The *second* sticky column, and it paints its own background
+                    // too — so the tint has to be repeated here as well or the row
+                    // reads as striped across the Staff column.
+                    row.isDelivery ? DELIVERY_ROW_CLASS : "bg-background",
                   )}
                 >
                   <StaffCell row={row} onAssignStaff={onAssignStaff} />

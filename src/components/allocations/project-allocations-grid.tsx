@@ -44,7 +44,7 @@ import {
   ROLE_STATUS,
 } from "@/lib/projects/project-role-status";
 import {
-  DELIVERY_SUBROW_CLASS,
+  DELIVERY_ROW_CLASS,
   isDeliveryDiscipline,
   PROJECT_ROLE_TYPE_LABELS,
 } from "@/lib/projects/project-role-type";
@@ -202,7 +202,7 @@ export function ProjectAllocationsGrid({
                           key={line.role.id}
                           className={cn(
                             "border-b",
-                            isDelivery && DELIVERY_SUBROW_CLASS,
+                            isDelivery && DELIVERY_ROW_CLASS,
                           )}
                         >
                           <td
@@ -211,9 +211,7 @@ export function ProjectAllocationsGrid({
                               "sticky left-0 z-10 py-2 pr-3 pl-8 align-top",
                               // Sticky, so it paints its own background and has to
                               // repeat the row's tint.
-                              isDelivery
-                                ? DELIVERY_SUBROW_CLASS
-                                : "bg-background",
+                              isDelivery ? DELIVERY_ROW_CLASS : "bg-background",
                             )}
                           >
                             <div className="truncate">
