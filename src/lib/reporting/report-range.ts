@@ -1,11 +1,17 @@
 /**
- * Parsing, presets and defaulting for the utilization report's reporting window.
- * A pure, client-importable module (no `db`, no React): the page reads the window
- * off the URL, the filter bar writes it back, and both agree on what a valid
- * window is.
+ * Parsing, presets and defaulting for a **report's** reporting window. A pure,
+ * client-importable module (no `db`, no React): the page reads the window off the
+ * URL, the filter bar writes it back, and both agree on what a valid window is.
  *
  * The window is in the URL rather than in client state because it bounds the
  * server query — and because a report worth reading is worth linking to.
+ *
+ * Shared by `/reporting/utilization` and `/reporting/finance`. It lives here
+ * rather than under `lib/utilization` because the two reports must agree on what
+ * "this quarter" means: a reader comparing revenue against capacity over the same
+ * period should not have to check whether the two pages round the window the same
+ * way. The one thing they legitimately disagree about is how *wide* a window each
+ * can afford — hence `maxDays` being a parameter rather than a constant.
  */
 
 import {
@@ -14,16 +20,22 @@ import {
   currentDay,
   getMonthStart,
 } from "@/lib/timesheets/timesheet-week";
-import type { UtilizationRange } from "@/lib/utilization/utilization-report";
+
+/** The inclusive reporting window, as wall-clock `"YYYY-MM-DD"` strings. */
+export type ReportRange = { start: string; end: string };
 
 export const RANGE_START_PARAM = "start";
 export const RANGE_END_PARAM = "end";
 
 /**
- * The widest window the report will honour. The read scans day-by-day per person,
- * so an unbounded span pasted into the URL would be an easy way to make the server
- * do a lot of work; anything longer is clamped to this from the start date. Every
- * preset below fits inside it, including a leap year.
+ * The default widest window a report will honour, and the utilization report's
+ * own cap: its read scans day-by-day per person, so an unbounded span pasted into
+ * the URL would be an easy way to make the server do a lot of work. Anything
+ * longer is clamped to this from the start date, and every preset below fits
+ * inside it, including a leap year.
+ *
+ * A report whose read is cheaper may raise it — see `parseReportRange`'s
+ * `maxDays`. Lowering it below a year would break `thisYear`.
  */
 export const MAX_RANGE_DAYS = 366;
 
@@ -116,10 +128,7 @@ function periodEnd(start: string, unit: PeriodUnit): string {
  * simultaneously month-, quarter- and year-to-date; month is what the filter bar
  * highlights in that case, so month is what the arrows should step.
  */
-function periodUnitOf(
-  range: UtilizationRange,
-  today: string,
-): PeriodUnit | null {
+function periodUnitOf(range: ReportRange, today: string): PeriodUnit | null {
   for (const unit of PERIOD_UNITS) {
     const start = periodStart(range.start, unit);
     if (start !== range.start) continue;
@@ -140,7 +149,7 @@ function periodUnitOf(
 export function presetRange(
   preset: RangePreset,
   today: string = currentDay(),
-): UtilizationRange {
+): ReportRange {
   switch (preset) {
     case "thisMonth":
       return { start: getMonthStart(today), end: today };
@@ -164,7 +173,7 @@ export function presetRange(
  * bar shows rather than rounding to the nearest preset.
  */
 export function matchingPreset(
-  range: UtilizationRange,
+  range: ReportRange,
   today: string = currentDay(),
 ): RangePreset | null {
   return (
@@ -191,10 +200,10 @@ export function matchingPreset(
  * own length: an arbitrary 10-day window moves 10 days.
  */
 export function shiftRange(
-  range: UtilizationRange,
+  range: ReportRange,
   direction: 1 | -1,
   today: string = currentDay(),
-): UtilizationRange {
+): ReportRange {
   const unit = periodUnitOf(range, today);
   if (unit == null) {
     const span = dayNumber(range.end) - dayNumber(range.start) + 1;
@@ -216,12 +225,19 @@ export function shiftRange(
  * Resolve the window from raw search params, falling back to the current month to
  * date. Invalid, missing, inverted or over-long inputs all degrade to something
  * sane rather than erroring — a mistyped URL should still render a report.
+ *
+ * `maxDays` caps the span from the start date, defaulting to
+ * {@link MAX_RANGE_DAYS}. A report whose read is a bounded row query rather than a
+ * per-person day scan can afford more (the finance report allows three years); the
+ * cap exists to bound server work, so each report sets it from what its own read
+ * costs rather than inheriting a number chosen for a different query.
  */
-export function parseUtilizationRange(
+export function parseReportRange(
   startParam: string | string[] | undefined,
   endParam: string | string[] | undefined,
   today: string = currentDay(),
-): UtilizationRange {
+  maxDays: number = MAX_RANGE_DAYS,
+): ReportRange {
   const rawStart = firstValue(startParam);
   const rawEnd = firstValue(endParam);
   if (
@@ -236,7 +252,7 @@ export function parseUtilizationRange(
   // An inverted window is a slip, not an intent — read it in the order meant.
   const start = rawStart <= rawEnd ? rawStart : rawEnd;
   const end = rawStart <= rawEnd ? rawEnd : rawStart;
-  const cap = addDays(start, MAX_RANGE_DAYS - 1);
+  const cap = addDays(start, maxDays - 1);
 
   return { start, end: end > cap ? cap : end };
 }
