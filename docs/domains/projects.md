@@ -1417,6 +1417,23 @@ number can now order the list**.
   a true zero only because nobody is staffed, so an unstaffed fixed fee would read as a 100% margin
   and an unstaffed T&M project as exactly 0 — which the flags would then call a **loss**. The table
   says "No roles" (or "No live roles") in words; the detail page says the same thing in a notice.
+- **There is now a third caller of this math, and it reads *revenue only*:**
+  **`getPlanRevenueByProject`** (`src/actions/projects/`), the aggregate behind the home dashboard's
+  funnel value ([ADR 0069](../decisions/0069-home-pipeline-closed-at-and-project-plan-deal-value.md),
+  [crm.md](./crm.md#pipeline-on-the-home-dashboard)). **One** `project_roles` query for many
+  projects (billing arrives from the caller, which already joined `projects`), then
+  `computeProjectMargin` with **`includeCost: false`** and an empty `openRoleCostUsd` — so
+  `staff_employment` is never queried, `getProjectCostBasis` is never called, and nothing on that
+  path is gated, because no compensation-derived figure exists to gate. It applies
+  `countedRoleCount === 0 ⇒ null` **for time and materials only** — an unbuilt T&M plan must not
+  report "no work sold", but a **fixed fee is a contracted total that doesn't depend on staffing**,
+  so an unstaffed fixed-fee project still reports its fee (the common state of a deal at
+  Negotiating). This is where it **parts company with `listMargin`**, whose blanket version of the
+  rule is about *margin*: an unstaffed plan has a true-zero **cost**, so a fixed fee there would
+  read as a triumphant 100% margin. Revenue has no such problem — **don't "align" the two.** Two
+  further standing don'ts: don't reach for
+  `getProjectsMarginContext()` to get its FX table (that one also computes a cost basis), and never
+  add a `billRateFor` lookup there — rates arrive snapshotted on the rows.
 - **Flags are evaluated server-side, always in `MARGIN_FLAG_CURRENCY` (CAD)**, never recomputed on
   the client. The CAD/USD control is a *display* choice; applying the amount floor to the displayed
   figure would make a project gain and lose "Low margin" as the reader toggled — the tag would

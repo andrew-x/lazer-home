@@ -1,12 +1,12 @@
 "use server";
 
 import { and, eq, isNull } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { secureActionClient } from "@/lib/core/action";
 import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { opportunities, projects } from "@/lib/db/schema";
 import { associateOpportunityProjectSchema } from "./associateOpportunityProject.schema";
+import { revalidateOpportunity } from "./revalidate";
 
 /**
  * Associate an opportunity with an **existing** project — the "extend an
@@ -79,6 +79,6 @@ export const associateOpportunityProject = secureActionClient
       throw new UserSafeActionError("This opportunity already has a project.");
     }
 
-    revalidatePath("/opportunities");
+    revalidateOpportunity();
     return { id: opportunityId };
   });

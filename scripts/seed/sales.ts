@@ -5,6 +5,7 @@ import {
   OPPORTUNITY_STATUSES,
   type OpportunityStatus,
 } from "@/lib/crm/opportunity";
+import { isClosedStatus } from "@/lib/crm/opportunity-close";
 import {
   BOARD_COLUMN_CAP,
   CAPPED_BOARD_STATUSES,
@@ -21,6 +22,11 @@ import {
   opportunitySourceStaff,
   type Staff,
 } from "@/lib/db/schema";
+import { parseIsoDate } from "@/lib/format/format";
+import {
+  currentMonthStart,
+  currentWeekStart,
+} from "@/lib/timesheets/timesheet-week";
 import type { SeedDb } from "./client";
 import { faker } from "./faker";
 
@@ -29,6 +35,52 @@ type OwnerInsert = InferInsertModel<typeof opportunityOwners>;
 type ContactLinkInsert = InferInsertModel<typeof opportunityContacts>;
 type SourceContactInsert = InferInsertModel<typeof opportunitySourceContacts>;
 type SourceStaffInsert = InferInsertModel<typeof opportunitySourceStaff>;
+
+/** How many of each closed status land inside this week, and inside this month. */
+const CLOSED_THIS_WEEK = 4;
+const CLOSED_THIS_MONTH = 6;
+
+/**
+ * A closed deal's `closedAt`, spread so the home dashboard's "closed this
+ * week/month" figures are both non-empty but not saturated: the first few land
+ * inside the current week, the next few earlier in the current month, the rest
+ * anywhere in the row's own history. Open statuses get null — which is not
+ * cosmetic, `opportunities_closed_at_shape` rejects anything else.
+ *
+ * Index `0` of each closed status is **forced** onto the Monday the week starts,
+ * because a Monday-start week can begin in the *previous* month: that deal is then
+ * inside "this week" and outside "this month", which is the one case where the two
+ * figures are not nested and the labels have to say so. A random spread would
+ * usually miss it.
+ *
+ * Never before `createdAt` — a deal can't be decided before it existed.
+ */
+function closedAtForSeed(
+  status: OpportunityStatus,
+  index: number,
+  createdAt: Date,
+): Date | null {
+  if (!isClosedStatus(status)) return null;
+
+  const weekStart = parseIsoDate(currentWeekStart());
+  const monthStart = parseIsoDate(currentMonthStart());
+  const now = new Date();
+
+  const at =
+    index === 0
+      ? weekStart
+      : index <= CLOSED_THIS_WEEK
+        ? faker.date.between({ from: weekStart, to: now })
+        : index <= CLOSED_THIS_WEEK + CLOSED_THIS_MONTH
+          ? faker.date.between({
+              from: monthStart,
+              // `monthStart` can post-date `weekStart`; clamp so `from <= to`.
+              to: monthStart < weekStart ? weekStart : now,
+            })
+          : faker.date.between({ from: createdAt, to: now });
+
+  return at < createdAt ? createdAt : at;
+}
 
 /**
  * Seed opportunities spread across EVERY pipeline stage (so the kanban has a card
@@ -65,7 +117,13 @@ export async function seedOpportunities(
       // "most recent" (updatedAt desc) selection is meaningful and the list's
       // "Last updated" column varies. `updatedAt` is never before `createdAt`.
       const createdAt = faker.date.recent({ days: 180 });
-      const updatedAt = faker.date.between({ from: createdAt, to: new Date() });
+      const closedAt = closedAtForSeed(status, i, createdAt);
+      // `updatedAt` sits after the close, so the row reads as "decided, then
+      // last touched" rather than the impossible reverse.
+      const updatedAt = faker.date.between({
+        from: closedAt ?? createdAt,
+        to: new Date(),
+      });
       rows.push({
         id: generateId("opp"),
         name: `${company.name} — ${faker.commerce.productName()}`,
@@ -75,6 +133,7 @@ export async function seedOpportunities(
         lineOfBusiness: faker.helpers.arrayElement(LINE_OF_BUSINESS),
         position: position++,
         createdAt,
+        closedAt,
         updatedAt,
       });
     }

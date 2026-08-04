@@ -48,6 +48,20 @@ export const opportunities = pgTable(
       .references(() => companies.id, { onDelete: "restrict" }),
     source: opportunitySourceEnum().notNull(),
     status: opportunityStatusEnum().notNull(),
+    // The instant this deal was DECIDED. Set on the transition *into*
+    // `closed_won`/`closed_lost`, and back to null when it leaves one.
+    //
+    // Deliberately not a general `statusChangedAt`: `updatedAt` already
+    // approximates "when did anything change", and the question the home
+    // dashboard asks — what did we win this week — can only be answered by a
+    // close-specific instant. Nudging a won card inside its column bumps
+    // `updatedAt` and must not move the deal into a later week.
+    //
+    // Maintained by exactly three writers (`updateOpportunityField` case
+    // `status`, `updateOpportunityPosition`, `createOpportunity`) through
+    // `closedAtFor`; the shape CHECK below is what stops a fourth forgetting.
+    // See docs/decisions/0069.
+    closedAt: timestamp(),
     // The line of business this deal belongs to. A project created from this
     // opportunity defaults to the same line of business. Shared/global enum
     // (see `lineOfBusinessEnum`).
@@ -88,6 +102,11 @@ export const opportunities = pgTable(
   (t) => [
     index("opportunities_status_position_idx").on(t.status, t.position),
     index("opportunities_project_idx").on(t.projectId),
+    // Serves the home dashboard's `status in (...) and closed_at >= :bound` in
+    // leading-column order, over the one region of this table that grows without
+    // bound — the same "closed columns accrue every decided deal forever"
+    // observation behind `CAPPED_BOARD_STATUSES`.
+    index("opportunities_status_closed_at_idx").on(t.status, t.closedAt),
     // One Slack channel is linked to at most one opportunity. A plain unique
     // index (not a partial one) is enough: Postgres treats NULLs as distinct, so
     // the unlinked majority is unconstrained. This is also the concurrency
@@ -102,6 +121,18 @@ export const opportunities = pgTable(
       "opportunities_scoping_slack_channel_shape",
       sql`(${t.scopingSlackChannelId} is null and ${t.scopingSlackChannelName} is null)
        or (${t.scopingSlackChannelId} is not null and ${t.scopingSlackChannelName} is not null)`,
+    ),
+    // `closedAt` is set exactly when the status is terminal — the same
+    // shape-as-DB-invariant call as `projects_budget_shape`, and the reason a
+    // writer that forgets `closedAtFor` fails loudly instead of skewing a figure.
+    // Both sides are total (`status` is notNull, `is not null` never yields NULL),
+    // so the equality has no three-valued-logic hole. The two enum literals are
+    // duplicated into SQL here; `CLOSED_OPPORTUNITY_STATUSES` in
+    // `@/lib/crm/opportunity` is the source of truth, exactly as
+    // `projects_budget_shape` duplicates 'FIXED_FEE'.
+    check(
+      "opportunities_closed_at_shape",
+      sql`(${t.status} in ('closed_won', 'closed_lost')) = (${t.closedAt} is not null)`,
     ),
   ],
 );

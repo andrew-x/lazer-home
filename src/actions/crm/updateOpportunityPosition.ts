@@ -1,13 +1,14 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { assertRowExists } from "@/actions/shared/assertRowExists";
 import { secureActionClient } from "@/lib/core/action";
+import { closedAtFor } from "@/lib/crm/opportunity-close";
 import { db } from "@/lib/db/db";
 import { opportunities } from "@/lib/db/schema";
 import { assertOpportunityTransitionAllowed } from "./assertOpportunityTransitionAllowed";
 import { confirmRolesOnWon } from "./confirmRolesOnWon";
+import { revalidateOpportunity } from "./revalidate";
 import { updateOpportunityPositionSchema } from "./updateOpportunityPosition.schema";
 
 /**
@@ -35,9 +36,14 @@ export const updateOpportunityPosition = secureActionClient
     await db.transaction(async (tx) => {
       // Capture the prior status to detect a genuine move into `closed_won`
       // (a card dragged onto the Won column), so its tentative roles confirm in
-      // the same transaction as the status write.
+      // the same transaction as the status write. `closedAt` comes along so a
+      // reorder *within* the Won column keeps the original close instant — the
+      // precise case that makes `updatedAt` useless for "won this week".
       const beforeRows = await tx
-        .select({ status: opportunities.status })
+        .select({
+          status: opportunities.status,
+          closedAt: opportunities.closedAt,
+        })
         .from(opportunities)
         .where(eq(opportunities.id, parsedInput.id))
         .limit(1);
@@ -46,7 +52,18 @@ export const updateOpportunityPosition = secureActionClient
 
       await tx
         .update(opportunities)
-        .set({ status: parsedInput.status, position: parsedInput.position })
+        .set({
+          status: parsedInput.status,
+          position: parsedInput.position,
+          // Always written, never conditional: `opportunities_closed_at_shape`
+          // requires `closedAt` to agree with the status.
+          closedAt: closedAtFor(
+            before.status,
+            parsedInput.status,
+            new Date(),
+            before.closedAt,
+          ),
+        })
         .where(eq(opportunities.id, parsedInput.id));
 
       await confirmRolesOnWon(
@@ -57,7 +74,7 @@ export const updateOpportunityPosition = secureActionClient
       );
     });
 
-    revalidatePath("/opportunities");
+    revalidateOpportunity();
 
     return { ok: true };
   });
