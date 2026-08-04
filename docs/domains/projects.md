@@ -1276,6 +1276,19 @@ re-shaped on the pricing side by
 both for the *why* behind each rule below. Math lives in the pure
 `src/lib/projects/project-margin.ts`; the schema is in [Key entities](#key-entities).
 
+> **There are now four margin surfaces, and `computeProjectMargin` is the only implementation.**
+> The two plan panels and the `/projects` column ([below](#margin--flags-on-the-list)) are
+> per-project; the fourth is the **portfolio-wide Finance report** at `/reporting/finance`
+> ([finance.md](./finance.md),
+> [ADR 0070](../decisions/0070-finance-report-fee-proration-and-server-side-aggregation.md)). That
+> report **calls this module twice per project** — once on the roles as stored, once on roles clipped
+> to a reporting window with the fee scaled — and **changed nothing in `project-margin.ts`**, which
+> is deliberate: a portfolio report computing its own revenue would eventually disagree with the
+> project it aggregates. **So a change here moves four surfaces.** Two things it now relies on that
+> look incidental: that hours are derived from `startDate`/`endDate` (which is what makes a date clip
+> yield in-window hours, revenue *and* cost), and that `budgetAmount` is converted and reported
+> as-passed (which is what lets a *scaled* fee prorate without any new code path).
+
 - **Revenue.** A **fixed fee** is the `projects` total, converted once — and it is **project-level
   only**: per-role `revenue` is `null`, because apportioning one price across roles would invent a
   number. A **T&M** role's revenue is `hours × role.billRate` in `BILL_RATE_CURRENCY`, and the
@@ -1314,6 +1327,16 @@ both for the *why* behind each rule below. Math lives in the pure
     **`RoleMargin.billRate` *is* non-null there** (in the **display** currency, like every other
     figure — not `BILL_RATE_CURRENCY`): a rate can't be summed into a fee the way an amount can. That
     line is what keeps the off-standard-rate marker readable on a fixed-fee project.
+  - **A fee *is* now attributable to a period — but still never to a role.**
+    [ADR 0070](../decisions/0070-finance-report-fee-proration-and-server-side-aggregation.md) §2
+    **refines** this rule rather than relaxing it: the Finance report prorates a fee by the share of
+    the plan's billable hours landing inside a window, because **time is a basis every role on the
+    plan shares**, whereas splitting a fee across roles asserts that *this* engineer earned *that*
+    slice of a single negotiated price. The property that makes it a recognition schedule rather
+    than an invented number is that **contiguous windows partition the fee exactly**. Nothing in
+    this module implements it — proration arrives as a **scaled `budgetAmount`** — and the boundary
+    stays visible on that report: a per-**discipline** blended rate is `null` for fixed-fee-only
+    hours, for exactly the reason above.
 - **"Off standard rate" is *derived*, and deliberately conflates two causes.**
   `isOffStandardRate(role)` compares the stored rate to today's card. There is **no `rateIsCustom`
   provenance column**, so the marker is true both when someone negotiated a different rate *and* when
@@ -1331,6 +1354,11 @@ both for the *why* behind each rule below. Math lives in the pure
   - **Deferred, don't build:** to separate stale from deliberate later, the honest instrument is not a
     boolean but `project_roles.createdAt` (already there) against `BILL_RATES_REVIEWED_ON` —
     derivable, no migration, and probabilistic, which is why it isn't decided yet.
+  - **It now has a portfolio measure**: the Finance report's `OffStandardExposure` — how many roles,
+    how many **hours**, and what **amount at role rates** (rate × hours) sits off today's card.
+    Deliberately **not** measured in revenue, or the metric becomes a back door to the per-role fee
+    apportionment §5 refuses. It reads ~0% while `DEFAULT_BILL_RATE` is a flat placeholder with no
+    exceptions — the card being uniform, not the measure being broken.
 - **Hours = `countWorkingDays(start, end) × hoursPerDay`** (reusing the PTO module's Mon–Fri math).
   **Never the planner grids' `weekPercent`/`bucketPercent`:** per
   [ADR 0040](../decisions/0040-allocations-planner-granularity.md) a grid column is a **flat nominal
@@ -1394,6 +1422,12 @@ both for the *why* behind each rule below. Math lives in the pure
   needed no conversion at all.
 - **It's a *plan* margin, not an actual** — it costs the allocation, not the logged time.
   `time_entries` are untouched; forecast-vs-actual reconciliation is still unbuilt.
+  **The blocker is structural, not effort:** `time_entries.projectId` points at a **project**, never
+  at a `project_role`, so a logged hour is never attached to the rate it would bill at and **no hour
+  in this system can be priced**. That is why the Finance report has no `Planned | Logged` toggle
+  while `/reporting/utilization` does (hours need no rate), and why invoiced/actual revenue needs a
+  `time_entries → project_role` link before any of it is buildable
+  ([ADR 0070](../decisions/0070-finance-report-fee-proration-and-server-side-aggregation.md) §1).
 
 ### Margin & flags on the list
 
@@ -1892,6 +1926,15 @@ page** (`getProjectPlan`/`getProjectPto` are server-only; the `(app)` gate is th
     per-role cost at all**, only two whole-project figures — see
     [Margin & flags on the list](#margin--flags-on-the-list) and
     [ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md).
+  - **The Finance report obeys it through the same door, and is the strictest of the four** — the
+    whole page is `notFound()`ed on `FINANCE_REPORT_ACCESS = { projects: ["viewMargin"] }` and
+    `getFinanceReport` `requirePermission`s and **throws** rather than masking, because unlike a
+    project page there is no useful remainder once cost and margin are withheld. Cost inputs still
+    come from `getProjectCostBasis` (one decision point, one redundant check accepted on purpose),
+    and **all** aggregation happens server-side because a role's cost ÷ its hours *is* that person's
+    hourly pay. **No capability and no matrix row were added** — see
+    [finance.md](./finance.md#access-control) and
+    [ADR 0070](../decisions/0070-finance-report-fee-proration-and-server-side-aggregation.md) §5–6.
 - **PTO type/pending state needs `pto.review`:** the detail page's Time off tab shows dates + who to
   everyone but masks each leave's **type/pending state** otherwise — and **non-reviewers only get
   approved leave at all** (`getProjectPto` filters pending rows out and nulls those fields in the
@@ -2114,7 +2157,15 @@ static permission. See [slack.md](./slack.md) and
   secret-bearing one.
 - **Timesheets / billing** — projects are what time is logged against (`time_entries.projectId`);
   **billing is still unbuilt**. The margin above is a *plan* figure costed from allocations, **not**
-  from logged hours, so forecast-vs-actual reconciliation remains open.
+  from logged hours, so forecast-vs-actual reconciliation remains open — and **can't be closed
+  without a `time_entries → project_role` link**, since the FK is to the *project*, so no logged
+  hour carries a rate.
+- **Finance (reporting)** — [finance.md](./finance.md) is the **portfolio view of this domain's
+  commercial layer**: `/reporting/finance` aggregates `projects` + `project_roles` over a date
+  window through the very same `computeProjectMargin`, behind the very same `projects.viewMargin`
+  gate, reusing `marginAmountTone` and `FxRateNote`. It adds **no table, no capability and no matrix
+  row** — but it is a *fourth* reader of the margin math, so treat that module as shared
+  infrastructure now.
 
 ## Open questions / not yet built
 

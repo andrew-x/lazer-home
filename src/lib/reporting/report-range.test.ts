@@ -2,11 +2,11 @@ import { describe, expect, test } from "bun:test";
 import {
   MAX_RANGE_DAYS,
   matchingPreset,
-  parseUtilizationRange,
+  parseReportRange,
   presetRange,
   RANGE_PRESETS,
   shiftRange,
-} from "./utilization-range";
+} from "./report-range";
 
 /** A Wednesday in the middle of Q3 2026, so every preset has room either side. */
 const TODAY = "2026-08-05";
@@ -62,7 +62,7 @@ describe("presetRange", () => {
   test("every preset fits inside the scan cap, even on 31 December", () => {
     for (const preset of RANGE_PRESETS) {
       const range = presetRange(preset, "2028-12-31"); // a leap year
-      expect(parseUtilizationRange(range.start, range.end)).toEqual(range);
+      expect(parseReportRange(range.start, range.end)).toEqual(range);
     }
   });
 });
@@ -142,15 +142,15 @@ describe("shiftRange", () => {
     for (const preset of RANGE_PRESETS) {
       for (const direction of [-1, 1] as const) {
         const range = shiftRange(presetRange(preset, TODAY), direction, TODAY);
-        expect(parseUtilizationRange(range.start, range.end)).toEqual(range);
+        expect(parseReportRange(range.start, range.end)).toEqual(range);
       }
     }
   });
 });
 
-describe("parseUtilizationRange", () => {
+describe("parseReportRange", () => {
   test("honours a valid window", () => {
-    expect(parseUtilizationRange("2026-06-01", "2026-06-30")).toEqual({
+    expect(parseReportRange("2026-06-01", "2026-06-30")).toEqual({
       start: "2026-06-01",
       end: "2026-06-30",
     });
@@ -158,35 +158,29 @@ describe("parseUtilizationRange", () => {
 
   test("falls back to the month to date when either end is missing or malformed", () => {
     const fallback = presetRange("thisMonth", TODAY);
-    expect(parseUtilizationRange(undefined, undefined, TODAY)).toEqual(
+    expect(parseReportRange(undefined, undefined, TODAY)).toEqual(fallback);
+    expect(parseReportRange("2026-06-01", undefined, TODAY)).toEqual(fallback);
+    expect(parseReportRange("last tuesday", "2026-06-30", TODAY)).toEqual(
       fallback,
     );
-    expect(parseUtilizationRange("2026-06-01", undefined, TODAY)).toEqual(
-      fallback,
-    );
-    expect(parseUtilizationRange("last tuesday", "2026-06-30", TODAY)).toEqual(
-      fallback,
-    );
-    expect(parseUtilizationRange("2026-06-01", "2026-6-3", TODAY)).toEqual(
-      fallback,
-    );
+    expect(parseReportRange("2026-06-01", "2026-6-3", TODAY)).toEqual(fallback);
   });
 
   test("rejects a well-formed but impossible date", () => {
-    expect(parseUtilizationRange("2026-02-31", "2026-06-30", TODAY)).toEqual(
+    expect(parseReportRange("2026-02-31", "2026-06-30", TODAY)).toEqual(
       presetRange("thisMonth", TODAY),
     );
   });
 
   test("reads an inverted window in the order it was meant", () => {
-    expect(parseUtilizationRange("2026-06-30", "2026-06-01")).toEqual({
+    expect(parseReportRange("2026-06-30", "2026-06-01")).toEqual({
       start: "2026-06-01",
       end: "2026-06-30",
     });
   });
 
   test("clamps an over-long window rather than scanning it", () => {
-    const range = parseUtilizationRange("2026-01-01", "2030-01-01");
+    const range = parseReportRange("2026-01-01", "2030-01-01");
     expect(range.start).toBe("2026-01-01");
     // 366 inclusive days from 1 Jan 2026 — a 365-day year — reaches 1 Jan 2027.
     expect(range.end).toBe("2027-01-01");
@@ -194,8 +188,20 @@ describe("parseUtilizationRange", () => {
 
   test("takes the first value when a param repeats", () => {
     expect(
-      parseUtilizationRange(["2026-06-01", "2026-07-01"], "2026-06-30"),
+      parseReportRange(["2026-06-01", "2026-07-01"], "2026-06-30"),
     ).toEqual({ start: "2026-06-01", end: "2026-06-30" });
+  });
+
+  // A report whose read is cheaper than the per-person day scan raises the cap
+  // (the finance report allows three years). Both the raised cap and the default
+  // are asserted together, because the bug worth catching is a `maxDays` argument
+  // that is accepted and then ignored — which would look identical to the default.
+  test("honours a caller-supplied maxDays, and still defaults without one", () => {
+    const wide = parseReportRange("2026-01-01", "2030-01-01", TODAY, 1096);
+    expect(wide.end).toBe("2028-12-31");
+    expect(parseReportRange("2026-01-01", "2030-01-01", TODAY).end).toBe(
+      "2027-01-01",
+    );
   });
 
   test("MAX_RANGE_DAYS covers a full leap year", () => {

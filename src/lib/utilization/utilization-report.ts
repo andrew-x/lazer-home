@@ -61,6 +61,7 @@ import {
   LINE_OF_BUSINESS,
   type LineOfBusiness,
 } from "@/lib/crm/line-of-business";
+import type { ReportRange } from "@/lib/reporting/report-range";
 import { countWorkingDays } from "@/lib/staff/pto-working-days";
 import type { EmploymentType, Role } from "@/lib/staff/staff-enums";
 import type { TimesheetCategory } from "@/lib/timesheets/timesheet-category";
@@ -92,8 +93,15 @@ export const DEVIATION_FLOOR_HOURS = HOURS_PER_DAY;
 // Inputs — the shape `getUtilizationReport` projects into
 // ---------------------------------------------------------------------------
 
-/** The inclusive reporting window, as wall-clock `"YYYY-MM-DD"` strings. */
-export type UtilizationRange = { start: string; end: string };
+/**
+ * The inclusive reporting window, as wall-clock `"YYYY-MM-DD"` strings.
+ *
+ * An alias for the shared {@link ReportRange} rather than a second declaration:
+ * the window is parsed by `report-range.ts`, which the finance report shares, so
+ * two structurally-identical types would drift into two ideas of a window. Kept
+ * under this name because it reads better at the ~30 call sites in this module.
+ */
+export type UtilizationRange = ReportRange;
 
 /** One person, with their employment facts resolved as of the range end. */
 export type UtilizationStaff = {

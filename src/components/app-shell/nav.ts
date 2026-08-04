@@ -14,6 +14,7 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import type { PermissionCheck } from "@/lib/auth/permissions";
+import { FINANCE_REPORT_ACCESS } from "@/lib/finance/finance-report";
 import { COMPENSATION_PLAN_ACCESS } from "@/lib/performance/compensation-plan";
 import { PROFILE_COMPLETENESS_ACCESS } from "@/lib/staff/profile-completeness";
 import { BONUS_PAYMENT_WRITE_ACCESS } from "@/lib/staff/staff-bonus";
@@ -72,6 +73,14 @@ export const NAV_ITEMS: NavItem[] = [
       // Capacity, staffing and logged time — open to every signed-in user; the
       // one sensitive series (other people's timesheets) is withheld in the read.
       { title: "Utilization", href: "/reporting/utilization" },
+      // Portfolio revenue, margin and blended rates. Takes `projects.viewMargin`
+      // — the same capability that shows cost on a single project's page, since
+      // this re-aggregates that disclosure rather than adding a new kind of fact.
+      {
+        title: "Finance",
+        href: "/reporting/finance",
+        permission: FINANCE_REPORT_ACCESS,
+      },
       // Headcount & compensation reporting.
       {
         title: "Compensation",

@@ -125,8 +125,12 @@ derived from individual compensation.
   computed from anyone's pay.
 
 - **`projects.viewMargin`** — see a project's **cost and margin**: the budget summary panel
-  and per-role figures on the opportunity's Project-plan tab and the project detail page, **and
-  the margin figure + margin-derived risk badges on the `/projects` list**. A
+  and per-role figures on the opportunity's Project-plan tab and the project detail page, **the
+  margin figure + margin-derived risk badges (and the margin *sort order*) on the `/projects`
+  list**, and — since [ADR 0070](../decisions/0070-finance-report-fee-proration-and-server-side-aggregation.md)
+  — **the whole `/reporting/finance` page**, via `FINANCE_REPORT_ACCESS` below. That is now
+  **four surfaces on one capability**, and the finance one is portfolio-wide, so widening this row
+  widens a lot. A
   **read** capability, deliberately separate from `projects.edit`, because a role's cost *is*
   an individual's compensation — a staffed role costs that person's pay ÷ 2080, so on a
   one-role project even the aggregate discloses their salary, and the open-role figure is a
@@ -145,7 +149,13 @@ derived from individual compensation.
   delivery judgement, not compensation-derived —
   [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)). The list also sends **no
   per-role cost at all** — only two whole-project figures per row
-  ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)).
+  ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)). **The Finance report is
+  the fourth door and the strictest:** `getFinanceReport` `requirePermission`s the same capability and
+  **throws** (the route `notFound()`s above it), and **every aggregate is computed server-side** —
+  precisely because a role's cost divided by its hours *is* that person's hourly pay, so shipping a
+  filterable per-role projection would put the whole portfolio's pay rates in the page HTML
+  ([finance.md](./finance.md#access-control),
+  [ADR 0070](../decisions/0070-finance-report-fee-proration-and-server-side-aggregation.md)).
   **!! It also gates *ordering*, not just figures**
   ([ADR 0061](../decisions/0061-projects-list-as-a-sortable-table.md) §5): a margin-ranked list
   discloses which engagements are most and least profitable, and that ranking is compensation-derived
@@ -324,10 +334,29 @@ The composite gates above are two of these; the single-capability ones are:
 - **`BONUS_PAYMENT_READ_ACCESS = { staff: ["viewCompensation"] }`** — the bonus
   dashboard, the read half of the bonus pair (its write half is the composite
   `BONUS_PAYMENT_WRITE_ACCESS`; see [performance.md](./performance.md)).
+- **`FINANCE_REPORT_ACCESS = { projects: ["viewMargin"] }`**
+  (`src/lib/finance/finance-report.ts`) — the **Finance report** (`/reporting/finance`, see
+  [finance.md](./finance.md#access-control)). Holders: {`finance`, `delivery-manager`, `manager`,
+  `admin`}. It reuses `projects.viewMargin` because those roles **already** read a project's cost and
+  margin on its detail page and the margin column on `/projects`; this **re-aggregates the same
+  compensation-derived disclosure across the portfolio** rather than exposing a new *kind* of fact.
+  Three details make that sound rather than merely convenient:
+  - **The gate is enforced in three places off one constant** — the route (`notFound()`, so it can't
+    be probed), the nav item, and the read — and the read **throws** rather than masking, unlike
+    `getProjectCostBasis`: with cost and margin withheld there is no useful remainder, so a masked
+    variant would be a different report, not a degraded one.
+  - **Cost inputs still route through `getProjectCostBasis`**, which re-derives the same decision.
+    The redundant check is accepted deliberately: inlining its `staff_employment` projection would be
+    the beginning of a second answer to "may this viewer see cost".
+  - **Revenue alone wouldn't need the gate** (it is commercial, not personal — the standing
+    asymmetry under `projects.viewMargin` above). It is gated anyway because the page's point is
+    revenue **and** margin side by side, and splitting the surface in two to dodge one capability
+    check would double the number of places a portfolio total is computed.
 
 **No matrix change, so ADR 0014's lockstep rule isn't engaged** — but the *audience*
 claim is only as good as the matrix row it points at. If you change a role's
-`staff.edit`, you change who sees profile completeness.
+`staff.edit`, you change who sees profile completeness; change `projects.viewMargin`
+and you change who sees the whole portfolio's revenue and margin, not just one project's.
 
 ### The one relationship-based gate — review notes (`staff.managerId` as an authorization input)
 
