@@ -18,6 +18,8 @@ import {
   SidebarSection,
   TableEmpty,
 } from "@/components/crm/detail-parts";
+import { DriveFilesPanel } from "@/components/drive/drive-files-panel";
+import { DriveFolderField } from "@/components/drive/drive-folder-field";
 import { EmptyCell } from "@/components/empty-cell";
 import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { IconButton } from "@/components/icon-button";
@@ -93,6 +95,7 @@ export function ProjectDetailView({
   notes,
   canEdit,
   slackEnabled,
+  driveEnabled,
   currentStaff,
 }: {
   plan: ProjectDetailPlan;
@@ -101,6 +104,8 @@ export function ProjectDetailView({
   canEdit: boolean;
   /** False when no Slack bot token is configured — the row hides itself. */
   slackEnabled: boolean;
+  /** False when the Drive integration isn't configured. */
+  driveEnabled: boolean;
   /** Defaults the Slack create dialog's invite list to the viewer. */
   currentStaff: EntityOption | null;
 }) {
@@ -243,6 +248,18 @@ export function ProjectDetailView({
               enabled={slackEnabled}
               currentStaff={currentStaff}
             />
+            {/* The project's delivery folder in the Lazer Home shared drive. Its
+                contents live in the Files tab; this row is only about which
+                folder is linked. No `onChanged` for the same reason as Slack. */}
+            <DriveFolderField
+              kind="project"
+              recordId={project.id}
+              sourceName={project.name}
+              folder={plan.drive}
+              label="Drive folder"
+              canManage={canEdit}
+              enabled={driveEnabled}
+            />
           </SidebarSection>
         </>
       }
@@ -291,6 +308,7 @@ export function ProjectDetailView({
           {/* The two structural tabs first, then the narrative, then the ancillary
               time-off view. */}
           <TabsTrigger value="notes">Delivery notes</TabsTrigger>
+          <TabsTrigger value="files">Files</TabsTrigger>
           <TabsTrigger value="pto">Time off</TabsTrigger>
         </TabsList>
 
@@ -401,6 +419,18 @@ export function ProjectDetailView({
               projectId={project.id}
               notes={notes}
               canEdit={canEdit}
+            />
+          </DetailSection>
+        </TabsContent>
+
+        {/* Loads its own contents when opened, so the page's reads stay as they
+            were and nobody pays for Drive unless they look. */}
+        <TabsContent value="files">
+          <DetailSection title="Files">
+            <DriveFilesPanel
+              folder={plan.drive}
+              canManage={canEdit}
+              enabled={driveEnabled}
             />
           </DetailSection>
         </TabsContent>

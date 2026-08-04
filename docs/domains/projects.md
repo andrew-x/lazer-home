@@ -6,7 +6,10 @@ the **delivery-side editor of an engagement** (see [Project detail page](#projec
 below) all exist. This is the **hub linking CRM to delivery** and the first concrete cut of the
 proposed **Allocation** concept (`project_roles`). A project also carries an optional link to its
 **public Slack delivery channel** (`l-project-<slug>`), created or linked from that detail page — see
-[Slack channel](#slack-channel) and [slack.md](./slack.md).
+[Slack channel](#slack-channel) and [slack.md](./slack.md) — and, since
+[ADR 0069](../decisions/0069-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md), an
+optional **Google Drive folder** (`Lazer Home/Projects/<name>`) plus a **Files** tab that browses it and
+adds files to it — see [Drive folder](#drive-folder--the-files-tab) and [drive.md](./drive.md).
 
 **Two editors, one set of rows.** A project's roles are edited from **two** surfaces with
 **deliberately different invariants** ([ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md)):
@@ -659,7 +662,8 @@ timesheets, and billing.
     and putting it there would oblige a second read to supply a field the planner grid never
     renders (the same reasoning that keeps delivery notes out of `ProjectDetailPlan`). Both Slack
     columns are already on the `projects` row being read, so it costs no extra query and no join.
-    See [Slack channel](#slack-channel).
+    See [Slack channel](#slack-channel). **`drive: DriveFolderRef | null` sits beside it**, on the
+    same terms and for the same reasons — see [Drive folder](#drive-folder--the-files-tab).
   - `getProjectPto.ts` — **server-only** read backing the detail page's **Time off** tab.
     Aggregates PTO for **everyone connected to the project** — its staffed role assignees
     (`project_roles.staffId`), **delivery managers included, since they hold `DELIVERY` roles like
@@ -1658,8 +1662,8 @@ projects-side facts:
   opportunity also **does not inherit** that deal's scoping channel: private pursuit channel,
   public delivery channel, different members.
 - **Public, unlike the scoping channel** — so the workspace listing is *complete* for this kind, and
-  search/suggestion actually work end to end here. The disclosure filter passes public channels
-  through untouched, since every employee can already browse them in Slack.
+  search/suggestion actually work end to end here. (There is no naming-convention filter on the
+  picker; public channels were never at issue, since every employee can already browse them in Slack.)
 - **No `onChanged` callback is passed.** This page is a Server Component handing `plan` down as a
   prop, and the Slack actions call `revalidateProject`, so the server re-renders — the same
   mechanism as `updateProjectField` (the opportunity drawer, which fetches its own payload, passes
@@ -1667,6 +1671,36 @@ projects-side facts:
 - **The gate is an `authorize` hook resolving `projects.edit` from the channel `kind`**, not a static
   `metadata.permission`, because the scoping kind needs the *disjoint* `crm.edit`. **No new
   capability and no matrix change** — see [Authorization](#authorization).
+
+## Drive folder + the Files tab
+
+A project also carries an optional link to its **Google Drive delivery folder** at
+`Lazer Home/Projects/<project name>`, stored as `projects.driveFolderId` / `…Name` behind a
+both-null-or-both-set CHECK plus the named unique index `projects_drive_folder_idx`
+(`drizzle/0028_tense_jocasta.sql`, no backfill). **The model, the setup and the privacy invariant that
+shapes it live in [drive.md](./drive.md)** — read that first. The projects-side facts, most of which
+are the Slack section above with the names changed:
+
+- **Two surfaces.** `DriveFolderField` in the sidebar (below the Slack row — the sidebar's second
+  *external* fact, not an attribute of the project) owns create / link / unlink, with `canManage` =
+  the page's own **`canEdit`**. A **"Files" tab** sits between *Delivery notes* and *Time off* and
+  holds `DriveFilesPanel` inside a `DetailSection`.
+- **The page gained no new read.** `getProjectPlan` returns `drive: DriveFolderRef | null` as a
+  **sibling of `project`** (exactly like `slack`, and for the same reason — `PlanProject` is shared
+  with `getOpportunityPlan`), both columns already being on the row. `/projects/[id]` additionally
+  passes **`driveEnabled = isDriveConfigured()`**, which is an env read, not a Drive round-trip; the
+  **Files tab lazy-loads its own contents when opened**, so nobody pays for Drive unless they look.
+- **No `onChanged` callback**, same as Slack: this is a Server Component handing `plan` down, and the
+  Drive link actions call `revalidateProject`.
+- **The gate is the same `authorize` hook shape** (`authorizeDriveFolder` → `projects.edit` from the
+  folder `kind`), **no new capability and no matrix change**. But note the asymmetry with Slack:
+  **browsing the folder and adding files carry no capability at all** — they run on the viewer's own
+  Google token, so Google enforces shared-drive membership. On this page `canEdit` still governs the
+  *link* controls and the empty-state copy, not the browsing.
+- **A project created from an opportunity does not inherit that deal's sales folder** — many
+  opportunities, one project, no unambiguous owner (the same call as the scoping channel).
+- **Unlink leaves Drive alone.** The folder and every file in it survive; only our two columns are
+  cleared, which is what the confirm copy promises.
 
 ## Delete / detach
 
@@ -1706,7 +1740,10 @@ with **`canEdit = userHasPermission(user, { projects: ["edit"] })`**. The fifth 
 default the Slack create dialog's invite list to the viewer; the page also passes
 **`slackEnabled = isSlackConfigured()`**, which is **one env var read, not a Slack round-trip** — the
 stored channel is already on `plan`, and only the *suggestion* costs a network call, which runs
-client-side after paint ([Slack channel](#slack-channel)).
+client-side after paint ([Slack channel](#slack-channel)). **`driveEnabled = isDriveConfigured()`** is
+the same deal: also just env vars, because the stored folder rides `plan` and the **Files tab loads its
+own contents client-side when opened** ([Drive folder](#drive-folder--the-files-tab)). So the page's
+read count is unchanged by the Drive work.
 
 **Delivery notes are a *sibling* read, not part of `ProjectDetailPlan`** — deliberately, for two
 reasons: `generateMetadata` calls the plan read too, so anything folded into it is fetched twice per
@@ -1760,6 +1797,11 @@ left as plain text by design are the **editable timesheet week grid** row labels
     an invisible feature can't be adopted or debugged by the person who'd connect it. An
     already-stored link renders either way, since the deep link needs no bot. See
     [Slack channel](#slack-channel).
+  - **The Drive folder row sits directly below it** — the sidebar's *other* external fact, with the
+    identical five-case behaviour (including the muted "Google Drive isn't connected" for a `canEdit`
+    holder when the env vars are unset, and an already-stored link rendering regardless). Its
+    *contents* live in the **Files** tab, not the rail. See
+    [Drive folder](#drive-folder--the-files-tab).
   - **`use-project-inline-save.ts`** is the sibling of the opportunity drawer's `useInlineSave`,
     with one deliberate difference: it takes **no `refresh` callback**. The drawer fetches its own
     data client-side, whereas this page is a **Server Component passing `plan` down as a prop** —
@@ -1781,8 +1823,10 @@ left as plain text by design are the **editable timesheet week grid** row labels
   Timeline grid's `margins` prop. See [Budget & margin](#budget--margin). **Then, still above the
   tabs, the `DeliveryCoverageNotice`** — see
   [Delivery managers & coverage](#delivery-managers--coverage).
-- **Four tabs** (Timeline · Roles · **Delivery notes** · Time off — the two structural views first,
-  then the narrative, then the ancillary one). **Roles are editable from *two* of them** — the
+- **Five tabs** (Timeline · Roles · **Delivery notes** · **Files** · Time off — the two structural views
+  first, then the narrative, then the external artefacts, then the ancillary one; **Files** loads its
+  own contents on open, see [Drive folder](#drive-folder--the-files-tab)). **Roles are editable from
+  *two* of them** — the
   Timeline Gantt and the Roles table
   both open the same `ProjectRoleDialog`, so there is no "read-only view + edit view" split here:
   - **Timeline — an *editable* reuse of the opportunity planner's `PlannerGrid`**
@@ -1944,8 +1988,9 @@ all** (`permissions.ts`, `permissions.test.ts` and permissions.md's matrix table
 "may correct an engagement's delivery record" has exactly the audience of "may re-date its roles",
 so a `projects.deliveryNotes` row would be a second way to spell `projects.edit`.
 
-**The Slack channel actions are the one project write reached through an `authorize` hook rather
-than a static capability** — and they still require `projects.edit`, no more.
+**Two families of project write are reached through an `authorize` hook rather than a static
+capability — the Slack channel actions and the Drive folder actions** — and both still require
+`projects.edit`, no more.
 `authorizeSlackChannel` parses the channel `kind` off the raw input and requires the capability of
 the record being written: `projects.edit` for the project channel, **`crm.edit`** for an
 opportunity's scoping channel. It is a hook precisely because those two are **disjoint** in the
@@ -1955,6 +2000,17 @@ matrix, so no single static `metadata.permission` covers both kinds without over
 unrepresentable. **No capability was added and the matrix is untouched** — don't "tidy" it into a
 static permission. See [slack.md](./slack.md) and
 [ADR 0067](../decisions/0067-slack-channel-links-bot-token-denormalized-pairs-and-record-scoped-gate.md).
+
+**`authorizeDriveFolder` + `DRIVE_FOLDER_TARGETS` are the same construction, line for line**, for
+`createDriveFolder`/`linkDriveFolder`/`unlinkDriveFolder` — again **no capability and no matrix
+change**. The one thing that differs, and it's worth knowing before auditing it: Drive's
+**`loadDriveFolderContents` / `searchDriveFolders` / `copyDriveFile` / `getDrivePickerToken` carry no
+capability at all**, deliberately. They run on the **viewer's own Google token** and `driveList`
+hardcodes the shared drive, so Google enforces membership and they can only surface what that person
+could already see in Drive's UI; a gate would be theatre. `getDrivePickerToken` takes `z.object({})` and
+returns `ctx.user`'s token only — **a `userId` parameter there would be a vulnerability, not a
+feature.** See [drive.md](./drive.md) and
+[ADR 0069](../decisions/0069-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md) §7.
 
 ## Key flows
 
@@ -2095,6 +2151,11 @@ static permission. See [slack.md](./slack.md) and
   `authorize` hook, but no capability — see [Slack channel](#slack-channel) and [slack.md](./slack.md).
   This is the projects domain's **second external dependency** after FX, and its first
   secret-bearing one.
+- **Google Drive** — a project owns its **delivery folder** (`driveFolderId`/`Name`); the mirror pair on
+  `opportunities` is the sales folder, with the same one-record-one-slot rule, the same hook and again
+  no capability. The projects domain's **third** external dependency, and the first one whose calls run
+  as the **signed-in user** rather than on a shared credential — which is also why it caches nothing.
+  See [Drive folder](#drive-folder--the-files-tab) and [drive.md](./drive.md).
 - **Timesheets / billing** — projects are what time is logged against (`time_entries.projectId`);
   **billing is still unbuilt**. The margin above is a *plan* figure costed from allocations, **not**
   from logged hours, so forecast-vs-actual reconciliation remains open.

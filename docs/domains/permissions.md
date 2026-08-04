@@ -682,6 +682,33 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
   question set has moved on — an *integrity* rule, not authorization, enforced again inside
   `updateSelfEvaluation` by re-reading the version from the DB. See *A capability with a
   full owner path* above.
+- **`src/actions/slack/authorizeSlackChannel.ts`** and **`src/actions/drive/authorizeDriveFolder.ts`** —
+  the two **record-scoped kind** gates, and the only hooks here that resolve *which capability to
+  require* from the input rather than resolving ownership. Each parses a `kind` off the raw
+  `clientInput` and requires the capability of the record being written: `crm.edit` for an
+  opportunity's channel/folder, `projects.edit` for a project's. **They are hooks precisely because
+  those two capabilities are disjoint in the matrix** — `sales` holds only the first,
+  `delivery-manager` only the second — so no single static `metadata.permission` covers both kinds
+  without locking out one audience or over-granting the other. Three properties to preserve:
+  - **An unparseable `kind` is denied, not skipped.** A hook that returns early when it can't read its
+    own discriminant leaves the body running ungated.
+  - **`SLACK_CHANNEL_TARGETS` / `DRIVE_FOLDER_TARGETS` are the single source** for kind → table,
+    columns, capability *and* revalidation, read by the hook **and** every action body — so "checked
+    `crm.edit`, wrote a `projects` column" is unrepresentable. Don't add a second source for any of
+    those four facts.
+  - **Neither added a capability**, so the matrix below is untouched by both integrations and ADR
+    0014's lockstep rule was never engaged. A `slack.manage`/`drive.manage` capability would be a
+    third spelling of "may edit this record".
+
+  **Drive's read/copy actions carry no capability at all, and that is correct.**
+  `loadDriveFolderContents`, `searchDriveFolders`, `copyDriveFile` and `getDrivePickerToken` are
+  auth-only: they run on **the viewer's own Google OAuth token**, and `driveList` hardcodes the
+  shared drive, so Google enforces shared-drive membership and they can only surface or write what
+  that person could already do in Drive's own UI. **`getDrivePickerToken` takes `z.object({})` — no
+  input — and returns `ctx.user`'s token only; a `userId` parameter there would hand one person a
+  token for another person's entire Drive. Treat any such change as a vulnerability, not a
+  refactor.** See [drive.md](./drive.md) and
+  [ADR 0069](../decisions/0069-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md) §7.
 - **`src/actions/staff/loadStaffProfileDrawer.ts`** — an **interactive read** (a
   `"use server"` + `secureActionClient` read, the documented exception to the
   server-only read rule, same shape as `loadOpportunityDetail`) and **the single best
@@ -752,6 +779,13 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
 ## Wiring
 
 - `src/lib/auth/auth.ts`: `admin({ ac, roles, adminRoles: ["admin"], defaultRole: "user" })`.
+  - **The same file now also carries the Google **Drive** grant** — `scope: [DRIVE_SCOPE]`,
+    `accessType: "offline"`, `prompt: "select_account consent"`, and `account: { encryptOAuthTokens: true }`.
+    **No role or capability is involved**, but it changes the sensitivity of the `account` table: it holds
+    encrypted refresh tokens granting standing full-Drive access per employee, keyed on
+    `BETTER_AUTH_SECRET`. Read tokens only via `auth.api.getAccessToken` (a Drizzle read returns
+    ciphertext and skips the refresh), and never log one. See
+    [ADR 0069 §2](../decisions/0069-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md).
 - `src/lib/auth/auth-client.ts`: `adminClient({ ac, roles })` — so the client API
   (`authClient.admin.hasPermission` / `checkRolePermission`) stays in sync with the
   server. Note: server-side gating uses the pure helpers above, not the client API.

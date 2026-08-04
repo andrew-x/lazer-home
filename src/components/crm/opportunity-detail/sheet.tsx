@@ -14,6 +14,8 @@ import { deleteOpportunity } from "@/actions/crm/deleteOpportunity";
 import type { OpportunityDetail } from "@/actions/crm/getOpportunity";
 import { loadOpportunityDetail } from "@/actions/crm/loadOpportunityDetail";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { DriveFilesPanel } from "@/components/drive/drive-files-panel";
+import { DriveFolderField } from "@/components/drive/drive-folder-field";
 import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { COMPACT_META_FIELDS } from "@/components/form/field-density";
 import { IconButton } from "@/components/icon-button";
@@ -88,6 +90,7 @@ export function OpportunityDetailSheet({
   const [detail, setDetail] = useState<OpportunityDetail | null>(null);
   const [currentStaff, setCurrentStaff] = useState<EntityOption | null>(null);
   const [slackEnabled, setSlackEnabled] = useState(false);
+  const [driveEnabled, setDriveEnabled] = useState(false);
 
   useEffect(() => {
     if (open && opportunityId) {
@@ -103,6 +106,7 @@ export function OpportunityDetailSheet({
       setDetail(result.data.detail);
       setCurrentStaff(result.data.currentStaff);
       setSlackEnabled(result.data.slackEnabled);
+      setDriveEnabled(result.data.driveEnabled);
     }
   }, [result.data]);
 
@@ -199,6 +203,7 @@ export function OpportunityDetailSheet({
               currentStaff={currentStaff}
               canCreateProject={canCreateProject}
               slackEnabled={slackEnabled}
+              driveEnabled={driveEnabled}
               refresh={refresh}
             />
           ) : (
@@ -220,12 +225,14 @@ function OpportunityDetailView({
   currentStaff,
   canCreateProject,
   slackEnabled,
+  driveEnabled,
   refresh,
 }: {
   detail: OpportunityDetail;
   currentStaff: EntityOption | null;
   canCreateProject: boolean;
   slackEnabled: boolean;
+  driveEnabled: boolean;
   refresh: () => void;
 }) {
   return (
@@ -234,6 +241,7 @@ function OpportunityDetailView({
         <TabsList variant="line">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="project-plan">Project plan</TabsTrigger>
+          <TabsTrigger value="files">Files</TabsTrigger>
         </TabsList>
 
         {/* Info as a left meta column, tasks/notes filling the right. Stacks
@@ -264,6 +272,20 @@ function OpportunityDetailView({
                 canManage
                 enabled={slackEnabled}
                 currentStaff={currentStaff}
+                onChanged={refresh}
+              />
+              {/* The deal's sales folder — the rail's other pointer out. Its
+                  contents live in the Files tab. */}
+              <DriveFolderField
+                kind="sales"
+                recordId={detail.id}
+                sourceName={detail.name}
+                folder={detail.drive}
+                label="Sales folder"
+                // Same reasoning as the Slack row above: the drawer only mounts
+                // for `crm.edit` users, which is exactly this kind's gate.
+                canManage
+                enabled={driveEnabled}
                 onChanged={refresh}
               />
             </div>
@@ -312,6 +334,16 @@ function OpportunityDetailView({
             canManage={canCreateProject}
             // Refresh the drawer's own detail so the status guard sees the link.
             onProjectLinked={refresh}
+          />
+        </TabsContent>
+
+        {/* Loads its own contents when opened, so opening the drawer never waits
+            on Drive. */}
+        <TabsContent value="files" className="pt-4">
+          <DriveFilesPanel
+            folder={detail.drive}
+            canManage
+            enabled={driveEnabled}
           />
         </TabsContent>
       </Tabs>

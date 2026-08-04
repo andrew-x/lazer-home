@@ -31,6 +31,7 @@ inside the product — guides are for whoever operates the app, not whoever uses
 | Guide | Covers |
 | --- | --- |
 | [slack.md](./slack.md) | Setting up the Slack channel integration — app manifest and scopes, the bot token, the `/invite` requirement for existing private channels, verification walkthrough, troubleshooting keyed on the real error strings, and the `test-` prefix outside production |
+| [google-drive.md](./google-drive.md) | Setting up the Google Drive folder integration — enabling the Drive + **Picker** APIs, why the consent screen must stay **Internal** (that's what permits the restricted `drive` scope with no Google verification), the Picker API key and project number, the shared drive id, **"everyone signs out and back in once" as a required step** (adding the scope grants nothing retroactively), a verification walkthrough, troubleshooting keyed on the real error strings, and pointing dev at a **separate** shared drive instead of a `test-` prefix |
 
 ## Writing one
 

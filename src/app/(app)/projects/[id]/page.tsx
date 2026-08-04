@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { isDriveConfigured } from "@/actions/drive/driveApi";
 import { getProjectDeliveryNotes } from "@/actions/projects/getProjectDeliveryNotes";
 import { getProjectPlan } from "@/actions/projects/getProjectPlan";
 import { getProjectPto } from "@/actions/projects/getProjectPto";
@@ -57,6 +58,9 @@ export default async function ProjectDetailPage({
       // away; only the *suggestion* costs a round-trip, and that runs client-side
       // after this page has painted.
       slackEnabled={isSlackConfigured()}
+      // Also just env vars. The Files tab's own contents are loaded client-side
+      // when the tab is opened, so this page gains no Drive round-trip.
+      driveEnabled={isDriveConfigured()}
       currentStaff={currentStaff}
     />
   );

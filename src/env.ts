@@ -42,6 +42,21 @@ const schema = z.object({
   // Optional companion: scopes Slack deep links to one workspace, so someone
   // signed into several doesn't land in the wrong one. Links work without it.
   SLACK_TEAM_ID: optionalString,
+  // Optional: setting ALL THREE turns on the Google Drive folder integration
+  // (see src/actions/drive/). All three together, deliberately — browsing needs
+  // only the drive id, but the Picker needs its own two, and a half-configured
+  // install where files list but nothing can be added is worse than an off
+  // feature. `isDriveConfigured()` is the single check.
+  //
+  // The id of the "Lazer Home" SHARED DRIVE — the root every folder lives under
+  // and, via `driveList`, the hard boundary on what the app can ever enumerate.
+  GOOGLE_DRIVE_ROOT_ID: optionalString,
+  // Picker credentials. Both are NEXT_PUBLIC because the Picker runs in the
+  // browser: neither is a secret (the API key should be restricted to the
+  // Picker API in the Cloud console, and the app id is just the project
+  // number). Read from `process.env` directly in client code, not from here.
+  NEXT_PUBLIC_GOOGLE_PICKER_API_KEY: optionalString,
+  NEXT_PUBLIC_GOOGLE_PICKER_APP_ID: optionalString,
 });
 
 const parsed = schema.safeParse(process.env);
