@@ -47,7 +47,7 @@ scripts/
     sales.ts           # opportunities (all stages) + owner/contact/source junctions
     projects.ts        # projects (some opportunity-linked) + project_roles (incl. the DELIVERY
                        #   roles that name who runs each engagement — the delivery-managers
-                       #   junction this spec assumed was dropped by ADR 0069)
+                       #   junction this spec assumed was dropped by ADR 0068)
     timesheets.ts      # timesheets (draft+submitted) + time_entries (XOR project/category)
     performance.ts     # feedback
 ```
@@ -87,7 +87,7 @@ scripts/
 - **Projects**: ~15, valid `companyId`; a few linked 1:1 to `closed_won`
   opportunities (respecting the partial-unique constraint); `project_roles` including some
   open (null `staffId`) placeholders **and 1–2 `DELIVERY` roles per project** (the
-  delivery-manager junction this spec named is gone — ADR 0069; see
+  delivery-manager junction this spec named is gone — ADR 0068; see
   [development.md](../../development.md) for the four coverage shapes).
 - **Timesheets**: several recent ISO-Monday weeks per a subset of staff, mix of
   `draft` and `submitted` (`submittedAt` set only when submitted), `time_entries`

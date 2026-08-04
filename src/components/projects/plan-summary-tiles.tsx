@@ -33,7 +33,7 @@ import {
  * has one to show — the latest delivery-note health.
  *
  * There was a "Delivery managers" tile here. It went when a delivery manager became
- * an ordinary `DELIVERY` role (ADR 0069): the tile restated a row now visible in the
+ * an ordinary `DELIVERY` role (ADR 0068): the tile restated a row now visible in the
  * planner grid immediately below, and the detail page had already suppressed it in
  * favour of its sidebar field. What replaced it is a *derived* signal the tiles could
  * never have carried — `DeliveryCoverageNotice`, which fires only when the plan has a

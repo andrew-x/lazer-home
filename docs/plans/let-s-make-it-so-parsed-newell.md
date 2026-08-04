@@ -390,7 +390,7 @@ and the write-path deletions. It owns `docs/data-model.md` (L30, 32, 36, 66, 99,
 the Risk column's flag set; `getDeliveryManagerOptions`), and the ADR lineage refs in
 0017/0024/0033/0045/0053/0059/0066.
 
-**New ADR `docs/decisions/0069-delivery-managers-as-project-roles-and-coverage-gaps.md`** (0066 is
+**New ADR `docs/decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md`** (0066 is
 the high-water mark): the junction → role collapse; the symmetric non-cancelled predicate and why
 it follows neither the utilization report's confirmed-only nor the capacity meter's
 confirmed+tentative; the weekday-gap definition with no threshold and open seats counting as gaps;

@@ -87,7 +87,7 @@ export const PROJECT_ROLE_TYPE_LABELS: Record<ProjectRoleType, string> = {
  * like every other line — so a project's delivery managers are derived from its
  * roles rather than stored. There used to be a `project_delivery_managers` junction
  * alongside this; it carried no dates, so it could never say who ran an engagement
- * *in March*. See `@/lib/projects/delivery-coverage` (ADR 0069).
+ * *in March*. See `@/lib/projects/delivery-coverage` (ADR 0068).
  */
 export const STAFF_ROLE_FOR_PROJECT_ROLE_TYPE: Record<
   ProjectRoleType,

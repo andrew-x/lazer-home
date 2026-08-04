@@ -3,6 +3,7 @@ import {
   LINE_OF_BUSINESS,
   type LineOfBusiness,
 } from "@/lib/crm/line-of-business";
+import type { OpportunityStatus } from "@/lib/crm/opportunity";
 import { generateId } from "@/lib/db/ids";
 import {
   type Company,
@@ -45,7 +46,7 @@ const STAFFING_ROLE_TYPES = PROJECT_ROLE_TYPES.filter(
  * lines: a delivery role is an ordinary `project_roles` row now, so its hours feed
  * plan revenue, the planner's capacity meter and the utilization report — and a
  * full-time delivery manager on three engagements would read as 300% allocated
- * (ADR 0069).
+ * (ADR 0068).
  */
 const DELIVERY_HOURS_PER_DAY = [1, 2];
 
@@ -187,6 +188,8 @@ export async function seedProjects(
     }
   }
 
+  await linkOpenDealsToProjects(db, opportunities, projectRows);
+
   const roles: RoleInsert[] = [];
   for (const { project, opp, finished, cancelled, upcoming } of entries) {
     // 2–4 staffing lines; some left open (null staffId) as unfilled positions.
@@ -291,6 +294,71 @@ export async function seedProjects(
   await db.insert(projectRoles).values(roles);
 
   return db.query.projects.findMany();
+}
+
+/**
+ * The open statuses that get a linked project, and how many of each. Two deals are
+ * pointed at the SAME project on purpose (see below).
+ */
+const OPEN_DEAL_PROJECT_LINKS: { status: OpportunityStatus; count: number }[] =
+  [
+    { status: "scoping", count: 2 },
+    { status: "allocating_awaiting_profiles", count: 1 },
+    { status: "allocating_introing_profiles", count: 1 },
+    { status: "negotiating", count: 2 },
+    { status: "closing_awaiting_contracts", count: 1 },
+    { status: "closing_redlining", count: 1 },
+    { status: "closing_awaiting_signatures", count: 1 },
+  ];
+
+/**
+ * Link a handful of *open* mid/bottom-funnel deals to existing projects. Three
+ * reasons, all of them things the seed otherwise gets wrong:
+ *
+ * 1. **Legality.** `requiresProject` (ADR 0024) says a deal at Allocating or later
+ *    must have a project. Only closed-won deals were being linked, so every seeded
+ *    allocating/negotiating/closing deal was in a state the app forbids.
+ * 2. **The home dashboard's funnel value.** Mid- and bottom-of-funnel plan value is
+ *    read from the linked project's plan, so without these links every value figure
+ *    on `/` read as 100% unpriced locally.
+ * 3. **The per-project dedupe.** Two deals are deliberately pointed at the *same*
+ *    project (`negotiating` reuses `scoping`'s), because several opportunities
+ *    sharing one project is the case the band totals must count once — visible in
+ *    the running app, not only in a unit test.
+ *
+ * Projects are reused rather than created, so this changes no project's own shape,
+ * and only deals that aren't already linked are touched.
+ */
+async function linkOpenDealsToProjects(
+  db: SeedDb,
+  opportunities: Opportunity[],
+  projectRows: ProjectInsert[],
+): Promise<void> {
+  if (projectRows.length === 0) return;
+
+  let projectCursor = 0;
+  let sharedProjectId: string | null = null;
+
+  for (const { status, count } of OPEN_DEAL_PROJECT_LINKS) {
+    const candidates = opportunities
+      .filter((o) => o.status === status && !o.projectId)
+      .slice(0, count);
+
+    for (const opp of candidates) {
+      // `negotiating` reuses the project a `scoping` deal already points at, so
+      // the shared-project case exists. Everything else takes a fresh one.
+      const reuse = status === "negotiating" ? sharedProjectId : null;
+      const projectId: string =
+        reuse ?? projectRows[projectCursor++ % projectRows.length].id;
+
+      if (status === "scoping") sharedProjectId ??= projectId;
+
+      await db
+        .update(opportunitiesTable)
+        .set({ projectId })
+        .where(eq(opportunitiesTable.id, opp.id));
+    }
+  }
 }
 
 /** Fraction of the remaining projects that have any delivery notes at all. */

@@ -2,6 +2,7 @@
 
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { revalidateOpportunity } from "@/actions/crm/revalidate";
 import { assertRowExists } from "@/actions/shared/assertRowExists";
 import { secureActionClient } from "@/lib/core/action";
 import { UserSafeActionError } from "@/lib/core/errors";
@@ -74,6 +75,6 @@ export const createProjectFromOpportunity = secureActionClient
     });
 
     revalidatePath("/projects");
-    revalidatePath("/opportunities");
+    revalidateOpportunity();
     return { id: projectId };
   });

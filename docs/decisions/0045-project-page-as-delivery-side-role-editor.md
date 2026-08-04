@@ -1,6 +1,6 @@
 # 0045 — Two role editors: deal-side (opportunity planner) vs. delivery-side (project page); "confirmed roles are locked" narrowed
 
-**Status:** accepted · 2026-07-28 · amends [ADR 0031](./0031-opportunity-project-planner-and-role-status.md) · **self-amended the same day** — decision points 5 and 6 were reversed (the Gantt is an edit surface; the project's company is editable). Read the [Amendment](#amendment-2026-07-28-the-gantt-is-an-edit-surface-and-company-is-editable) before trusting those two points. **Partly superseded on 2026-08-04 by [ADR 0069](./0069-delivery-managers-as-project-roles-and-coverage-gaps.md)** — decision points 2 and 5's `deliveryManagers` variant no longer exists (delivery managers are derived from `DELIVERY` roles); everything else stands.
+**Status:** accepted · 2026-07-28 · amends [ADR 0031](./0031-opportunity-project-planner-and-role-status.md) · **self-amended the same day** — decision points 5 and 6 were reversed (the Gantt is an edit surface; the project's company is editable). Read the [Amendment](#amendment-2026-07-28-the-gantt-is-an-edit-surface-and-company-is-editable) before trusting those two points. **Partly superseded on 2026-08-04 by [ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md)** — decision points 2 and 5's `deliveryManagers` variant no longer exists (delivery managers are derived from `DELIVERY` roles); everything else stands.
 
 ## Context
 
@@ -49,7 +49,7 @@ all `projects.edit`): `createProjectRoleOnProject`, `updateProjectRoleOnProject`
 `deleteProjectRoleOnProject`, and the field-scoped `updateProjectField` (a discriminated union on
 `field`: ~~`name` | `deliveryManagers`~~ — **plus `company`, added by amendment B below** — mirroring
 `updateCompanyField`; **the `deliveryManagers` variant was deleted by
-[ADR 0069](./0069-delivery-managers-as-project-roles-and-coverage-gaps.md), so the union is
+[ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md), so the union is
 `name` | `company`**). They reuse the shared
 `projectRoleFields`/`endOnOrAfterStart` validation, so the two editors validate identically.
 
@@ -69,7 +69,7 @@ reparented)~~ — **superseded by the amendment below: company is editable.** **
 business are not fields at all** (derived from roles,
 [ADR 0033](./0033-line-of-business-on-role-derived-project-status.md)).
 
-> **Partly superseded by [ADR 0069](./0069-delivery-managers-as-project-roles-and-coverage-gaps.md).**
+> **Partly superseded by [ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md).**
 > Delivery managers joined status and LoB in "not a field at all": they derive from the project's
 > `DELIVERY` roles, the junction is dropped, and the sidebar field is a read-only `MetaField`
 > (`delivery-managers-meta.tsx`) mirroring "Line of business" — so **the sidebar has two

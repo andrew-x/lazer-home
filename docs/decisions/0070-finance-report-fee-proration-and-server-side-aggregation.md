@@ -1,6 +1,9 @@
-# 0068 — Finance report: a fixed fee prorated by billable hours, server-side aggregation in both currencies, and per-discipline rates that stop at the fee
+# 0070 — Finance report: a fixed fee prorated by billable hours, server-side aggregation in both currencies, and per-discipline rates that stop at the fee
 
-**Status:** accepted · 2026-08-04 · **no schema change, no migration, no matrix change** ·
+**Status:** accepted · 2026-08-04 · **renumbered from a duplicate 0068** on 2026-08-04, when 0068
+was independently taken on `main` by
+[0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md) ·
+**no schema change, no migration, no matrix change** ·
 **refines [ADR 0066](./0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md)**
 (a fee is now attributable to *time*, still never to a *role*) and departs deliberately
 from [ADR 0062](./0062-utilization-report-two-series-and-timesheet-disclosure.md) /

@@ -14,7 +14,7 @@ Two modelling questions arose:
    `opportunity_*` tables, or the since-dropped `project_delivery_managers`) can only
    link a project to a staff member — but an allocation carries data: line of business,
    a date range, and hours/day.
-   > **Vindicated by [ADR 0069](./0069-delivery-managers-as-project-roles-and-coverage-gaps.md):**
+   > **Vindicated by [ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md):**
    > `project_delivery_managers` was the pure junction this question rejected for staffing
    > lines, and it later failed for the *same* reason — a dateless set can't say who ran a
    > project *in March*. It was dropped, and a delivery manager became a `project_roles` row.

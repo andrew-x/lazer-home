@@ -6,7 +6,7 @@ data-model sense** — no table, no migration, no capability, no permission-matr
 first surface that answers a **portfolio** money question: *what is the book worth this window, at
 what margin, at what blended rate.*
 
-[**ADR 0068**](../decisions/0068-finance-report-fee-proration-and-server-side-aggregation.md) is
+[**ADR 0070**](../decisions/0070-finance-report-fee-proration-and-server-side-aggregation.md) is
 the authoritative rationale — every rule below is stated there with its rejected alternatives.
 Don't restate it here; read it before changing any definition.
 
@@ -233,7 +233,7 @@ practice can never clobber one another.
 
 ## The window — `src/lib/reporting/report-range.ts`
 
-The window parser was **promoted out of `lib/utilization/`** (ADR 0068 §9) so both reports agree on
+The window parser was **promoted out of `lib/utilization/`** (ADR 0070 §9) so both reports agree on
 what "this quarter" means — a reader comparing revenue against capacity over the same period
 shouldn't have to check whether the two pages round the window the same way.
 

@@ -190,7 +190,7 @@ describe("buildMyAllocationRows — merging roles on one project", () => {
 describe("buildMyAllocationRows — running delivery", () => {
   test("a DELIVERY role is an ordinary row, with its real hours", () => {
     // It used to be a special "delivery lead" row with null hours, because the old
-    // junction carried neither dates nor hours (ADR 0069).
+    // junction carried neither dates nor hours (ADR 0068).
     const { live } = buildMyAllocationRows(
       [role({ roleType: "DELIVERY", hoursPerDay: 2 })],
       TODAY,

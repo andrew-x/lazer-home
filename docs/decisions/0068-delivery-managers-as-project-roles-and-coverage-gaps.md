@@ -1,9 +1,8 @@
-# 0069 — A delivery manager is a project role, and delivery coverage is derived
+# 0068 — A delivery manager is a project role, and delivery coverage is derived
 
-**Status:** accepted · 2026-08-04 · **renumbered twice on 2026-08-04, 0067 → 0068 → 0069**, each time
-because the number was independently taken on `main` first — by [0067](./0067-slack-channel-links-bot-token-denormalized-pairs-and-record-scoped-gate.md)
-and then by [0068](./0068-finance-report-fee-proration-and-server-side-aggregation.md)
-(the migration was renumbered `drizzle/0026` → `drizzle/0027` in the first of those merges, for the same reason)
+**Status:** accepted · 2026-08-04 · **renumbered from a duplicate 0067** on 2026-08-04, when 0067 was
+independently taken on `main` by [0067](./0067-slack-channel-links-bot-token-denormalized-pairs-and-record-scoped-gate.md)
+(the migration was renumbered `drizzle/0026` → `drizzle/0027` in the same merge, for the same reason)
 · **supersedes [ADR 0045](./0045-project-page-as-delivery-side-role-editor.md) §"delivery managers" in part**
 (its field-scoped `deliveryManagers` variant no longer exists) and **corrects
 [ADR 0066](./0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md) §3**, which

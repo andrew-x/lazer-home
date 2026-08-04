@@ -26,7 +26,7 @@ export const createProjectSchema = z.object({
   // Roles are optional at creation — the create form collects only name + company
   // + budget, and they're added afterward in the project planner. Defaults to none.
   // This is also how a delivery manager is named: a role with
-  // `roleType: "DELIVERY"`, not a separate id list (ADR 0069).
+  // `roleType: "DELIVERY"`, not a separate id list (ADR 0068).
   roles: z.array(projectRoleSchema).default([]),
   // Required: every project created from here on states how it bills. Projects
   // that predate budgets have none — those columns are nullable and the UI reads

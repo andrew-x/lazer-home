@@ -36,7 +36,7 @@ const EDIT_PROJECT_ISSUE_FIELDS: Record<
  * Rename the project, or remove it from this opportunity. A project's status, lines
  * of business and delivery managers are all derived from its roles, so none of them
  * is edited here; roles are managed by the planner grid below, which is also where a
- * delivery manager is named — as a `DELIVERY` role (ADR 0069). Gated by the caller on
+ * delivery manager is named — as a `DELIVERY` role (ADR 0068). Gated by the caller on
  * `canManage` (`projects.edit`).
  */
 export function EditProjectDialog({

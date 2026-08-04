@@ -6,7 +6,7 @@ import type { DeliveryManagerSummary } from "@/lib/projects/delivery-coverage";
 /**
  * The project's delivery managers in the detail sidebar — **read-only**, because
  * they are *derived* from the people on its live `DELIVERY` roles, exactly like the
- * "Line of business" field directly above it (ADR 0069). This field used to carry a
+ * "Line of business" field directly above it (ADR 0068). This field used to carry a
  * pencil and write a junction table; a delivery manager is now named by adding a
  * delivery role in the Roles tab, which is strictly more capable since the
  * assignment is dated, statused and priced.

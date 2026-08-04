@@ -21,7 +21,7 @@ After ADR 0053, plan margin existed on exactly two surfaces — the project deta
 opportunity drawer's Project-plan tab — both **one project at a time**. `/projects` showed
 name, company, a status badge, line-of-business badges, delivery managers (then read from the
 `project_delivery_managers` junction; **derived from `DELIVERY` roles since
-[ADR 0069](./0069-delivery-managers-as-project-roles-and-coverage-gaps.md)**) and a date range:
+[ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md)**) and a date range:
 enough to *find* a project, nothing to tell you **which one needs attention**. The question a
 delivery lead opens that page with is "what's in trouble?", and answering it meant opening
 engagements one by one.
@@ -202,7 +202,7 @@ context (`ProjectsCurrencyProvider` / `useProjectsCurrency`), with the `ToggleGr
   > protecting. The rest of this ADR is unchanged, and the "unknown ⇒ no tag" rule extends to
   > unrated projects.
   >
-  > **Amended again by [ADR 0069](./0069-delivery-managers-as-project-roles-and-coverage-gaps.md):**
+  > **Amended again by [ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md):**
   > a **fifth** tag, **`noDeliveryManager`** (third — below `lowHealth`, above `lowMargin`),
   > also **ungated** for the same reason, so a non-`viewMargin` viewer can now see *three*.
   > It fires only on coverage gaps ending **today or later**, so the Past tab doesn't carry

@@ -8,6 +8,7 @@ import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import { opportunities } from "@/lib/db/schema";
 import { deleteOpportunitySchema } from "./deleteOpportunity.schema";
+import { revalidateOpportunity } from "./revalidate";
 
 /**
  * Delete an opportunity. Gated on `crm.edit` (mirroring the other opportunity
@@ -46,7 +47,7 @@ export const deleteOpportunity = secureActionClient
       await tx.delete(opportunities).where(eq(opportunities.id, id));
     });
 
-    revalidatePath("/opportunities");
+    revalidateOpportunity();
     revalidatePath("/projects");
     return { id };
   });

@@ -35,7 +35,7 @@ import { currencyEnum, lineOfBusinessEnum, staff } from "./staff-schema";
 // its delivery managers are the people on its `DELIVERY` roles
 // (`delivery-coverage.ts`). There used to be a `project_delivery_managers`
 // junction; it carried no dates, so it could never say who ran the project *in
-// March*, and a delivery manager is now an ordinary role like any other (ADR 0069).
+// March*, and a delivery manager is now an ordinary role like any other (ADR 0068).
 // `project_roles` are the staffing lines: a person for a date range at N
 // hours/day (the first cut of the proposed Allocation entity).
 // Each role carries its own `billRate`, snapshotted from the code-owned rate card

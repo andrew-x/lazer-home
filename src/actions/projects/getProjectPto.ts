@@ -63,7 +63,7 @@ export async function getProjectPto(
 
   // The project's people: the assignees on its roles. That now includes its
   // delivery managers, who hold `DELIVERY` roles like anyone else — this used to
-  // union in a second query over `project_delivery_managers` (ADR 0069).
+  // union in a second query over `project_delivery_managers` (ADR 0068).
   const roleStaffRows = await db
     .selectDistinct({ staffId: projectRoles.staffId })
     .from(projectRoles)

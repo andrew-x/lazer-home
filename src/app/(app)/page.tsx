@@ -7,13 +7,16 @@ import {
 import type { Metadata } from "next";
 import { getAllocationsGrid } from "@/actions/allocations/getAllocationsGrid";
 import { getMyAllocations } from "@/actions/allocations/getMyAllocations";
+import { getMyPipeline } from "@/actions/crm/getMyPipeline";
 import { getMyTasks } from "@/actions/crm/getMyTasks";
+import { getOrgPipeline } from "@/actions/crm/getOrgPipeline";
 import { getCurrentStaffIdentity } from "@/actions/staff/getCurrentStaffIdentity";
 import { getStaffPto } from "@/actions/staff/getStaffPto";
 import { getStaffUtilization } from "@/actions/timesheets/getStaffUtilization";
 import { HomeSection } from "@/components/home/home-section";
 import { LazerStatusSection } from "@/components/home/lazer-status-section";
 import { MyAllocationsTable } from "@/components/home/my-allocations-table";
+import { MyPipelinePanel } from "@/components/home/my-pipeline-panel";
 import { MyTasksPanel } from "@/components/home/my-tasks-panel";
 import { InlineNotice } from "@/components/inline-notice";
 import { StatCard } from "@/components/stat-card";
@@ -46,6 +49,12 @@ export const metadata: Metadata = { title: "Home" };
  * name its window** — the bare word is ambiguous here. Don't unify the two: doing so
  * destroys one of the two answers. (`/reporting/utilization` is a third thing
  * again: plan reconciled *against* actuals over a chosen range — ADR 0062.)
+ *
+ * **Both bands now carry a windowed block**, so the per-block window rule applies on
+ * either side, not just in Your Status: the pipeline's closed-won/lost counts are
+ * this-week and this-month figures sitting inside an otherwise point-in-time band.
+ * They state their windows as *dates*, because a Monday-start week can begin in the
+ * previous month — so "this week" is not a subset of "this month" (ADR 0069).
  *
  * The two sections are sibling async Server Components rather than one top-level
  * `Promise.all`, so their reads run concurrently. Lazer Status hands its folded
@@ -97,10 +106,11 @@ async function YourStatusSection() {
     );
   }
 
-  const [pto, utilization, tasks] = await Promise.all([
+  const [pto, utilization, tasks, pipeline] = await Promise.all([
     getStaffPto(staffId),
     getStaffUtilization(staffId, yearStart, today),
     getMyTasks(),
+    getMyPipeline(),
   ]);
 
   const load = currentLoadPercent(roles, today);
@@ -159,19 +169,28 @@ async function YourStatusSection() {
       {/* `nowMs` is stamped here rather than read on the client, so the
           stale-task threshold resolves identically across hydration. */}
       <MyTasksPanel tasks={tasks} nowMs={Date.now()} />
+
+      <MyPipelinePanel pipeline={pipeline} />
     </HomeSection>
   );
 }
 
 /**
- * Everything here comes from one read. `getAllocationsGrid` already carries staff
+ * The staffing half comes from one read: `getAllocationsGrid` already carries staff
  * (with home line of business, discipline and employment type), every live role
  * span (with the *work's* line of business), the open positions, and approved
  * leave — so five widgets and three filters cost one set of queries, shared with
  * `/allocations` through `React.cache`.
+ *
+ * The pipeline is a second, independent read (CRM, not allocations), so the two run
+ * concurrently. It is pre-folded per line of business rather than shipping deal rows
+ * — see the disclosure note in `getOrgPipeline`.
  */
 async function OrganizationSection() {
-  const grid = await getAllocationsGrid();
+  const [grid, pipeline] = await Promise.all([
+    getAllocationsGrid(),
+    getOrgPipeline(),
+  ]);
 
   const status = buildOrgStatus(
     grid.staff,
@@ -182,5 +201,5 @@ async function OrganizationSection() {
     currentWeekStart(),
   );
 
-  return <LazerStatusSection status={status} />;
+  return <LazerStatusSection status={status} pipeline={pipeline} />;
 }

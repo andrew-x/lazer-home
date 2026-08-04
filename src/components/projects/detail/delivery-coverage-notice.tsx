@@ -10,7 +10,7 @@ const MAX_LISTED_GAPS = 3;
 /**
  * Warns that some working period of the project has no delivery manager on it — the
  * one thing the old `project_delivery_managers` junction structurally could not tell
- * you, because it carried no dates (ADR 0069).
+ * you, because it carried no dates (ADR 0068).
  *
  * **Rendered above the tabs**, for the same reason `BudgetSummaryPanel` is: a
  * coverage gap is a fact about the plan as a whole, not about any one tab, and the

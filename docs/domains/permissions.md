@@ -86,7 +86,7 @@ derived from individual compensation.
 - **`projects.edit`** — add/edit projects and their staffing (**roles — which is now the *only*
   way a delivery manager is named**, since a delivery manager is a `roleType = "DELIVERY"` role and
   the `project_delivery_managers` junction is gone;
-  [ADR 0069](../decisions/0069-delivery-managers-as-project-roles-and-coverage-gaps.md) **changed no
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md) **changed no
   gate** — it only deleted mutation surface that already rode this capability. ⚠️ Not to be confused
   with the **role literally named `delivery-manager`** in the matrix below). Its type-ahead
   staff/company pickers have their own `projects.edit`-gated
@@ -127,7 +127,7 @@ derived from individual compensation.
 - **`projects.viewMargin`** — see a project's **cost and margin**: the budget summary panel
   and per-role figures on the opportunity's Project-plan tab and the project detail page, **the
   margin figure + margin-derived risk badges (and the margin *sort order*) on the `/projects`
-  list**, and — since [ADR 0068](../decisions/0068-finance-report-fee-proration-and-server-side-aggregation.md)
+  list**, and — since [ADR 0070](../decisions/0070-finance-report-fee-proration-and-server-side-aggregation.md)
   — **the whole `/reporting/finance` page**, via `FINANCE_REPORT_ACCESS` below. That is now
   **four surfaces on one capability**, and the finance one is portfolio-wide, so widening this row
   widens a lot. A
@@ -155,7 +155,7 @@ derived from individual compensation.
   precisely because a role's cost divided by its hours *is* that person's hourly pay, so shipping a
   filterable per-role projection would put the whole portfolio's pay rates in the page HTML
   ([finance.md](./finance.md#access-control),
-  [ADR 0068](../decisions/0068-finance-report-fee-proration-and-server-side-aggregation.md)).
+  [ADR 0070](../decisions/0070-finance-report-fee-proration-and-server-side-aggregation.md)).
   **!! It also gates *ordering*, not just figures**
   ([ADR 0061](../decisions/0061-projects-list-as-a-sortable-table.md) §5): a margin-ranked list
   discloses which engagements are most and least profitable, and that ranking is compensation-derived
@@ -679,6 +679,19 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
   and the `type` field is **nulled** in the projection otherwise, so the reason never
   leaves the server. Minimal disclosure, not a loosening of the PTO gate — see
   [ADR 0038](../decisions/0038-allocations-planner-pto-disclosure.md).
+- **`src/actions/crm/getOrgPipeline.ts` + `getMyPipeline.ts`** — the home dashboard's pipeline
+  reads, **deliberately ungated, and listed here so the omission reads as a decision.** Both
+  carry money, and the reason it needs no gate is the **revenue-vs-cost asymmetry** this doc
+  already states for `projects.viewMargin`: they price a deal from its linked project's plan with
+  `includeCost: false` and an empty `openRoleCostUsd`, so `staff_employment` is never queried and
+  `getProjectCostBasis` is never called — there is **no compensation-derived figure** to protect,
+  and a plan's revenue is a commercial term about an engagement. Read parity with
+  `/opportunities`, which is open. `getMyPipeline` is additionally **own-data-only by
+  construction** (no id parameter; the subject comes from the session, the `getMyTasks` shape).
+  **No capability and no matrix row was added** — both read headers say so, and
+  [ADR 0069](../decisions/0069-home-pipeline-closed-at-and-project-plan-deal-value.md) §3 records
+  why. If a *cost* or margin figure is ever wanted on `/`, it needs the `projects.viewMargin`
+  door (`getProjectCostBasis`), not a new one.
 - **`src/actions/projects/getProjectPto.ts`** — the project detail page's Time off tab, a
   **third `pto.review` enforcement site** with the same shape (dates + person open to all,
   `type`/`isPending` nulled otherwise). **Tightened:** it previously returned **pending**

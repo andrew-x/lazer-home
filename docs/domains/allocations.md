@@ -82,7 +82,7 @@ the inline **Notes** column (shown and editable to `staff.edit` holders — mana
   sit above "0% free". See *Two load figures* below and
   [ADR 0060](../decisions/0060-allocations-capacity-meter.md).
   ⚠️ **`DELIVERY` roles now consume capacity here.** Since
-  [ADR 0069](../decisions/0069-delivery-managers-as-project-roles-and-coverage-gaps.md) a delivery
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md) a delivery
   manager holds an ordinary dated, hourly role, so running an engagement shows up as load where it
   used to be invisible — the meter's figures moved on existing plans. (The seed gives delivery roles
   1–2 h/day precisely so a manager on three engagements doesn't read as 300%.) **The coverage rule
@@ -299,11 +299,11 @@ before changing anything here — the time bases are load-bearing.
   submitted timesheets via `getStaffUtilization` + `src/lib/timesheets/utilization.ts`, plus
   **`MyAllocationsTable`** (Project · Client · Dates · Hours/day; live rows, then an
   "Upcoming" divider) over `getMyAllocations` + `buildMyAllocationRows`
-  (`src/lib/home/my-work.ts`). **This band also carries a point-in-time block that has nothing to do with allocations** — the CRM personal task list ([ADR 0065](../decisions/0065-home-personal-task-list-and-assignee-completion.md)), which is why the band description no longer names a single window. Rows are **one per project** (two roles on one engagement
+  (`src/lib/home/my-work.ts`). **This band also carries two blocks that have nothing to do with allocations** — the CRM personal task list ([ADR 0065](../decisions/0065-home-personal-task-list-and-assignee-completion.md)) and, below it, **your own deals by stage** with their project plan value and next steps ([ADR 0069](../decisions/0069-home-pipeline-closed-at-and-project-plan-deal-value.md); a true Server Component, so no per-deal money crosses to the client) — which is why the band description no longer names a single window. Rows are **one per project** (two roles on one engagement
   merge, hours summed) and `status` reads `tentative` only when *every* role on the project
   is. There is deliberately **no link to `/allocations`** from this band.
   **The delivery-manager special case is gone**
-  ([ADR 0069](../decisions/0069-delivery-managers-as-project-roles-and-coverage-gaps.md)): a
+  ([ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)): a
   delivery manager holds a dated, hourly `DELIVERY` role like anyone else, so its row renders like
   any other allocation with `Delivery` in the role-type sub-line. `my-work.ts` lost
   `managedProjects`, `deliveryManagerOnly` and every null branch — **`MyAllocationRow`'s
@@ -323,6 +323,17 @@ before changing anything here — the time bases are load-bearing.
   three filters cost **one** set of queries, shared with `/allocations` through
   `React.cache`. It reads **no timesheets**: partial submission would otherwise read as an
   idle bench.
+  ⚠️ **This band is no longer purely allocations, and no longer purely point in time.** A sixth
+  card — **Pipeline** — sits directly under Staffing, from a **second, independent CRM read**
+  (`getOrgPipeline`, run concurrently with `getAllocationsGrid`, *not* folded into it): open deals
+  by funnel band with their linked projects' plan value, plus **windowed** closed-won/lost counts
+  for this week and this month. Everything about it — the bands, the Maturing exclusion, why deal
+  value is the project's plan revenue, and why the week is not inside the month — lives in
+  [crm.md → Pipeline on the home dashboard](./crm.md#pipeline-on-the-home-dashboard) and
+  [ADR 0069](../decisions/0069-home-pipeline-closed-at-and-project-plan-deal-value.md); **don't
+  grow a pipeline explanation here.** Two things that do concern this doc: the card is why
+  ADR 0063 §1/§2 was amended (a windowed block inside a point-in-time band — each block names its
+  own window), and the band's line-of-business filter now means **two** things (below).
 
 ### The definitions Lazer Status depends on
 
@@ -330,7 +341,7 @@ before changing anything here — the time bases are load-bearing.
   commit anyone; **approved leave today does *not* un-staff someone** (this measures the
   plan, not attendance — availability, right beside it, is where leave nets out).
   ⚠️ **A `DELIVERY` role staffs you** — since
-  [ADR 0069](../decisions/0069-delivery-managers-as-project-roles-and-coverage-gaps.md) running an
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md) running an
   engagement is an ordinary dated role, so the staffing count moved on existing data. There is **no
   role-type filter and none should be added**: running a project is committed delivery work.
 - **Population** = `isBillable === true`, the *same* predicate as `buildAvailability`, so the
@@ -345,7 +356,10 @@ before changing anything here — the time bases are load-bearing.
   suppression** — these are headcounts over allocations `/allocations` already publishes by
   name. See ADR 0063 §4 before adding a guard by analogy with the gated dashboards.
 
-### The five panels
+### The five allocations panels
+
+(The band's sixth card, **Pipeline**, is CRM data and is documented in
+[crm.md](./crm.md#pipeline-on-the-home-dashboard) — it is not in this table.)
 
 | Panel | Shows | Notes |
 |---|---|---|
@@ -369,7 +383,12 @@ before changing anything here — the time bases are load-bearing.
    counts over a filtered subset; reusing the server's unfiltered numbers would print the
    whole company's availability above a filtered name list. The line-of-business filter
    matches each person's **home** LoB on every panel — the sole exception being an **open**
-   upcoming role, which has no holder and falls back to the role's own LoB.
+   upcoming role, which has no holder and falls back to the role's own LoB. **The Pipeline card
+   is the second, deliberate widening:** it matches the **deal's own** `opportunities.lineOfBusiness`,
+   because a deal has no person whose home LoB could be matched (ADR 0063 §6 as amended by
+   ADR 0069). Its filtered figures are **not** recomputed on the client either — the read ships
+   one server-side fold per filter value, so §6's rule is met by construction rather than by
+   re-deriving arithmetic.
    The week *columns* come from **`availabilityWeekStarts(fromWeek)`**, not from any
    person's `weeks` array: they are a fact about the calendar, and deriving them from
    `people[0]` collapsed to zero columns whenever nobody was billable.
@@ -381,9 +400,12 @@ before changing anything here — the time bases are load-bearing.
   `staffId`, so there is no cross-user id to authorize. **One query now**: every live-or-upcoming
   role, `DELIVERY` ones included, so `MyManagedProject`/`managedProjects` and the `min`/`max`
   group-by query are deleted —
-  [ADR 0069](../decisions/0069-delivery-managers-as-project-roles-and-coverage-gaps.md)) ·
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)) ·
   `src/actions/staff/getStaffPto` ·
-  `src/actions/timesheets/getStaffUtilization`.
+  `src/actions/timesheets/getStaffUtilization`. **Not this domain, but on this page:**
+  `src/actions/crm/getMyTasks` + `getOrgPipeline` + `getMyPipeline` (the latter two via
+  `src/actions/projects/getPlanRevenueByProject`) — so `/` now reads three domains, and a
+  change to the *band* layout can touch CRM code.
 - **Pure math:** `src/lib/home/org-status.ts` (+ `.test.ts`, 41 tests) — `buildOrgStatus`,
   `summarizeStaffing`, `filterByLineOfBusiness`, `filterByEmploymentType` (the availability
   panel calls it rather than re-filtering inline, so the employment filter has one
@@ -398,7 +420,8 @@ before changing anything here — the time bases are load-bearing.
   `AVAILABILITY_WEEKS` / `AVAILABLE_THRESHOLD_PERCENT` (50) /
   `UPCOMING_TIME_OFF_HORIZON_DAYS` (30).
 - **UI:** `src/components/home/` — `home-section.tsx` (its `action` slot is reserved for a
-  control that scopes the *whole* band) + `lazer-status-section.tsx` + the five panels +
+  control that scopes the *whole* band) + `lazer-status-section.tsx` (now takes **two** props,
+  `status` + `pipeline`) + the five panels + `pipeline-panel.tsx` / `my-pipeline-panel.tsx` (CRM) +
   `my-allocations-table.tsx` + `person-row.tsx` (its `subtitle` prop *replaces* the
   "Core · Engineer" meta line) + the shared `StatCard`.
 - **Deleted here, don't resurrect:** `src/components/home/allocation-timeline.tsx`,

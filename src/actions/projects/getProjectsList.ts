@@ -331,7 +331,7 @@ type ProjectBaseRow = {
  * There used to be a third query, grouping `project_delivery_managers` to names.
  * A delivery manager is now a `DELIVERY` role, so both the Delivery column and the
  * coverage flag fall out of the role rows already in hand — which also means the
- * two can't disagree about who runs the project (ADR 0069).
+ * two can't disagree about who runs the project (ADR 0068).
  *
  * Called once per section, so the grouped view runs each of those queries five
  * times per render. That's the multiplier anything added here inherits.

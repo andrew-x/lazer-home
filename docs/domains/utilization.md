@@ -147,7 +147,7 @@ basis**:
   ([ADR 0064](../decisions/0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §2).
   `UtilizationRole` no longer carries `status`.
   - ⚠️ **Delivery roles now count too** — a delivery manager is an ordinary `project_roles` row with
-    `roleType = "DELIVERY"` ([ADR 0069](../decisions/0069-delivery-managers-as-project-roles-and-coverage-gaps.md)),
+    `roleType = "DELIVERY"` ([ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)),
     so running an engagement is planned hours here where oversight used to be invisible. **Planned
     figures on existing data moved.** No role-type filter exists and none should be added: the
     report measures capacity use, and delivery time is capacity used.
@@ -294,7 +294,7 @@ split by a hairline:
     **Renamed from `parseUtilizationRange`, and the whole module moved** to
     `src/lib/reporting/report-range.ts` when the finance report became a second consumer — the
     `maxDays` parameter exists because that report's read is a bounded row query and can afford
-    ~3 years ([ADR 0068](../decisions/0068-finance-report-fee-proration-and-server-side-aggregation.md) §9,
+    ~3 years ([ADR 0070](../decisions/0070-finance-report-fee-proration-and-server-side-aggregation.md) §9,
     [finance.md](./finance.md)).
   - **`today` is resolved on the server** and passed down as a prop, so the preset highlight can't
     disagree with the window the page defaulted to across a timezone boundary.
