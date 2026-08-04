@@ -7,14 +7,12 @@ import {
 } from "@/actions/staff/getExchangeRates";
 import type { LineOfBusiness } from "@/lib/crm/line-of-business";
 import { db } from "@/lib/db/db";
-import {
-  opportunities,
-  projectDeliveryManagers,
-  projectRoles,
-  projects,
-  staff,
-} from "@/lib/db/schema";
+import { opportunities, projectRoles, projects, staff } from "@/lib/db/schema";
 import type { Currency } from "@/lib/format/currency";
+import {
+  type DeliveryManagerSummary,
+  deliveryManagersOf,
+} from "@/lib/projects/delivery-coverage";
 import type { BillingType } from "@/lib/projects/project-billing";
 import {
   deriveProjectLinesOfBusiness,
@@ -90,8 +88,12 @@ export type PlanProject = {
   status: ProjectRoleStatus;
   /** The distinct lines of business across the project's roles. */
   linesOfBusiness: LineOfBusiness[];
-  /** The staff who run this project, resolved for display and editing. */
-  deliveryManagers: { id: string; name: string }[];
+  /**
+   * The staff who run this project — *derived* from the people on its live
+   * `DELIVERY` roles, so it is read-only wherever it's shown. Each carries the
+   * spans they run. See `@/lib/projects/delivery-coverage`.
+   */
+  deliveryManagers: DeliveryManagerSummary[];
   /** How this project bills. */
   budget: PlanBudget;
 };
@@ -179,14 +181,6 @@ export async function getOpportunityPlan(
     return emptyPlan();
   }
 
-  // The project's delivery managers, resolved to names for display/editing.
-  const deliveryManagers = await db
-    .select({ id: staff.id, name: staff.name })
-    .from(projectDeliveryManagers)
-    .innerJoin(staff, eq(projectDeliveryManagers.staffId, staff.id))
-    .where(eq(projectDeliveryManagers.projectId, projectRow.id))
-    .orderBy(asc(staff.name));
-
   // All roles for the project in one query. Left join staff (staffId is
   // nullable — placeholders survive).
   const roles: PlanRole[] = await db
@@ -264,12 +258,13 @@ export async function getOpportunityPlan(
     project: {
       id: projectRow.id,
       name: projectRow.name,
-      // Project status and lines of business are derived from its roles.
+      // Status, lines of business and delivery managers are all derived from the
+      // roles already in hand — no project column, and no extra query.
       status: deriveProjectStatus(roles.map((r) => r.status)),
       linesOfBusiness: deriveProjectLinesOfBusiness(
         roles.map((r) => r.lineOfBusiness),
       ),
-      deliveryManagers,
+      deliveryManagers: deliveryManagersOf(roles),
       budget: {
         billingType: projectRow.billingType,
         budgetAmount: projectRow.budgetAmount,

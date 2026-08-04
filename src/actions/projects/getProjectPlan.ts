@@ -6,13 +6,8 @@ import {
   getExchangeRates,
 } from "@/actions/staff/getExchangeRates";
 import { db } from "@/lib/db/db";
-import {
-  companies,
-  projectDeliveryManagers,
-  projectRoles,
-  projects,
-  staff,
-} from "@/lib/db/schema";
+import { companies, projectRoles, projects, staff } from "@/lib/db/schema";
+import { deliveryManagersOf } from "@/lib/projects/delivery-coverage";
 import {
   deriveProjectLinesOfBusiness,
   deriveProjectStatus,
@@ -75,14 +70,6 @@ export async function getProjectPlan(
   if (!projectRow) return null;
 
   const exchangeRates = await getExchangeRates();
-
-  // The project's delivery managers, resolved to names for display.
-  const deliveryManagers = await db
-    .select({ id: staff.id, name: staff.name })
-    .from(projectDeliveryManagers)
-    .innerJoin(staff, eq(projectDeliveryManagers.staffId, staff.id))
-    .where(eq(projectDeliveryManagers.projectId, projectRow.id))
-    .orderBy(asc(staff.name));
 
   // All roles for the project in one query. Left join staff (staffId is
   // nullable — placeholders survive).
@@ -155,12 +142,13 @@ export async function getProjectPlan(
   const project: PlanProject = {
     id: projectRow.id,
     name: projectRow.name,
-    // Project status and lines of business are derived from its roles.
+    // Status, lines of business and delivery managers are all derived from the
+    // roles already in hand — no project column, and no extra query.
     status: deriveProjectStatus(roles.map((r) => r.status)),
     linesOfBusiness: deriveProjectLinesOfBusiness(
       roles.map((r) => r.lineOfBusiness),
     ),
-    deliveryManagers,
+    deliveryManagers: deliveryManagersOf(roles),
     budget: {
       billingType: projectRow.billingType,
       budgetAmount: projectRow.budgetAmount,

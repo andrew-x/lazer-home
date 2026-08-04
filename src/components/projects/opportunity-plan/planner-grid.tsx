@@ -42,7 +42,10 @@ import {
   PROJECT_ROLE_STATUS_LABELS,
   ROLE_STATUS,
 } from "@/lib/projects/project-role-status";
-import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
+import {
+  DELIVERY_ROW_CLASS,
+  PROJECT_ROLE_TYPE_LABELS,
+} from "@/lib/projects/project-role-type";
 
 /**
  * The block fill for a role's own load. Emphasis (the current deal's own lines)
@@ -153,11 +156,20 @@ export function PlannerGrid({
           {rows.map((row) => {
             const canEdit = row.editable && Boolean(onEditRole);
             return (
-              <tr key={row.key} className="border-b last:border-b-0">
+              <tr
+                key={row.key}
+                className={cn(
+                  "border-b last:border-b-0",
+                  row.isDelivery && DELIVERY_ROW_CLASS,
+                )}
+              >
                 <td
                   className={cn(
                     PLANNER_LABEL_COL,
-                    "sticky left-0 z-10 bg-background px-3 py-2 align-top",
+                    "sticky left-0 z-10 px-3 py-2 align-top",
+                    // The label column is sticky, so it paints its own background —
+                    // it has to repeat the row's tint or it punches a hole in it.
+                    row.isDelivery ? DELIVERY_ROW_CLASS : "bg-background",
                   )}
                 >
                   <div className="flex items-start gap-2">

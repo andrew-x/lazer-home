@@ -3,18 +3,18 @@
 import { eq } from "drizzle-orm";
 import { secureActionClient } from "@/lib/core/action";
 import { db } from "@/lib/db/db";
-import { generateId } from "@/lib/db/ids";
-import { projectDeliveryManagers, projects } from "@/lib/db/schema";
+import { projects } from "@/lib/db/schema";
 import { revalidateProject } from "./revalidate";
 import { updateProjectSchema } from "./updateProject.schema";
 
 /**
- * Edit a project's top-level fields (name, delivery managers) from the planner's
- * Edit dialog. Gated on `projects.edit`, mirroring `createProject`. A project's
- * status and lines of business are derived from its roles, so they aren't edited
- * here. Delivery managers are reconciled with set-semantics: clear the project's
- * junction rows and re-insert the deduped selection. Roles are not touched here —
- * they have their own per-role actions.
+ * Rename a project from the planner's Edit dialog. Gated on `projects.edit`,
+ * mirroring `createProject`.
+ *
+ * Almost everything about a project is derived from its roles — its status, its
+ * lines of business, and (since ADR 0067) its delivery managers — so the name is
+ * all there is to edit here. Roles have their own per-role actions, and the budget
+ * has `updateProjectBudget`.
  */
 export const updateProject = secureActionClient
   .metadata({
@@ -24,28 +24,8 @@ export const updateProject = secureActionClient
   .inputSchema(updateProjectSchema)
   .action(async ({ parsedInput }) => {
     const { projectId, name } = parsedInput;
-    // Dedupe so a duplicate can't trip the junction unique index.
-    const deliveryManagerIds = [...new Set(parsedInput.deliveryManagerIds)];
 
-    await db.transaction(async (tx) => {
-      await tx.update(projects).set({ name }).where(eq(projects.id, projectId));
-
-      // Set-semantics: clear this project's delivery managers, then re-add the
-      // current selection.
-      await tx
-        .delete(projectDeliveryManagers)
-        .where(eq(projectDeliveryManagers.projectId, projectId));
-
-      if (deliveryManagerIds.length > 0) {
-        await tx.insert(projectDeliveryManagers).values(
-          deliveryManagerIds.map((staffId) => ({
-            id: generateId("proj-dm"),
-            projectId,
-            staffId,
-          })),
-        );
-      }
-    });
+    await db.update(projects).set({ name }).where(eq(projects.id, projectId));
 
     revalidateProject(projectId);
     return { id: projectId };

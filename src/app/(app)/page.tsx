@@ -81,7 +81,7 @@ async function YourStatusSection() {
   const today = currentDay();
   const year = Number(today.slice(0, 4));
   const yearStart = `${year}-01-01`;
-  const { staffId, roles, managedProjects } = await getMyAllocations();
+  const { staffId, roles } = await getMyAllocations();
 
   // The `(app)` layout redirects anyone without an active staff record, so this
   // is defense in depth rather than an expected state — but `getCurrentStaffId`
@@ -154,11 +154,7 @@ async function YourStatusSection() {
         />
       </div>
 
-      <MyAllocationsTable
-        roles={roles}
-        managedProjects={managedProjects}
-        today={today}
-      />
+      <MyAllocationsTable roles={roles} today={today} />
 
       {/* `nowMs` is stamped here rather than read on the client, so the
           stale-task threshold resolves identically across hydration. */}

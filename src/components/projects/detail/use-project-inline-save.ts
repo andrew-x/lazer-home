@@ -23,9 +23,8 @@ type FieldEdit = UpdateProjectFieldInput extends infer T
  * Per-field edit state + save for the project detail sidebar. Each field owns its
  * own instance so pending and error are isolated. `commit` sends *only* the changed
  * field's slice via the field-scoped `updateProjectField` — so a save never clobbers
- * a concurrent edit to another field, nor needlessly rewrites the delivery-manager
- * junction — and closes the field on success. A client-side `safeParse` surfaces the
- * field's own validation message before the round-trip.
+ * a concurrent edit to another field — and closes the field on success. A client-side
+ * `safeParse` surfaces the field's own validation message before the round-trip.
  *
  * Unlike the opportunity drawer's `useInlineSave` this takes no `refresh` callback:
  * that drawer loads its data client-side, whereas this page is a Server Component

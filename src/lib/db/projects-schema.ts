@@ -9,7 +9,6 @@ import {
   pgTable,
   text,
   timestamp,
-  unique,
 } from "drizzle-orm/pg-core";
 import { BILLING_TYPES } from "@/lib/projects/project-billing";
 import {
@@ -29,10 +28,13 @@ import { currencyEnum, lineOfBusinessEnum, staff } from "./staff-schema";
 // Projects domain
 //
 // A `project` is billable work for a company — the hub linking CRM to delivery.
-// A project has NO status or line of business of its own: both are *derived*
-// from its roles (see `project-derived.ts`) — a project's status aggregates its
-// roles' statuses, and its lines of business are the distinct LoBs of its roles.
-// `project_delivery_managers` is a junction to the staff who run the project.
+// A project has NO status, line of business or delivery manager of its own: all
+// three are *derived* from its roles — its status aggregates its roles' statuses
+// and its lines of business are their distinct LoBs (`project-derived.ts`), while
+// its delivery managers are the people on its `DELIVERY` roles
+// (`delivery-coverage.ts`). There used to be a `project_delivery_managers`
+// junction; it carried no dates, so it could never say who ran the project *in
+// March*, and a delivery manager is now an ordinary role like any other (ADR 0067).
 // `project_roles` are the staffing lines: a person for a date range at N
 // hours/day (the first cut of the proposed Allocation entity).
 // Each role carries its own `billRate`, snapshotted from the code-owned rate card
@@ -93,27 +95,6 @@ export const projects = pgTable(
        or (${t.billingType} = 'FIXED_FEE' and ${t.budgetAmount} is not null and ${t.budgetCurrency} is not null)
        or (${t.billingType} = 'TIME_AND_MATERIALS' and ${t.budgetAmount} is null and ${t.budgetCurrency} is null)`,
     ),
-  ],
-);
-
-// Delivery managers: many staff per project. Junction table following the CRM
-// convention — surrogate `text` PK, a unique on the FK pair for set-semantics,
-// an index on the staff FK for reverse lookups, both FKs cascade.
-export const projectDeliveryManagers = pgTable(
-  "project_delivery_managers",
-  {
-    id: text().primaryKey(),
-    projectId: text()
-      .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
-    staffId: text()
-      .notNull()
-      .references(() => staff.id, { onDelete: "cascade" }),
-    createdAt: timestamp().defaultNow().notNull(),
-  },
-  (t) => [
-    unique("project_delivery_managers_unique").on(t.projectId, t.staffId),
-    index("project_delivery_managers_staff_idx").on(t.staffId),
   ],
 );
 
@@ -228,7 +209,7 @@ export const projectDeliveryNotes = pgTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     // Who wrote it. Author = staff, matching the other people-FKs in this domain
-    // (`projectDeliveryManagers.staffId`, `projectRoles.staffId`) and so the panel
+    // (`projectRoles.staffId`) and so the panel
     // can link the name to /staff/[id]. `set null` because this is attribution,
     // not ownership: losing it narrows nothing, since the write gate is a
     // capability rather than the author. A signed-in user with no staff row (an

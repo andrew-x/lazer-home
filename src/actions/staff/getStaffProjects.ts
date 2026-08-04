@@ -2,12 +2,7 @@ import "server-only";
 
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/db";
-import {
-  companies,
-  projectDeliveryManagers,
-  projectRoles,
-  projects,
-} from "@/lib/db/schema";
+import { companies, projectRoles, projects } from "@/lib/db/schema";
 import { deriveProjectStatus } from "@/lib/projects/project-derived";
 import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
 import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
@@ -20,53 +15,46 @@ export type StaffProjectSummary = {
   /** Derived from the project's roles (see `project-derived.ts`). */
   status: ProjectRoleStatus;
   /**
-   * The person's relationship(s) to the project, as human-facing labels —
-   * "Delivery manager" and/or role disciplines ("Engineer", "Designer", …),
-   * deduped and delivery-manager first.
+   * The person's relationship(s) to the project, as human-facing labels — their
+   * role disciplines ("Engineer", "Designer", …), deduped, with "Delivery" first
+   * because running the engagement is the relationship that outranks the rest.
    */
   relationships: string[];
 };
 
-/** Delivery-manager label, kept first in the relationships list. */
-const DELIVERY_MANAGER_LABEL = "Delivery manager";
+/**
+ * The label for running the engagement, kept first in the relationships list.
+ * Sourced from the role-type labels rather than typed out, so it can't drift from
+ * the string the project's Roles table and role picker show.
+ */
+const DELIVERY_LABEL = PROJECT_ROLE_TYPE_LABELS.DELIVERY;
 
 /**
  * Projects a staff member has worked on — those where they hold a staffing line
- * (`project_roles`) OR run the project as a delivery manager
- * (`project_delivery_managers`). One row per project, merging both
- * relationships. For SSR; NOT ownership-scoped (like `getStaffProfile`, auth is
- * provided by the `(app)` layout). Sorted by project name.
+ * (`project_roles`), which includes running one as a delivery manager. One row per
+ * project, merging every discipline they held on it. For SSR; NOT ownership-scoped
+ * (like `getStaffProfile`, auth is provided by the `(app)` layout). Sorted by
+ * project name.
  */
 export async function getStaffProjects(
   staffId: string,
 ): Promise<StaffProjectSummary[]> {
-  const [roleRows, managerRows] = await Promise.all([
-    db
-      .select({
-        id: projects.id,
-        name: projects.name,
-        companyName: companies.name,
-        roleType: projectRoles.roleType,
-      })
-      .from(projectRoles)
-      .innerJoin(projects, eq(projects.id, projectRoles.projectId))
-      .innerJoin(companies, eq(companies.id, projects.companyId))
-      .where(eq(projectRoles.staffId, staffId)),
-    db
-      .select({
-        id: projects.id,
-        name: projects.name,
-        companyName: companies.name,
-      })
-      .from(projectDeliveryManagers)
-      .innerJoin(projects, eq(projects.id, projectDeliveryManagers.projectId))
-      .innerJoin(companies, eq(companies.id, projects.companyId))
-      .where(eq(projectDeliveryManagers.staffId, staffId)),
-  ]);
+  const roleRows = await db
+    .select({
+      id: projects.id,
+      name: projects.name,
+      companyName: companies.name,
+      roleType: projectRoles.roleType,
+    })
+    .from(projectRoles)
+    .innerJoin(projects, eq(projects.id, projectRoles.projectId))
+    .innerJoin(companies, eq(companies.id, projects.companyId))
+    .where(eq(projectRoles.staffId, staffId));
 
-  // Merge both relationships into one row per project. A Map preserves the first
-  // sighting; relationships accumulate in a Set so a person with several roles
-  // of the same discipline (or a role + delivery-manager seat) lists each once.
+  // One row per project. A Map preserves the first sighting; relationships
+  // accumulate in a Set so a person holding several roles of the same discipline
+  // lists it once. Running the engagement needs no second query any more — it is a
+  // `DELIVERY` role like any other (ADR 0067).
   const byProject = new Map<
     string,
     Omit<StaffProjectSummary, "relationships" | "status"> & {
@@ -83,9 +71,6 @@ export async function getStaffProjects(
     return entry;
   };
 
-  for (const row of managerRows) {
-    upsert(row).relationships.add(DELIVERY_MANAGER_LABEL);
-  }
   for (const row of roleRows) {
     upsert(row).relationships.add(PROJECT_ROLE_TYPE_LABELS[row.roleType]);
   }
@@ -113,10 +98,10 @@ export async function getStaffProjects(
     .map((entry) => ({
       ...entry,
       status: deriveProjectStatus(statusesByProject.get(entry.id) ?? []),
-      // Delivery manager first, then disciplines alphabetically.
+      // Delivery first, then the other disciplines alphabetically.
       relationships: Array.from(entry.relationships).sort((a, b) => {
-        if (a === DELIVERY_MANAGER_LABEL) return -1;
-        if (b === DELIVERY_MANAGER_LABEL) return 1;
+        if (a === DELIVERY_LABEL) return -1;
+        if (b === DELIVERY_LABEL) return 1;
         return a.localeCompare(b);
       }),
     }))

@@ -6,23 +6,20 @@ import { assertRowExists } from "@/actions/shared/assertRowExists";
 import { secureActionClient } from "@/lib/core/action";
 import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
-import { generateId } from "@/lib/db/ids";
-import {
-  companies,
-  opportunities,
-  projectDeliveryManagers,
-  projects,
-} from "@/lib/db/schema";
+import { companies, opportunities, projects } from "@/lib/db/schema";
 import { revalidateProject } from "./revalidate";
 import { updateProjectFieldSchema } from "./updateProjectField.schema";
 
 /**
  * Edit a *single* field of a project from its detail page's inline fields (name,
- * company, delivery managers). Gated on `projects.edit`. A discriminated union on
- * `field`: each variant writes only the slice that changed instead of re-sending the
- * whole record, so a concurrent edit to another field isn't clobbered and a name
- * change doesn't rewrite the delivery-manager junction (mirrors
- * `updateCompanyField`).
+ * company). Gated on `projects.edit`. A discriminated union on `field`: each variant
+ * writes only the slice that changed instead of re-sending the whole record, so a
+ * concurrent edit to another field isn't clobbered (mirrors `updateCompanyField`).
+ *
+ * The union is still the right shape with only two variants, because the two are
+ * genuinely different writes: `name` is one column, while `company` re-parents the
+ * project and carries both a data-integrity refusal and its own revalidation of two
+ * clients' pages. Collapsing them would put that rule on a code path that renames.
  *
  * The whole-record `updateProject` still exists for the opportunity planner's Edit
  * dialog — the same split the CRM has between `EditCompanyDialog` and the company
@@ -106,36 +103,6 @@ export const updateProjectField = secureActionClient
             .where(eq(projects.id, projectId));
 
           return previous;
-        });
-        break;
-      }
-      case "deliveryManagers": {
-        // Dedupe so a duplicate can't trip the junction unique index.
-        const deliveryManagerIds = [...new Set(parsedInput.deliveryManagerIds)];
-
-        await db.transaction(async (tx) => {
-          const rows = await tx
-            .select({ id: projects.id })
-            .from(projects)
-            .where(eq(projects.id, projectId))
-            .limit(1);
-          assertRowExists(rows, "project");
-
-          // Set-semantics, as in `updateProject`: clear this project's delivery
-          // managers, then re-add the current selection.
-          await tx
-            .delete(projectDeliveryManagers)
-            .where(eq(projectDeliveryManagers.projectId, projectId));
-
-          if (deliveryManagerIds.length > 0) {
-            await tx.insert(projectDeliveryManagers).values(
-              deliveryManagerIds.map((staffId) => ({
-                id: generateId("proj-dm"),
-                projectId,
-                staffId,
-              })),
-            );
-          }
         });
         break;
       }

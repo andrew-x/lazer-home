@@ -4,12 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { userHasPermission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db/db";
-import {
-  projectDeliveryManagers,
-  projectRoles,
-  staff,
-  staffPto,
-} from "@/lib/db/schema";
+import { projectRoles, staff, staffPto } from "@/lib/db/schema";
 import { formatIsoDate } from "@/lib/format/format";
 import { countWorkingDays } from "@/lib/staff/pto-working-days";
 import type { PtoType } from "@/lib/staff/staff-enums";
@@ -42,8 +37,8 @@ export type ProjectPtoView = {
 };
 
 /**
- * Time off for everyone connected to a project — its staffed people (roles with
- * an assignee) plus its delivery managers — split into upcoming and past.
+ * Time off for everyone connected to a project — its staffed people, i.e. every
+ * role with an assignee, delivery managers included — split into upcoming and past.
  *
  * Visibility: the tab is open to anyone who can view the project, so every
  * viewer sees the person, dates, and working-day count. The **leave type** (and
@@ -66,24 +61,15 @@ export async function getProjectPto(
   if (!user) return { upcoming: [], past: [], canSeeType: false };
   const canSeeType = userHasPermission(user, { pto: ["review"] });
 
-  // The project's people: assignees on its roles ∪ its delivery managers.
-  const [roleStaffRows, dmRows] = await Promise.all([
-    db
-      .selectDistinct({ staffId: projectRoles.staffId })
-      .from(projectRoles)
-      .where(eq(projectRoles.projectId, projectId)),
-    db
-      .select({ staffId: projectDeliveryManagers.staffId })
-      .from(projectDeliveryManagers)
-      .where(eq(projectDeliveryManagers.projectId, projectId)),
-  ]);
+  // The project's people: the assignees on its roles. That now includes its
+  // delivery managers, who hold `DELIVERY` roles like anyone else — this used to
+  // union in a second query over `project_delivery_managers` (ADR 0067).
+  const roleStaffRows = await db
+    .selectDistinct({ staffId: projectRoles.staffId })
+    .from(projectRoles)
+    .where(eq(projectRoles.projectId, projectId));
 
-  const staffIds = [
-    ...new Set([
-      ...roleStaffRows.flatMap((r) => (r.staffId ? [r.staffId] : [])),
-      ...dmRows.map((r) => r.staffId),
-    ]),
-  ];
+  const staffIds = roleStaffRows.flatMap((r) => (r.staffId ? [r.staffId] : []));
 
   if (staffIds.length === 0) {
     return { upcoming: [], past: [], canSeeType };

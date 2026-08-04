@@ -43,7 +43,11 @@ import {
   PROJECT_ROLE_STATUS_LABELS,
   ROLE_STATUS,
 } from "@/lib/projects/project-role-status";
-import { PROJECT_ROLE_TYPE_LABELS } from "@/lib/projects/project-role-type";
+import {
+  DELIVERY_SUBROW_CLASS,
+  isDeliveryDiscipline,
+  PROJECT_ROLE_TYPE_LABELS,
+} from "@/lib/projects/project-role-type";
 import { isWeekend } from "@/lib/timesheets/timesheet-week";
 
 /**
@@ -189,40 +193,58 @@ export function ProjectAllocationsGrid({
                   ))}
                 </tr>
                 {isOpen
-                  ? row.roles.map((line) => (
-                      <tr key={line.role.id} className="border-b">
-                        <td
+                  ? row.roles.map((line) => {
+                      const isDelivery = isDeliveryDiscipline(
+                        line.role.roleType,
+                      );
+                      return (
+                        <tr
+                          key={line.role.id}
                           className={cn(
-                            PLANNER_LABEL_COL,
-                            "sticky left-0 z-10 bg-background py-2 pr-3 pl-8 align-top",
+                            "border-b",
+                            isDelivery && DELIVERY_SUBROW_CLASS,
                           )}
                         >
-                          <div className="truncate">{roleLabel(line.role)}</div>
-                          <div className="truncate text-xs text-muted-foreground">
-                            {roleSublabel(line.role)}
-                          </div>
-                        </td>
-                        {line.cells.map((cell, i) => (
                           <td
-                            key={columns[i]}
                             className={cn(
-                              "px-1 py-1.5 align-top",
-                              dimmed(columns[i]) && "bg-muted/30",
+                              PLANNER_LABEL_COL,
+                              "sticky left-0 z-10 py-2 pr-3 pl-8 align-top",
+                              // Sticky, so it paints its own background and has to
+                              // repeat the row's tint.
+                              isDelivery
+                                ? DELIVERY_SUBROW_CLASS
+                                : "bg-background",
                             )}
                           >
-                            {cell.percent > 0 ? (
-                              <RoleBlock
-                                role={line.role}
-                                cell={cell}
-                                unit={unit}
-                                canAllocate={canAllocate}
-                                onStaffRole={onStaffRole}
-                              />
-                            ) : null}
+                            <div className="truncate">
+                              {roleLabel(line.role)}
+                            </div>
+                            <div className="truncate text-xs text-muted-foreground">
+                              {roleSublabel(line.role)}
+                            </div>
                           </td>
-                        ))}
-                      </tr>
-                    ))
+                          {line.cells.map((cell, i) => (
+                            <td
+                              key={columns[i]}
+                              className={cn(
+                                "px-1 py-1.5 align-top",
+                                dimmed(columns[i]) && "bg-muted/30",
+                              )}
+                            >
+                              {cell.percent > 0 ? (
+                                <RoleBlock
+                                  role={line.role}
+                                  cell={cell}
+                                  unit={unit}
+                                  canAllocate={canAllocate}
+                                  onStaffRole={onStaffRole}
+                                />
+                              ) : null}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })
                   : null}
               </Fragment>
             );

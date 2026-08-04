@@ -183,6 +183,13 @@
       "when": 1785840596064,
       "tag": "0025_empty_frank_castle",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1785847895861,
+      "tag": "0026_normal_monster_badoon",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 /**
  * The risk tags a project carries in the list — "ending soon", "low margin",
- * "negative margin", "low health" — and the thresholds that define them. A pure,
+ * "negative margin", "low health", "no delivery manager" — and the thresholds that
+ * define them. A pure,
  * client-importable module (no `db`/drizzle, no UI) so the read that evaluates the
  * flags (`getProjectsList`) and the card that renders the badges share exactly one
  * definition of the tags, their order, and their labels — the same shape as
@@ -26,6 +27,7 @@
  * "Low margin" because it is CA$10,100 — under the CAD floor.
  */
 import type { DisplayCurrency } from "@/lib/format/currency";
+import type { DeliveryCoverageGap } from "@/lib/projects/delivery-coverage";
 import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
 import { addDays } from "@/lib/timesheets/timesheet-week";
 
@@ -92,10 +94,17 @@ export const LOW_PROJECT_HEALTH_AT_OR_BELOW = 4;
  * and unarguable — but a low health rating is the person running the engagement
  * telling you it is going badly, which outranks a thin-but-positive margin and an
  * approaching end date.
+ *
+ * `noDeliveryManager` sits third — below `lowHealth`, because that is a report of
+ * actual trouble where an uncovered period is a *risk* of it (and, in practice, most
+ * often role dates nobody extended). Above `lowMargin` and `endingSoon` on the same
+ * logic `lowHealth` uses: an accountability hole is the condition that *causes*
+ * health to go unrated and margin to drift unnoticed.
  */
 export const PROJECT_FLAGS = [
   "negativeMargin",
   "lowHealth",
+  "noDeliveryManager",
   "lowMargin",
   "endingSoon",
 ] as const;
@@ -106,6 +115,7 @@ export type ProjectFlag = (typeof PROJECT_FLAGS)[number];
 export const PROJECT_FLAG_LABELS: Record<ProjectFlag, string> = {
   negativeMargin: "Negative margin",
   lowHealth: "Low health",
+  noDeliveryManager: "No delivery manager",
   lowMargin: "Low margin",
   endingSoon: "Ending soon",
 };
@@ -127,6 +137,10 @@ export const PROJECT_FLAG_VARIANTS: Record<
   // second `criticalHealth` flag that suppresses this one, exactly as
   // `negativeMargin` suppresses `lowMargin`.
   lowHealth: "secondary",
+  // Neutral for the same reason: an uncovered period is not money, and its
+  // commonest cause is a delivery role nobody extended when the engagement
+  // slipped. Colouring it would out-shout `lowHealth` while ranking below it.
+  noDeliveryManager: "secondary",
   lowMargin: "secondary",
   endingSoon: "secondary",
 };
@@ -162,6 +176,20 @@ export type ProjectFlagInputs = {
    * complaint from the compiler.
    */
   latestHealth: number | null;
+  /**
+   * The project's uncovered working periods, from `deliveryCoverageGaps` over its
+   * roles (see `@/lib/projects/delivery-coverage`). Empty means covered.
+   *
+   * Pre-derived rather than raw roles so this module stays free of date arithmetic
+   * and owns no part of the coverage policy — including that an OPEN (unstaffed)
+   * delivery role is not coverage, and that a project with no roles at all has no
+   * window and therefore no gaps.
+   *
+   * Not capability-gated: coverage is a delivery fact, not anything derived from
+   * compensation, so this fires for every viewer — the same asymmetry `latestHealth`
+   * documents against `margin`. Required, for the same compiler-pressure reason.
+   */
+  deliveryCoverageGaps: DeliveryCoverageGap[];
 };
 
 const TAG_PREDICATES: Record<
@@ -179,6 +207,14 @@ const TAG_PREDICATES: Record<
     isLive(input) &&
     input.latestHealth != null &&
     input.latestHealth <= LOW_PROJECT_HEALTH_AT_OR_BELOW,
+
+  // Only gaps that are still open or ahead. A hole in an engagement that finished
+  // last year is unfixable history, and flagging it would leave a permanent badge on
+  // every row of the Past tab. The detail page shows those anyway — it's the editor,
+  // where a historical gap is either a data fix or a fact worth knowing.
+  noDeliveryManager: (input) =>
+    isLive(input) &&
+    input.deliveryCoverageGaps.some((gap) => gap.endDate >= input.today),
 
   lowMargin: (input) => {
     if (!isLive(input) || input.margin?.margin == null) return false;
