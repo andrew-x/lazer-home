@@ -101,3 +101,69 @@ describe("project scope — every role on the project", () => {
     expect(rows.some((r) => r.emphasized)).toBe(false);
   });
 });
+
+describe("row order — the delivery line always leads", () => {
+  /** A role with a name and a discipline, for readable ordering assertions. */
+  function named(
+    id: string,
+    roleType: PlanRole["roleType"],
+    staffName: string | null,
+  ): PlanRole {
+    return {
+      ...role(id, "confirmed", null),
+      roleType,
+      staffId: staffName === null ? null : `staff-${id}`,
+      staffName,
+    };
+  }
+
+  const order = (roles: PlanRole[]) =>
+    rowsFor(roles, { scope: "project" }).map((r) => r.roleId);
+
+  test("delivery leads a staffed role, whatever the names say", () => {
+    // "Zoe" would sort last alphabetically; running the engagement outranks that.
+    expect(
+      order([named("eng", "ENGINEER", "Amy"), named("dm", "DELIVERY", "Zoe")]),
+    ).toEqual(["dm", "eng"]);
+  });
+
+  test("an OPEN delivery role still leads a staffed engineer", () => {
+    // Deliberate: the seat's place in the plan doesn't depend on it being filled,
+    // and the open-role sort below must not pull it back down.
+    expect(
+      order([named("eng", "ENGINEER", "Amy"), named("dm", "DELIVERY", null)]),
+    ).toEqual(["dm", "eng"]);
+  });
+
+  test("a cancelled delivery role still leads — it is a kind, not a status", () => {
+    expect(
+      order([
+        named("eng", "ENGINEER", "Amy"),
+        { ...named("dm", "DELIVERY", "Zoe"), status: "cancelled" },
+      ]),
+    ).toEqual(["dm", "eng"]);
+  });
+
+  test("two delivery lines lead, then the rest keep their own ordering", () => {
+    expect(
+      order([
+        named("open", "QA", null),
+        named("eng-b", "ENGINEER", "Bob"),
+        named("dm-z", "DELIVERY", "Zoe"),
+        named("eng-a", "ENGINEER", "Amy"),
+        named("dm-a", "DELIVERY", "Ann"),
+      ]),
+    ).toEqual(["dm-a", "dm-z", "eng-a", "eng-b", "open"]);
+  });
+
+  test("isDelivery is set on exactly the delivery rows", () => {
+    const rows = rowsFor(
+      [named("dm", "DELIVERY", "Zoe"), named("eng", "ENGINEER", "Amy")],
+      { scope: "project" },
+    );
+    expect(rows.map((r) => [r.roleId, r.isDelivery])).toEqual([
+      ["dm", true],
+      ["eng", false],
+    ]);
+  });
+});

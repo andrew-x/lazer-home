@@ -26,7 +26,6 @@ const SEEDABLE_TABLES = [
   // projects
   "project_delivery_notes",
   "project_roles",
-  "project_delivery_managers",
   "projects",
   // opportunities
   "opportunity_entries",

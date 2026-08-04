@@ -36,9 +36,9 @@ type ProjectFormValues = BudgetFormValues & {
 
 // Maps a top-level server-schema issue path to its form field. Typed by
 // `keyof CreateProjectInput` so a new schema field can't silently drop its
-// errors. Fields the standalone form no longer collects (delivery managers,
-// roles — added later in the planner; opportunityId — not used standalone) route
-// to `name` as a harmless fallback; they can't produce validation issues here.
+// errors. Fields the standalone form no longer collects (roles — added later in
+// the planner; opportunityId — not used standalone) route to `name` as a harmless
+// fallback; they can't produce validation issues here.
 // `budget` likewise: the budget slice is parsed separately (see `onSubmit`), so
 // its issues arrive already keyed by leaf field via `budgetIssueFields`.
 const FIELD_FOR_ISSUE: Record<
@@ -48,7 +48,6 @@ const FIELD_FOR_ISSUE: Record<
   name: "name",
   companyId: "companyId",
   opportunityId: "companyId",
-  deliveryManagerIds: "name",
   roles: "name",
   budget: "billingType",
 };
@@ -60,8 +59,8 @@ type ProjectDialogProps = {
 
 /**
  * The standalone create-project dialog (the projects page). Collects name, company
- * and how the work bills; a project's status and lines of business are derived from
- * its roles, which (with delivery managers) are added afterward in the planner.
+ * and how the work bills; a project's status, lines of business and delivery
+ * managers are all derived from its roles, which are added afterward in the planner.
  * Projects created from an opportunity go through
  * `CreateProjectFromOpportunityDialog` instead, which inherits name + company from
  * the deal and asks for the same budget.
@@ -83,7 +82,7 @@ export function AddProjectDialog({
         )
       }
       title="Add project"
-      description="Create a project for a company and set how it bills. Add roles and delivery managers afterward in its planner."
+      description="Create a project for a company and set how it bills. Add roles — including a delivery role — afterward in its planner."
       contentClassName="max-h-[85vh] overflow-y-auto sm:max-w-lg"
     >
       {({ close }) => <ProjectForm onSaved={close} onCreated={onCreated} />}

@@ -185,4 +185,44 @@ describe("buildProjectAllocationRows", () => {
 
     expect(rows.map((r) => r.projectName)).toEqual(["Zulu", "Alpha", "Bravo"]);
   });
+
+  test("the delivery line leads its project's subrows", () => {
+    const rows = buildProjectAllocationRows(
+      [
+        role({ id: "rol_eng" }),
+        role({ id: "rol_qa", roleType: "QA" }),
+        role({ id: "rol_dm", roleType: "DELIVERY", hoursPerDay: 2 }),
+      ],
+      WEEKS,
+      "week",
+    );
+
+    expect(rows[0].roles.map((line) => line.role.id)).toEqual([
+      "rol_dm",
+      "rol_eng",
+      "rol_qa",
+    ]);
+  });
+
+  test("promoting delivery is a stable partition — the rest keep read order", () => {
+    // The read sorts by start date, so anything but a stable sort here would
+    // silently reshuffle the non-delivery lines.
+    const rows = buildProjectAllocationRows(
+      [
+        role({ id: "rol_qa", roleType: "QA" }),
+        role({ id: "rol_eng", roleType: "ENGINEER" }),
+        role({ id: "rol_dm", roleType: "DELIVERY" }),
+        role({ id: "rol_design", roleType: "DESIGNER" }),
+      ],
+      WEEKS,
+      "week",
+    );
+
+    expect(rows[0].roles.map((line) => line.role.id)).toEqual([
+      "rol_dm",
+      "rol_qa",
+      "rol_eng",
+      "rol_design",
+    ]);
+  });
 });

@@ -11,9 +11,13 @@ for a date range at some capacity — see [allocations.md](../domains/allocation
 Two modelling questions arose:
 
 1. **Where does the staffing line live?** A pure junction (like the CRM
-   `opportunity_*` tables and `project_delivery_managers`) can only link a project to
-   a staff member — but an allocation carries data: line of business, a date range,
-   and hours/day.
+   `opportunity_*` tables, or the since-dropped `project_delivery_managers`) can only
+   link a project to a staff member — but an allocation carries data: line of business,
+   a date range, and hours/day.
+   > **Vindicated by [ADR 0069](./0069-delivery-managers-as-project-roles-and-coverage-gaps.md):**
+   > `project_delivery_managers` was the pure junction this question rejected for staffing
+   > lines, and it later failed for the *same* reason — a dateless set can't say who ran a
+   > project *in March*. It was dropped, and a delivery manager became a `project_roles` row.
 2. **Should a staffing line be effective-dated?** `docs/data-model.md` states a
    standing nuance: *everything time-bound (allocations, rates, reviews, employment)
    needs effective-dated handling*, and the realized pattern is history-as-rows
@@ -71,9 +75,11 @@ established for the opportunity enums.
   effective-dated history-as-rows pattern (or grow an audit trail). Treat today's shape
   as the minimal first cut, consistent with the data-model nuance being *aspirational*
   for allocations, not yet met.
-- No `unique` on `(projectId, staffId)` means writers don't need to dedupe role rows
-  (unlike the delivery-manager junction, which does dedupe) — overlapping/duplicate
-  role lines are allowed and are a validation concern for later, not a DB constraint.
+- No `unique` on `(projectId, staffId)` means writers don't need to dedupe role rows —
+  overlapping/duplicate role lines are allowed and are a validation concern for later, not a
+  DB constraint. (The contrast used to be the delivery-manager junction, which *did* dedupe;
+  it is gone, and a person may now hold several delivery roles on one project — how
+  `deliveryManagersOf` returns one entry with several `spans`.)
 
 ## Alternatives considered
 

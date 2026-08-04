@@ -8,6 +8,7 @@ import {
   exists,
   ilike,
   inArray,
+  ne,
   or,
   type SQL,
   sql,
@@ -20,7 +21,6 @@ import type { LineOfBusiness } from "@/lib/crm/line-of-business";
 import { db } from "@/lib/db/db";
 import {
   companies,
-  projectDeliveryManagers,
   projectDeliveryNotes,
   projectRoles,
   projects,
@@ -31,6 +31,11 @@ import {
   DISPLAY_CURRENCIES,
   type DisplayCurrency,
 } from "@/lib/format/currency";
+import {
+  type DeliveryCoverageRole,
+  deliveryCoverageGaps,
+  deliveryManagersOf,
+} from "@/lib/projects/delivery-coverage";
 import type { BillingType } from "@/lib/projects/project-billing";
 import {
   deriveProjectLinesOfBusiness,
@@ -47,7 +52,10 @@ import {
   computeProjectMargin,
   type MarginRoleInput,
 } from "@/lib/projects/project-margin";
-import type { ProjectRoleStatus } from "@/lib/projects/project-role-status";
+import {
+  type ProjectRoleStatus,
+  ROLE_STATUS,
+} from "@/lib/projects/project-role-status";
 import {
   derivedStatusCondition,
   latestHealthRating,
@@ -75,6 +83,12 @@ export type ProjectListItem = {
   linesOfBusiness: LineOfBusiness[];
   companyId: string;
   companyName: string;
+  /**
+   * The distinct named staff on the project's **live `DELIVERY` roles** — the
+   * derived set, all-time rather than "who runs it today", matching the detail
+   * sidebar and the `dm` filter. Empty when no live delivery role has a person on
+   * it, which now also covers "there is a delivery role but nobody is in it".
+   */
   deliveryManagerNames: string[];
   roleCount: number;
   /**
@@ -127,7 +141,7 @@ export type ProjectsListFilters = {
   /** Case-insensitive substring match on project or company name. */
   query?: string;
   lineOfBusiness?: LineOfBusiness;
-  /** A `staff.id`; matches projects this person is a delivery manager on. */
+  /** A `staff.id`; matches projects this person holds a live delivery role on. */
   deliveryManagerId?: string;
 };
 
@@ -187,6 +201,22 @@ function orderClauses({ key, dir }: ProjectsListOrder): SQL[] {
 }
 
 /**
+ * "A live delivery role" in SQL — the role rows that make someone this project's
+ * delivery manager. Declared once and shared by the `dm` filter and the filter's
+ * own option set so the two can't disagree about who runs what.
+ *
+ * LOCKSTEP: this is the SQL mirror of `isDeliveryCoverage` in
+ * `@/lib/projects/delivery-coverage`. Change one and change the other. (It omits
+ * that predicate's `staffId is not null` half because both call sites either
+ * compare a specific staff id or inner-join `staff`, which drops open roles for
+ * free.)
+ */
+const liveDeliveryRole = and(
+  eq(projectRoles.roleType, "DELIVERY"),
+  ne(projectRoles.status, ROLE_STATUS.cancelled),
+);
+
+/**
  * The combined `where` for a set of status buckets + the optional filters. Reads
  * the clock once per call for the bucket predicate — the active/past split turns
  * on today's date (see `derivedStatusCondition`).
@@ -218,16 +248,17 @@ function projectsWhere(
   }
 
   if (filters.deliveryManagerId) {
-    // A project matches iff this staff member is one of its delivery managers.
+    // A project matches iff this staff member holds a live delivery role on it.
     conditions.push(
       exists(
         db
           .select({ n: sql`1` })
-          .from(projectDeliveryManagers)
+          .from(projectRoles)
           .where(
             and(
-              eq(projectDeliveryManagers.projectId, projects.id),
-              eq(projectDeliveryManagers.staffId, filters.deliveryManagerId),
+              eq(projectRoles.projectId, projects.id),
+              liveDeliveryRole,
+              eq(projectRoles.staffId, filters.deliveryManagerId),
             ),
           ),
       ),
@@ -248,17 +279,23 @@ function projectsWhere(
 }
 
 /**
- * The staff who are a delivery manager on at least one project, ordered by name
+ * The staff who hold a live delivery role on at least one project, ordered by name
  * — the option set for the list's delivery-manager filter. Distinct so a person
- * managing several projects appears once.
+ * running several projects appears once.
+ *
+ * Cancelled roles are excluded, so the option set is derived from live plan data
+ * and can shrink when a role is cancelled. That's deliberate: the `dm` filter
+ * excludes them too, and an option that matched nothing would read as a broken
+ * filter rather than as an empty result.
  */
 export async function getDeliveryManagerOptions(): Promise<
   DeliveryManagerOption[]
 > {
   return db
     .selectDistinct({ id: staff.id, name: staff.name })
-    .from(projectDeliveryManagers)
-    .innerJoin(staff, eq(projectDeliveryManagers.staffId, staff.id))
+    .from(projectRoles)
+    .innerJoin(staff, eq(projectRoles.staffId, staff.id))
+    .where(liveDeliveryRole)
     .orderBy(asc(staff.name));
 }
 
@@ -284,12 +321,17 @@ type ProjectBaseRow = {
 };
 
 /**
- * Assemble full `ProjectListItem`s for the given base rows: one grouped
- * delivery-manager query, one latest-delivery-note query and one role query (all
- * scoped to these ids), then derive status, lines of business, role count, the date
- * range, the plan margin, the latest health rating and the risk flags in JS. No
- * N+1 — three follow-up queries regardless of row count, plus the request-scoped
+ * Assemble full `ProjectListItem`s for the given base rows: one
+ * latest-delivery-note query and one role query (both scoped to these ids), then
+ * derive status, lines of business, role count, the date range, the delivery
+ * managers, the plan margin, the latest health rating and the risk flags in JS. No
+ * N+1 — two follow-up queries regardless of row count, plus the request-scoped
  * `getProjectsMarginContext`. Preserves the input order.
+ *
+ * There used to be a third query, grouping `project_delivery_managers` to names.
+ * A delivery manager is now a `DELIVERY` role, so both the Delivery column and the
+ * coverage flag fall out of the role rows already in hand — which also means the
+ * two can't disagree about who runs the project (ADR 0069).
  *
  * Called once per section, so the grouped view runs each of those queries five
  * times per render. That's the multiplier anything added here inherits.
@@ -300,7 +342,7 @@ async function assembleRows(
   if (baseRows.length === 0) return [];
   const ids = baseRows.map((row) => row.id);
 
-  const managersByProject = new Map<string, string[]>();
+  const coverageRolesByProject = new Map<string, DeliveryCoverageRole[]>();
   const roleStatusesByProject = new Map<string, ProjectRoleStatus[]>();
   const openRolesByProject = new Map<string, number>();
   const roleLobsByProject = new Map<string, LineOfBusiness[]>();
@@ -308,49 +350,30 @@ async function assembleRows(
   const startDateByProject = new Map<string, string>();
   const endDateByProject = new Map<string, string>();
 
-  // Independent of each other and of the margin context, so they overlap.
-  const [managerRows, healthRows] = await Promise.all([
-    db
-      .select({
-        projectId: projectDeliveryManagers.projectId,
-        name: staff.name,
-      })
-      .from(projectDeliveryManagers)
-      .innerJoin(staff, eq(projectDeliveryManagers.staffId, staff.id))
-      .where(inArray(projectDeliveryManagers.projectId, ids))
-      .orderBy(asc(staff.name)),
-
-    // The latest delivery note per project, via `distinct on` rather than pulling
-    // every note back and reducing in JS. Both are correct given identical
-    // ordering; the difference is payload growth. `getStaffDirectory` reduces in JS
-    // and its own comment anticipates this case — an employment history is a
-    // handful of rows per person forever, while a note a week over a two-year
-    // engagement is ~100 rows per project, and the unpaginated Active section can
-    // hold every live project at once. This returns at most one row per id
-    // regardless, and keeps this function's fixed-query-count contract.
-    db
-      .selectDistinctOn([projectDeliveryNotes.projectId], {
-        projectId: projectDeliveryNotes.projectId,
-        projectHealth: projectDeliveryNotes.projectHealth,
-        noteDate: projectDeliveryNotes.noteDate,
-      })
-      .from(projectDeliveryNotes)
-      .where(inArray(projectDeliveryNotes.projectId, ids))
-      // `distinct on` requires its own expressions to lead the `order by`; the rest
-      // is the ordering shared with the detail read, which the table's index is
-      // declared to serve in this exact direction.
-      .orderBy(asc(projectDeliveryNotes.projectId), ...latestDeliveryNoteFirst),
-  ]);
+  // The latest delivery note per project, via `distinct on` rather than pulling
+  // every note back and reducing in JS. Both are correct given identical
+  // ordering; the difference is payload growth. `getStaffDirectory` reduces in JS
+  // and its own comment anticipates this case — an employment history is a
+  // handful of rows per person forever, while a note a week over a two-year
+  // engagement is ~100 rows per project, and the unpaginated Active section can
+  // hold every live project at once. This returns at most one row per id
+  // regardless, and keeps this function's fixed-query-count contract.
+  const healthRows = await db
+    .selectDistinctOn([projectDeliveryNotes.projectId], {
+      projectId: projectDeliveryNotes.projectId,
+      projectHealth: projectDeliveryNotes.projectHealth,
+      noteDate: projectDeliveryNotes.noteDate,
+    })
+    .from(projectDeliveryNotes)
+    .where(inArray(projectDeliveryNotes.projectId, ids))
+    // `distinct on` requires its own expressions to lead the `order by`; the rest
+    // is the ordering shared with the detail read, which the table's index is
+    // declared to serve in this exact direction.
+    .orderBy(asc(projectDeliveryNotes.projectId), ...latestDeliveryNoteFirst);
 
   const healthByProject = new Map(
     healthRows.map((row) => [row.projectId, row]),
   );
-
-  for (const { projectId, name } of managerRows) {
-    const list = managersByProject.get(projectId) ?? [];
-    list.push(name);
-    managersByProject.set(projectId, list);
-  }
 
   const { rates, costBasis } = await getProjectsMarginContext();
 
@@ -365,9 +388,13 @@ async function assembleRows(
       roleType: projectRoles.roleType,
       hoursPerDay: projectRoles.hoursPerDay,
       staffId: projectRoles.staffId,
+      // For the Delivery column and the coverage gaps. Left join: a null `staffId`
+      // is an open role, which must survive so it still counts toward the plan.
+      staffName: staff.name,
       billRate: projectRoles.billRate,
     })
     .from(projectRoles)
+    .leftJoin(staff, eq(projectRoles.staffId, staff.id))
     .where(inArray(projectRoles.projectId, ids));
 
   for (const row of roleRows) {
@@ -378,6 +405,12 @@ async function assembleRows(
     const lobs = roleLobsByProject.get(row.projectId) ?? [];
     lobs.push(row.lineOfBusiness);
     roleLobsByProject.set(row.projectId, lobs);
+
+    // Every role, not just the delivery ones: the gap detector needs the
+    // non-delivery lines to know what window there is to cover.
+    const coverageRoles = coverageRolesByProject.get(row.projectId) ?? [];
+    coverageRoles.push(row);
+    coverageRolesByProject.set(row.projectId, coverageRoles);
 
     // A role with no assignee is an open position — the staffing gap the list
     // shows beside the role count.
@@ -424,6 +457,7 @@ async function assembleRows(
     const status = deriveProjectStatus(statuses);
     const endDate = endDateByProject.get(row.id) ?? null;
     const latestNote = healthByProject.get(row.id) ?? null;
+    const coverageRoles = coverageRolesByProject.get(row.id) ?? [];
 
     const margin = costBasis
       ? listMargin({
@@ -443,7 +477,9 @@ async function assembleRows(
       linesOfBusiness: deriveProjectLinesOfBusiness(
         roleLobsByProject.get(row.id) ?? [],
       ),
-      deliveryManagerNames: managersByProject.get(row.id) ?? [],
+      deliveryManagerNames: deliveryManagersOf(coverageRoles).map(
+        (m) => m.name,
+      ),
       roleCount: statuses.length,
       openRoleCount: openRolesByProject.get(row.id) ?? 0,
       startDate: startDateByProject.get(row.id) ?? null,
@@ -458,6 +494,7 @@ async function assembleRows(
         today,
         margin: margin?.[MARGIN_FLAG_CURRENCY] ?? null,
         latestHealth: latestNote?.projectHealth ?? null,
+        deliveryCoverageGaps: deliveryCoverageGaps(coverageRoles),
       }),
     };
   });

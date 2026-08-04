@@ -9,7 +9,7 @@ export * from "./crm-schema";
 export * from "./opportunities-schema";
 // Performance domain (peer feedback + rating enum).
 export * from "./performance-schema";
-// Projects domain (projects, delivery managers, roles).
+// Projects domain (projects, roles, delivery notes).
 export * from "./projects-schema";
 // Survey responses domain (generic responses table).
 export * from "./responses-schema";

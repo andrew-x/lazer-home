@@ -6,7 +6,6 @@ import {
   IconCircleCheck,
   IconClock,
   IconHeartbeat,
-  IconUsers,
 } from "@tabler/icons-react";
 import { useMemo } from "react";
 import type { PlanRole } from "@/actions/projects/getOpportunityPlan";
@@ -14,7 +13,6 @@ import { StatCard } from "@/components/stat-card";
 import { formatShortDate, parseIsoDate } from "@/lib/format/format";
 import {
   type DateRange,
-  deliveryManagerLabel,
   rangeLabel,
   rangeOf,
   yearHint,
@@ -32,7 +30,14 @@ import {
 /**
  * The timeline tiles above a project's planner grid: overall length and dates, the
  * confirmed and tentative spans once anything is committed, and — where the surface
- * has them to show — the delivery managers and the latest delivery-note health.
+ * has one to show — the latest delivery-note health.
+ *
+ * There was a "Delivery managers" tile here. It went when a delivery manager became
+ * an ordinary `DELIVERY` role (ADR 0069): the tile restated a row now visible in the
+ * planner grid immediately below, and the detail page had already suppressed it in
+ * favour of its sidebar field. What replaced it is a *derived* signal the tiles could
+ * never have carried — `DeliveryCoverageNotice`, which fires only when the plan has a
+ * hole.
  *
  * Shared by the opportunity's Project-plan tab and the project detail page, which
  * rendered a near-identical copy each. The confirmed/tentative split is the point of
@@ -43,7 +48,6 @@ export function PlanSummaryTiles({
   timeline,
   status,
   lengthWeeks,
-  deliveryManagers,
   health,
 }: {
   roles: PlanRole[];
@@ -52,8 +56,6 @@ export function PlanSummaryTiles({
   status: ProjectRoleStatus | null;
   /** Timeline length in weeks — the planner's column count. */
   lengthWeeks: number;
-  /** Omit on surfaces that show the managers elsewhere (the detail page sidebar). */
-  deliveryManagers?: { id: string; name: string }[];
   /**
    * The latest delivery note's health rating and its date. Omit on surfaces with
    * no delivery notes to read (the opportunity's Project-plan tab); pass
@@ -99,13 +101,6 @@ export function PlanSummaryTiles({
           value={rangeLabel(tentativeRange)}
           hint={yearHint(tentativeRange)}
           icon={IconClock}
-        />
-      ) : null}
-      {deliveryManagers ? (
-        <StatCard
-          label="Delivery managers"
-          value={deliveryManagerLabel(deliveryManagers)}
-          icon={IconUsers}
         />
       ) : null}
       {health ? (

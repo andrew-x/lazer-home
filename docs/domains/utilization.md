@@ -146,6 +146,16 @@ basis**:
   counting it at full weight only made every figure softer than it looked
   ([ADR 0064](../decisions/0064-utilization-single-basis-toggle-and-cohort-wide-logged-gate.md) §2).
   `UtilizationRole` no longer carries `status`.
+  - ⚠️ **Delivery roles now count too** — a delivery manager is an ordinary `project_roles` row with
+    `roleType = "DELIVERY"` ([ADR 0069](../decisions/0069-delivery-managers-as-project-roles-and-coverage-gaps.md)),
+    so running an engagement is planned hours here where oversight used to be invisible. **Planned
+    figures on existing data moved.** No role-type filter exists and none should be added: the
+    report measures capacity use, and delivery time is capacity used.
+  - **This confirmed-only rule is deliberately *not* the delivery-coverage rule.** The coverage
+    predicates in `delivery-coverage.ts` count everything but `cancelled` — they ask "does the plan
+    account for delivery", not "whose capacity is committed" — so this report and the coverage
+    warning will disagree about a tentative delivery manager, on purpose. See
+    [projects.md](./projects.md#delivery-managers--coverage).
 - **Internal admin is excluded.** The fourth bucket is gone — the ledger and `LoggedTotals` carry
   exactly **project / PTO / bench** — and `INTERNAL_ADMIN` entries are dropped when folding logged
   totals. It had no planned counterpart, so its row only ever half-filled, and it belongs to no

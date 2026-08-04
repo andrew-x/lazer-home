@@ -31,8 +31,14 @@ function inputs(overrides: Partial<ProjectFlagInputs> = {}): ProjectFlagInputs {
       marginPercent: LOW_MARGIN_PERCENT * 2,
     },
     latestHealth: PROJECT_HEALTH_MAX,
+    deliveryCoverageGaps: [],
     ...overrides,
   };
+}
+
+/** A gap that is still open today — the shape `noDeliveryManager` fires on. */
+function gapEnding(endDate: string) {
+  return [{ startDate: addDays(endDate, -6), endDate, weekdays: 5 }];
 }
 
 /** A margin that clears the amount floor, so only the percentage is in play. */
@@ -57,9 +63,56 @@ describe("projectFlags", () => {
           endDate: addDays(TODAY, 1),
           margin: { margin: -1, marginPercent: -0.5 },
           latestHealth: LOW_PROJECT_HEALTH_AT_OR_BELOW,
+          deliveryCoverageGaps: gapEnding(addDays(TODAY, 10)),
         }),
       ),
-    ).toEqual(["negativeMargin", "lowHealth", "endingSoon"]);
+    ).toEqual([
+      "negativeMargin",
+      "lowHealth",
+      "noDeliveryManager",
+      "endingSoon",
+    ]);
+  });
+
+  describe("no delivery manager", () => {
+    test("a gap still open today flags", () => {
+      expect(
+        projectFlags(inputs({ deliveryCoverageGaps: gapEnding(TODAY) })),
+      ).toEqual(["noDeliveryManager"]);
+    });
+
+    test("a gap ending in the future flags", () => {
+      expect(
+        projectFlags(
+          inputs({ deliveryCoverageGaps: gapEnding(addDays(TODAY, 60)) }),
+        ),
+      ).toEqual(["noDeliveryManager"]);
+    });
+
+    test("a gap that closed yesterday does not — history is unfixable", () => {
+      expect(
+        projectFlags(
+          inputs({ deliveryCoverageGaps: gapEnding(addDays(TODAY, -1)) }),
+        ),
+      ).toEqual([]);
+    });
+
+    test("a covered plan does not", () => {
+      expect(projectFlags(inputs({ deliveryCoverageGaps: [] }))).toEqual([]);
+    });
+
+    test("one open gap flags even when an older one has closed", () => {
+      expect(
+        projectFlags(
+          inputs({
+            deliveryCoverageGaps: [
+              ...gapEnding(addDays(TODAY, -30)),
+              ...gapEnding(addDays(TODAY, 5)),
+            ],
+          }),
+        ),
+      ).toEqual(["noDeliveryManager"]);
+    });
   });
 
   describe("low margin", () => {
@@ -253,6 +306,7 @@ describe("projectFlags", () => {
           today: TODAY,
           margin: { margin: -50_000, marginPercent: -1 },
           latestHealth: PROJECT_HEALTH_MIN,
+          deliveryCoverageGaps: gapEnding(addDays(TODAY, 30)),
         }),
       ).toEqual([]);
     });

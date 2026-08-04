@@ -3,11 +3,10 @@
 import { IconTrash } from "@tabler/icons-react";
 import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import type { PlanProject } from "@/actions/projects/getOpportunityPlan";
 import { removeProjectFromOpportunity } from "@/actions/projects/removeProjectFromOpportunity";
-import { searchStaff } from "@/actions/projects/searchStaff";
 import { updateProject } from "@/actions/projects/updateProject";
 import { updateProjectSchema } from "@/actions/projects/updateProject.schema";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -15,10 +14,6 @@ import {
   applyServerIssues,
   type IssueTarget,
 } from "@/components/form/apply-server-issues";
-import {
-  EntityMultiCombobox,
-  type EntityOption,
-} from "@/components/form/entity-multi-combobox";
 import { FormDialog, FormDialogFooter } from "@/components/form/form-dialog";
 import { FormField } from "@/components/form/form-field";
 import { Button } from "@/components/ui/button";
@@ -26,7 +21,6 @@ import { Input } from "@/components/ui/input";
 
 type EditProjectFormValues = {
   name: string;
-  deliveryManagers: EntityOption[];
 };
 
 const EDIT_PROJECT_ISSUE_FIELDS: Record<
@@ -34,16 +28,16 @@ const EDIT_PROJECT_ISSUE_FIELDS: Record<
   IssueTarget<EditProjectFormValues>
 > = {
   name: "name",
-  deliveryManagerIds: "deliveryManagers",
   // Server-controlled; never a form field.
   projectId: "name",
 };
 
 /**
- * Edit the project's name and delivery managers, or remove it from this
- * opportunity. A project's status and lines of business are derived from its
- * roles, so they aren't edited here; roles are managed separately by the planner
- * grid below. Gated by the caller on `canManage` (`projects.edit`).
+ * Rename the project, or remove it from this opportunity. A project's status, lines
+ * of business and delivery managers are all derived from its roles, so none of them
+ * is edited here; roles are managed by the planner grid below, which is also where a
+ * delivery manager is named — as a `DELIVERY` role (ADR 0069). Gated by the caller on
+ * `canManage` (`projects.edit`).
  */
 export function EditProjectDialog({
   project,
@@ -62,19 +56,12 @@ export function EditProjectDialog({
   const [removeOpen, setRemoveOpen] = useState(false);
 
   const {
-    control,
     register,
     handleSubmit,
     setError,
     formState: { errors },
   } = useForm<EditProjectFormValues>({
-    defaultValues: {
-      name: project.name,
-      deliveryManagers: project.deliveryManagers.map((m) => ({
-        id: m.id,
-        name: m.name,
-      })),
-    },
+    defaultValues: { name: project.name },
   });
 
   const update = useAction(updateProject, {
@@ -102,7 +89,6 @@ export function EditProjectDialog({
     const parsed = updateProjectSchema.safeParse({
       projectId: project.id,
       name: values.name,
-      deliveryManagerIds: values.deliveryManagers.map((d) => d.id),
     });
     if (!parsed.success) {
       applyServerIssues(setError, parsed.error, EDIT_PROJECT_ISSUE_FIELDS);
@@ -119,7 +105,7 @@ export function EditProjectDialog({
       }}
       forceMountOverlay
       title="Edit project"
-      description="Update the project's name and delivery managers. Status and lines of business are derived from its roles, edited in the planner below."
+      description="Update the project's name. Status, lines of business and delivery managers are all derived from its roles, edited in the planner below."
       contentClassName="max-h-[85vh] overflow-y-auto sm:max-w-lg"
     >
       {() => (
@@ -133,22 +119,6 @@ export function EditProjectDialog({
               id="edit-project-name"
               aria-invalid={Boolean(errors.name)}
               {...register("name")}
-            />
-          </FormField>
-
-          <FormField label="Delivery managers">
-            <Controller
-              control={control}
-              name="deliveryManagers"
-              render={({ field, fieldState }) => (
-                <EntityMultiCombobox
-                  value={field.value}
-                  onChange={field.onChange}
-                  searchAction={searchStaff}
-                  placeholder="Search staff…"
-                  invalid={Boolean(fieldState.error)}
-                />
-              )}
             />
           </FormField>
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { id, idList } from "@/lib/schemas/id-schema";
+import { id } from "@/lib/schemas/id-schema";
 
 /**
  * A project's name rule, shared with `updateProjectField`'s `name` variant so the
@@ -12,16 +12,15 @@ export const projectName = z
   .max(200);
 
 /**
- * Validation for editing a project's top-level fields from the planner's Edit
- * dialog (name, delivery managers). A pure, client-importable module (no
- * `db`/drizzle) so the edit form's resolver and the server action share one
- * schema. A project has no status or line of business of its own (both are
- * derived from its roles); roles are edited separately (per-role actions).
+ * Validation for renaming a project from the planner's Edit dialog. A pure,
+ * client-importable module (no `db`/drizzle) so the edit form's resolver and the
+ * server action share one schema. The name is the only editable top-level field: a
+ * project's status, lines of business and delivery managers are all derived from its
+ * roles, and roles are edited separately (per-role actions).
  */
 export const updateProjectSchema = z.object({
   projectId: id,
   name: projectName,
-  deliveryManagerIds: idList,
 });
 
 export type UpdateProjectInput = z.input<typeof updateProjectSchema>;

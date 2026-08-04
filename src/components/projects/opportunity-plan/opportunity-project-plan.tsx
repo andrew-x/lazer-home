@@ -406,7 +406,6 @@ function PlanEditor({
           timeline={plan.timeline}
           status={plan.project?.status ?? null}
           lengthWeeks={lengthWeeks}
-          deliveryManagers={plan.project?.deliveryManagers ?? []}
         />
       </div>
 
