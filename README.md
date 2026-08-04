@@ -19,6 +19,12 @@ Edit pages under `src/app`. The app auto-updates as you edit.
 - `bun run build` — production build (also type-checks)
 - `bun run db:seed` — populate the database with synthetic data (see below)
 
+## Optional integrations
+
+- **Slack channel links** — scoping channels on opportunities, delivery channels on projects. Off
+  until a bot token is configured; see [`docs/guides/slack.md`](./docs/guides/slack.md) for the setup
+  runbook.
+
 ## Seeding synthetic data
 
 `bun run db:seed` fills the database with a coherent, reproducible fake dataset

@@ -40,7 +40,7 @@ split (opportunities in their own file) is untouched.
 **2. Project status & LoB are derived, never stored.** `projects` drops both `status`
 and `lineOfBusiness`; it is now just `id`, `name`, `companyId`, timestamps (plus the roles
 relation — the delivery-managers junction that also hung off it here was later **dropped**, its
-managers likewise derived from the roles, [ADR 0067](./0067-delivery-managers-as-project-roles-and-coverage-gaps.md)).
+managers likewise derived from the roles, [ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md)).
 The `project_status` enum and
 `src/lib/project-status.ts` are **deleted**. A new pure, client-importable module
 `src/lib/projects/project-derived.ts` computes both,
@@ -75,7 +75,7 @@ and its roles now each carry a `lineOfBusiness`).
 **5. A real delete/detach flow.** Shared helper `detachProjectFromOpportunity`: when
 an opportunity's project is **sole-owned** (all roles are this opportunity's AND no
 other opportunity links to it AND no unassigned roles) the **whole project is
-deleted** (cascading roles — and, until [ADR 0067](./0067-delivery-managers-as-project-roles-and-coverage-gaps.md) dropped it, the delivery-manager junction — after nulling this opportunity's
+deleted** (cascading roles — and, until [ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md) dropped it, the delivery-manager junction — after nulling this opportunity's
 `projectId` to release the FK `restrict`); otherwise **only this opportunity's roles**
 are deleted and the project is unlinked. Two callers: `removeProjectFromOpportunity`
 (planner "Remove project", gated `projects.edit`) and the new `deleteOpportunity`
@@ -100,12 +100,12 @@ reused).
   supported, cheaply, because LoB rides on the role.
 - **No hand-maintained project status.** There is no `updateProject`-style status
   editor and no drift risk: status always reflects the roles. `updateProject` now
-  edits only name + delivery managers. **(Since [ADR 0067](./0067-delivery-managers-as-project-roles-and-coverage-gaps.md):
+  edits only name + delivery managers. **(Since [ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md):
   name only — delivery managers derive from the roles too, so `updateProject` writes a single
   column.)**
 - **One source of truth for the two lifecycle scalars** — `project-derived.ts` is
   imported by reads, UI, and tests alike (client-safe, no `db`). **This pattern is what
-  ADR 0067 extended to a third fact:** `delivery-coverage.ts` derives "who runs this project"
+  ADR 0068 extended to a third fact:** `delivery-coverage.ts` derives "who runs this project"
   the same way, and being a *derivation* is what made coverage **gaps** expressible at all.
 
 ## Alternatives considered

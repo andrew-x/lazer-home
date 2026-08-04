@@ -105,7 +105,7 @@ difference between the two documents rather than from convenience:
 **Consequence, stated so it can't be mistaken for an oversight:** `authorStaffId` is
 **attribution only and never an authorization input.** That is why it points at **`staff`**
 (matching `projectRoles.staffId` — and, at the time, the since-dropped
-`projectDeliveryManagers.staffId`, [ADR 0067](./0067-delivery-managers-as-project-roles-and-coverage-gaps.md) — so the panel can link the
+`projectDeliveryManagers.staffId`, [ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md) — so the panel can link the
 name to `/staff/[id]`) rather than at `user` as `performanceReviewNote.authorUserId` does — a
 column that decides access must identify the *account*, one that only says "who wrote this" is
 better off as the person. `set null` on the author's staff row disappearing therefore narrows
@@ -126,7 +126,7 @@ domains.
 ordering rule, two readers, so the list's figure and the top of the detail log can never
 disagree about which note is current. It was the **third** grouped follow-up query there,
 `Promise.all`'d with the delivery-manager one — **that sibling is gone
-([ADR 0067](./0067-delivery-managers-as-project-roles-and-coverage-gaps.md)), so this is now
+([ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md)), so this is now
 one of two and runs unaccompanied**; `distinct on` rather than pulling every note
 back and reducing in JS, because a weekly note over a two-year engagement is ~100 rows and the
 unpaginated Active section can hold every live project at once.
@@ -145,7 +145,7 @@ unpaginated Active section can hold every live project at once.
   well. Four is the highest rating unambiguously below the middle, and it maps onto the four
   labels each of which is a sentence you'd want on a card.
 - **Placed second in `PROJECT_FLAGS`** (after `negativeMargin`, before `lowMargin` — and, since
-  [ADR 0067](./0067-delivery-managers-as-project-roles-and-coverage-gaps.md), before
+  [ADR 0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md), before
   `noDeliveryManager`, which ranks *below* health on this same argument: an uncovered period is a
   *risk* of trouble where a low rating is a report of it): a loss is
   money we are already losing, but the person running the engagement saying it is going badly

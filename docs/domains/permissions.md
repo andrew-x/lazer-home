@@ -86,7 +86,7 @@ derived from individual compensation.
 - **`projects.edit`** — add/edit projects and their staffing (**roles — which is now the *only*
   way a delivery manager is named**, since a delivery manager is a `roleType = "DELIVERY"` role and
   the `project_delivery_managers` junction is gone;
-  [ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md) **changed no
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md) **changed no
   gate** — it only deleted mutation surface that already rode this capability. ⚠️ Not to be confused
   with the **role literally named `delivery-manager`** in the matrix below). Its type-ahead
   staff/company pickers have their own `projects.edit`-gated

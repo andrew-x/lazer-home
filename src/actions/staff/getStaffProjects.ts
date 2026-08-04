@@ -54,7 +54,7 @@ export async function getStaffProjects(
   // One row per project. A Map preserves the first sighting; relationships
   // accumulate in a Set so a person holding several roles of the same discipline
   // lists it once. Running the engagement needs no second query any more — it is a
-  // `DELIVERY` role like any other (ADR 0067).
+  // `DELIVERY` role like any other (ADR 0068).
   const byProject = new Map<
     string,
     Omit<StaffProjectSummary, "relationships" | "status"> & {

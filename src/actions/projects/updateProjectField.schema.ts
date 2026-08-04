@@ -14,7 +14,7 @@ import { projectName } from "./updateProject.schema";
  *
  * A project's status, lines of business and delivery managers are all derived from
  * its roles, so none of them is a field here — a delivery manager is named by adding
- * a `DELIVERY` role (ADR 0067). Moving a project to another **company** is allowed
+ * a `DELIVERY` role (ADR 0068). Moving a project to another **company** is allowed
  * but constrained: the action refuses when a linked opportunity would be left
  * pointing at a project belonging to a different company (see `updateProjectField`).
  */

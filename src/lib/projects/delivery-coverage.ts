@@ -12,7 +12,7 @@
  * noticed. A delivery manager is now an ordinary `project_roles` row with
  * `roleType = "DELIVERY"` — dated, statused and priced like every other line — and
  * a project's delivery managers are *derived* from those roles, exactly as its
- * status, lines of business and health already are (ADR 0067).
+ * status, lines of business and health already are (ADR 0068).
  *
  * What that unlocks is the thing the junction structurally could not have: a
  * **coverage gap**. {@link deliveryCoverageGaps} is the only place that is defined.

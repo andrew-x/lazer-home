@@ -4,7 +4,9 @@
 and a **per-project detail page** (`/projects/[id]`, the first single-project route) that is now
 the **delivery-side editor of an engagement** (see [Project detail page](#project-detail-page)
 below) all exist. This is the **hub linking CRM to delivery** and the first concrete cut of the
-proposed **Allocation** concept (`project_roles`).
+proposed **Allocation** concept (`project_roles`). A project also carries an optional link to its
+**public Slack delivery channel** (`l-project-<slug>`), created or linked from that detail page — see
+[Slack channel](#slack-channel) and [slack.md](./slack.md).
 
 **Two editors, one set of rows.** A project's roles are edited from **two** surfaces with
 **deliberately different invariants** ([ADR 0045](../decisions/0045-project-page-as-delivery-side-role-editor.md)):
@@ -44,12 +46,12 @@ engagement owns its record) and **reads are open, so unlike margin the health fi
 are shown to every viewer**.
 
 **And it now says who runs it as a *role*, not a field.** The `project_delivery_managers` junction
-is **dropped** (`drizzle/0026`): a **delivery manager is a `project_roles` row with
+is **dropped** (`drizzle/0027`): a **delivery manager is a `project_roles` row with
 `roleType = "DELIVERY"`** — dated, statused and priced like any other line — so a project's
 delivery managers are *derived*, and the plan can now express something the dateless junction
 structurally could not: a **delivery-coverage gap**, a stretch of the engagement nobody is running
 ([Delivery managers & coverage](#delivery-managers--coverage),
-[ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md)). ⚠️ Because
+[ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)). ⚠️ Because
 a `DELIVERY` role is an ordinary role, **its hours and rate now move plan revenue/cost/margin, the
 allocations capacity meter, the utilization report's *Planned* series and the home dashboard's
 staffing count.** (Unrelated to the RBAC role literally named `delivery-manager`.)
@@ -59,7 +61,7 @@ timestamps (plus the roles relation and its delivery notes). It carries **no sto
 stored `lineOfBusiness` and no stored delivery manager**: all three are **derived from its roles**,
 the first two by the pure module `src/lib/projects/project-derived.ts`
 ([ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md)) and the third by
-`src/lib/projects/delivery-coverage.ts` ([ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md)).
+`src/lib/projects/delivery-coverage.ts` ([ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)).
 Line of business is now a **per-role** field again; a role created from an opportunity
 inherits that opportunity's LoB by default (still editable in the planner).
 
@@ -120,7 +122,7 @@ timesheets, and billing.
     **dropped** and are now **derived from the project's roles**
     ([ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status.md), the old
     `project_status` pgEnum and `src/lib/project-status.ts` are **deleted**;
-    [ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md), the
+    [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md), the
     `project_delivery_managers` junction is **dropped**):
     - **Derived status** — `deriveProjectStatus(roleStatuses)` in `src/lib/projects/project-derived.ts`:
       no roles ⇒ `tentative`; all roles `cancelled` ⇒ `cancelled`; else over the *non-cancelled*
@@ -153,10 +155,10 @@ timesheets, and billing.
 - **Project delivery managers** (built, **no table of their own**) — the staff who run a project:
   the named assignees on its live `roleType = "DELIVERY"` roles, *derived* by
   `src/lib/projects/delivery-coverage.ts`. The `project_delivery_managers` junction that used to
-  store this was **dropped** in `drizzle/0026_normal_monster_badoon.sql` — it carried no dates, so
+  store this was **dropped** in `drizzle/0027_luxuriant_quicksilver.sql` — it carried no dates, so
   it could never say who ran the engagement *in March*, and a project could silently lose delivery
   coverage mid-flight. See [Delivery managers & coverage](#delivery-managers--coverage) and
-  [ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md). ⚠️ Do not
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md). ⚠️ Do not
   confuse this with the RBAC role named `delivery-manager` in `src/lib/auth/permissions.ts` —
   unrelated, and untouched by that change.
 - **Project delivery note** (built, [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)) —
@@ -276,7 +278,7 @@ timesheets, and billing.
 
 - **Schema** — `src/lib/db/projects-schema.ts` (`projects`, `project_roles`,
   **`project_delivery_notes`** — **three tables**; `project_delivery_managers` was the fourth until
-  `drizzle/0026` dropped it, [ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md)),
+  `drizzle/0027` dropped it, [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)),
   barrelled by `src/lib/db/schema.ts`; imports `opportunities` from
   `./opportunities-schema` (opportunities were split out of `crm-schema.ts` —
   [ADR 0025](../decisions/0025-line-of-business-on-opportunity-and-project-not-role.md)).
@@ -308,12 +310,12 @@ timesheets, and billing.
   the **`project_delivery_notes`
   table + its health check constraint** (`drizzle/0022_bumpy_omega_sentinel.sql`,
   [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)), and the delivery link on
-  `opportunities.project_id`. `drizzle/0026_normal_monster_badoon.sql` is one line —
+  `opportunities.project_id`. `drizzle/0027_luxuriant_quicksilver.sql` is one line —
   `DROP TABLE "project_delivery_managers" CASCADE`, with **deliberately no backfill** into
   `project_roles` (five NOT NULL columns the junction couldn't supply; an invented `billRate`
   fabricates revenue and an invented `lineOfBusiness` changes the project's *derived* LoB set, so
   the synthetic dev data was re-seeded instead —
-  [ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md)).
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)).
 - **Derived-fields module** — `src/lib/projects/project-derived.ts`
   exports `deriveProjectStatus(roleStatuses)` and `deriveProjectLinesOfBusiness(roleLobs)`, plus
   the list-section machinery: the **`ProjectStatusBucket`** type (`tentative` | `paused` |
@@ -375,7 +377,7 @@ timesheets, and billing.
     [ADR 0066 §3](../decisions/0066-rate-card-by-line-of-business-and-snapshotted-role-bill-rates.md)
     as evidence the [ADR 0016](../decisions/0016-junction-table-and-shared-enum-conventions.md)
     convention paid off. **A `DELIVERY` role *is* the delivery manager** — since
-    [ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md) dropped
+    [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md) dropped
     `project_delivery_managers`, this role type is the only way a project names who runs it. (Earlier
     docs said the opposite — "a delivery *role* is not the junction" — which is now exactly
     backwards.) One consequence to keep in mind: because it is an ordinary role, it carries hours
@@ -483,7 +485,7 @@ timesheets, and billing.
   `DELIVERY_COVERAGE_REVIEWED_ON` (bump it when a predicate changes; deliberately **no threshold
   number** beside it). Full rules and rationale in
   [Delivery managers & coverage](#delivery-managers--coverage) and
-  [ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md).
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md).
 - **Risk-flag policy (code as policy again)** — `src/lib/projects/project-flags.ts`
   (+ `project-flags.test.ts`, **33 tests** — another sanctioned
   [ADR 0037](../decisions/0037-unit-tests-removed-except-rbac-matrix.md) exception on ADR 0053's
@@ -589,7 +591,7 @@ timesheets, and billing.
     **two grouped follow-up queries** scoped to the page's ids — **no N+1** (budgets added none: the
     role query just selects `id`/`roleType`/`hoursPerDay`/`staffId` too; delivery-note health added
     one). **It used to be three:** a grouped `project_delivery_managers → staff` query was
-    **deleted** by [ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md)
+    **deleted** by [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)
     in favour of a `leftJoin(staff)` + `staffName` on the role query already being run — so the
     Delivery column and the `noDeliveryManager` flag are now computed from **one** role set and
     cannot disagree. (Left join, not inner: a null `staffId` is an open role, which must survive so it
@@ -651,13 +653,19 @@ timesheets, and billing.
     project page isn't a property of the *read* — every role on the project is editable by a
     `projects.edit` holder (the page's `canEdit` flag drives the affordances; the actions carry
     the gate), which the client expresses by passing `{ scope: "project" }` to `buildPlannerRows`.
-    Returns **`null` when the project id is unknown**, so the page `notFound()`s.
+    Returns **`null` when the project id is unknown**, so the page `notFound()`s. It also returns
+    **`slack: SlackChannelRef | null`** — the project's Slack delivery channel — as a **sibling
+    field, deliberately not part of `PlanProject`**: that type is shared with `getOpportunityPlan`,
+    and putting it there would oblige a second read to supply a field the planner grid never
+    renders (the same reasoning that keeps delivery notes out of `ProjectDetailPlan`). Both Slack
+    columns are already on the `projects` row being read, so it costs no extra query and no join.
+    See [Slack channel](#slack-channel).
   - `getProjectPto.ts` — **server-only** read backing the detail page's **Time off** tab.
     Aggregates PTO for **everyone connected to the project** — its staffed role assignees
     (`project_roles.staffId`), **delivery managers included, since they hold `DELIVERY` roles like
     anyone else**. This used to union in a second query over `project_delivery_managers`; it is now
     the **single** `selectDistinct staffId` the read already ran, two queries → one
-    ([ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md)). Returns
+    ([ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)). Returns
     `{ upcoming, past, canSeeType }` (`endDate >= today` ⇒ upcoming
     soonest-first, else past most-recent-first; working-day counts via the shared
     `countWorkingDays`). **Permission nuance (tightened — was a leak):** the tab is open to
@@ -721,7 +729,7 @@ timesheets, and billing.
     role rows — each role carries its own `lineOfBusiness`,
     is tagged with the `opportunityId` (provenance), created `tentative`, null `staffId` ⇒
     placeholder. **`deliveryManagerIds` and its junction insert were deleted**
-    ([ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md)): naming
+    ([ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)): naming
     who runs the project is now just one of `roles` with `roleType: "DELIVERY"`. **The action still
     accepts `roles`, defaulting to empty** — the standalone form sends only name + company, so a
     fresh project starts role-less. Revalidates `/projects` + `/opportunities`.
@@ -737,7 +745,7 @@ timesheets, and billing.
   - `updateProjectField.ts` (+ `.schema.ts`) — the **field-scoped** edit behind the detail page's
     inline pencils, gated `projects.edit`. A **discriminated union on `field`** — **`name` |
     `company`**, two variants since
-    [ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md) deleted the
+    [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md) deleted the
     `deliveryManagers` variant — mirroring `updateCompanyField`: each variant writes **only its own
     slice**, so a save can't clobber a concurrent edit to the other field. `name` is a
     `.returning()`-guarded update (`assertRowExists`). **Two variants is still the right shape**: the
@@ -779,7 +787,7 @@ timesheets, and billing.
     - `updateProjectBudget.ts` (+ `.schema.ts`) — **re-price a project**: set a budget on one that
       predates budgets, or switch billing model. Gated **`projects.edit`** (seeing the resulting
       *margin* is the separate `projects.viewMargin` read capability). **A dedicated action, not a
-      field on `updateProject`**, which re-sends everything it holds (name and, until ADR 0067,
+      field on `updateProject`**, which re-sends everything it holds (name and, until ADR 0068,
       delivery managers): folding the budget in would make a rename re-submit the project's price — the
       last-write-wins clobbering `updateProjectField` exists to avoid. **One statement, no
       transaction** — a single `UPDATE ... RETURNING`, which doubles as the existence check (the
@@ -851,7 +859,7 @@ timesheets, and billing.
     `name`, `companyId`, optional `opportunityId`, and
     `roles` (default empty — no `.min(1)`). **No top-level `lineOfBusiness`/`status`, and no
     `deliveryManagerIds`** — a `DELIVERY` role in `roles` is how a delivery manager is named
-    ([ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md)). The
+    ([ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)). The
     per-role shape is the shared **`projectRole.schema.ts`** (`projectRoleFields` +
     `endOnOrAfterStart` + **`snapshotBillRate`**), reused by `createProjectRole`/`updateProjectRole`:
     per role `staffId`
@@ -924,7 +932,7 @@ timesheets, and billing.
     `project-derived.ts`, and **`deliveryManagers: DeliveryManagerSummary[]`** — now
     `deliveryManagersOf(roles)` over the role rows already in hand, which already carried `staffId`
     **and** `staffName`, so the junction query is **gone and the read is one query lighter**
-    ([ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md)). It is
+    ([ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)). It is
     **read-only wherever shown** — nothing prefills an editor from it any more, and the planner's
     "Delivery managers" summary tile is gone) plus **every** role on it (across all opportunities), each carrying
     `status` + `lineOfBusiness` + `opportunityId` so the client renders this opportunity's
@@ -1007,7 +1015,7 @@ timesheets, and billing.
     `opportunity-project-plan.tsx`** so the opportunity Project-plan tab and the new project detail
     page render **identical summary stats from one source**. `deliveryManagerLabel` was **deleted**
     with the "Delivery managers" tile
-    ([ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md)).
+    ([ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)).
     **`rangeOf` is also the window helper behind `delivery-coverage.ts`**, so a coverage gap is
     measured against exactly the span the Dates tile prints.
   - **Auto-confirm on won** — `src/actions/crm/confirmRolesOnWon.ts` (server-only) flips every
@@ -1056,7 +1064,7 @@ timesheets, and billing.
   (`ProjectsListFilters`) is a **URL-backed** filter bar — a debounced project-OR-company search
   (`q`) + a line-of-business `SelectFilter` (`lob`) + a **delivery-manager
   `SearchableSelectFilter` (`dm`, fed `getDeliveryManagerOptions`, validated against the known
-  ids, hidden when there are no delivery managers)** — **unchanged by ADR 0067: the `dm` param,
+  ids, hidden when there are no delivery managers)** — **unchanged by ADR 0068: the `dm` param,
   `parseDeliveryManager` and this component are exactly as they were; only what the option set and
   the match *mean* moved (live `DELIVERY` roles rather than junction rows)** — the shared **searchable single-select**
   (`src/components/form/filters.tsx`) for long option sets like staff — the same
@@ -1179,7 +1187,7 @@ timesheets, and billing.
       `ReactNode` now, so a figure can carry more than one line.
   - **`plan-summary-tiles.tsx`** — a pure extraction of the Length/Dates/Confirmed/Tentative tile
     row **both** plan surfaces had duplicated. **The "Delivery managers" tile is gone**
-    ([ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md)): it only
+    ([ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)): it only
     ever rendered on the opportunity tab (the detail page already suppressed it via the optional
     `deliveryManagers?` prop, now removed with `deliveryManagerLabel`) and it restated a row visible
     in the planner grid immediately below. `DeliveryCoverageNotice` replaced it with something the
@@ -1214,7 +1222,7 @@ timesheets, and billing.
   and **Tentative** date-range tiles so the locked-in span reads apart from the proposed one. **No
   coverage notice here** — a pre-sale plan is all-tentative and often deliberately unstaffed, so it
   would fire on nearly every opportunity
-  ([ADR 0067 §10](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md)).
+  ([ADR 0068 §10](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)).
   - **The grid is now role-centric: one row per role** (was one row per person). It has **two
     sticky lead columns — Role and Staff** — then a cell per week column. A filled `OwnBlock` = the
     role active that week, carrying its % of a 40-hour week; a **Staff** cell shows the assigned
@@ -1440,7 +1448,7 @@ number can now order the list**.
   appear; such a viewer sees **Ending soon**, **Low health** and **No delivery manager**. **Health
   and coverage are both deliberately ungated** (neither derives from anyone's compensation —
   [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md) §4,
-  [ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md) §9), so
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md) §9), so
   they are what a `sales` or `user` reader gets beyond the dates. Still: don't read an unflagged row
   as "this project is fine".
 - **!! The margin *ordering* is gated exactly like the margin *figures*.** A margin-ranked list
@@ -1484,7 +1492,7 @@ number can now order the list**.
 ## Delivery managers & coverage
 
 **Who runs an engagement, and when nobody does.** Built by
-[ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md) — read it for
+[ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md) — read it for
 the *why*. All of it lives in the pure `src/lib/projects/delivery-coverage.ts`; there is **no
 table, no column and no capability**.
 
@@ -1492,7 +1500,7 @@ table, no column and no capability**.
 `delivery-manager`. It is unrelated to everything here and was untouched.
 
 **A delivery manager is a `project_roles` row with `roleType = "DELIVERY"`.** The
-`project_delivery_managers` junction is dropped (`drizzle/0026`). It was a dateless, moneyless set
+`project_delivery_managers` junction is dropped (`drizzle/0027`). It was a dateless, moneyless set
 of staff per project: it could say who ran an engagement, never who ran it *in March*, so a project
 could lose delivery coverage mid-flight with nothing to notice. As a role the assignment is dated,
 statused and priced like any other line — which is what makes a **coverage gap** expressible at all.
@@ -1631,6 +1639,35 @@ stored `health` column; writes not author-only).
   exercise the `createdAt` tie-break. Their `createdAt`s are set explicitly, because `now()` is
   transaction-scoped in Postgres and a bulk insert would otherwise leave that tie-break undefined.
 
+## Slack channel
+
+A project carries an optional link to its **public Slack delivery channel**, `l-project-<slug>`
+(slug from the project name). Stored as `projects.slackChannelId` / `…Name` behind a
+both-null-or-both-set CHECK plus the named unique index `projects_slack_channel_idx`
+(`drizzle/0026_wide_marten_broadcloak.sql`, no backfill — all-null rows satisfy the check). **The
+model, the Slack app setup and the integration's limitations live in [slack.md](./slack.md)**; the
+projects-side facts:
+
+- **Managed only here**, from the detail page's sidebar (`SlackChannelField`, under the delivery
+  managers). Create-or-link in one dialog, unlink behind a confirm; a linked channel renders as a
+  hyperlink out to Slack (there is no in-app join or invite-me action). `canManage` is the page's own
+  **`canEdit`** (`projects.edit`).
+- **The opportunity drawer deliberately does not reach across to it.** Many opportunities can feed
+  one project, so no single deal owns the control — and a sales-only viewer (who holds `crm.edit`
+  but not `projects.edit`) would face a permanently disabled button. A project created from an
+  opportunity also **does not inherit** that deal's scoping channel: private pursuit channel,
+  public delivery channel, different members.
+- **Public, unlike the scoping channel** — so the workspace listing is *complete* for this kind, and
+  search/suggestion actually work end to end here. The disclosure filter passes public channels
+  through untouched, since every employee can already browse them in Slack.
+- **No `onChanged` callback is passed.** This page is a Server Component handing `plan` down as a
+  prop, and the Slack actions call `revalidateProject`, so the server re-renders — the same
+  mechanism as `updateProjectField` (the opportunity drawer, which fetches its own payload, passes
+  its `refresh` instead).
+- **The gate is an `authorize` hook resolving `projects.edit` from the channel `kind`**, not a static
+  `metadata.permission`, because the scoping kind needs the *disjoint* `crm.edit`. **No new
+  capability and no matrix change** — see [Authorization](#authorization).
+
 ## Delete / detach
 
 When a project's link to an opportunity is severed, `detachProjectFromOpportunity` (the shared
@@ -1662,10 +1699,14 @@ See [ADR 0033](../decisions/0033-line-of-business-on-role-derived-project-status
 route** — previously the only in-depth single-project surface was the opportunity drawer's
 Project-plan tab (keyed by `opportunityId`). The Server Component `Promise.all`s
 `getProjectPlan(id)` + `getProjectPto(id)` + **`getProjectDeliveryNotes(id)`** +
-**`getCurrentUser()`** (its `generateMetadata` also
+**`getCurrentUser()`** + **`getCurrentStaffIdentity()`** (its `generateMetadata` also
 calls `getProjectPlan` to title the tab), `notFound()`s when the plan is null (unknown id), and
 renders the client `ProjectDetailView` (`src/components/projects/detail/project-detail-view.tsx`)
-with **`canEdit = userHasPermission(user, { projects: ["edit"] })`**.
+with **`canEdit = userHasPermission(user, { projects: ["edit"] })`**. The fifth read exists only to
+default the Slack create dialog's invite list to the viewer; the page also passes
+**`slackEnabled = isSlackConfigured()`**, which is **one env var read, not a Slack round-trip** — the
+stored channel is already on `plan`, and only the *suggestion* costs a network call, which runs
+client-side after paint ([Slack channel](#slack-channel)).
 
 **Delivery notes are a *sibling* read, not part of `ProjectDetailPlan`** — deliberately, for two
 reasons: `generateMetadata` calls the plan read too, so anything folded into it is fetched twice per
@@ -1687,7 +1728,7 @@ project cells (`allocations-grid.tsx`, opening in a new tab). The only project r
 left as plain text by design are the **editable timesheet week grid** row labels.
 
 - **Sidebar — two fields editable in place, two deliberately not.** (It was three-and-one until
-  [ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md) made delivery
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md) made delivery
   managers derived.) Both editable fields are gated on `canEdit` and write through
   `updateProjectField`:
   - **Name** — `project-name-field.tsx`, rendered as the sidebar `<h2>` with a pencil, *not* an
@@ -1712,6 +1753,13 @@ left as plain text by design are the **editable timesheet week grid** row labels
   - **A `DeliveryCoverageNotice` sits above the tabs**, after `BudgetSummaryPanel` — see
     [Delivery managers & coverage](#delivery-managers--coverage). Computed client-side in a `useMemo`
     over the roles already on the page (pure and clock-free), so it costs the read no column.
+  - **The Slack channel row sits below the delivery managers** — the sidebar's only *external* fact
+    (a link out, not an attribute of the project). It writes through the Slack actions, not
+    `updateProjectField`. With **no bot token configured** it hides itself **only from viewers who
+    lack `projects.edit`** — a `canEdit` holder gets a muted "Slack isn't connected" instead, because
+    an invisible feature can't be adopted or debugged by the person who'd connect it. An
+    already-stored link renders either way, since the deep link needs no bot. See
+    [Slack channel](#slack-channel).
   - **`use-project-inline-save.ts`** is the sibling of the opportunity drawer's `useInlineSave`,
     with one deliberate difference: it takes **no `refresh` callback**. The drawer fetches its own
     data client-side, whereas this page is a **Server Component passing `plan` down as a prop** —
@@ -1844,7 +1892,7 @@ figure derived from an individual's compensation, which is the only reason margi
 and `deliveryCoverageGaps` are pure derivations over roles the reads already disclose, so the derived
 manager list, the coverage notice and the `noDeliveryManager` flag reach **every viewer** — same
 asymmetry with margin, same reason. And
-[ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md) **changed no
+[ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md) **changed no
 gate at all**: it deleted `createProject`'s `deliveryManagerIds`, collapsed `updateProject` to a name
 and dropped `updateProjectField`'s `deliveryManagers` variant, all of which were already
 `projects.edit`. `permissions.ts`, `permissions.test.ts` and
@@ -1895,6 +1943,18 @@ The detail page's `canEdit` prop is an **affordance flag only**. **The matrix ga
 all** (`permissions.ts`, `permissions.test.ts` and permissions.md's matrix table are untouched):
 "may correct an engagement's delivery record" has exactly the audience of "may re-date its roles",
 so a `projects.deliveryNotes` row would be a second way to spell `projects.edit`.
+
+**The Slack channel actions are the one project write reached through an `authorize` hook rather
+than a static capability** — and they still require `projects.edit`, no more.
+`authorizeSlackChannel` parses the channel `kind` off the raw input and requires the capability of
+the record being written: `projects.edit` for the project channel, **`crm.edit`** for an
+opportunity's scoping channel. It is a hook precisely because those two are **disjoint** in the
+matrix, so no single static `metadata.permission` covers both kinds without over-granting one role.
+`SLACK_CHANNEL_TARGETS` is what keeps it honest: the hook and every action body read table, columns
+*and* capability from the same entry, so "checked `crm.edit`, wrote a `projects` column" is
+unrepresentable. **No capability was added and the matrix is untouched** — don't "tidy" it into a
+static permission. See [slack.md](./slack.md) and
+[ADR 0067](../decisions/0067-slack-channel-links-bot-token-denormalized-pairs-and-record-scoped-gate.md).
 
 ## Key flows
 
@@ -2004,7 +2064,7 @@ so a `projects.deliveryNotes` row would be a second way to spell `projects.edit`
 - **Staff** — **one staff reference covers both the people doing the work and the person running
   it**: `project_roles.staffId`, `restrict` and **nullable** (null ⇒ placeholder / open position,
   including an *open delivery role*). The separate cascading delivery-manager FK is gone with the
-  junction ([ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md)).
+  junction ([ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)).
   **A delivery note's `authorStaffId` is the second staff reference** — `set null`, attribution only,
   so losing the person keeps the note (and a writer with no staff row leaves it unattributed).
   The **reverse read** (which projects a person is on) lives in the staff domain:
@@ -2029,6 +2089,12 @@ so a `projects.deliveryNotes` row would be a second way to spell `projects.edit`
   derived from it as compensation data — see [Authorization](#authorization),
   [staff-profiles.md](./staff-profiles.md) and
   [ADR 0020](../decisions/0020-compensation-effective-dated-import-only.md).
+- **Slack** — a project owns its **public delivery channel** (`slackChannelId`/`Name`); the mirror
+  pair on `opportunities` is the private scoping channel, and **each record manages only its own**
+  (the opportunity drawer never reaches across to this one). Both kinds share one pure module and one
+  `authorize` hook, but no capability — see [Slack channel](#slack-channel) and [slack.md](./slack.md).
+  This is the projects domain's **second external dependency** after FX, and its first
+  secret-bearing one.
 - **Timesheets / billing** — projects are what time is logged against (`time_entries.projectId`);
   **billing is still unbuilt**. The margin above is a *plan* figure costed from allocations, **not**
   from logged hours, so forecast-vs-actual reconciliation remains open.
@@ -2063,7 +2129,7 @@ so a `projects.deliveryNotes` row would be a second way to spell `projects.edit`
 - **Nothing *requires* a project to have a delivery manager** — coverage is surfaced, never
   enforced. A NOT NULL-style invariant would block creating a plan before staffing it, which is how
   plans are actually built. Two related deliberate gaps
-  ([ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md)): there is
+  ([ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)): there is
   **no minimum-gap threshold**, so a role typed one weekday short of its successor warns (the fix is
   a one-line `.filter()` on `gap.weekdays`, which is why that field is carried though nothing reads
   it), and `deliveryManagersOf` is **all-time**, so it does not answer "who do I escalate to today" —

@@ -82,7 +82,7 @@ the inline **Notes** column (shown and editable to `staff.edit` holders — mana
   sit above "0% free". See *Two load figures* below and
   [ADR 0060](../decisions/0060-allocations-capacity-meter.md).
   ⚠️ **`DELIVERY` roles now consume capacity here.** Since
-  [ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md) a delivery
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md) a delivery
   manager holds an ordinary dated, hourly role, so running an engagement shows up as load where it
   used to be invisible — the meter's figures moved on existing plans. (The seed gives delivery roles
   1–2 h/day precisely so a manager on three engagements doesn't read as 300%.) **The coverage rule
@@ -303,7 +303,7 @@ before changing anything here — the time bases are load-bearing.
   merge, hours summed) and `status` reads `tentative` only when *every* role on the project
   is. There is deliberately **no link to `/allocations`** from this band.
   **The delivery-manager special case is gone**
-  ([ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md)): a
+  ([ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)): a
   delivery manager holds a dated, hourly `DELIVERY` role like anyone else, so its row renders like
   any other allocation with `Delivery` in the role-type sub-line. `my-work.ts` lost
   `managedProjects`, `deliveryManagerOnly` and every null branch — **`MyAllocationRow`'s
@@ -330,7 +330,7 @@ before changing anything here — the time bases are load-bearing.
   commit anyone; **approved leave today does *not* un-staff someone** (this measures the
   plan, not attendance — availability, right beside it, is where leave nets out).
   ⚠️ **A `DELIVERY` role staffs you** — since
-  [ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md) running an
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md) running an
   engagement is an ordinary dated role, so the staffing count moved on existing data. There is **no
   role-type filter and none should be added**: running a project is committed delivery work.
 - **Population** = `isBillable === true`, the *same* predicate as `buildAvailability`, so the
@@ -381,7 +381,7 @@ before changing anything here — the time bases are load-bearing.
   `staffId`, so there is no cross-user id to authorize. **One query now**: every live-or-upcoming
   role, `DELIVERY` ones included, so `MyManagedProject`/`managedProjects` and the `min`/`max`
   group-by query are deleted —
-  [ADR 0067](../decisions/0067-delivery-managers-as-project-roles-and-coverage-gaps.md)) ·
+  [ADR 0068](../decisions/0068-delivery-managers-as-project-roles-and-coverage-gaps.md)) ·
   `src/actions/staff/getStaffPto` ·
   `src/actions/timesheets/getStaffUtilization`.
 - **Pure math:** `src/lib/home/org-status.ts` (+ `.test.ts`, 41 tests) — `buildOrgStatus`,

@@ -13,7 +13,7 @@
  * null `hoursPerDay` (inventing a number would have corrupted a column people read
  * down) and its window had to be borrowed from whoever else was staffed. A delivery
  * manager now holds an ordinary dated, hourly `DELIVERY` role, so it folds in like
- * any other line and every field below is non-nullable (ADR 0067).
+ * any other line and every field below is non-nullable (ADR 0068).
  */
 
 import type { MyAllocationRole } from "@/actions/allocations/getMyAllocations";
@@ -146,7 +146,7 @@ export function buildMyAllocationRows(
  * across *confirmed* roles only and deliberately **not** capped at 100 — a figure
  * above 100% is the single most useful thing this can tell someone, and clamping it
  * would hide the over-allocation. Delivery work now counts toward it like any other
- * role, since a delivery manager holds real hours (ADR 0067).
+ * role, since a delivery manager holds real hours (ADR 0068).
  */
 export function currentLoadPercent(
   roles: readonly MyAllocationRole[],

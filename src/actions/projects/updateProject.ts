@@ -12,7 +12,7 @@ import { updateProjectSchema } from "./updateProject.schema";
  * mirroring `createProject`.
  *
  * Almost everything about a project is derived from its roles — its status, its
- * lines of business, and (since ADR 0067) its delivery managers — so the name is
+ * lines of business, and (since ADR 0068) its delivery managers — so the name is
  * all there is to edit here. Roles have their own per-role actions, and the budget
  * has `updateProjectBudget`.
  */

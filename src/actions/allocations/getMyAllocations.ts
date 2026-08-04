@@ -35,7 +35,7 @@ export type MyAllocationsView = {
    * projects here, because `project_delivery_managers` carried no dates and its
    * window had to be inferred from whoever else was staffed. A delivery manager
    * now holds a dated, hourly role like anyone else, so it needs no special case
-   * (ADR 0067).
+   * (ADR 0068).
    */
   roles: MyAllocationRole[];
 };

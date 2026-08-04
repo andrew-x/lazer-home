@@ -45,7 +45,7 @@ const STAFFING_ROLE_TYPES = PROJECT_ROLE_TYPES.filter(
  * lines: a delivery role is an ordinary `project_roles` row now, so its hours feed
  * plan revenue, the planner's capacity meter and the utilization report — and a
  * full-time delivery manager on three engagements would read as 300% allocated
- * (ADR 0067).
+ * (ADR 0068).
  */
 const DELIVERY_HOURS_PER_DAY = [1, 2];
 

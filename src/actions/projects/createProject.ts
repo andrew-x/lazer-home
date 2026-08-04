@@ -19,7 +19,7 @@ import { projectBudgetColumns } from "./projectBudgetWrite";
  * `projects_budget_shape` check constraint.
  *
  * Delivery managers need no separate input: one of `roles` with
- * `roleType: "DELIVERY"` is what names who runs the engagement (ADR 0067).
+ * `roleType: "DELIVERY"` is what names who runs the engagement (ADR 0068).
  */
 export const createProject = secureActionClient
   .metadata({

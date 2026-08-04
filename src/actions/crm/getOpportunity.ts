@@ -2,6 +2,7 @@ import "server-only";
 
 import { asc, eq } from "drizzle-orm";
 import { contactNameSql } from "@/actions/shared/contactName";
+import { toSlackChannelRef } from "@/actions/slack/slackChannelRef";
 import type { LineOfBusiness } from "@/lib/crm/line-of-business";
 import type {
   OpportunitySource,
@@ -19,6 +20,7 @@ import {
   projects,
   staff,
 } from "@/lib/db/schema";
+import type { SlackChannelRef } from "@/lib/slack/channel";
 import type { EntryView } from "./entryViews";
 import { getOpportunityEntries } from "./entryViews";
 import { getTasksForParent, type TaskView } from "./getTasks";
@@ -39,6 +41,12 @@ export type OpportunityDetail = {
   sourceStaff: EntityRef[];
   /** The single project that delivers this opportunity, or null if none yet. */
   project: EntityRef | null;
+  /**
+   * The deal's private scoping channel in Slack, or null when none is linked.
+   * Only the SCOPING channel appears here: a project's channel is managed on the
+   * project's own page, so it is deliberately not reachable from this drawer.
+   */
+  slack: SlackChannelRef | null;
   /** Timestamped notes, newest first. */
   notes: EntryView[];
   /** Tasks on this opportunity — open first, then newest. */
@@ -69,6 +77,11 @@ export async function getOpportunity(
       // the project so an unlinked opportunity still returns its base row.
       projectId: projects.id,
       projectName: projects.name,
+      // Both on the `opportunities` row already being read, so the scoping
+      // channel costs no extra query and no extra join. Named explicitly rather
+      // than spread, per ADR 0063.
+      scopingSlackChannelId: opportunities.scopingSlackChannelId,
+      scopingSlackChannelName: opportunities.scopingSlackChannelName,
     })
     .from(opportunities)
     .innerJoin(companies, eq(opportunities.companyId, companies.id))
@@ -126,6 +139,10 @@ export async function getOpportunity(
       base.projectId && base.projectName
         ? { id: base.projectId, name: base.projectName }
         : null,
+    slack: toSlackChannelRef(
+      base.scopingSlackChannelId,
+      base.scopingSlackChannelName,
+    ),
     notes,
     tasks,
   };

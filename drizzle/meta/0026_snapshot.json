@@ -1,5 +1,5 @@
 {
-  "id": "637a98a0-f0fe-4589-bb7f-7949d1d63eb5",
+  "id": "7c87bcd6-22d5-45ed-8990-bd13700e0d02",
   "prevId": "1bd12da3-3c25-4642-8d69-faa50f628890",
   "version": "7",
   "dialect": "postgresql",
@@ -1110,6 +1110,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "scoping_slack_channel_id": {
+          "name": "scoping_slack_channel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scoping_slack_channel_name": {
+          "name": "scoping_slack_channel_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -1161,6 +1173,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "opportunities_scoping_slack_channel_idx": {
+          "name": "opportunities_scoping_slack_channel_idx",
+          "columns": [
+            {
+              "expression": "scoping_slack_channel_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -1194,7 +1221,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "opportunities_scoping_slack_channel_shape": {
+          "name": "opportunities_scoping_slack_channel_shape",
+          "value": "(\"opportunities\".\"scoping_slack_channel_id\" is null and \"opportunities\".\"scoping_slack_channel_name\" is null)\n       or (\"opportunities\".\"scoping_slack_channel_id\" is not null and \"opportunities\".\"scoping_slack_channel_name\" is not null)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.opportunity_contacts": {
@@ -2405,6 +2437,96 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.project_delivery_managers": {
+      "name": "project_delivery_managers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "staff_id": {
+          "name": "staff_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "project_delivery_managers_staff_idx": {
+          "name": "project_delivery_managers_staff_idx",
+          "columns": [
+            {
+              "expression": "staff_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_delivery_managers_project_id_projects_id_fk": {
+          "name": "project_delivery_managers_project_id_projects_id_fk",
+          "tableFrom": "project_delivery_managers",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_delivery_managers_staff_id_staff_id_fk": {
+          "name": "project_delivery_managers_staff_id_staff_id_fk",
+          "tableFrom": "project_delivery_managers",
+          "tableTo": "staff",
+          "columnsFrom": [
+            "staff_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "project_delivery_managers_unique": {
+          "name": "project_delivery_managers_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "project_id",
+            "staff_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.project_delivery_notes": {
       "name": "project_delivery_notes",
       "schema": "",
@@ -2764,6 +2886,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "slack_channel_id": {
+          "name": "slack_channel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "slack_channel_name": {
+          "name": "slack_channel_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -2779,7 +2913,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "projects_slack_channel_idx": {
+          "name": "projects_slack_channel_idx",
+          "columns": [
+            {
+              "expression": "slack_channel_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "projects_company_id_companies_id_fk": {
           "name": "projects_company_id_companies_id_fk",
@@ -2802,6 +2952,10 @@
         "projects_budget_shape": {
           "name": "projects_budget_shape",
           "value": "(\"projects\".\"billing_type\" is null and \"projects\".\"budget_amount\" is null and \"projects\".\"budget_currency\" is null)\n       or (\"projects\".\"billing_type\" = 'FIXED_FEE' and \"projects\".\"budget_amount\" is not null and \"projects\".\"budget_currency\" is not null)\n       or (\"projects\".\"billing_type\" = 'TIME_AND_MATERIALS' and \"projects\".\"budget_amount\" is null and \"projects\".\"budget_currency\" is null)"
+        },
+        "projects_slack_channel_shape": {
+          "name": "projects_slack_channel_shape",
+          "value": "(\"projects\".\"slack_channel_id\" is null and \"projects\".\"slack_channel_name\" is null)\n       or (\"projects\".\"slack_channel_id\" is not null and \"projects\".\"slack_channel_name\" is not null)"
         }
       },
       "isRLSEnabled": false

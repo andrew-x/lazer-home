@@ -9,6 +9,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { BILLING_TYPES } from "@/lib/projects/project-billing";
 import {
@@ -34,7 +35,7 @@ import { currencyEnum, lineOfBusinessEnum, staff } from "./staff-schema";
 // its delivery managers are the people on its `DELIVERY` roles
 // (`delivery-coverage.ts`). There used to be a `project_delivery_managers`
 // junction; it carried no dates, so it could never say who ran the project *in
-// March*, and a delivery manager is now an ordinary role like any other (ADR 0067).
+// March*, and a delivery manager is now an ordinary role like any other (ADR 0068).
 // `project_roles` are the staffing lines: a person for a date range at N
 // hours/day (the first cut of the proposed Allocation entity).
 // Each role carries its own `billRate`, snapshotted from the code-owned rate card
@@ -77,6 +78,16 @@ export const projects = pgTable(
     budgetAmount: numeric({ precision: 12, scale: 2, mode: "number" }),
     budgetCurrency: currencyEnum(),
 
+    // --- Slack ------------------------------------------------------------
+    // The PUBLIC delivery channel for this project (`l-project-<slug>`), the
+    // mirror of `opportunities.scopingSlackChannelId`. Managed only from this
+    // project's own detail page — the opportunity drawer deliberately does not
+    // reach across to it, since a project built from several opportunities would
+    // have no unambiguous owner for the control. See docs/decisions/0067.
+    slackChannelId: text(),
+    // A display-only SNAPSHOT of the name; see the note on the opportunity pair.
+    slackChannelName: text(),
+
     createdAt: timestamp().defaultNow().notNull(),
     updatedAt: timestamp()
       .defaultNow()
@@ -94,6 +105,16 @@ export const projects = pgTable(
       sql`(${t.billingType} is null and ${t.budgetAmount} is null and ${t.budgetCurrency} is null)
        or (${t.billingType} = 'FIXED_FEE' and ${t.budgetAmount} is not null and ${t.budgetCurrency} is not null)
        or (${t.billingType} = 'TIME_AND_MATERIALS' and ${t.budgetAmount} is null and ${t.budgetCurrency} is null)`,
+    ),
+    // One Slack channel is linked to at most one project — the mirror of
+    // `opportunities_scoping_slack_channel_idx`, and the same NULLs-are-distinct
+    // reasoning applies.
+    uniqueIndex("projects_slack_channel_idx").on(t.slackChannelId),
+    // Both null or both set; a half-written link can't exist.
+    check(
+      "projects_slack_channel_shape",
+      sql`(${t.slackChannelId} is null and ${t.slackChannelName} is null)
+       or (${t.slackChannelId} is not null and ${t.slackChannelName} is not null)`,
     ),
   ],
 );

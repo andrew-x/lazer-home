@@ -19,6 +19,7 @@ import {
   TableEmpty,
 } from "@/components/crm/detail-parts";
 import { EmptyCell } from "@/components/empty-cell";
+import type { EntityOption } from "@/components/form/entity-multi-combobox";
 import { IconButton } from "@/components/icon-button";
 import { InternalLink } from "@/components/internal-link";
 import { BudgetSummaryPanel } from "@/components/projects/budget-summary-panel";
@@ -29,6 +30,7 @@ import {
 import { PlanSummaryTiles } from "@/components/projects/plan-summary-tiles";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { useProjectMargin } from "@/components/projects/use-project-margin";
+import { SlackChannelField } from "@/components/slack/slack-channel-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -90,11 +92,17 @@ export function ProjectDetailView({
   pto,
   notes,
   canEdit,
+  slackEnabled,
+  currentStaff,
 }: {
   plan: ProjectDetailPlan;
   pto: ProjectPtoView;
   notes: ProjectDeliveryNoteRow[];
   canEdit: boolean;
+  /** False when no Slack bot token is configured — the row hides itself. */
+  slackEnabled: boolean;
+  /** Defaults the Slack create dialog's invite list to the viewer. */
+  currentStaff: EntityOption | null;
 }) {
   const {
     project,
@@ -222,6 +230,18 @@ export function ProjectDetailView({
             <DeliveryManagersMeta
               deliveryManagers={project.deliveryManagers}
               hasDeliveryRole={roles.some(isDeliveryRole)}
+            />
+            {/* The project's own public delivery channel. No `onChanged`: the
+                Slack actions revalidate this route, so the server re-renders. */}
+            <SlackChannelField
+              kind="project"
+              recordId={project.id}
+              sourceName={project.name}
+              channel={plan.slack}
+              label="Slack channel"
+              canManage={canEdit}
+              enabled={slackEnabled}
+              currentStaff={currentStaff}
             />
           </SidebarSection>
         </>

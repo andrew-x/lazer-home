@@ -1,6 +1,7 @@
 import "server-only";
 
 import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import { toSlackChannelRef } from "@/actions/slack/slackChannelRef";
 import {
   type ExchangeRates,
   getExchangeRates,
@@ -12,6 +13,7 @@ import {
   deriveProjectLinesOfBusiness,
   deriveProjectStatus,
 } from "@/lib/projects/project-derived";
+import type { SlackChannelRef } from "@/lib/slack/channel";
 import type {
   ExternalAllocation,
   PlanProject,
@@ -47,6 +49,14 @@ export type ProjectDetailPlan = {
   costBasis: PlanCostBasis | null;
   /** USD-based FX table + `asOf`/`stale` provenance, for client-side conversion. */
   exchangeRates: ExchangeRates;
+  /**
+   * The project's public delivery channel in Slack, or null when none is linked.
+   *
+   * A sibling field rather than part of `PlanProject` on purpose: that type is
+   * shared with `getOpportunityPlan`, and putting it there would oblige a second
+   * read to supply a field the planner grid never renders.
+   */
+  slack: SlackChannelRef | null;
 };
 
 export async function getProjectPlan(
@@ -61,6 +71,9 @@ export async function getProjectPlan(
       budgetCurrency: projects.budgetCurrency,
       companyId: companies.id,
       companyName: companies.name,
+      // Already on the row being read — no extra query, no extra join.
+      slackChannelId: projects.slackChannelId,
+      slackChannelName: projects.slackChannelName,
     })
     .from(projects)
     .innerJoin(companies, eq(projects.companyId, companies.id))
@@ -170,5 +183,9 @@ export async function getProjectPlan(
     externalAllocations,
     costBasis,
     exchangeRates,
+    slack: toSlackChannelRef(
+      projectRow.slackChannelId,
+      projectRow.slackChannelName,
+    ),
   };
 }
