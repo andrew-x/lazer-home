@@ -20,6 +20,7 @@ import {
   projects,
   staff,
 } from "@/lib/db/schema";
+import { type DriveFolderRef, toDriveFolderRef } from "@/lib/drive/folder";
 import type { SlackChannelRef } from "@/lib/slack/channel";
 import type { EntryView } from "./entryViews";
 import { getOpportunityEntries } from "./entryViews";
@@ -47,6 +48,12 @@ export type OpportunityDetail = {
    * project's own page, so it is deliberately not reachable from this drawer.
    */
   slack: SlackChannelRef | null;
+  /**
+   * The deal's sales folder in the Lazer Home shared drive, or null when none is
+   * linked. Same one-record-one-slot reasoning as `slack` above: a project's
+   * folder is managed on the project's own page, not from this drawer.
+   */
+  drive: DriveFolderRef | null;
   /** Timestamped notes, newest first. */
   notes: EntryView[];
   /** Tasks on this opportunity — open first, then newest. */
@@ -82,6 +89,8 @@ export async function getOpportunity(
       // than spread, per ADR 0063.
       scopingSlackChannelId: opportunities.scopingSlackChannelId,
       scopingSlackChannelName: opportunities.scopingSlackChannelName,
+      salesDriveFolderId: opportunities.salesDriveFolderId,
+      salesDriveFolderName: opportunities.salesDriveFolderName,
     })
     .from(opportunities)
     .innerJoin(companies, eq(opportunities.companyId, companies.id))
@@ -143,6 +152,7 @@ export async function getOpportunity(
       base.scopingSlackChannelId,
       base.scopingSlackChannelName,
     ),
+    drive: toDriveFolderRef(base.salesDriveFolderId, base.salesDriveFolderName),
     notes,
     tasks,
   };

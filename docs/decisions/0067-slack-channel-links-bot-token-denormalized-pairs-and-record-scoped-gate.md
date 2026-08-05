@@ -5,7 +5,14 @@ independently taken on `main` by [0066](./0066-rate-card-by-line-of-business-and
 (the migration was renumbered `drizzle/0024` → `drizzle/0026` in the same merge, for the same reason)
 · **§10 amended the same day** — the feature-off row is hidden only
 from viewers *without* the managing capability, reversing "hide it from everyone" (an invisible
-feature can't be adopted or debugged by the person who'd connect it) · **extends [ADR 0029](./0029-external-fx-rates-and-currency-normalization.md)**
+feature can't be adopted or debugged by the person who'd connect it) · **§5 corrected 2026-08-04** —
+it described a `disclosableSlackChannels` / `isConventionChannelName` naming-convention filter that
+**never existed in the code**; the shipped decision is the opposite (any visible channel is linkable,
+and private channel *names* are disclosed to capability holders), which is what
+[`guides/slack.md` §5](../guides/slack.md#5-existing-private-channels-need-an-invite) has always said
+· **its sibling is [ADR 0071](./0071-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md)**
+(Google Drive folders — same two kinds, same column pairs, same gate, but **per-user OAuth** and
+**no cache tags**, reversing §1 and §7 with reasons) · **extends [ADR 0029](./0029-external-fx-rates-and-currency-normalization.md)**
 (which set the outbound-HTTP pattern with a deliberately *keyless* API and deferred secret
 management) to the **first secret-bearing integration** · `src/lib/slack/` is justified under
 [ADR 0036](./0036-lib-organized-by-domain-subfolders.md) the same way `format/fx.ts` is · the
@@ -138,24 +145,40 @@ Two details that make it a gate rather than a formality:
 `slack.manage` capability would be a third way of spelling "may edit this record": the audience for
 "may create the channel for this deal" is exactly the audience for "may re-price it".
 
-### 5. The private-channel disclosure filter
+### 5. No naming-convention filter on the picker — private-channel names are disclosed to capability holders
 
-`disclosableSlackChannels` is applied by search, suggestions **and `linkSlackChannel`** — one place
-the rule lives, including on the write path, so an id pasted for an unrelated private channel can't
-be linked (and its name echoed back) just because our bot is in it.
+> **Corrected 2026-08-04** (while filing [ADR 0071](./0071-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md)).
+> This section originally described a `disclosableSlackChannels` filter applying an
+> `isConventionChannelName` predicate — restricting private channels in the picker to the
+> `l-scoping-`/`l-project-` prefixes. **Neither identifier exists in the code, and never shipped**
+> (`grep -rn "isConventionChannelName\|disclosableSlackChannels" src/` returns nothing).
+> `searchSlackChannels.ts` carries the **opposite** decision in an explicit comment, and
+> [`guides/slack.md` §5](../guides/slack.md#5-existing-private-channels-need-an-invite) has been
+> describing the shipped behaviour all along. What follows is the shipped decision; the rejected
+> filter is kept in *Alternatives rejected*, where it belongs.
 
-- **Public channels pass through untouched.** Every employee can already browse them in Slack, so
+**Linking deliberately accepts any channel the bot can see, private ones included.** There is no
+naming-convention filter anywhere on the read or write path.
+
+- **Public channels are uncontroversial.** Every employee can already browse them in Slack, so
   surfacing them behind `crm.edit`/`projects.edit` is *narrower* than the status quo.
-- **Private channels are filtered to the naming convention** (`isConventionChannelName`). A private
-  channel's name is invisible to non-members in Slack, and our bot may well have been invited to an
-  HR or exec channel for some unrelated reason. Without this filter the channel picker would
-  quietly become a way to **enumerate those names**. The two prefixes are all this feature ever
-  needs.
+- **Private channels are surfaced too, and that is the decision.** Filtering them to the two
+  prefixes would hide **exactly the channels people most need to link** — the scoping channels that
+  predate the convention — and requiring a rename first would make the feature useless on every
+  existing deal. `linkSlackChannel` therefore requires no convention either: **creating is what
+  enforces the naming; linking adopts whatever is already there.**
 
-**Accepted cost:** an existing private channel that doesn't follow the convention can't be linked
-until it's renamed. The dialog's notice says both halves ("added to" *and* "named `l-scoping-…`").
+**The accepted cost, which is a real disclosure and the reason this section exists:** for anyone
+holding `crm.edit` or `projects.edit`, the picker discloses the **name** of every private channel our
+bot has been invited to — names a non-member cannot see in Slack itself. Three things bound it:
 
-Search is **not** filtered to the kind's own visibility — a scoping channel accidentally created
+- a channel is invisible to the bot **until someone deliberately invites it**, so the set is opt-in
+  by construction;
+- a **non-blank query is required**, so the control can't be used to page through a list wholesale;
+- it makes one operational rule real, stated in the guide: **don't invite this app to private
+  channels whose existence is sensitive.** It has no need to be in any channel it didn't create.
+
+Search is also **not** filtered to the kind's own visibility — a scoping channel accidentally created
 public can still be linked. `SLACK_CHANNEL_IS_PRIVATE` governs what we *create*, not what we accept.
 
 ### 6. Creation is not transactional with the DB write, and Slack has no `conversations.delete`
@@ -305,7 +328,8 @@ dialog and suggestion paths (the parts that actually have logic) never exercised
 
 - **`src/lib/slack/channel.ts`** — pure and client-importable (no `db`, no drizzle, no `env`): the
   kinds, prefixes, visibility map, `slugifyChannelName`, `buildSlackChannelName`,
-  `isConventionChannelName`, `slackChannelUrl`, `formatSlackChannel`, `scoreSlackChannelMatch` +
+  `buildSlackChannelCreateName` (the `test-` marker outside production), `slackChannelUrl`,
+  `formatSlackChannel`, `scoreSlackChannelMatch` +
   its threshold, and the `SlackChannelRef` type. It gets **its own `src/lib` folder** rather than
   living under `crm/` or `projects/` because the module spans **both** domains — one owns each kind —
   so neither is its home. That is the same role `format/fx.ts` plays for FX, and the case ADR 0036
@@ -319,15 +343,19 @@ dialog and suggestion paths (the parts that actually have logic) never exercised
   `slack-channel-dialog.tsx` (create *and* link in one dialog), `slack-channel-suggestion.tsx`.
 - **`src/lib/slack/channel.test.ts`** — a further sanctioned exception to
   [ADR 0037](./0037-unit-tests-removed-except-rbac-matrix.md), on the usual grounds: the cap-vs-prefix
-  budget, the empty-slug fallback, the prefix-stripped scoring, and — the load-bearing one — that
-  `isConventionChannelName` **rejects everything else**, since it is the private-channel disclosure
-  gate (§5).
+  budget (including the `test-` marker's share of it), the empty-slug fallback, and the
+  prefix-stripped scoring — down to the case that pins §5's decision, *"matches a channel that
+  ignores the naming convention entirely"*.
 
 ## Consequences
 
 - **Scoping-channel search and suggestions are incomplete by construction** (§1). This is the
   first feature in the codebase whose *correctness* depends on a state we don't control (whether
   the app was invited). The UI explains it; nothing retries or works around it.
+- **The channel picker discloses private channel names to `crm.edit`/`projects.edit` holders** (§5),
+  which makes *"don't invite this app to private channels whose existence is sensitive"* an
+  operational rule rather than advice. It's in [`guides/slack.md` §5](../guides/slack.md#5-existing-private-channels-need-an-invite);
+  keep it there, since it's what someone reads while deciding whether to `/invite` the app.
 - **The projects domain gained a second external dependency, and the CRM its first.** Both detail
   surfaces now have a code path that talks to a third party — but neither *blocks on it to render*:
   the stored link comes off the row, and only the suggestion is a round-trip (§9). Keep it that way.
@@ -364,7 +392,7 @@ dialog and suggestion paths (the parts that actually have logic) never exercised
 | A DB constraint for cross-kind uniqueness | It spans two tables, and it isn't a truth about the data — it's a UX guard, enforced in `linkSlackChannel` + `channelIdsAlreadyLinked` (§3) |
 | A static `metadata.permission` on the five actions | `crm.edit` and `projects.edit` are disjoint; any single capability locks out one audience or over-grants the other (§4) |
 | A new `slack.manage` capability | A third spelling of "may edit this record"; the audiences are identical and a matrix row would engage ADR 0014's lockstep for nothing (§4) |
-| Let the picker list every channel the bot can see | Turns it into a way to enumerate the names of private HR/exec channels the bot was invited to for unrelated reasons (§5) |
+| **Filter the picker's private channels to the naming convention** (what §5 originally claimed shipped) | It would hide exactly the channels people need to link — the ones predating the convention — and force a rename before an existing deal could use the feature. The disclosure it would have prevented is instead **accepted and bounded** (opt-in via `/invite`, non-blank query required) and turned into an operational rule (§5) |
 | Manage the project channel from the opportunity drawer too | Many opportunities → one project, so no unambiguous owner for the control — and a permanently disabled button for a sales-only viewer (§2) |
 | Carry the scoping channel over when a project is created | Different visibility and different members; a private pursuit channel is not a public delivery channel (§2) |
 | Invite people on **link** as well as create | `conversations.invite` requires membership, and quietly inserting our bot into someone's existing private channel isn't ours to do (§6) |

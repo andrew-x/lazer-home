@@ -8,6 +8,7 @@ import { ac, isAdmin, roles } from "@/lib/auth/permissions";
 import { UserSafeActionError } from "@/lib/core/errors";
 import { db } from "@/lib/db/db";
 import * as schema from "@/lib/db/schema";
+import { DRIVE_SCOPE } from "@/lib/drive/scope";
 
 // Destructure so the presence check below genuinely narrows both to `string`
 // inside the truthy branch — no `as string` casts on `string | undefined`.
@@ -26,10 +27,33 @@ export const auth = betterAuth({
           google: {
             clientId: GOOGLE_CLIENT_ID,
             clientSecret: GOOGLE_CLIENT_SECRET,
-            prompt: "select_account",
+            // Drive access rides on the login rather than being a second
+            // connection to manage, so every Drive call in src/actions/drive/
+            // acts as the signed-in person — which is what makes Google enforce
+            // shared-drive membership for us and keeps Drive's audit trail
+            // naming the real human. See docs/decisions/0071.
+            scope: [DRIVE_SCOPE],
+            // Both of these are load-bearing for Drive, not cosmetic. Google
+            // issues a refresh token ONLY on an explicit consent with offline
+            // access, so dropping either leaves us with a one-hour access token
+            // and no way to renew it — Drive would work until first lunch.
+            accessType: "offline",
+            prompt: "select_account consent",
           },
         }
       : undefined,
+  account: {
+    // Encrypt the stored OAuth tokens. With `accessType: "offline"` above, this
+    // table now holds refresh tokens granting standing full-Drive access to
+    // every employee, so a leaked dump would be a company-wide compromise
+    // rather than a password reset.
+    //
+    // Keyed on BETTER_AUTH_SECRET. The consequence to know: reading
+    // `account.accessToken` with Drizzle now returns ciphertext — go through
+    // `auth.api.getAccessToken`, which decrypts AND refreshes (see
+    // src/actions/drive/driveToken.ts).
+    encryptOAuthTokens: true,
+  },
   // nextCookies() MUST be last so it can flush Set-Cookie from server actions.
   // RBAC: roles/permissions are defined in src/lib/permissions.ts (single source
   // of truth). `adminRoles` lists roles allowed to use admin-plugin endpoints.

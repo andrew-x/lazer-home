@@ -88,6 +88,14 @@ export const projects = pgTable(
     // A display-only SNAPSHOT of the name; see the note on the opportunity pair.
     slackChannelName: text(),
 
+    // --- Google Drive -----------------------------------------------------
+    // The delivery folder for this project, at `Lazer Home/Projects/<name>`, the
+    // mirror of `opportunities.salesDriveFolderId`. Managed only from this
+    // project's own surface. See docs/decisions/0071.
+    driveFolderId: text(),
+    // A display-only SNAPSHOT of the name; see the note on the opportunity pair.
+    driveFolderName: text(),
+
     createdAt: timestamp().defaultNow().notNull(),
     updatedAt: timestamp()
       .defaultNow()
@@ -115,6 +123,15 @@ export const projects = pgTable(
       "projects_slack_channel_shape",
       sql`(${t.slackChannelId} is null and ${t.slackChannelName} is null)
        or (${t.slackChannelId} is not null and ${t.slackChannelName} is not null)`,
+    ),
+    // One Drive folder is linked to at most one project — the mirror of
+    // `opportunities_sales_drive_folder_idx`.
+    uniqueIndex("projects_drive_folder_idx").on(t.driveFolderId),
+    // Both null or both set; a half-written folder link can't exist.
+    check(
+      "projects_drive_folder_shape",
+      sql`(${t.driveFolderId} is null and ${t.driveFolderName} is null)
+       or (${t.driveFolderId} is not null and ${t.driveFolderName} is not null)`,
     ),
   ],
 );

@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { isDriveConfigured } from "@/actions/drive/driveApi";
 import { isSlackConfigured } from "@/actions/slack/slackApi";
 import { getCurrentStaffIdentity } from "@/actions/staff/getCurrentStaffIdentity";
 import { secureActionClient } from "@/lib/core/action";
@@ -18,6 +19,11 @@ export type OpportunityDrawerData = {
    * opportunity — the same reason `currentStaff` sits here.
    */
   slackEnabled: boolean;
+  /**
+   * Whether the Google Drive integration is configured at all. On the envelope
+   * for the same reason as `slackEnabled` — it describes the environment.
+   */
+  driveEnabled: boolean;
 };
 
 /**
@@ -39,8 +45,14 @@ export const loadOpportunityDetail = secureActionClient
       getOpportunity(parsedInput.id),
       getCurrentStaffIdentity(),
     ]);
-    // Reads one env var — deliberately NOT a Slack round-trip, so opening the
-    // drawer never waits on Slack. The channel *suggestion*, which does need the
-    // network, is a separate action fired after render.
-    return { detail, currentStaff, slackEnabled: isSlackConfigured() };
+    // Both read env vars only — deliberately NOT round-trips to Slack or Drive,
+    // so opening the drawer never waits on either. The parts that do need the
+    // network (the channel suggestion, the folder listing) are separate actions
+    // fired after render.
+    return {
+      detail,
+      currentStaff,
+      slackEnabled: isSlackConfigured(),
+      driveEnabled: isDriveConfigured(),
+    };
   });

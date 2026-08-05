@@ -93,6 +93,19 @@ export const opportunities = pgTable(
     // link is built from the id, not the name. Never written back from a read.
     scopingSlackChannelName: text(),
 
+    // --- Google Drive -----------------------------------------------------
+    // The sales folder for this deal, at `Lazer Home/Sales/<opportunity name>`.
+    // Same denormalized-pair reasoning as the Slack columns above, and the same
+    // 1:1 relationship. The mirror pair is `projects.driveFolderId`; a project
+    // built from this opportunity does NOT inherit this folder, for the reason
+    // docs/decisions/0067 gives about the equivalent Slack channel — several
+    // opportunities can feed one project, so there is no unambiguous owner.
+    // See docs/decisions/0071.
+    salesDriveFolderId: text(),
+    // The folder name as a SNAPSHOT taken at link time, for display only. Drifts
+    // if the folder is renamed in Drive, harmlessly: links are built from the id.
+    salesDriveFolderName: text(),
+
     createdAt: timestamp().defaultNow().notNull(),
     updatedAt: timestamp()
       .defaultNow()
@@ -121,6 +134,18 @@ export const opportunities = pgTable(
       "opportunities_scoping_slack_channel_shape",
       sql`(${t.scopingSlackChannelId} is null and ${t.scopingSlackChannelName} is null)
        or (${t.scopingSlackChannelId} is not null and ${t.scopingSlackChannelName} is not null)`,
+    ),
+    // One Drive folder is linked to at most one opportunity — the same
+    // NULLs-are-distinct reasoning as the Slack index above, and likewise the
+    // constraint `isUniqueViolation` catches by name on a concurrent link.
+    uniqueIndex("opportunities_sales_drive_folder_idx").on(
+      t.salesDriveFolderId,
+    ),
+    // Both null or both set; a half-written folder link can't exist.
+    check(
+      "opportunities_sales_drive_folder_shape",
+      sql`(${t.salesDriveFolderId} is null and ${t.salesDriveFolderName} is null)
+       or (${t.salesDriveFolderId} is not null and ${t.salesDriveFolderName} is not null)`,
     ),
     // `closedAt` is set exactly when the status is terminal — the same
     // shape-as-DB-invariant call as `projects_budget_shape`, and the reason a

@@ -11,6 +11,11 @@ owns the shared machinery, which is the same reason `src/lib/slack/` exists at a
 ([ADR 0036](../decisions/0036-lib-organized-by-domain-subfolders.md)). Full rationale:
 [ADR 0067](../decisions/0067-slack-channel-links-bot-token-denormalized-pairs-and-record-scoped-gate.md).
 
+**[drive.md](./drive.md) is this doc's sibling** — the Google Drive folder integration copies this
+one's two-kinds / column-pairs / `authorize`-hook shape almost exactly, and **differs in two places
+that matter**: it runs on **per-user OAuth** rather than one bot token, and it **caches nothing**
+(per-user tokens make a shared cache entry a cross-user disclosure). Read both before touching either.
+
 ## The two kinds
 
 | Kind | Channel name | Visibility | Stored on | Managed at | Capability |
@@ -39,11 +44,11 @@ i.e. partial for exactly the scoping kind.
 Consequences, all of them visible to users:
 
 - A **pre-existing** scoping channel must be `/invite`d to the app before it can be found, linked or
-  suggested. The create dialog says so inline, **only on the private path**, naming both conditions
-  ("added to" *and* "named `l-scoping-…`").
-- A **non-conventionally-named private channel can't be linked at all** until it's renamed — that's
-  the disclosure filter below, not a bug.
+  suggested. The create dialog says so inline, **only on the private path**.
 - A channel we **create** is fine: the app is a member by construction.
+- The flip side: once invited, that channel's **name is visible in the picker** to anyone holding
+  `crm.edit`/`projects.edit` — see *What the picker discloses* below. Any channel name **is** linkable;
+  there is no naming-convention requirement.
 
 Per-user OAuth is the named upgrade path if this ever becomes intolerable; it was rejected as far too
 much machinery for writing two columns and opening a URL
@@ -103,20 +108,30 @@ Two things keep it a real gate:
 (the same shape `searchProjects` uses for `companyId`). That does **not** weaken the gate — the hook
 has already refused anything without a valid kind.
 
-### The private-channel disclosure filter
+### What the picker discloses (there is no naming-convention filter)
 
-`disclosableSlackChannels` (`getSlackChannels.ts`) is applied by search, suggestions **and
-`linkSlackChannel`** — including the write path, so an id pasted for an unrelated private channel
-can't be linked (and its name echoed back) just because our bot happens to be in it.
+> **Corrected 2026-08-04.** This section previously described a `disclosableSlackChannels` filter and
+> an `isConventionChannelName` predicate restricting private channels to the `l-scoping-`/`l-project-`
+> prefixes. **Neither exists in the code** — `searchSlackChannels.ts` carries the opposite decision
+> explicitly, and [`guides/slack.md` §5](../guides/slack.md#5-existing-private-channels-need-an-invite)
+> has always described the shipped behaviour. See
+> [ADR 0067 §5](../decisions/0067-slack-channel-links-bot-token-denormalized-pairs-and-record-scoped-gate.md).
 
-- **Public channels pass through untouched** — every employee can already browse them in Slack, so
+**Any channel the bot can see is linkable, private ones included.** No naming-convention filter is
+applied anywhere, on the read or the write path — because scoping channels that predate the convention
+are exactly the ones people most need to link, and requiring a rename first would make the feature
+useless on existing deals. **Creating is what enforces the naming; linking adopts what's there.**
+
+- **Public channels are uncontroversial** — every employee can already browse them in Slack, so
   surfacing them behind `crm.edit`/`projects.edit` is *narrower* than the status quo.
-- **Private channels are restricted to the naming convention.** A private channel's name is invisible
-  to non-members in Slack, and the bot may have been invited to an HR or exec channel for something
-  unrelated; without this, the picker would quietly become a way to **enumerate those names**.
+- **Private channel names are disclosed to capability holders**, and that's the accepted cost: a
+  non-member can't see them in Slack itself. Bounded by the set being **opt-in** (the bot is blind to a
+  private channel until someone `/invite`s it) and by search **requiring a non-blank query**, so the
+  control can't be used to enumerate a list wholesale. It makes one operational rule real: **don't
+  invite this app to private channels whose existence is sensitive.**
 
-Search is deliberately **not** filtered to the kind's own visibility — a scoping channel mistakenly
-created public can still be linked. `SLACK_CHANNEL_IS_PRIVATE` governs what we *create*.
+Search is deliberately **not** filtered to the kind's own visibility either — a scoping channel
+mistakenly created public can still be linked. `SLACK_CHANNEL_IS_PRIVATE` governs what we *create*.
 
 ## What each action does
 
@@ -276,9 +291,9 @@ exercises the off state instead, which is the honest local situation.
 ## Where the code is
 
 - `src/lib/slack/channel.ts` (+ `.test.ts`) — pure, client-importable: kinds, prefixes, visibility,
-  the name builder, `isConventionChannelName`, `slackChannelUrl`, `formatSlackChannel`,
-  `scoreSlackChannelMatch` + threshold, `SlackChannelRef`.
-- `src/actions/slack/` — `slackApi.ts` · `getSlackChannels.ts` (+ `disclosableSlackChannels`) ·
+  the two name builders (`buildSlackChannelName` + `buildSlackChannelCreateName`'s `test-` marker),
+  `slackChannelUrl`, `formatSlackChannel`, `scoreSlackChannelMatch` + threshold, `SlackChannelRef`.
+- `src/actions/slack/` — `slackApi.ts` · `getSlackChannels.ts` ·
   `slackUsers.ts` · `slackChannelLink.ts` (`SLACK_CHANNEL_TARGETS`, `channelIdsAlreadyLinked`) ·
   `authorizeSlackChannel.ts` · `slackChannel.schema.ts` (pure, client-imported —
   [ADR 0035](../decisions/0035-schema-modules-by-import-boundary.md)) · `slackChannelRef.ts` · the

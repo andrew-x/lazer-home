@@ -8,6 +8,7 @@ import {
 } from "@/actions/staff/getExchangeRates";
 import { db } from "@/lib/db/db";
 import { companies, projectRoles, projects, staff } from "@/lib/db/schema";
+import { type DriveFolderRef, toDriveFolderRef } from "@/lib/drive/folder";
 import { deliveryManagersOf } from "@/lib/projects/delivery-coverage";
 import {
   deriveProjectLinesOfBusiness,
@@ -57,6 +58,11 @@ export type ProjectDetailPlan = {
    * read to supply a field the planner grid never renders.
    */
   slack: SlackChannelRef | null;
+  /**
+   * The project's delivery folder in the Lazer Home shared drive, or null. A
+   * sibling of `slack` and for the same reason it is not on `PlanProject`.
+   */
+  drive: DriveFolderRef | null;
 };
 
 export async function getProjectPlan(
@@ -74,6 +80,8 @@ export async function getProjectPlan(
       // Already on the row being read — no extra query, no extra join.
       slackChannelId: projects.slackChannelId,
       slackChannelName: projects.slackChannelName,
+      driveFolderId: projects.driveFolderId,
+      driveFolderName: projects.driveFolderName,
     })
     .from(projects)
     .innerJoin(companies, eq(projects.companyId, companies.id))
@@ -186,6 +194,10 @@ export async function getProjectPlan(
     slack: toSlackChannelRef(
       projectRow.slackChannelId,
       projectRow.slackChannelName,
+    ),
+    drive: toDriveFolderRef(
+      projectRow.driveFolderId,
+      projectRow.driveFolderName,
     ),
   };
 }
