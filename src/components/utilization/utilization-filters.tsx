@@ -13,7 +13,7 @@ import {
   RANGE_PRESET_LABELS,
   RANGE_PRESETS,
   shiftRange,
-} from "@/lib/utilization/utilization-range";
+} from "@/lib/reporting/report-range";
 import type {
   ReportBasis,
   UtilizationRange,

@@ -287,10 +287,15 @@ split by a hairline:
     window running into the future counts capacity nobody has had the chance to log against yet,
     which makes every logged figure read as a shortfall. "Last month" is complete by definition,
     so it is the whole month.
-  - `parseUtilizationRange(start, end, today?)` degrades every invalid/missing/inverted input to
-    something sane rather than erroring, and clamps the span to **`MAX_RANGE_DAYS = 366`** (the
-    read walks day-by-day per person, so an unbounded span pasted into the URL is an easy way to
-    make the server work hard; every preset fits inside the cap, leap year included).
+  - `parseReportRange(start, end, today?, maxDays?)` degrades every invalid/missing/inverted input
+    to something sane rather than erroring, and clamps the span to **`MAX_RANGE_DAYS = 366`** by
+    default (the read walks day-by-day per person, so an unbounded span pasted into the URL is an
+    easy way to make the server work hard; every preset fits inside the cap, leap year included).
+    **Renamed from `parseUtilizationRange`, and the whole module moved** to
+    `src/lib/reporting/report-range.ts` when the finance report became a second consumer — the
+    `maxDays` parameter exists because that report's read is a bounded row query and can afford
+    ~3 years ([ADR 0070](../decisions/0070-finance-report-fee-proration-and-server-side-aggregation.md) §9,
+    [finance.md](./finance.md)).
   - **`today` is resolved on the server** and passed down as a prop, so the preset highlight can't
     disagree with the window the page defaulted to across a timezone boundary.
   - **The ◀ ▶ buttons step whole calendar periods** — `shiftRange(range, direction, today)`. They
@@ -359,11 +364,12 @@ capability to `src/lib/auth/permissions.ts`, `src/lib/auth/permissions.test.ts` 
 — not loosening the scope in this read.
 
 **Nav.** The **Reporting** parent nav entry carries no gate; `staff.viewCompensation` sits on the
-Compensation and Bonuses children, and Utilization is an **ungated** child. A section is as loose
+Compensation and Bonuses children, **`projects.viewMargin` on the Finance child**
+([finance.md](./finance.md)), and Utilization is an **ungated** child. A section is as loose
 as its loosest child. `/reporting` (a redirect, not a page) sends `staff.viewCompensation` holders
 to Compensation and `ratings.view` holders to Levels, then falls through to
-**`/reporting/utilization`** instead of `notFound()` — which is also why the fifth child,
-Profile completeness, needs no branch in that ladder: nothing falls through past an ungated
+**`/reporting/utilization`** instead of `notFound()` — which is also why neither Profile
+completeness nor Finance needs a branch in that ladder: nothing falls through past an ungated
 destination. (The section was labelled `Analytics` at `/analytics/*` until 2026-08-03, and
 `Dashboards` at `/dashboards/*` before that; neither path redirects.)
 
@@ -380,14 +386,20 @@ destination. (The section was labelled `Analytics` at `/analytics/*` until 2026-
   (the two tables).
 - **Math:** `src/lib/utilization/utilization-report.ts` — pure, client-importable, one day-level
   `StaffLedger` per person that every card reads from (the weekday spine is built **once** and
-  shared across the cohort). `utilization-report.test.ts` (38 tests) and
-  `utilization-range.test.ts` (22) are a sanctioned
+  shared across the cohort). `UtilizationRange` is now an **alias** of the shared `ReportRange`
+  rather than its own declaration — two structurally identical types would drift into two ideas of
+  a window; the name is kept because it reads better at the ~30 call sites here.
+  `utilization-report.test.ts` (38 tests) and `report-range.test.ts` (23) are a sanctioned
   [ADR 0037](../decisions/0037-unit-tests-removed-except-rbac-matrix.md) carve-out — they pin the
   access gate's `null`-not-`0` behaviour, the definitions above, the deviation thresholds, the
   LoB attribution rule, the period-to-date presets and whole-period stepping, none of which a type
   states.
-- **Window:** `src/lib/utilization/utilization-range.ts` (pure; params, presets, `shiftRange` +
-  the private `periodUnitOf`, period-to-date defaulting, the 366-day cap).
+- **Window (now shared, not ours):** **`src/lib/reporting/report-range.ts`** — moved out of
+  `lib/utilization/` when `/reporting/finance` landed, so both reports agree on what "this quarter"
+  means (pure; the `ReportRange` type, params, presets, `shiftRange` + the private `periodUnitOf`,
+  period-to-date defaulting, `MAX_RANGE_DAYS = 366` as the **default** cap). **Anything you change
+  here changes the finance report too** — including `RANGE_PRESETS`, which is why adding `lastYear`
+  was deferred rather than slipped in.
 - **Format:** `src/lib/utilization/utilization-format.ts` (pure; the `null` → "—" convention).
   `formatPercentDelta` renders the gap from plan; `formatHoursDelta` was **deleted** when the
   variance columns went, so nothing formats an absolute hours delta any more.
@@ -432,7 +444,8 @@ destination. (The section was labelled `Analytics` at `/analytics/*` until 2026-
   of the same thing and are never added together.
 - **Nothing is exported and nothing is billed.** No CSV, no per-project or per-client cut, no
   charge rates — the report costs *nobody's* time in money, which is also why it needs no
-  `projects.viewMargin`-style gate.
+  `projects.viewMargin`-style gate. The money view of the same window is a **separate, gated
+  report** ([finance.md](./finance.md)); keep it that way rather than adding rates here.
 
 ## Connects to
 
@@ -449,5 +462,12 @@ destination. (The section was labelled `Analytics` at `/analytics/*` until 2026-
   and join/termination dates all come from `staff` + the latest `staff_employment`; `staff_pto`
   supplies leave. **`utilizationTarget` is deliberately not read** — the report measures actual
   capacity use, not attainment against a target. No compensation column is read at all.
+- **[Finance](./finance.md)** — the sibling report at `/reporting/finance`, and the **only other
+  consumer of `report-range.ts`**. It measures the same `project_roles` plan **in money** instead
+  of hours, and differs on three axes on purpose: it counts **everything but `cancelled`** (so
+  tentative roles carry revenue, where this report dropped them), it aggregates **server-side**
+  because a role's cost ÷ its hours is someone's pay rate, and it is **gated on
+  `projects.viewMargin`**. The same window can legitimately show different hours on the two pages —
+  don't reconcile them.
 - **[Performance](./performance.md)** — it sits in the Reporting section beside the three gated
   performance dashboards, and is the only page there open to everyone.

@@ -113,7 +113,7 @@ export const listDriveFolderSchema = z.object({
  * This is the ONLY action that reads a file outside the shared drive, and the
  * `fileId` always comes from a Picker selection — the user's own click in
  * Google's UI. It copies rather than moves, so the original stays where it was.
- * See docs/decisions/0069.
+ * See docs/decisions/0071.
  */
 export const copyDriveFileSchema = z.object({
   folderId: driveResourceId,

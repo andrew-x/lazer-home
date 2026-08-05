@@ -7,12 +7,12 @@ import {
 import { UtilizationReport } from "@/components/utilization/utilization-report";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { formatDateRange } from "@/lib/format/format";
-import { currentDay } from "@/lib/timesheets/timesheet-week";
 import {
-  parseUtilizationRange,
+  parseReportRange,
   RANGE_END_PARAM,
   RANGE_START_PARAM,
-} from "@/lib/utilization/utilization-range";
+} from "@/lib/reporting/report-range";
+import { currentDay } from "@/lib/timesheets/timesheet-week";
 
 export const metadata: Metadata = { title: "Utilization" };
 
@@ -41,7 +41,7 @@ export default async function UtilizationReportPage({
 
   const params = await searchParams;
   const today = currentDay();
-  const range = parseUtilizationRange(
+  const range = parseReportRange(
     params[RANGE_START_PARAM],
     params[RANGE_END_PARAM],
     today,

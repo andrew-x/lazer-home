@@ -125,8 +125,12 @@ derived from individual compensation.
   computed from anyone's pay.
 
 - **`projects.viewMargin`** — see a project's **cost and margin**: the budget summary panel
-  and per-role figures on the opportunity's Project-plan tab and the project detail page, **and
-  the margin figure + margin-derived risk badges on the `/projects` list**. A
+  and per-role figures on the opportunity's Project-plan tab and the project detail page, **the
+  margin figure + margin-derived risk badges (and the margin *sort order*) on the `/projects`
+  list**, and — since [ADR 0070](../decisions/0070-finance-report-fee-proration-and-server-side-aggregation.md)
+  — **the whole `/reporting/finance` page**, via `FINANCE_REPORT_ACCESS` below. That is now
+  **four surfaces on one capability**, and the finance one is portfolio-wide, so widening this row
+  widens a lot. A
   **read** capability, deliberately separate from `projects.edit`, because a role's cost *is*
   an individual's compensation — a staffed role costs that person's pay ÷ 2080, so on a
   one-role project even the aggregate discloses their salary, and the open-role figure is a
@@ -145,7 +149,13 @@ derived from individual compensation.
   delivery judgement, not compensation-derived —
   [ADR 0059](../decisions/0059-project-delivery-notes-and-list-health.md)). The list also sends **no
   per-role cost at all** — only two whole-project figures per row
-  ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)).
+  ([ADR 0057](../decisions/0057-projects-list-margin-and-derived-flags.md)). **The Finance report is
+  the fourth door and the strictest:** `getFinanceReport` `requirePermission`s the same capability and
+  **throws** (the route `notFound()`s above it), and **every aggregate is computed server-side** —
+  precisely because a role's cost divided by its hours *is* that person's hourly pay, so shipping a
+  filterable per-role projection would put the whole portfolio's pay rates in the page HTML
+  ([finance.md](./finance.md#access-control),
+  [ADR 0070](../decisions/0070-finance-report-fee-proration-and-server-side-aggregation.md)).
   **!! It also gates *ordering*, not just figures**
   ([ADR 0061](../decisions/0061-projects-list-as-a-sortable-table.md) §5): a margin-ranked list
   discloses which engagements are most and least profitable, and that ranking is compensation-derived
@@ -324,10 +334,29 @@ The composite gates above are two of these; the single-capability ones are:
 - **`BONUS_PAYMENT_READ_ACCESS = { staff: ["viewCompensation"] }`** — the bonus
   dashboard, the read half of the bonus pair (its write half is the composite
   `BONUS_PAYMENT_WRITE_ACCESS`; see [performance.md](./performance.md)).
+- **`FINANCE_REPORT_ACCESS = { projects: ["viewMargin"] }`**
+  (`src/lib/finance/finance-report.ts`) — the **Finance report** (`/reporting/finance`, see
+  [finance.md](./finance.md#access-control)). Holders: {`finance`, `delivery-manager`, `manager`,
+  `admin`}. It reuses `projects.viewMargin` because those roles **already** read a project's cost and
+  margin on its detail page and the margin column on `/projects`; this **re-aggregates the same
+  compensation-derived disclosure across the portfolio** rather than exposing a new *kind* of fact.
+  Three details make that sound rather than merely convenient:
+  - **The gate is enforced in three places off one constant** — the route (`notFound()`, so it can't
+    be probed), the nav item, and the read — and the read **throws** rather than masking, unlike
+    `getProjectCostBasis`: with cost and margin withheld there is no useful remainder, so a masked
+    variant would be a different report, not a degraded one.
+  - **Cost inputs still route through `getProjectCostBasis`**, which re-derives the same decision.
+    The redundant check is accepted deliberately: inlining its `staff_employment` projection would be
+    the beginning of a second answer to "may this viewer see cost".
+  - **Revenue alone wouldn't need the gate** (it is commercial, not personal — the standing
+    asymmetry under `projects.viewMargin` above). It is gated anyway because the page's point is
+    revenue **and** margin side by side, and splitting the surface in two to dodge one capability
+    check would double the number of places a portfolio total is computed.
 
 **No matrix change, so ADR 0014's lockstep rule isn't engaged** — but the *audience*
 claim is only as good as the matrix row it points at. If you change a role's
-`staff.edit`, you change who sees profile completeness.
+`staff.edit`, you change who sees profile completeness; change `projects.viewMargin`
+and you change who sees the whole portfolio's revenue and margin, not just one project's.
 
 ### The one relationship-based gate — review notes (`staff.managerId` as an authorization input)
 
@@ -650,6 +679,19 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
   and the `type` field is **nulled** in the projection otherwise, so the reason never
   leaves the server. Minimal disclosure, not a loosening of the PTO gate — see
   [ADR 0038](../decisions/0038-allocations-planner-pto-disclosure.md).
+- **`src/actions/crm/getOrgPipeline.ts` + `getMyPipeline.ts`** — the home dashboard's pipeline
+  reads, **deliberately ungated, and listed here so the omission reads as a decision.** Both
+  carry money, and the reason it needs no gate is the **revenue-vs-cost asymmetry** this doc
+  already states for `projects.viewMargin`: they price a deal from its linked project's plan with
+  `includeCost: false` and an empty `openRoleCostUsd`, so `staff_employment` is never queried and
+  `getProjectCostBasis` is never called — there is **no compensation-derived figure** to protect,
+  and a plan's revenue is a commercial term about an engagement. Read parity with
+  `/opportunities`, which is open. `getMyPipeline` is additionally **own-data-only by
+  construction** (no id parameter; the subject comes from the session, the `getMyTasks` shape).
+  **No capability and no matrix row was added** — both read headers say so, and
+  [ADR 0069](../decisions/0069-home-pipeline-closed-at-and-project-plan-deal-value.md) §3 records
+  why. If a *cost* or margin figure is ever wanted on `/`, it needs the `projects.viewMargin`
+  door (`getProjectCostBasis`), not a new one.
 - **`src/actions/projects/getProjectPto.ts`** — the project detail page's Time off tab, a
   **third `pto.review` enforcement site** with the same shape (dates + person open to all,
   `type`/`isPending` nulled otherwise). **Tightened:** it previously returned **pending**
@@ -708,7 +750,7 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
   input — and returns `ctx.user`'s token only; a `userId` parameter there would hand one person a
   token for another person's entire Drive. Treat any such change as a vulnerability, not a
   refactor.** See [drive.md](./drive.md) and
-  [ADR 0069](../decisions/0069-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md) §7.
+  [ADR 0071](../decisions/0071-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md) §7.
 - **`src/actions/staff/loadStaffProfileDrawer.ts`** — an **interactive read** (a
   `"use server"` + `secureActionClient` read, the documented exception to the
   server-only read rule, same shape as `loadOpportunityDetail`) and **the single best
@@ -785,7 +827,7 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
     encrypted refresh tokens granting standing full-Drive access per employee, keyed on
     `BETTER_AUTH_SECRET`. Read tokens only via `auth.api.getAccessToken` (a Drizzle read returns
     ciphertext and skips the refresh), and never log one. See
-    [ADR 0069 §2](../decisions/0069-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md).
+    [ADR 0071 §2](../decisions/0071-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md).
 - `src/lib/auth/auth-client.ts`: `adminClient({ ac, roles })` — so the client API
   (`authClient.admin.hasPermission` / `checkRolePermission`) stays in sync with the
   server. Note: server-side gating uses the pure helpers above, not the client API.

@@ -12,7 +12,7 @@
  * This is the FULL Drive scope, deliberately. The narrower `drive.file` grants
  * per-file access only, which would make a folder listing structurally incomplete:
  * a file a colleague added through Drive's own UI would be invisible to us. See
- * docs/decisions/0069 for that trade and for the privacy guarantees that replace
+ * docs/decisions/0071 for that trade and for the privacy guarantees that replace
  * what the narrower scope would have enforced.
  */
 export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";

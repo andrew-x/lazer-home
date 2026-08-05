@@ -1,5 +1,5 @@
 {
-  "id": "41a18c34-f353-4abb-a161-445089350c9f",
+  "id": "12342594-8244-4e03-b251-3f63c24dc34d",
   "prevId": "a3e724f1-fbd2-4bbb-b3d7-1427ae059f01",
   "version": "7",
   "dialect": "postgresql",
@@ -1090,6 +1090,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "line_of_business": {
           "name": "line_of_business",
           "type": "line_of_business",
@@ -1118,18 +1124,6 @@
         },
         "scoping_slack_channel_name": {
           "name": "scoping_slack_channel_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "sales_drive_folder_id": {
-          "name": "sales_drive_folder_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "sales_drive_folder_name": {
-          "name": "sales_drive_folder_name",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -1186,26 +1180,32 @@
           "method": "btree",
           "with": {}
         },
-        "opportunities_scoping_slack_channel_idx": {
-          "name": "opportunities_scoping_slack_channel_idx",
+        "opportunities_status_closed_at_idx": {
+          "name": "opportunities_status_closed_at_idx",
           "columns": [
             {
-              "expression": "scoping_slack_channel_id",
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "closed_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
-          "isUnique": true,
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
         },
-        "opportunities_sales_drive_folder_idx": {
-          "name": "opportunities_sales_drive_folder_idx",
+        "opportunities_scoping_slack_channel_idx": {
+          "name": "opportunities_scoping_slack_channel_idx",
           "columns": [
             {
-              "expression": "sales_drive_folder_id",
+              "expression": "scoping_slack_channel_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1253,9 +1253,9 @@
           "name": "opportunities_scoping_slack_channel_shape",
           "value": "(\"opportunities\".\"scoping_slack_channel_id\" is null and \"opportunities\".\"scoping_slack_channel_name\" is null)\n       or (\"opportunities\".\"scoping_slack_channel_id\" is not null and \"opportunities\".\"scoping_slack_channel_name\" is not null)"
         },
-        "opportunities_sales_drive_folder_shape": {
-          "name": "opportunities_sales_drive_folder_shape",
-          "value": "(\"opportunities\".\"sales_drive_folder_id\" is null and \"opportunities\".\"sales_drive_folder_name\" is null)\n       or (\"opportunities\".\"sales_drive_folder_id\" is not null and \"opportunities\".\"sales_drive_folder_name\" is not null)"
+        "opportunities_closed_at_shape": {
+          "name": "opportunities_closed_at_shape",
+          "value": "(\"opportunities\".\"status\" in ('closed_won', 'closed_lost')) = (\"opportunities\".\"closed_at\" is not null)"
         }
       },
       "isRLSEnabled": false
@@ -2839,18 +2839,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "drive_folder_id": {
-          "name": "drive_folder_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "drive_folder_name": {
-          "name": "drive_folder_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -2872,21 +2860,6 @@
           "columns": [
             {
               "expression": "slack_channel_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "projects_drive_folder_idx": {
-          "name": "projects_drive_folder_idx",
-          "columns": [
-            {
-              "expression": "drive_folder_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2924,10 +2897,6 @@
         "projects_slack_channel_shape": {
           "name": "projects_slack_channel_shape",
           "value": "(\"projects\".\"slack_channel_id\" is null and \"projects\".\"slack_channel_name\" is null)\n       or (\"projects\".\"slack_channel_id\" is not null and \"projects\".\"slack_channel_name\" is not null)"
-        },
-        "projects_drive_folder_shape": {
-          "name": "projects_drive_folder_shape",
-          "value": "(\"projects\".\"drive_folder_id\" is null and \"projects\".\"drive_folder_name\" is null)\n       or (\"projects\".\"drive_folder_id\" is not null and \"projects\".\"drive_folder_name\" is not null)"
         }
       },
       "isRLSEnabled": false

@@ -31,7 +31,7 @@ export const auth = betterAuth({
             // connection to manage, so every Drive call in src/actions/drive/
             // acts as the signed-in person — which is what makes Google enforce
             // shared-drive membership for us and keeps Drive's audit trail
-            // naming the real human. See docs/decisions/0069.
+            // naming the real human. See docs/decisions/0071.
             scope: [DRIVE_SCOPE],
             // Both of these are load-bearing for Drive, not cosmetic. Google
             // issues a refresh token ONLY on an explicit consent with offline

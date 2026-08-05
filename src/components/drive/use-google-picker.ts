@@ -25,7 +25,7 @@ import { getDrivePickerToken } from "@/actions/drive/getDrivePickerToken";
  * The one thing this concedes: `setOAuthToken` is the only way to authorize the
  * Picker, so a Drive access token reaches the browser. That is inherent to the
  * Picker and is the acknowledged cost of not building an uploader — see
- * docs/decisions/0069. The token is the signed-in person's own and short-lived,
+ * docs/decisions/0071. The token is the signed-in person's own and short-lived,
  * and it is fetched per-open rather than held, so it isn't kept alive in memory
  * across a long-lived tab.
  */

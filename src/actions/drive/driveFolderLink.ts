@@ -23,7 +23,7 @@ import type { DriveFolderKind } from "@/lib/drive/folder";
  * expressible.
  *
  * Don't "tidy" this into a static `metadata.permission`, and don't add a
- * `drive.manage` capability — see docs/decisions/0069.
+ * `drive.manage` capability — see docs/decisions/0071.
  *
  * The entries hold closures rather than raw Drizzle column handles: it keeps each
  * query concretely typed against its own table, and keeps the `isNull` link guard

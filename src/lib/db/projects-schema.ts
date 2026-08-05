@@ -91,7 +91,7 @@ export const projects = pgTable(
     // --- Google Drive -----------------------------------------------------
     // The delivery folder for this project, at `Lazer Home/Projects/<name>`, the
     // mirror of `opportunities.salesDriveFolderId`. Managed only from this
-    // project's own surface. See docs/decisions/0069.
+    // project's own surface. See docs/decisions/0071.
     driveFolderId: text(),
     // A display-only SNAPSHOT of the name; see the note on the opportunity pair.
     driveFolderName: text(),

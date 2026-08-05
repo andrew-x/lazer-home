@@ -11,7 +11,7 @@ import { requireDriveAccessToken } from "./driveToken";
  * The Picker runs entirely in the browser and `setOAuthToken` is the only way to
  * authorize it, so this is the one place a Drive token leaves the server. That is
  * inherent to using the Picker and is the acknowledged cost of not building our
- * own uploader (docs/decisions/0069) — the token is the signed-in person's own,
+ * own uploader (docs/decisions/0071) — the token is the signed-in person's own,
  * scoped to their own Drive access, and short-lived.
  *
  * **The signature is the security boundary.** It takes no input at all: the token

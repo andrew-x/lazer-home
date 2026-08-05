@@ -72,7 +72,7 @@ export type DriveFolderContents =
  * token and `driveList` confines every query to the shared drive, so it can only
  * surface what that person could already see in Drive's own UI — Google enforces
  * shared-drive membership for us. A gate here would be theatre. See
- * docs/decisions/0069.
+ * docs/decisions/0071.
  *
  * `folderId` is any folder in the shared drive rather than only a linked one, so
  * the panel can navigate into subfolders. The breadcrumb is the client's job: it

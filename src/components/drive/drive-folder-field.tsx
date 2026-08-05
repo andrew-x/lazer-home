@@ -28,7 +28,7 @@ import { DriveFolderDialog } from "./drive-folder-dialog";
  * Mirrors `SlackChannelField`, including its judgement call about the feature
  * flag: the setup button shows even when Drive isn't configured, because a
  * control you can reach plus a reason it won't work teaches more than an absent
- * control does. See docs/decisions/0067 and 0069.
+ * control does. See docs/decisions/0067 and 0071.
  */
 export function DriveFolderField({
   kind,

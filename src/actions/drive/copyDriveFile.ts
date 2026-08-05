@@ -20,7 +20,7 @@ import { requireDriveAccessToken } from "./driveToken";
  *
  * **This is the only code path in the feature that reads a file outside the Lazer
  * Home shared drive, and it is the privacy invariant's third leg** (see
- * docs/decisions/0069):
+ * docs/decisions/0071):
  *
  * - The `fileId` always comes from a Picker selection — the user's own click, in
  *   Google's own UI. Nothing here searches or enumerates their Drive; we never

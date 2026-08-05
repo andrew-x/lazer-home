@@ -236,18 +236,22 @@ dashboard's "Lazer Status"*.
   its own edge and the widgets inside *are* cards. Its **`action` slot is reserved for a
   control that scopes the whole band** (Lazer Status's line-of-business filter); per-widget
   controls stay inside their own card.
-- **The two bands measure different windows, and every figure must say which.** *Lazer
-  Status* is **as of today** from the staffing plan. *Your Status* is **mixed**: the three
-  stat tiles and the allocations table are **year to date** from submitted timesheets, while
-  the **Tasks** block is **point in time** from the CRM — so its band description
-  deliberately names **no** single window ("Your year so far, and what's on your plate. Each
-  figure below names its own window.") and each block names its own instead. The bare word
-  "utilization" is ambiguous on this page, so tile hints carry "· YTD, N weeks in 2026" (the
-  Planned tile keeps **· YTD** even when it appends an over-allocated-*today* note), the
-  Tasks caption says "open right now", and the Staffing card headers `As of <date>`. The rule
-  is [ADR 0063](./decisions/0063-home-dashboard-two-time-bases-and-point-in-time-staffing.md)
+- **Both bands are now mixed-window, and every figure must say which.** *Your Status*: the three
+  stat tiles and the allocations table are **year to date** from submitted timesheets, while the
+  **Tasks** and **Pipeline** blocks are **point in time** from the CRM. *Lazer Status* is **as of
+  today** from the staffing plan, **except** the Pipeline card's closed-won/lost counts, which are
+  **windowed** (this week / this month). So **neither band description names a single window**
+  ("Your year so far, and what's on your plate. Each figure below names its own window.") and each
+  *block* names its own instead. The bare word "utilization" is ambiguous on this page, so tile
+  hints carry "· YTD, N weeks in 2026" (the Planned tile keeps **· YTD** even when it appends an
+  over-allocated-*today* note), the Tasks caption says "open right now", the Staffing card and the
+  Pipeline card header `As of <date>` / `Open now · <date>`, and the closed figures name their
+  windows as **dates** — because with a Monday-start week "this week" can begin in the previous
+  month, so it is **not** a subset of "this month" and the bare words would imply that it is. The
+  rule is [ADR 0063](./decisions/0063-home-dashboard-two-time-bases-and-point-in-time-staffing.md)
   §2, amended by [ADR 0065](./decisions/0065-home-personal-task-list-and-assignee-completion.md)
-  — **don't "restore" a single-window description on Your Status.**
+  and [ADR 0069](./decisions/0069-home-pipeline-closed-at-and-project-plan-deal-value.md)
+  — **don't "restore" a single-window description on either band.**
 - **They are sibling `async` Server Components**, not one top-level `Promise.all`, so their
   reads run concurrently and each band streams when ready.
 - **First client JS on this route.** `LazerStatusSection` is a Client Component owning three
@@ -259,7 +263,14 @@ dashboard's "Lazer Status"*.
   `allocationNotes` (gated on `staff.edit`) and `skills` off the wire. **The same rule now
   applies twice:** `MyTasksPanel` is the second Client Component here, and `MyTaskView` is
   likewise a field-by-field whitelist (no `ownerStaffId` / `creatorStaffId` / `updatedAt`,
-  and no `staffId` at all).
+  and no `staffId` at all). **The pipeline blocks satisfy it two different ways, and neither is a
+  third whitelist:** `pipeline-panel.tsx` renders no per-deal row, so `getOrgPipeline` hands over
+  **pre-folded summaries — one per line of business plus one for "all"** (no deal/company/owner
+  name, no ids, no per-project figure), which also means a filtered figure is a *server* fold, never
+  the unfiltered total reused; and `my-pipeline-panel.tsx` — which *does* show names, next steps and
+  per-deal money — is a **true Server Component**, so nothing crosses at all. ⚠️ **Don't add
+  `"use client"` to it** to "match" the Tasks panel above it: that would push every deal's plan
+  value into the page HTML.
 - **Tasks (Your Status).** `my-tasks-panel.tsx` — your assigned tasks, newest first, with a
   `SearchFilter` (description **and** parent name) + a parent-kind `SegmentedFilter` +
   `task-archive-dialog.tsx` (the full open+completed history, its own search/kind/status
@@ -280,7 +291,22 @@ dashboard's "Lazer Status"*.
 
   See [domains/crm.md](./domains/crm.md#the-personal-task-list-on-) and
   [ADR 0065](./decisions/0065-home-personal-task-list-and-assignee-completion.md).
-- **Widgets:** `StatCard` ×3 + `my-allocations-table.tsx` + the Tasks panel above (Your Status); `staffing-panel` +
+- **Pipeline (both bands).** `pipeline-panel.tsx` in *Lazer Status*, directly under Staffing (that
+  card says whether the bench is working, this one whether work is coming to keep it working):
+  three funnel bands — Top / Mid / Bottom — each with an open-deal count, a per-stage breakdown
+  (**zero rows retained**, so the shape doesn't shift as the filter changes) and, for Mid and Bottom
+  only, Plan value / Fixed fee / Time & materials plus "N projects priced · M unpriced". Top
+  deliberately shows no money. Then a Closed-deals sub-row (won/lost × week/month) and a footnote
+  carrying the "excludes **Maturing**", "counted **once per project**" and unpriced-≠-zero caveats
+  plus the `FxRateNote`. `my-pipeline-panel.tsx` in *Your Status*, under Tasks: your deals grouped
+  by stage inside a `ScrollList` (empty stages **dropped** here — it's a list of your work, not a
+  fixed grid), each row showing the deal, its company, its **"project plan value"** and its open
+  tasks as `→ next steps`. **Don't shorten that label to "value" or "deal size"** — it is the whole
+  linked project's plan revenue, which the org band counts once and this counts per deal. Neither
+  panel holds state; the filter lives in `LazerStatusSection`.
+  See [domains/crm.md](./domains/crm.md#pipeline-on-the-home-dashboard) and
+  [ADR 0069](./decisions/0069-home-pipeline-closed-at-and-project-plan-deal-value.md).
+- **Widgets:** `StatCard` ×3 + `my-allocations-table.tsx` + the Tasks and Pipeline blocks above (Your Status); `staffing-panel` + `pipeline-panel` +
   `availability-panel` (week tabs: bench, then who newly frees up) + `upcoming-time-off-panel` + `project-roles-panel` (rendered twice — Starting soon / Ending soon, grouped by project) +
   `borrowed-staff-panel` (Lazer Status), laid out `lg:grid-cols-[3fr_2fr]` then
   `lg:grid-cols-2`. `person-row.tsx` is the shared one-line person row; its **`subtitle`
@@ -609,15 +635,15 @@ Collapsed nav items get tooltips automatically via `SidebarMenuButton`'s `toolti
 
 **Add a nav item:** edit `NAV_ITEMS` in `src/components/app-shell/nav.ts` (`{ title, href, icon }` with a **Tabler** icon, typed as Tabler's `Icon`). It drives the sidebar entries; `isActivePath()` (also in `nav.ts`) highlights the active one. Nothing else to touch. (There's no longer a `titleForPath` helper — the page-title header was removed.)
 
-**Submenus (`children`).** A `NavItem` may carry an optional **`children?: NavSubItem[]`** — a `{ title, href, permission? }` list with no icon of its own (children inherit the parent's icon context). Each child's `permission` gates it **independently** of the parent. There are **two** submenus: **Reporting** (5 children) — Utilization (`/reporting/utilization`, **ungated**, and not a performance-domain page at all) + Compensation (`/reporting/compensation`, gated on `staff.viewCompensation`) + Bonuses (`/reporting/bonuses`, same gate) + Levels (`/reporting/levels`, gated on `ratings.view`) + Profile completeness (`/reporting/profile-completeness`, gated on `PROFILE_COMPLETENESS_ACCESS` = plain `staff.edit`, and the one **named per-person** read in the section) — and **People management** (3 children) — Edit levels (`/people/levels`, gated on `ratings.edit`) + Compensation plans (`/people/compensation-plans`, gated on the **composite** `COMPENSATION_PLAN_ACCESS`) + Bonus payments (`/people/bonus-payments`, gated on the composite `BONUS_PAYMENT_WRITE_ACCESS`). The split is **read vs. write** ([ADR 0055](./decisions/0055-nav-dashboards-vs-people-management.md), 2026-08-03 amendment), which is why Profile completeness sits under Reporting despite being per-person. A child's `permission` is a plain `PermissionCheck`, so those two-resource conjunctions work with no change to the nav machinery. Rendering (`NavMenuItem` in `app-sidebar.tsx`) depends on the count of *visible* children:
+**Submenus (`children`).** A `NavItem` may carry an optional **`children?: NavSubItem[]`** — a `{ title, href, permission? }` list with no icon of its own (children inherit the parent's icon context). Each child's `permission` gates it **independently** of the parent. There are **two** submenus: **Reporting** (6 children) — Utilization (`/reporting/utilization`, **ungated**, and not a performance-domain page at all) + Finance (`/reporting/finance`, gated on `FINANCE_REPORT_ACCESS` = the existing `projects.viewMargin`; placed **before** Compensation, and the only Reporting child that isn't a staff/performance surface) + Compensation (`/reporting/compensation`, gated on `staff.viewCompensation`) + Bonuses (`/reporting/bonuses`, same gate) + Levels (`/reporting/levels`, gated on `ratings.view`) + Profile completeness (`/reporting/profile-completeness`, gated on `PROFILE_COMPLETENESS_ACCESS` = plain `staff.edit`, and the one **named per-person** read in the section) — and **People management** (3 children) — Edit levels (`/people/levels`, gated on `ratings.edit`) + Compensation plans (`/people/compensation-plans`, gated on the **composite** `COMPENSATION_PLAN_ACCESS`) + Bonus payments (`/people/bonus-payments`, gated on the composite `BONUS_PAYMENT_WRITE_ACCESS`). The split is **read vs. write** ([ADR 0055](./decisions/0055-nav-dashboards-vs-people-management.md), 2026-08-03 amendment), which is why Profile completeness sits under Reporting despite being per-person. A child's `permission` is a plain `PermissionCheck`, so those two-resource conjunctions work with no change to the nav machinery. Rendering (`NavMenuItem` in `app-sidebar.tsx`) depends on the count of *visible* children:
 
-- **≤1 visible child → a plain link** (the original single-entry behavior). This is the graceful-degradation path, and the live example is a **capability-less staff user**: under Reporting they see only the ungated Utilization child → a plain link to the parent href `/reporting`, which **redirects** to `/reporting/utilization`; People management is hidden outright. (That redirect exists precisely because the parent href must work for every audience — see [ADR 0044](./decisions/0044-performance-dashboards-split-by-permission.md).) **Finance** is no longer this case: `staff.viewCompensation` plus the open Utilization page gives it three visible Reporting children.
+- **≤1 visible child → a plain link** (the original single-entry behavior). This is the graceful-degradation path, and the live example is a **capability-less staff user**: under Reporting they see only the ungated Utilization child → a plain link to the parent href `/reporting`, which **redirects** to `/reporting/utilization`; People management is hidden outright. (That redirect exists precisely because the parent href must work for every audience — see [ADR 0044](./decisions/0044-performance-dashboards-split-by-permission.md).) The **`finance` role** is no longer this case: `staff.viewCompensation` and `projects.viewMargin` plus the open Utilization page give it **four** visible Reporting children (Utilization, Finance, Compensation, Bonuses).
 - **≥2 visible children, sidebar collapsed (the default icon rail)** → a **flyout `DropdownMenu` anchored to the icon** (`side="right"`), because the indented sub-list is CSS-hidden in the collapsed rail. This is the state users see most, since the sidebar defaults to collapsed.
 - **≥2 visible children, sidebar expanded** → an indented **`SidebarMenuSub`** beneath the parent link. The parent link still navigates to its own `href` (its section home); children render below.
 
 Active state: the parent uses **`isActivePath`** (prefix match), the sub-items use **`isActiveSubPath`** (exact match) — so the "Levels" child (`/reporting/levels`) does not read as active when you're on its sibling `/people/levels`, whose path it is a prefix of.
 
-**Permission-gated nav items.** A `NavItem` (or a `NavSubItem`) may carry an optional **`permission?: PermissionCheck`**. The server `(app)/layout.tsx` evaluates each item against the current user via `userHasPermission` and **flat-maps** parents + their permission-visible child hrefs into **`visibleNavHrefs: string[]`** (the hrefs the user may see), threading it **server layout → `AppShell` → `AppSidebar`**. The sidebar renders only items/children whose href is in that set. **Only serializable hrefs cross the server→client boundary** — the icon components stay client-side, so we can't just filter the item objects on the server. This is a **generic, reusable gate** for any future protected page (People management uses `permission: { ratings: ["edit"] }` on the parent, with per-child gates below it). **A parent must be as loose as its loosest child:** the Reporting parent used to carry `staff.viewCompensation` — sound while every child needed comp or `ratings.view` — and had to become **ungated** when the open Utilization child landed, with the comp gate pushed down onto the Compensation and Bonuses children. A child's `permission` is evaluated independently, so pushing gates down never loses one. The corollary bit once: while Profile completeness lived under the `ratings.edit`-gated People-management parent, a hypothetical `staff.edit`-only holder was hidden from a page they were allowed to open; moving it under the ungated Reporting parent made the nav match the page's own gate (no matrix change — the two capabilities have identical role rows today). It's an **affordance only** — hiding the link is not the security boundary; **every page still gates itself**: `/reporting` redirects per capability (falling through to the open `/reporting/utilization`), `/reporting/compensation` `notFound()`s non-`viewCompensation` users, `/reporting/levels` `notFound()`s non-`ratings.view` users, `/people/levels` re-checks `ratings.edit`, and each read re-checks with `requirePermission`. Mirrors the localhost-only Admin footer entry's server-threaded pattern.
+**Permission-gated nav items.** A `NavItem` (or a `NavSubItem`) may carry an optional **`permission?: PermissionCheck`**. The server `(app)/layout.tsx` evaluates each item against the current user via `userHasPermission` and **flat-maps** parents + their permission-visible child hrefs into **`visibleNavHrefs: string[]`** (the hrefs the user may see), threading it **server layout → `AppShell` → `AppSidebar`**. The sidebar renders only items/children whose href is in that set. **Only serializable hrefs cross the server→client boundary** — the icon components stay client-side, so we can't just filter the item objects on the server. This is a **generic, reusable gate** for any future protected page (People management uses `permission: { ratings: ["edit"] }` on the parent, with per-child gates below it). **A parent must be as loose as its loosest child:** the Reporting parent used to carry `staff.viewCompensation` — sound while every child needed comp or `ratings.view` — and had to become **ungated** when the open Utilization child landed, with the comp gate pushed down onto the Compensation and Bonuses children. A child's `permission` is evaluated independently, so pushing gates down never loses one. The corollary bit once: while Profile completeness lived under the `ratings.edit`-gated People-management parent, a hypothetical `staff.edit`-only holder was hidden from a page they were allowed to open; moving it under the ungated Reporting parent made the nav match the page's own gate (no matrix change — the two capabilities have identical role rows today). It's an **affordance only** — hiding the link is not the security boundary; **every page still gates itself**: `/reporting` redirects per capability (falling through to the open `/reporting/utilization`, which is why **no gated child — Profile completeness or Finance — needs a branch in that ladder**: nothing falls through past an ungated destination), `/reporting/finance` `notFound()`s non-`viewMargin` users *and* `getFinanceReport` re-checks and **throws**, `/reporting/compensation` `notFound()`s non-`viewCompensation` users, `/reporting/levels` `notFound()`s non-`ratings.view` users, `/people/levels` re-checks `ratings.edit`, and each read re-checks with `requirePermission`. Mirrors the localhost-only Admin footer entry's server-threaded pattern.
 
 ## Icon-only buttons (tooltip convention)
 

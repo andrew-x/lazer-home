@@ -10,7 +10,7 @@ half of — the same shape as [slack.md](./slack.md), and deliberately modelled 
 because neither [crm.md](./crm.md) nor [projects.md](./projects.md) owns the shared machinery, which is
 the same reason `src/lib/drive/` exists at all
 ([ADR 0036](../decisions/0036-lib-organized-by-domain-subfolders.md)). Full rationale:
-[ADR 0069](../decisions/0069-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md).
+[ADR 0071](../decisions/0071-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md).
 Setup procedure: [`guides/google-drive.md`](../guides/google-drive.md).
 
 ## The privacy invariant — read this first
@@ -260,7 +260,7 @@ Two client details worth keeping:
 
 ## Storage
 
-Two nullable `text` columns per owning table (`drizzle/0028_tense_jocasta.sql` — 4 `ADD COLUMN`, 2
+Two nullable `text` columns per owning table (`drizzle/0029_tense_jocasta.sql` — 4 `ADD COLUMN`, 2
 unique indexes, 2 checks, **no backfill**), plus:
 
 - a **named `uniqueIndex`** per table (`opportunities_sales_drive_folder_idx`,

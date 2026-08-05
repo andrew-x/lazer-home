@@ -10,7 +10,7 @@ it described a `disclosableSlackChannels` / `isConventionChannelName` naming-con
 **never existed in the code**; the shipped decision is the opposite (any visible channel is linkable,
 and private channel *names* are disclosed to capability holders), which is what
 [`guides/slack.md` §5](../guides/slack.md#5-existing-private-channels-need-an-invite) has always said
-· **its sibling is [ADR 0069](./0069-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md)**
+· **its sibling is [ADR 0071](./0071-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md)**
 (Google Drive folders — same two kinds, same column pairs, same gate, but **per-user OAuth** and
 **no cache tags**, reversing §1 and §7 with reasons) · **extends [ADR 0029](./0029-external-fx-rates-and-currency-normalization.md)**
 (which set the outbound-HTTP pattern with a deliberately *keyless* API and deferred secret
@@ -147,7 +147,7 @@ Two details that make it a gate rather than a formality:
 
 ### 5. No naming-convention filter on the picker — private-channel names are disclosed to capability holders
 
-> **Corrected 2026-08-04** (while filing [ADR 0069](./0069-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md)).
+> **Corrected 2026-08-04** (while filing [ADR 0071](./0071-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md)).
 > This section originally described a `disclosableSlackChannels` filter applying an
 > `isConventionChannelName` predicate — restricting private channels in the picker to the
 > `l-scoping-`/`l-project-` prefixes. **Neither identifier exists in the code, and never shipped**

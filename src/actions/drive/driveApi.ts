@@ -208,7 +208,7 @@ export const DRIVE_LIST_PAGE_SIZE = 1000;
  * passed, so no call site can widen a listing to the caller's personal Drive.
  * That is why every read goes through here instead of calling `driveGet`
  * directly, and why widening the signature to accept a `driveId` or `corpora`
- * would quietly undo the whole design (see docs/decisions/0069).
+ * would quietly undo the whole design (see docs/decisions/0071).
  *
  * `trashed = false` is appended for the same reason: a deleted-but-not-purged
  * file reappearing in a folder listing is never what anyone means.

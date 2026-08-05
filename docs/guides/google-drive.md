@@ -6,7 +6,7 @@ drive.
 
 For *why* any of it is shaped this way — the privacy invariant, why every call runs as the signed-in
 person, why nothing is cached — see [`domains/drive.md`](../domains/drive.md) and
-[ADR 0069](../decisions/0069-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md).
+[ADR 0071](../decisions/0071-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md).
 This page just gets it running.
 
 > **Step 5 blocks everything and catches everyone out: after this change, every existing user must
@@ -70,12 +70,12 @@ https://www.googleapis.com/auth/drive
 
 **Why not the narrower `drive.file`:** it grants per-file access only, so a file a colleague added
 through Drive's own UI would be invisible to us and the Files tab would silently show a subset of the
-folder. See [ADR 0069 §3](../decisions/0069-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md).
+folder. See [ADR 0071 §3](../decisions/0071-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md).
 
 **What the app never does with this scope:** it never lists, searches or enumerates anyone's personal
 Drive. Every listing is hardcoded to the one shared drive; the only path that touches a personal file
 is a copy of a file you picked yourself. That is enforced in code, not by policy —
-[ADR 0069 §1](../decisions/0069-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md).
+[ADR 0071 §1](../decisions/0071-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md).
 
 ## 3. Create a Picker API key and note the project number
 
@@ -236,6 +236,6 @@ So nobody goes looking for it:
 - **Keep any record of individual files.** Drive stays the system of record; nothing is mirrored into
   our database, and no file contents ever pass through our server.
 - **Cache anything.** Every Drive read happens live, as you, on your own token — see
-  [ADR 0069 §4](../decisions/0069-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md).
+  [ADR 0071 §4](../decisions/0071-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md).
 
 Unlinking clears the link on our side only. It never touches the folder or the files in it.

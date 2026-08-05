@@ -1,15 +1,16 @@
 "use server";
 
 import { max } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { secureActionClient } from "@/lib/core/action";
 import { UserSafeActionError } from "@/lib/core/errors";
+import { closedAtFor } from "@/lib/crm/opportunity-close";
 import { requiresProject } from "@/lib/crm/opportunity-pipeline";
 import { db } from "@/lib/db/db";
 import { generateId } from "@/lib/db/ids";
 import { opportunities } from "@/lib/db/schema";
 import { createOpportunitySchema } from "./createOpportunity.schema";
 import { writeOpportunityLinks } from "./opportunityLinks";
+import { revalidateOpportunity } from "./revalidate";
 
 /**
  * Create an opportunity and its people links (one transaction). Gated on
@@ -51,6 +52,11 @@ export const createOpportunity = secureActionClient
         source: parsedInput.source,
         status: parsedInput.status,
         position: (maxPosition ?? 0) + 1,
+        // Not dead code: the guard above only blocks `requiresProject` stages,
+        // and `requiresProject("closed_lost")` is false — so a deal *can* be
+        // created already lost, and `opportunities_closed_at_shape` requires its
+        // close instant. Every other status yields null.
+        closedAt: closedAtFor(null, parsedInput.status, new Date()),
       });
 
       await writeOpportunityLinks(tx, opportunityId, {
@@ -61,6 +67,6 @@ export const createOpportunity = secureActionClient
       });
     });
 
-    revalidatePath("/opportunities");
+    revalidateOpportunity();
     return { id: opportunityId };
   });

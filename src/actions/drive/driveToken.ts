@@ -9,7 +9,7 @@ import { DRIVE_SCOPE } from "@/lib/drive/scope";
  * The signed-in user's Google Drive access token.
  *
  * Drive access rides on the Google login rather than being a separate
- * connection (docs/decisions/0069), so there is no "Drive account" to look up —
+ * connection (docs/decisions/0071), so there is no "Drive account" to look up —
  * the token is the one Better Auth already stores for the `google` provider.
  *
  * Everything goes through `auth.api.getAccessToken` rather than reading

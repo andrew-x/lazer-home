@@ -2,7 +2,11 @@ import "server-only";
 
 import { revalidatePath } from "next/cache";
 import { tasks } from "@/lib/db/schema";
-import { revalidateCompany, revalidateContact } from "./revalidate";
+import {
+  revalidateCompany,
+  revalidateContact,
+  revalidateOpportunity,
+} from "./revalidate";
 import type { TaskParentKind } from "./tasks.schema";
 
 /**
@@ -28,11 +32,23 @@ export type TaskParentRow = {
  * Revalidate the pages that render a task's parent after a mutation. Contacts and
  * companies have their own detail routes; opportunities render only in the board
  * drawer (no `/opportunities/[id]`), so the board list is all there is to refresh.
+ *
+ * `/` is refreshed for **every** parent kind, not just opportunities: the home
+ * dashboard's personal task list reads tasks across all three (`getMyTasks`), so
+ * ticking a company task off on `/companies/[id]` moves a figure there too. The
+ * opportunity branch additionally goes through `revalidateOpportunity`, which is
+ * what refreshes the per-deal "next steps" in the personal pipeline block.
  */
 export function revalidateTaskParent(row: TaskParentRow): void {
-  if (row.companyId) revalidateCompany(row.companyId);
-  else if (row.contactId) revalidateContact(row.contactId);
-  else revalidatePath("/opportunities");
+  if (row.companyId) {
+    revalidateCompany(row.companyId);
+    revalidatePath("/");
+  } else if (row.contactId) {
+    revalidateContact(row.contactId);
+    revalidatePath("/");
+  } else {
+    revalidateOpportunity();
+  }
 }
 
 /** Revalidate from a known kind + parent id (used on create, before we hold a row). */

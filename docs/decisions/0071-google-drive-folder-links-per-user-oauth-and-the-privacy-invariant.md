@@ -1,4 +1,4 @@
-# 0069 — Google Drive folder links: the privacy invariant, per-user OAuth on the Google login, and no cached Drive read
+# 0071 — Google Drive folder links: the privacy invariant, per-user OAuth on the Google login, and no cached Drive read
 
 **Status:** accepted · 2026-08-04 · **renumbered from a duplicate 0068** on 2026-08-04, when 0068 was
 independently taken on `main` by [0068](./0068-delivery-managers-as-project-roles-and-coverage-gaps.md)
@@ -13,7 +13,7 @@ extends [ADR 0029](./0029-external-fx-rates-and-currency-normalization.md)'s out
 the gate is [ADR 0014](./0014-rbac-better-auth-access-control.md)'s `ActionAuthorize` hook, so
 **no capability and no matrix change** (the lockstep rule is not engaged) · builds on
 [ADR 0006](./0006-google-only-auth-and-layout-gating.md) (Google is the only sign-in, which is what
-makes this ride the login at all) · migration `drizzle/0028_tense_jocasta.sql` · runbook:
+makes this ride the login at all) · migration `drizzle/0029_tense_jocasta.sql` · runbook:
 [`guides/google-drive.md`](../guides/google-drive.md) · knowledge: [`domains/drive.md`](../domains/drive.md)
 
 ## Context
@@ -210,7 +210,7 @@ or project is deleted) plus a join on every detail read.
 Per table: a **named** `uniqueIndex` (`opportunities_sales_drive_folder_idx`,
 `projects_drive_folder_idx`) so `isUniqueViolation` can key off it — plain, not partial, since
 Postgres treats NULLs as distinct — and a **`check`** (`…_drive_folder_shape`) enforcing **both null
-or both set**. `drizzle/0028_tense_jocasta.sql` is 4 `ADD COLUMN`, 2 unique indexes, 2 checks and
+or both set**. `drizzle/0029_tense_jocasta.sql` is 4 `ADD COLUMN`, 2 unique indexes, 2 checks and
 **no backfill** (all-null rows satisfy the checks).
 
 **Cross-kind uniqueness is a UX rule, not a DB invariant** — the per-table indexes stop a folder

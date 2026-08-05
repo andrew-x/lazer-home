@@ -14,7 +14,7 @@
  * the pure module rather than being server-only like `toSlackChannelRef`, which
  * needs `SLACK_TEAM_ID`.
  *
- * See docs/decisions/0069.
+ * See docs/decisions/0071.
  */
 
 /**

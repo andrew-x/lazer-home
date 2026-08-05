@@ -18,13 +18,13 @@ import { DRIVE_FOLDER_TARGETS } from "./driveFolderLink";
  * both kinds without granting a role access it shouldn't have. This is exactly
  * the input-dependent case `ActionAuthorize` exists for, and it needs no new
  * capability, so the permission matrix is untouched. (Same call as
- * `authorizeSlackChannel`; see docs/decisions/0067 and 0069.)
+ * `authorizeSlackChannel`; see docs/decisions/0067 and 0071.)
  *
  * Note what this does NOT gate: browsing a folder and adding files to it. Those
  * carry no capability, deliberately — they run on the viewer's own Google token,
  * so Google enforces shared-drive membership, and they can only surface or write
  * what that person could already do in Drive's own UI. Gating them here would be
- * theatre. See docs/decisions/0069.
+ * theatre. See docs/decisions/0071.
  *
  * `clientInput` is raw and pre-validation, so `kind` is parsed here rather than
  * trusted. An unparseable kind is **denied**, not skipped: a hook that returns
