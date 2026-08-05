@@ -4,6 +4,7 @@ import {
   IconAlertTriangle,
   IconBrandGoogleDrive,
   IconChevronRight,
+  IconExternalLink,
   IconFile,
   IconFolder,
   IconUpload,
@@ -170,16 +171,28 @@ export function DriveFilesPanel({
             <IconBrandGoogleDrive />
             From my Drive
           </Button>
+          {currentId ? (
+            // Last of the three: the other two add files, this one leaves the
+            // app. Still an `ExternalLink` so the new-tab `rel` stays in one
+            // place — its link styling is neutralized here, because `outline`
+            // sets no text colour of its own and indigo is reserved for actual
+            // links and primary buttons.
+            <Button
+              variant="outline"
+              size="sm"
+              render={
+                <ExternalLink
+                  href={driveFolderUrl(currentId)}
+                  className="text-foreground hover:no-underline"
+                />
+              }
+            >
+              <IconExternalLink />
+              Open in Drive
+            </Button>
+          ) : null}
         </div>
       </div>
-
-      {currentId ? (
-        <p className="text-xs text-muted-foreground">
-          <ExternalLink href={driveFolderUrl(currentId)}>
-            Open this folder in Drive
-          </ExternalLink>
-        </p>
-      ) : null}
 
       <PanelBody
         result={result}

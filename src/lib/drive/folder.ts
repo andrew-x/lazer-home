@@ -58,6 +58,70 @@ export function buildDriveFolderName(sourceName: string): string {
   return tidied.slice(0, DRIVE_FOLDER_NAME_MAX);
 }
 
+/**
+ * The one definition of "these two folder names are the same".
+ *
+ * Folds case and ignores surrounding whitespace. Drive itself treats "Acme" and
+ * "acme" as different names and will happily hold both in one parent, but nobody
+ * reading a folder list makes that distinction — so for our purposes they collide.
+ * Shared by the conflict check and the suggestion so the dialog can never say a
+ * name is free while the create path considers it taken.
+ */
+function normalizeFolderName(name: string): string {
+  return name.trim().toLocaleLowerCase();
+}
+
+/** Is `name` already used by one of `taken`? */
+export function driveFolderNameIsTaken(
+  name: string,
+  taken: Iterable<string>,
+): boolean {
+  const target = normalizeFolderName(name);
+  for (const candidate of taken) {
+    if (normalizeFolderName(candidate) === target) return true;
+  }
+  return false;
+}
+
+/**
+ * The first name in the `base-1`, `base-2`, … series that nothing in `taken` is
+ * using — a *suggestion* offered when `base` itself collides.
+ *
+ * Note what this is not: nothing applies it automatically. A colliding name blocks
+ * creation and this is what the dialog offers as a way out, because the default
+ * name is the record's own — which is exactly the name most likely to have been
+ * taken already by someone creating the folder by hand. Silently suffixing would
+ * hand back a folder the person never asked for and wouldn't notice.
+ *
+ * **The suffix is budgeted against the length cap**, so a name already at the limit
+ * gets shortened to make room for `-12` instead of producing something Drive
+ * rejects at the end of the flow.
+ *
+ * Termination needs no arbitrary cap: `taken` is finite, so at least one of the
+ * `taken.size + 1` candidates tried must be free.
+ */
+export function suggestFreeDriveFolderName(
+  base: string,
+  taken: Iterable<string>,
+): string {
+  const used = new Set<string>();
+  for (const name of taken) used.add(normalizeFolderName(name));
+
+  for (let index = 1; index <= used.size + 1; index++) {
+    const suffix = `-${index}`;
+    const stem = base.slice(0, DRIVE_FOLDER_NAME_MAX - suffix.length);
+    const candidate = `${stem}${suffix}`;
+    if (!used.has(normalizeFolderName(candidate))) return candidate;
+  }
+
+  // Unreachable given the counting argument above. A plain Error rather than a
+  // user-facing one: reaching here means the invariant is broken, which is a bug
+  // to fix, not something to explain to whoever clicked the button.
+  throw new Error(
+    "suggestFreeDriveFolderName: no free name in a bounded series",
+  );
+}
+
 /** The human-facing link to a folder. Same URL shape for shared and My Drive. */
 export function driveFolderUrl(folderId: string): string {
   return `https://drive.google.com/drive/folders/${folderId}`;

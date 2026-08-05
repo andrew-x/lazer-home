@@ -256,11 +256,17 @@ function OpportunityDetailView({
             <CompanyField detail={detail} refresh={refresh} />
             <ContactsField detail={detail} refresh={refresh} />
             <OwnersField detail={detail} refresh={refresh} />
-            {/* Divided off from the fields above because it's the rail's only
-                *external* fact — a pointer out to Slack, not another attribute of
-                the opportunity. Only the scoping channel lives here; a project's
-                channel is managed on the project's own page. */}
-            <div className="border-t pt-3">
+            {/* Divided off from the fields above because these are the rail's only
+                *external* facts — pointers out to Slack and Drive, not more
+                attributes of the opportunity. Only the scoping channel and sales
+                folder live here; a project's channel and folder are managed on the
+                project's own page.
+
+                `gap-4` rather than the rail's `gap-3`: each row here is a label
+                over a button-sized control, so at the rail's rhythm the two ran
+                together into one block. The wider gap is what makes them read as
+                two separate pointers. */}
+            <div className="flex flex-col gap-4 border-t pt-3">
               <SlackChannelField
                 kind="scoping"
                 recordId={detail.id}

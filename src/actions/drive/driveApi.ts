@@ -180,8 +180,12 @@ const driveFileListSchema = z.object({
   files: z.array(driveFileSchema).nullish(),
 });
 
-/** The fields worth asking for on a listing — Drive returns only what you name. */
-export const DRIVE_LIST_FIELDS =
+/**
+ * The fields a full listing asks for — Drive returns ONLY what you name here, so
+ * this list must stay in step with `driveFileSchema`, which parses the result.
+ * Not exported: it is meaningless apart from that schema.
+ */
+const DRIVE_LIST_FIELDS =
   "files(id,name,mimeType,webViewLink,modifiedTime,lastModifyingUser(displayName))";
 
 /**
@@ -214,22 +218,76 @@ export async function driveList(
   accessToken: string,
   extraParams: Record<string, string> = {},
 ): Promise<DriveFile[]> {
+  const result = await scopedList(
+    q,
+    accessToken,
+    DRIVE_LIST_FIELDS,
+    driveFileListSchema,
+    extraParams,
+  );
+  return result.files ?? [];
+}
+
+/** Just the names of the folders directly under `parentId`. */
+const driveNameListSchema = z.object({
+  files: z.array(z.object({ id: z.string(), name: z.string() })).nullish(),
+});
+
+/**
+ * The names of every folder directly under `parentId`, for the create path's
+ * duplicate check.
+ *
+ * Its own function rather than `driveList` with a narrower `fields` because the
+ * requested field list and the schema that parses the response **must agree**, and
+ * a call site that passes only one of the pair silently breaks the other. That is
+ * not hypothetical: asking `driveList` for `files(id,name)` while it parsed with a
+ * schema requiring `mimeType` failed every response as `invalid_response`, which
+ * surfaced as a generic "couldn't create the folder" — Drive returns exactly the
+ * fields you ask for and nothing more. Pairing them here makes that undrifiable,
+ * which is also why `scopedList` takes the two together.
+ */
+export async function driveListFolderNames(
+  parentId: string,
+  accessToken: string,
+): Promise<string[]> {
+  const result = await scopedList(
+    `mimeType = ${driveQuoteValue(DRIVE_FOLDER_MIME)} and ${driveQuoteValue(parentId)} in parents`,
+    accessToken,
+    "files(id,name)",
+    driveNameListSchema,
+  );
+  return (result.files ?? []).map((file) => file.name);
+}
+
+/**
+ * The shared body of every listing, and the single place the shared-drive scoping
+ * lives — see the note on `driveList`. `fields` and `schema` are one parameter pair
+ * on purpose. `extraParams` is spread FIRST so it can add `orderBy` but can never
+ * override the scoping or the field list; overriding either is how the privacy
+ * guarantee or the response contract would quietly break.
+ */
+async function scopedList<T extends z.ZodType>(
+  q: string,
+  accessToken: string,
+  fields: string,
+  schema: T,
+  extraParams: Record<string, string> = {},
+): Promise<z.infer<T>> {
   const driveId = requireRootId();
-  const result = await driveGet(
+  return driveGet(
     "/files",
     {
+      ...extraParams,
       q: `(${q}) and trashed = false`,
       corpora: "drive",
       driveId,
       includeItemsFromAllDrives: "true",
-      fields: DRIVE_LIST_FIELDS,
+      fields,
       pageSize: String(DRIVE_LIST_PAGE_SIZE),
-      ...extraParams,
     },
     accessToken,
-    driveFileListSchema,
+    schema,
   );
-  return result.files ?? [];
 }
 
 export const driveFileWithParentsSchema = z.object({
@@ -245,15 +303,21 @@ export const driveFileWithParentsSchema = z.object({
   driveId: z.string().nullish(),
 });
 
-/** Read one file's metadata. Used to check a link target and name a copy. */
+/**
+ * Read one file's metadata. Used to check a link target and to name a copy.
+ *
+ * The field list is fixed rather than a parameter, for the reason spelled out on
+ * `driveListFolderNames`: a caller narrowing it would leave
+ * `driveFileWithParentsSchema` unable to parse the response, and the failure
+ * surfaces as a generic error rather than as the mismatch it is.
+ */
 export async function driveGetFile(
   fileId: string,
   accessToken: string,
-  fields = "id,name,mimeType,parents,driveId",
 ): Promise<z.infer<typeof driveFileWithParentsSchema>> {
   return driveGet(
     `/files/${encodeURIComponent(fileId)}`,
-    { fields },
+    { fields: "id,name,mimeType,parents,driveId" },
     accessToken,
     driveFileWithParentsSchema,
   );
@@ -277,12 +341,16 @@ export async function driveCreateFolder(
 /**
  * Find a folder by exact name under a parent, or null.
  *
- * Used twice: to resolve `Sales`/`Projects`, and as the create path's
- * "does this already exist" precheck. Returns the OLDEST match, so a concurrent
- * double-create of a parent folder (Drive permits duplicate names) converges on
- * one rather than forking.
+ * Not exported: the parent-folder resolvers below are the only callers. The create
+ * path deliberately does NOT use this to check its own folder name — it lists the
+ * parent's names once via `driveListFolderNames` and compares with
+ * `driveFolderNameIsTaken`, so the dialog's live check and the server's refusal read
+ * the same rule.
+ *
+ * Returns the OLDEST match, so a concurrent double-create of a parent folder
+ * (Drive permits duplicate names) converges on one rather than forking.
  */
-export async function driveFindFolderByName(
+async function driveFindFolderByName(
   name: string,
   parentId: string,
   accessToken: string,
@@ -296,23 +364,45 @@ export async function driveFindFolderByName(
 }
 
 /**
- * The `Sales` or `Projects` folder at the root of the shared drive, created if
- * it isn't there yet — so a fresh shared drive needs no manual folder setup.
+ * The `Sales` or `Projects` folder at the root of the shared drive, or null when it
+ * doesn't exist yet.
  *
- * Resolved on each create rather than cached, because creates are rare and
- * caching a per-user Drive read is exactly what trap 1 forbids.
+ * Separate from `resolveParentFolder` because the name-availability check must not
+ * have side effects: it fires when the create dialog merely *opens*, and creating
+ * `Sales/` for someone who then cancels would leave a folder nobody asked for.
+ */
+export async function findParentFolder(
+  kind: DriveFolderKind,
+  accessToken: string,
+): Promise<string | null> {
+  const rootId = requireRootId();
+  const existing = await driveFindFolderByName(
+    DRIVE_PARENT_FOLDER_NAME[kind],
+    rootId,
+    accessToken,
+  );
+  return existing?.id ?? null;
+}
+
+/**
+ * The same folder, created if it isn't there yet — so a fresh shared drive needs no
+ * manual folder setup. For the create path, which is already committing to a write.
+ *
+ * Resolved on each create rather than cached, because creates are rare and caching
+ * a per-user Drive read is exactly what trap 1 forbids.
  */
 export async function resolveParentFolder(
   kind: DriveFolderKind,
   accessToken: string,
 ): Promise<string> {
-  const rootId = requireRootId();
-  const name = DRIVE_PARENT_FOLDER_NAME[kind];
+  const existing = await findParentFolder(kind, accessToken);
+  if (existing) return existing;
 
-  const existing = await driveFindFolderByName(name, rootId, accessToken);
-  if (existing) return existing.id;
-
-  const created = await driveCreateFolder(name, rootId, accessToken);
+  const created = await driveCreateFolder(
+    DRIVE_PARENT_FOLDER_NAME[kind],
+    requireRootId(),
+    accessToken,
+  );
   return created.id;
 }
 

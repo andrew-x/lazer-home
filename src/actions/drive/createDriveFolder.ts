@@ -7,6 +7,7 @@ import { isUniqueViolation } from "@/lib/db/unique-violation";
 import {
   buildDriveFolderName,
   DRIVE_PARENT_FOLDER_NAME,
+  driveFolderNameIsTaken,
 } from "@/lib/drive/folder";
 import { authorizeDriveFolder } from "./authorizeDriveFolder";
 import {
@@ -14,7 +15,7 @@ import {
   DriveApiError,
   driveCreateFolder,
   driveDelete,
-  driveFindFolderByName,
+  driveListFolderNames,
   isDriveConfigured,
   resolveParentFolder,
 } from "./driveApi";
@@ -32,13 +33,18 @@ import { requireDriveAccessToken } from "./driveToken";
  * 1. Read the record — refuse a missing one or an already-filled slot before
  *    anything external happens.
  * 2. Resolve (or create) the `Sales` / `Projects` parent.
- * 3. Precheck for a folder of that name already under the parent. Refusing here,
- *    pointing at "link it instead", is much better than silently creating a
- *    second folder with the same name — Drive permits duplicates, and two folders
- *    called "Acme Rebuild" is a mess no one can untangle later.
+ * 3. List the folder names already under that parent and REFUSE a collision. Drive
+ *    permits two folders with the same name in the same parent, and once that
+ *    happens the only thing telling them apart is an opaque id. The dialog checks
+ *    the same thing live as you type, so reaching this refusal should be rare — but
+ *    that check is advisory and racy, so this is where it actually holds.
  * 4. Create the folder — the first irreversible-ish step.
  * 5. Link it under the `isNull` guard.
  * 6. If the link lost the race, DELETE the folder we just made.
+ *
+ * The name is the caller's (the dialog pre-fills it from the record), but the
+ * **path is not**: the parent comes from `kind` via `resolveParentFolder`, so a
+ * sales folder cannot be made to land anywhere but `Lazer Home/Sales`.
  *
  * Step 6 is where this diverges from the Slack equivalent, and it's strictly
  * better: Slack has no `conversations.delete`, so an orphaned channel could only
@@ -51,7 +57,7 @@ export const createDriveFolder = secureActionClient
     authorize: authorizeDriveFolder,
   })
   .inputSchema(createDriveFolderSchema)
-  .action(async ({ parsedInput: { kind, recordId }, ctx: { user } }) => {
+  .action(async ({ parsedInput: { kind, recordId, name }, ctx: { user } }) => {
     const target = DRIVE_FOLDER_TARGETS[kind];
 
     if (!isDriveConfigured()) {
@@ -67,32 +73,35 @@ export const createDriveFolder = secureActionClient
     }
 
     const accessToken = await requireDriveAccessToken(user.id);
-    const folderName = buildDriveFolderName(record.sourceName);
-    if (!folderName) {
-      // A record whose name is blank or whitespace-only would produce a folder
-      // Drive rejects, at the end of a flow. Say so up front instead.
-      throw new UserSafeActionError(
-        "Give this record a name before creating its folder.",
-      );
+    // Normalised again server-side even though the schema already trimmed it:
+    // `buildDriveFolderName` also collapses interior whitespace and enforces the
+    // length cap, and the client is not the authority on either.
+    const requestedName = buildDriveFolderName(name);
+    if (!requestedName) {
+      throw new UserSafeActionError("Give the folder a name.");
     }
 
-    let createdFolderId: string | null = null;
+    // Held as one object rather than two parallel variables so the orphan log in
+    // the catch can name the folder it is cleaning up, and so "created but not yet
+    // linked" is a single piece of state that can't get half-updated.
+    let created: { id: string; name: string } | null = null;
     try {
       const parentId = await resolveParentFolder(kind, accessToken);
 
-      const existing = await driveFindFolderByName(
-        folderName,
-        parentId,
-        accessToken,
-      );
-      if (existing) {
+      // The authoritative conflict check. `checkDriveFolderName` has almost
+      // certainly already told the dialog this name was free, but that answer went
+      // stale the moment it returned and two people can be in the dialog at once,
+      // so the refusal has to live here too.
+      const siblingNames = await driveListFolderNames(parentId, accessToken);
+      if (driveFolderNameIsTaken(requestedName, siblingNames)) {
         throw new UserSafeActionError(
-          `A folder called "${folderName}" already exists in ${DRIVE_PARENT_FOLDER_NAME[kind]} — link it instead of creating another.`,
+          `${DRIVE_PARENT_FOLDER_NAME[kind]} already has a folder called "${requestedName}". Rename it, or link the existing folder instead.`,
         );
       }
+      const folderName = requestedName;
 
       const folder = await driveCreateFolder(folderName, parentId, accessToken);
-      createdFolderId = folder.id;
+      created = { id: folder.id, name: folder.name };
 
       // Store the name Drive returned, not the one we asked for — Drive is the
       // authority on what the folder is actually called.
@@ -106,13 +115,13 @@ export const createDriveFolder = secureActionClient
         );
       }
 
-      createdFolderId = null; // Linked: no longer orphaned, don't clean it up.
+      created = null; // Linked: no longer orphaned, don't clean it up.
       target.revalidate(recordId);
 
       return { folderId: folder.id, folderName: folder.name };
     } catch (error) {
-      if (createdFolderId) {
-        await deleteQuietly(createdFolderId, accessToken, folderName);
+      if (created) {
+        await deleteQuietly(created.id, accessToken, created.name);
       }
       if (error instanceof UserSafeActionError) throw error;
       if (isUniqueViolation(error, target.uniqueConstraint)) {
@@ -169,6 +178,17 @@ function createFailureError(error: unknown): UserSafeActionError {
     case "rateLimitExceeded":
     case "userRateLimitExceeded":
       return new UserSafeActionError("Drive is busy — try again in a moment.");
+    case "invalid_response":
+      // OUR bug, not Drive's and not the user's: a 200 we couldn't parse means
+      // the requested field list and the response schema disagree. Logged at
+      // error level because it is indistinguishable from a real Drive failure
+      // from the outside — that is exactly how a `files(id,name)` projection
+      // against a schema requiring `mimeType` hid behind the generic message.
+      logger.error("drive_response_contract_broken", {
+        action: "create-drive-folder",
+        status: error.status,
+      });
+      return new UserSafeActionError("Couldn't create the folder in Drive.");
     default:
       if (error.status === 401) {
         return new UserSafeActionError(

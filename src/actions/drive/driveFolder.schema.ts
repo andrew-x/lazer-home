@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { searchQuerySchema } from "@/lib/core/search";
-import { DRIVE_FOLDER_KINDS } from "@/lib/drive/folder";
+import { DRIVE_FOLDER_KINDS, DRIVE_FOLDER_NAME_MAX } from "@/lib/drive/folder";
 import { id } from "@/lib/schemas/id-schema";
+import { requiredText } from "@/lib/schemas/text-schema";
 
 /**
  * Input schemas for the Google Drive folder actions.
@@ -42,8 +43,34 @@ export const driveFolderTargetSchema = z.object({
   recordId: id,
 });
 
-/** Create the folder for a record and link it. The name comes from the record. */
-export const createDriveFolderSchema = driveFolderTargetSchema;
+/**
+ * Create the folder for a record and link it.
+ *
+ * `name` is editable — the dialog pre-fills it from the record but the person can
+ * change it before creating. The **path cannot be changed**: which parent the
+ * folder lands under is resolved server-side from `kind` alone
+ * (`DRIVE_PARENT_FOLDER_NAME`), never sent by the client, so no input here can put
+ * a sales folder somewhere other than `Lazer Home/Sales`.
+ *
+ * A colliding name is **refused**, not silently suffixed: the dialog checks
+ * availability as you type and blocks the button, and this action re-checks against
+ * a fresh listing because that answer goes stale immediately.
+ */
+export const createDriveFolderSchema = driveFolderTargetSchema.extend({
+  name: requiredText(DRIVE_FOLDER_NAME_MAX, "Give the folder a name"),
+});
+
+/**
+ * Ask whether a proposed folder name is free, for the dialog's live warning.
+ *
+ * No `recordId`: the answer depends only on which parent the folder would land in,
+ * which `kind` alone decides. `kind` is still required because the authorize hook
+ * resolves the capability from it.
+ */
+export const checkDriveFolderNameSchema = z.object({
+  kind: driveFolderKindSchema,
+  name: requiredText(DRIVE_FOLDER_NAME_MAX, "Give the folder a name"),
+});
 
 /**
  * Link an existing folder. Takes the folder **id** only: the stored name is
@@ -95,6 +122,9 @@ export const copyDriveFileSchema = z.object({
 
 export type DriveFolderTargetInput = z.infer<typeof driveFolderTargetSchema>;
 export type CreateDriveFolderInput = z.infer<typeof createDriveFolderSchema>;
+export type CheckDriveFolderNameInput = z.infer<
+  typeof checkDriveFolderNameSchema
+>;
 export type LinkDriveFolderInput = z.infer<typeof linkDriveFolderSchema>;
 export type UnlinkDriveFolderInput = z.infer<typeof unlinkDriveFolderSchema>;
 export type SearchDriveFoldersInput = z.infer<typeof searchDriveFoldersSchema>;
