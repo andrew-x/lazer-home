@@ -10,6 +10,11 @@ import type { SeedDb } from "./client";
  * a table is added to the schema.
  */
 const SEEDABLE_TABLES = [
+  // drive transcript triage (references user/opportunities/projects). Never
+  // seeded with rows — a fake Drive id renders a link that errors inside Drive
+  // (ADR 0071 §12) — but listed here so a reseed still starts from a clean state.
+  "transcript_assignments",
+  "drive_transcript_folders",
   // tasks (reference companies/contacts/opportunities)
   "tasks",
   // performance + survey

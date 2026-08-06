@@ -527,6 +527,39 @@ deliberate — don't "fix" one to match the other:
   staff **roster** behind the membership page carries no compensation — only the
   editor read, scoped to one plan's members, carries figures.
 
+### An accepted disclosure — `searchTranscriptTargets` enumerates every deal by name
+
+**This is the one place the app deliberately discloses data outside the capability
+that otherwise guards it.** It is written down here so an audit finds it explained
+rather than as a finding — if `/audit-rbac` flags it, this section is the answer.
+
+`searchTranscriptTargets` (`src/actions/drive/searchTranscriptTargets.ts`) backs the
+transcript-triage assign dialog and carries **no capability**. Any signed-in user can
+therefore type-ahead their way through:
+
+- every **project** name — already broadly disclosed, since `/reporting/utilization`
+  is open to every signed-in user (ADR 0062/0064), so this adds nothing; and
+- every **opportunity** name — which **nothing else in the app exposes outside
+  `crm.edit`**. `getMyPipeline` shows a person only their *own* deals, and
+  `getOrgPipeline` ships counts pre-folded per line of business precisely so deal rows
+  never reach the client (ADR 0069).
+
+The asymmetry worth understanding: **the write it feeds is gated and the read is
+not.** `assignTranscript` requires `crm.edit`/`projects.edit` via
+`authorizeDriveFolder`, so an ordinary `user` can enumerate deals they can never file
+a transcript to. The disclosure therefore buys that cohort nothing — it was raised
+twice during planning and accepted both times as the cost of one search surface rather
+than two. Recorded in **ADR 0072**.
+
+**If this is ever revisited**, the fix is one line and local: add
+`authorize: authorizeDriveFolder` to that action's metadata. The hook already resolves
+the capability from the same `kind` the body switches on, so the gate and the table
+cannot disagree, and no matrix change is involved either way.
+
+Note the neighbouring `searchProjects` (`src/actions/projects/searchProjects.ts`) is
+**deliberately left alone**: it is company-scoped and gated on `projects.edit`, and
+other callers depend on both properties.
+
 ## Roles → permissions (the canonical matrix — THIS IS THE CONTRACT)
 
 Single role per user. Roles are stored in `user.role` (text). This table is the
@@ -751,6 +784,25 @@ set. The metadata schema in `src/lib/core/action.ts` carries `role`, `permission
   token for another person's entire Drive. Treat any such change as a vulnerability, not a
   refactor.** See [drive.md](./drive.md) and
   [ADR 0071](../decisions/0071-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md) §7.
+
+  **`authorizeDriveFolder` also gates `assignTranscript`** (transcript triage, ADR 0072), unchanged
+  and for the same reason — filing a transcript writes into the record's folder and may create the
+  record's folder link, so the capability follows the record. The consequence to know: an ordinary
+  `user` can list and dismiss their own transcripts but **cannot file any of them**, and a `sales`
+  user can file to a deal but not to the project it became. That is deliberate, not a gap.
+
+  The triage reads are auth-only on the same reasoning as Drive's other reads, with one addition
+  worth stating: `getTranscriptTriage`, `searchTranscripts`, `getDismissedTranscripts`,
+  `dismissTranscript` and `rescanTranscriptFolders` are **own-data-only by construction** — every one
+  is keyed on `ctx.user.id` and none accepts a user id from the client, so there is no ownership check
+  to get wrong (the `getMyTasks` shape). Three of them additionally read a **personal** Drive:
+  `getTranscriptTriage`/`searchTranscripts` bounded by `personalScopedList` (private, `corpora=user`)
+  plus two fixed query templates and the caller's own stored folder ids, and
+  `rescanTranscriptFolders` by the parameterless folder-name query — see ADR 0072 §1 and §2a, and **do
+  not export that function or give any of these three a query parameter.** ⚠️ **The empty input
+  schemas on `rescanTranscriptFolders` and `getDismissedTranscripts` are load-bearing, exactly as
+  `getDrivePickerToken`'s is**: a `userId` on the rescan would turn it into a search of another
+  person's personal Drive. Treat any such change as a vulnerability, not a refactor.
 - **`src/actions/staff/loadStaffProfileDrawer.ts`** — an **interactive read** (a
   `"use server"` + `secureActionClient` read, the documented exception to the
   server-only read rule, same shape as `loadOpportunityDetail`) and **the single best

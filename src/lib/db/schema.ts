@@ -5,6 +5,8 @@
 export * from "./auth-schema";
 // CRM domain (companies, contacts, note entries).
 export * from "./crm-schema";
+// Google Drive (per-user transcript folders + transcript triage decisions).
+export * from "./drive-schema";
 // CRM sales pipeline (opportunities + junction tables + opportunity entries).
 export * from "./opportunities-schema";
 // Performance domain (peer feedback + rating enum).

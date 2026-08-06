@@ -69,6 +69,20 @@ export function formatTimestamp(value: Date): string {
   return new Intl.DateTimeFormat("en-US", LONG_DATE_OPTIONS).format(value);
 }
 
+/**
+ * Time of day, e.g. "4:30 PM".
+ *
+ * For lists already grouped by day, where the date is on the group header and
+ * repeating it per row is noise — the time is what tells one meeting from the three
+ * others on the same afternoon.
+ */
+export function formatTimeOfDay(value: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(value);
+}
+
 /** Compact date, e.g. "Jul 18, 2026" — for table cells and card lines. */
 export function formatShortDate(value: Date): string {
   return new Intl.DateTimeFormat("en-US", {
