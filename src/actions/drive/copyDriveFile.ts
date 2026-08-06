@@ -3,8 +3,8 @@
 import { env } from "@/env";
 import { secureActionClient } from "@/lib/core/action";
 import { UserSafeActionError } from "@/lib/core/errors";
-import { logger } from "@/lib/core/logger";
 import { isDriveFolder } from "@/lib/drive/folder";
+import { copyFailureError } from "./copyFailure";
 import {
   DriveApiError,
   driveFileSchema,
@@ -102,47 +102,5 @@ async function readFile(
       );
     }
     throw new UserSafeActionError(notFoundMessage);
-  }
-}
-
-/** Turn a failed copy into copy that names the actual obstacle. */
-function copyFailureError(error: unknown): UserSafeActionError {
-  if (!(error instanceof DriveApiError)) {
-    return new UserSafeActionError("Couldn't copy that file into the folder.");
-  }
-
-  switch (error.code) {
-    case "cannotCopyFile":
-      // The owner set "viewers cannot copy" on the original. The most likely
-      // real-world failure here, and one only they can undo — so say so rather
-      // than leaving the user retrying.
-      return new UserSafeActionError(
-        "The owner of that file has disabled copying. Ask them to share it another way.",
-      );
-    case "insufficientFilePermissions":
-    case "forbidden":
-      return new UserSafeActionError(
-        "You don't have permission to add files to this folder.",
-      );
-    case "storageQuotaExceeded":
-      return new UserSafeActionError(
-        "The shared drive is out of space. Ask an admin to free some up.",
-      );
-    case "rateLimitExceeded":
-    case "userRateLimitExceeded":
-      return new UserSafeActionError("Drive is busy — try again in a moment.");
-    default:
-      if (error.status === 401) {
-        return new UserSafeActionError(
-          "Reconnect your Google account to use Drive.",
-        );
-      }
-      logger.warn("drive_file_copy_failed", {
-        code: error.code,
-        status: error.status,
-      });
-      return new UserSafeActionError(
-        "Couldn't copy that file into the folder.",
-      );
   }
 }

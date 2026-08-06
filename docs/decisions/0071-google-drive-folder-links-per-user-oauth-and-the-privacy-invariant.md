@@ -16,6 +16,18 @@ the gate is [ADR 0014](./0014-rbac-better-auth-access-control.md)'s `ActionAutho
 makes this ride the login at all) · migration `drizzle/0029_tense_jocasta.sql` · runbook:
 [`guides/google-drive.md`](../guides/google-drive.md) · knowledge: [`domains/drive.md`](../domains/drive.md)
 
+> ⚠️ **§1 IS AMENDED by [ADR 0072](./0072-transcript-triage-and-bounded-personal-drive-reads.md)
+> (2026-08-05). Read that before relying on this section.** Meeting-transcript triage lists Google
+> Docs inside five named folders in the signed-in person's **own** Drive, so *"nothing we run ever
+> enumerates a personal Drive"* no longer holds as written. `driveList` itself is **untouched** and
+> scope is still not a parameter there; the replacement bound is that **the query shape is not a
+> parameter either** — a second, **private** `personalScopedList` (hardcoded `corpora: "user"`, never
+> exported) with three callers that each build `q` from a fixed template. §1's third leg (**copies,
+> never moves**) and every other section of this ADR stand unchanged. §4 (no cached Drive read) also
+> stands: `drive_transcript_folders` is a per-user *read boundary*, not a cache — 0072 §5 explains
+> why, and why the "per-file records in our DB" line in *Alternatives rejected* does not forbid
+> `transcript_assignments`.
+
 ## Context
 
 Opportunities and projects accumulate real artefacts — decks, SOWs, notes, recordings — and until
@@ -36,6 +48,9 @@ holds a credential that can read everything you own". Everything below follows f
 ## Decision
 
 ### 1. The privacy invariant — three structural guarantees, not conventions
+
+**⚠️ Amended by [ADR 0072](./0072-transcript-triage-and-bounded-personal-drive-reads.md) — guarantee
+1 below is now bounded by *query shape* rather than by scope alone. Guarantees 2 and 3 stand.**
 
 **No file ends up in a shared folder unless the user picked it, and nothing we run ever enumerates
 a personal Drive.** This is the first decision, the thing to protect in review, and it is enforced

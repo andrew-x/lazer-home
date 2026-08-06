@@ -10,6 +10,7 @@ import { getMyAllocations } from "@/actions/allocations/getMyAllocations";
 import { getMyPipeline } from "@/actions/crm/getMyPipeline";
 import { getMyTasks } from "@/actions/crm/getMyTasks";
 import { getOrgPipeline } from "@/actions/crm/getOrgPipeline";
+import { getAssignableTranscriptKinds } from "@/actions/drive/getAssignableTranscriptKinds";
 import { getCurrentStaffIdentity } from "@/actions/staff/getCurrentStaffIdentity";
 import { getStaffPto } from "@/actions/staff/getStaffPto";
 import { getStaffUtilization } from "@/actions/timesheets/getStaffUtilization";
@@ -18,6 +19,7 @@ import { LazerStatusSection } from "@/components/home/lazer-status-section";
 import { MyAllocationsTable } from "@/components/home/my-allocations-table";
 import { MyPipelinePanel } from "@/components/home/my-pipeline-panel";
 import { MyTasksPanel } from "@/components/home/my-tasks-panel";
+import { TranscriptTriagePanel } from "@/components/home/transcript-triage-panel";
 import { InlineNotice } from "@/components/inline-notice";
 import { StatCard } from "@/components/stat-card";
 import { formatPercent } from "@/lib/format/format";
@@ -106,12 +108,17 @@ async function YourStatusSection() {
     );
   }
 
-  const [pto, utilization, tasks, pipeline] = await Promise.all([
-    getStaffPto(staffId),
-    getStaffUtilization(staffId, yearStart, today),
-    getMyTasks(),
-    getMyPipeline(),
-  ]);
+  const [pto, utilization, tasks, pipeline, assignableKinds] =
+    await Promise.all([
+      getStaffPto(staffId),
+      getStaffUtilization(staffId, yearStart, today),
+      getMyTasks(),
+      getMyPipeline(),
+      // Session + matrix only, no query — and deliberately NOT a Drive call. The
+      // Triage widget fetches its own contents on mount so this route keeps paying
+      // nothing for Google (ADR 0071 §11, ADR 0072).
+      getAssignableTranscriptKinds(),
+    ]);
 
   const load = currentLoadPercent(roles, today);
 
@@ -169,6 +176,13 @@ async function YourStatusSection() {
       {/* `nowMs` is stamped here rather than read on the client, so the
           stale-task threshold resolves identically across hydration. */}
       <MyTasksPanel tasks={tasks} nowMs={Date.now()} />
+
+      {/* Point-in-time, like the task list above it — so it names its own window
+          rather than inheriting the band's YTD framing (ADR 0063, ADR 0065). */}
+      <TranscriptTriagePanel
+        assignableKinds={assignableKinds}
+        nowMs={Date.now()}
+      />
 
       <MyPipelinePanel pipeline={pipeline} />
     </HomeSection>

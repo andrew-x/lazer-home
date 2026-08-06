@@ -1752,6 +1752,15 @@ are the Slack section above with the names changed:
   opportunities, one project, no unambiguous owner (the same call as the scoping channel).
 - **Unlink leaves Drive alone.** The folder and every file in it survive; only our two columns are
   cleared, which is what the confirm copy promises.
+- **Meeting transcripts are filed here from the home dashboard, not from this page.** The Triage
+  widget on `/` copies a transcript from someone's own Drive into a find-or-created **`Transcripts`
+  subfolder** of this folder — creating and linking the project folder first, with confirmation, if
+  there isn't one. Gated on **`projects.edit`** through the same unchanged `authorizeDriveFolder`, so
+  a `sales` user can file to a deal but **not** to the project it became, and an ordinary `user` can
+  file nowhere. The filing is recorded in `transcript_assignments`; **no column on `projects`
+  changed**, and the Files tab simply shows the subfolder like any other. See
+  [drive.md](./drive.md#meeting-transcript-triage) and
+  [ADR 0072](../decisions/0072-transcript-triage-and-bounded-personal-drive-reads.md).
 
 ## Delete / detach
 

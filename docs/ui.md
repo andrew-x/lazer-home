@@ -261,9 +261,12 @@ dashboard's "Lazer Status"*.
   ⚠️ **Its prop is serialized into the page HTML for every viewer.** Never pass raw
   `getAllocationsGrid` output — `buildOrgStatus` whitelists fields precisely to keep
   `allocationNotes` (gated on `staff.edit`) and `skills` off the wire. **The same rule now
-  applies twice:** `MyTasksPanel` is the second Client Component here, and `MyTaskView` is
+  applies three times over:** `MyTasksPanel` is the second Client Component here, and `MyTaskView` is
   likewise a field-by-field whitelist (no `ownerStaffId` / `creatorStaffId` / `updatedAt`,
-  and no `staffId` at all). **The pipeline blocks satisfy it two different ways, and neither is a
+  and no `staffId` at all); `TranscriptTriagePanel` is the third, and `TranscriptView` withholds the
+  **Drive transcript folder ids** — those ids *are* the read boundary for every personal-Drive query
+  ([ADR 0072](./decisions/0072-transcript-triage-and-bounded-personal-drive-reads.md)), so shipping
+  them would invite a client-supplied scope. **The pipeline blocks satisfy it two different ways, and neither is a
   third whitelist:** `pipeline-panel.tsx` renders no per-deal row, so `getOrgPipeline` hands over
   **pre-folded summaries — one per line of business plus one for "all"** (no deal/company/owner
   name, no ids, no per-project figure), which also means a filtered figure is a *server* fold, never
@@ -291,6 +294,48 @@ dashboard's "Lazer Status"*.
 
   See [domains/crm.md](./domains/crm.md#the-personal-task-list-on-) and
   [ADR 0065](./decisions/0065-home-personal-task-list-and-assignee-completion.md).
+- **Triage (Your Status), directly under Tasks.** `transcript-triage-panel.tsx` — the Meet/Tactiq
+  transcripts in **your own** Google Drive, each with *File* (→ `transcript-assign-dialog.tsx`) and a
+  dismiss ✕; `transcript-archive-dialog.tsx` restores dismissals. Point-in-time, so it names its own
+  window like the blocks around it. Four things not to undo:
+  - ⚠️ **It fetches its own data on mount — `/` must not gain a Drive round-trip.** Drive reads are
+    per-user and can *never* be cached, and every signed-in person loads this route. The page pays
+    only `getAssignableTranscriptKinds` (session + matrix, no query). Don't "tidy" the fetch up into
+    `page.tsx`.
+  - **Search hits the server and covers all time**, unlike the in-memory task filter above it — the
+    panel holds one window of Drive, so filtering that window would make a search for an older meeting
+    return nothing, which reads as "it doesn't exist". "Show more" walks a **7 / 30 / 90-day ladder**
+    and re-queries.
+  - **Each state has its own words**, including a `no-folders` case that **names the five folder names
+    we searched** — discovery is silent, so that caption is the only on-screen disclosure that we
+    looked at all. An empty `ok` in its place would read as "you had no meetings". That notice also
+    carries **"Check again"**, and the footer line carries **"Check for new folders"**: folder
+    discovery runs *once*, on first load, so these two controls are the only way a folder created
+    later is ever picked up (`rescanTranscriptFolders`, additive — it can widen what you read, never
+    narrow it). Both reload the listing rather than rendering what the rescan returned.
+  - **The list is grouped by day and height-capped, not truncated.** `groupTranscriptsByDay`
+    (pure, in `lib/home/transcripts.ts`) buckets by **local calendar day** — bucketing the instant in
+    UTC would file a 5pm Pacific call under the next day — inside a `ScrollList` at `max-h-96` (taller
+    than the default cap because each entry is two lines plus a header). Three details not to undo:
+    the group **`key` is a stable `YYYY-MM-DD` while the `label` is relative** ("Today" / "Yesterday" /
+    "Mon, Aug 3"; the year appears only across a year boundary) — keying React off the label would
+    reuse a mounted group against the wrong day at midnight; day headers are **`sticky top-0` with an
+    opaque `bg-background`**, without which rows scroll *through* the text; and **undated transcripts
+    are kept** in a last "Date unknown" group rather than dropped, the same honesty as `truncated`.
+    Rows therefore show the **time of day only** (`formatTimeOfDay`) — the day is on the header above
+    them — which is why `TranscriptRow` no longer takes `nowMs`; the *panel* still does, for the
+    labels. Grouping is client-side and safe **because the panel fetches after mount**, so there's no
+    server-rendered markup for a timezone to disagree with (contrast the `nowMs`-from-server rule
+    above, which exists for the blocks that *are* server-rendered).
+  - **The *File* button is capability-dependent** (`assignableKinds`, resolved server-side from
+    `crm.edit`/`projects.edit`): an ordinary `user` sees the list and the dismiss control but no filing
+    at all, and a viewer holding one of the two sees only that segment in the dialog — a disabled
+    segment would advertise an action that can never succeed. Each row owns its own `useAction` (the
+    same list-wide-hook gotcha as Tasks), and the payload is a whitelist that **withholds the Drive
+    folder ids**.
+
+  See [domains/drive.md](./domains/drive.md#meeting-transcript-triage) and
+  [ADR 0072](./decisions/0072-transcript-triage-and-bounded-personal-drive-reads.md).
 - **Pipeline (both bands).** `pipeline-panel.tsx` in *Lazer Status*, directly under Staffing (that
   card says whether the bench is working, this one whether work is coming to keep it working):
   three funnel bands — Top / Mid / Bottom — each with an open-deal count, a per-stage breakdown
@@ -306,7 +351,7 @@ dashboard's "Lazer Status"*.
   panel holds state; the filter lives in `LazerStatusSection`.
   See [domains/crm.md](./domains/crm.md#pipeline-on-the-home-dashboard) and
   [ADR 0069](./decisions/0069-home-pipeline-closed-at-and-project-plan-deal-value.md).
-- **Widgets:** `StatCard` ×3 + `my-allocations-table.tsx` + the Tasks and Pipeline blocks above (Your Status); `staffing-panel` + `pipeline-panel` +
+- **Widgets:** `StatCard` ×3 + `my-allocations-table.tsx` + the Tasks, Triage and Pipeline blocks above (Your Status); `staffing-panel` + `pipeline-panel` +
   `availability-panel` (week tabs: bench, then who newly frees up) + `upcoming-time-off-panel` + `project-roles-panel` (rendered twice — Starting soon / Ending soon, grouped by project) +
   `borrowed-staff-panel` (Lazer Status), laid out `lg:grid-cols-[3fr_2fr]` then
   `lg:grid-cols-2`. `person-row.tsx` is the shared one-line person row; its **`subtitle`
@@ -314,6 +359,15 @@ dashboard's "Lazer Status"*.
   Availability's week tabs pass `h-auto` on both `TabsList` and `TabsTrigger` — the
   vendored primitive is sized `h-8` for one line of text, and each tab stacks a caption
   over a count.
+- **`ScrollList` (`scroll-list.tsx`) is the shared list body for these cards — height-capped, never
+  truncated.** Six consumers today (availability, borrowed-staff, upcoming-time-off, project-roles,
+  my-pipeline, and Triage). It replaced the older "show N rows + an *N more* line", which kept cards
+  tidy at the cost of making the tail unreachable from the dashboard — and the eleventh person freeing
+  up next week is exactly as worth seeing as the first. Two things to preserve when reusing it: the
+  cap is deliberately **a fraction of a row**, so a half-visible row at the fold *is* the scroll
+  affordance (cleaner than a gradient, and it can't lie about whether there's more), and the negative
+  right margin parks the scrollbar in the card's gutter so rows don't shift sideways when it appears.
+  Override the cap or the gap through `className` (Triage passes `max-h-96 gap-0`), don't fork it.
 - **Tables, not a gantt.** A stat tile counting active projects and a gantt of the same
   projects were both deleted in favour of one table with dates and hours. A dashboard is
   read for *figures*; don't reintroduce a timeline here.

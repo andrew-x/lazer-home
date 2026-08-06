@@ -211,6 +211,13 @@
       "when": 1785863215778,
       "tag": "0029_tense_jocasta",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1785941037007,
+      "tag": "0030_useful_northstar",
+      "breakpoints": true
     }
   ]
 }

@@ -62,8 +62,8 @@ https://www.googleapis.com/auth/drive
 
 | Scope | Used by | Why |
 | --- | --- | --- |
-| `https://www.googleapis.com/auth/drive` | `files.list` | Browse the shared drive and search it for folders to link |
-| | `files.create` | Create a record's folder (and the `Sales`/`Projects` parents on first use) |
+| `https://www.googleapis.com/auth/drive` | `files.list` | Browse the shared drive and search it for folders to link — **plus** the bounded personal read below (your five possible transcript folders, and the Docs directly inside them) |
+| | `files.create` | Create a record's folder (and the `Sales`/`Projects` parents on first use, and a record's `Transcripts` subfolder) |
 | | `files.copy` | Copy a file you picked in the Picker into the folder |
 | | `files.delete` | Only ever used to undo a folder we just created when the DB link failed |
 | | `files.get` | Read a folder/file's name and confirm it lives in the shared drive |
@@ -72,10 +72,20 @@ https://www.googleapis.com/auth/drive
 through Drive's own UI would be invisible to us and the Files tab would silently show a subset of the
 folder. See [ADR 0071 §3](../decisions/0071-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md).
 
-**What the app never does with this scope:** it never lists, searches or enumerates anyone's personal
-Drive. Every listing is hardcoded to the one shared drive; the only path that touches a personal file
-is a copy of a file you picked yourself. That is enforced in code, not by policy —
-[ADR 0071 §1](../decisions/0071-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md).
+**What the app does and doesn't do with this scope.** Every *shared-drive* listing is hardcoded to the
+one shared drive, and the only ways it touches a personal file are a copy of a file you picked
+yourself, and **meeting-transcript triage** — which reads your own Drive, but only within a fixed
+bound: whether you own a folder named one of five exact names (`Google Meet`, `Meet Recordings`,
+`Legacy Meet Recordings`, `Tactiq Transcription`, `Tactiq Transcriptions`) and the **titles and dates**
+of the Google Docs directly inside them. Never anything else you own, never file contents, and it
+copies rather than moves. That bound is enforced in code, not by policy —
+[ADR 0071 §1](../decisions/0071-google-drive-folder-links-per-user-oauth-and-the-privacy-invariant.md)
+as amended by
+[ADR 0072 §1](../decisions/0072-transcript-triage-and-bounded-personal-drive-reads.md).
+
+**Transcript triage needs no extra setup:** no new env var, no extra scope, and nothing to enable —
+the same `drive` scope covers it, and the widget appears on `/` as soon as someone's Google account
+has granted Drive (step 5).
 
 ## 3. Create a Picker API key and note the project number
 

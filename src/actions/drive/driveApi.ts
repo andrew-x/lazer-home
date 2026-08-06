@@ -8,6 +8,10 @@ import {
   type DriveFolderKind,
   driveQuoteValue,
 } from "@/lib/drive/folder";
+import {
+  transcriptDocsQuery,
+  transcriptFolderQuery,
+} from "@/lib/drive/transcript";
 
 /**
  * The Google Drive v3 transport: a few functions, deliberately not an SDK.
@@ -30,6 +34,27 @@ import {
  * 3. **Scope is not a parameter.** `driveList` hardcodes the shared drive, so no
  *    call site can widen a listing to the user's personal Drive. See the note
  *    on that function — it is the structural half of the privacy guarantee.
+ *
+ * ## The one exception, and how it is bounded (ADR 0072)
+ *
+ * ADR 0071 §1 promised that *nothing we run ever enumerates a personal Drive*.
+ * Transcript triage cannot exist under that promise, so ADR 0072 amends it — as
+ * narrowly as the feature allows. The replacement guarantee is that **the query
+ * shape is not a parameter either**:
+ *
+ * - `personalScopedList` is the only function here that leaves the shared drive.
+ *   It is **private**, so a free-form `q` against someone's own Drive is not
+ *   reachable from outside this module.
+ * - Its three callers (`driveFindTranscriptFolders`, `driveListTranscriptDocs`,
+ *   `driveSearchTranscriptDocs`) each build their `q` from a fixed template in
+ *   `@/lib/drive/transcript` — from a hardcoded folder-name list, or from folder
+ *   ids already stored for that user. None accepts a caller-supplied query.
+ *
+ * So the total surface is: whether the caller owns folders with one of five exact
+ * names, and the titles and dates of Google Docs directly inside them. Never
+ * anything else they own, and never a file's contents. **Exporting
+ * `personalScopedList`, or giving any of the three a `q`/`names` parameter, undoes
+ * that bound** — which is the whole of what ADR 0072 spent. Don't.
  */
 
 const DRIVE_TIMEOUT_MS = 10_000;
@@ -290,6 +315,148 @@ async function scopedList<T extends z.ZodType>(
   );
 }
 
+// --- Personal-Drive reads (ADR 0072) ---------------------------------------
+//
+// Everything from here to `driveSearchTranscriptDocs` reads OUTSIDE the shared
+// drive. Read the "one exception" note at the top of this file before changing any
+// of it.
+
+/**
+ * The fields a transcript listing asks for, paired with the schema that parses it.
+ *
+ * Its own pair rather than reusing `DRIVE_LIST_FIELDS`/`driveFileSchema` because a
+ * transcript needs `createdTime` (the meeting's date) and does not need
+ * `lastModifyingUser` — and Drive returns **only** the fields you name, so a
+ * projection that drifts from its schema fails every response as
+ * `invalid_response`. See the note on `driveListFolderNames`.
+ */
+const DRIVE_TRANSCRIPT_FIELDS = "files(id,name,createdTime,webViewLink)";
+
+export const driveTranscriptSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  createdTime: z.string().nullish(),
+  webViewLink: z.string().nullish(),
+});
+
+export type DriveTranscript = z.infer<typeof driveTranscriptSchema>;
+
+const driveTranscriptListSchema = z.object({
+  files: z.array(driveTranscriptSchema).nullish(),
+});
+
+/**
+ * The shared body of every personal-Drive listing — the deliberate counterpart to
+ * `scopedList`, and the only place `corpora: "user"` appears.
+ *
+ * **Deliberately not exported.** `scopedList` is private because the shared-drive
+ * scoping must not be overridable; this one is private for a stronger reason — an
+ * exported version would be a general-purpose "ask anything about this person's
+ * Drive" function, which is precisely what ADR 0071 §1 forbade and ADR 0072 did
+ * *not* license. Its three callers below each hardcode their query shape.
+ *
+ * `extraParams` is spread FIRST for the same reason it is in `scopedList`: a caller
+ * may add `orderBy`, but must not be able to override `corpora`, the field list or
+ * the page size.
+ */
+async function personalScopedList<T extends z.ZodType>(
+  q: string,
+  accessToken: string,
+  fields: string,
+  schema: T,
+  extraParams: Record<string, string> = {},
+): Promise<z.infer<T>> {
+  return driveGet(
+    "/files",
+    {
+      ...extraParams,
+      q: `(${q}) and trashed = false`,
+      // The caller's own Drive — no `driveId`, no `includeItemsFromAllDrives`.
+      corpora: "user",
+      fields,
+      pageSize: String(DRIVE_LIST_PAGE_SIZE),
+    },
+    accessToken,
+    schema,
+  );
+}
+
+/**
+ * The caller's own transcript folders — the Meet and Tactiq drop folders.
+ *
+ * **Takes no name parameter.** The names come from `TRANSCRIPT_FOLDER_NAMES` via
+ * `transcriptFolderQuery()`, which takes none either. Adding one turns this into a
+ * folder search over a personal Drive.
+ *
+ * This is the *only* call that runs before we have any stored folder ids, which is
+ * what makes it the discovery step — and what makes it the narrowest thing in the
+ * feature: its answer is a subset of five known names.
+ */
+export async function driveFindTranscriptFolders(
+  accessToken: string,
+): Promise<Array<{ id: string; name: string }>> {
+  const result = await personalScopedList(
+    transcriptFolderQuery(),
+    accessToken,
+    "files(id,name)",
+    driveNameListSchema,
+  );
+  return result.files ?? [];
+}
+
+/**
+ * Google Docs inside `folderIds` created since `sinceIso`, newest meeting first.
+ *
+ * Returns `[]` for an empty `folderIds` rather than calling Drive:
+ * `transcriptDocsQuery` returns `null` there precisely so this can't degrade into
+ * listing every Doc the person owns, and this is the call site that honours it.
+ */
+export async function driveListTranscriptDocs(
+  folderIds: readonly string[],
+  sinceIso: string,
+  accessToken: string,
+): Promise<DriveTranscript[]> {
+  const q = transcriptDocsQuery(folderIds, { sinceIso });
+  if (!q) return [];
+
+  const result = await personalScopedList(
+    q,
+    accessToken,
+    DRIVE_TRANSCRIPT_FIELDS,
+    driveTranscriptListSchema,
+    { orderBy: "createdTime desc" },
+  );
+  return result.files ?? [];
+}
+
+/**
+ * Google Docs inside `folderIds` whose name contains `term`, **across all time**.
+ *
+ * Search deliberately ignores the triage window: someone searching by name is
+ * looking for a specific meeting, and silently confining that to the last seven
+ * days is how they conclude a transcript isn't there when it is. The widget says so
+ * on screen. Same empty-`folderIds` guard as the listing above.
+ */
+export async function driveSearchTranscriptDocs(
+  folderIds: readonly string[],
+  term: string,
+  accessToken: string,
+): Promise<DriveTranscript[]> {
+  const q = transcriptDocsQuery(folderIds, { nameContains: term });
+  if (!q) return [];
+
+  const result = await personalScopedList(
+    q,
+    accessToken,
+    DRIVE_TRANSCRIPT_FIELDS,
+    driveTranscriptListSchema,
+    { orderBy: "createdTime desc" },
+  );
+  return result.files ?? [];
+}
+
+// --- Back inside the shared drive ------------------------------------------
+
 export const driveFileWithParentsSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -301,6 +468,12 @@ export const driveFileWithParentsSchema = z.object({
    * folders and their contents inside Lazer Home.
    */
   driveId: z.string().nullish(),
+  /**
+   * When the file was created — for a transcript, when the meeting happened.
+   * Snapshotted onto a triage row so the archive can still date a transcript whose
+   * source has since been renamed, moved or deleted.
+   */
+  createdTime: z.string().nullish(),
 });
 
 /**
@@ -317,7 +490,10 @@ export async function driveGetFile(
 ): Promise<z.infer<typeof driveFileWithParentsSchema>> {
   return driveGet(
     `/files/${encodeURIComponent(fileId)}`,
-    { fields: "id,name,mimeType,parents,driveId" },
+    // Must stay in step with `driveFileWithParentsSchema` — Drive returns only the
+    // fields named here, and a projection narrower than the schema fails every
+    // response as `invalid_response`.
+    { fields: "id,name,mimeType,parents,driveId,createdTime" },
     accessToken,
     driveFileWithParentsSchema,
   );
@@ -395,14 +571,36 @@ export async function resolveParentFolder(
   kind: DriveFolderKind,
   accessToken: string,
 ): Promise<string> {
-  const existing = await findParentFolder(kind, accessToken);
-  if (existing) return existing;
-
-  const created = await driveCreateFolder(
+  return resolveChildFolder(
     DRIVE_PARENT_FOLDER_NAME[kind],
     requireRootId(),
     accessToken,
   );
+}
+
+/**
+ * A folder of this name directly under `parentId`, created if absent — the general
+ * form `resolveParentFolder` is now expressed in terms of.
+ *
+ * Extracted for the `<record folder>/Transcripts` subfolder, which needs exactly
+ * this and must not grow a second find-or-create that could drift from it. Note
+ * both uses stay **inside the shared drive**: it resolves through
+ * `driveFindFolderByName` → `driveList`, so it cannot create or find anything in a
+ * personal Drive.
+ *
+ * It inherits `driveFindFolderByName`'s oldest-match-first behaviour, so two people
+ * filing a transcript into a fresh record folder at the same moment converge on one
+ * `Transcripts` folder rather than each getting their own.
+ */
+export async function resolveChildFolder(
+  name: string,
+  parentId: string,
+  accessToken: string,
+): Promise<string> {
+  const existing = await driveFindFolderByName(name, parentId, accessToken);
+  if (existing) return existing.id;
+
+  const created = await driveCreateFolder(name, parentId, accessToken);
   return created.id;
 }
 
